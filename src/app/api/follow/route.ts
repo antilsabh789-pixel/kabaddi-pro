@@ -29,7 +29,22 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'desc' },
         include: {
           follower: {
-            select: { id: true, name: true, avatar: true, phone: true, gender: true },
+            select: {
+              id: true,
+              name: true,
+              avatar: true,
+              phone: true,
+              gender: true,
+              playerCode: true,
+              profile: {
+                select: {
+                  position: true,
+                  overallRating: true,
+                  totalPoints: true,
+                  totalMatches: true,
+                },
+              },
+            },
           },
         },
       });
@@ -40,7 +55,9 @@ export async function GET(request: NextRequest) {
           avatar: f.follower.avatar,
           phone: f.follower.phone,
           gender: f.follower.gender,
+          playerCode: f.follower.playerCode,
           followedAt: f.createdAt,
+          profile: f.follower.profile,
         })),
       });
     }
@@ -52,7 +69,22 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'desc' },
         include: {
           following: {
-            select: { id: true, name: true, avatar: true, phone: true, gender: true },
+            select: {
+              id: true,
+              name: true,
+              avatar: true,
+              phone: true,
+              gender: true,
+              playerCode: true,
+              profile: {
+                select: {
+                  position: true,
+                  overallRating: true,
+                  totalPoints: true,
+                  totalMatches: true,
+                },
+              },
+            },
           },
         },
       });
@@ -63,7 +95,9 @@ export async function GET(request: NextRequest) {
           avatar: f.following.avatar,
           phone: f.following.phone,
           gender: f.following.gender,
+          playerCode: f.following.playerCode,
           followedAt: f.createdAt,
+          profile: f.following.profile,
         })),
       });
     }
@@ -89,6 +123,15 @@ export async function GET(request: NextRequest) {
           avatar: true,
           phone: true,
           gender: true,
+          playerCode: true,
+          profile: {
+            select: {
+              position: true,
+              overallRating: true,
+              totalPoints: true,
+              totalMatches: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       });

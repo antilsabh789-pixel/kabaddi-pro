@@ -917,8 +917,9 @@ export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
   const [suggestedLoading, setSuggestedLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  // Community posts (local state)
-  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(SAMPLE_FEED_ITEMS);
+  // Community posts (fetched from API + local state)
+  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(true);
 
   // Create post modal
   const [showCreatePost, setShowCreatePost] = useState(false);
@@ -926,7 +927,7 @@ export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
   // Pull to refresh state
   const [pulling, setPulling] = useState(false);
 
-  // ─── Fetch Activities ───────────────────────────────────────
+  // ─── Fetch Activities (includes community posts from API) ────
 
   const fetchActivities = useCallback(
     async (isRefresh = false) => {
@@ -934,6 +935,7 @@ export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
 
       if (isRefresh) {
         setRefreshing(true);
+        setCommunityLoading(true);
       } else {
         setFeedLoading(true);
       }
@@ -955,14 +957,44 @@ export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
         } else {
           setActivities((prev) => [...prev, ...newActivities]);
         }
-        setHasMore(newActivities.length === 20);
+        setHasMore(data.hasMore ?? newActivities.length === 20);
+
+        // Extract community posts from activities
+        const apiCommunityPosts: CommunityPost[] = newActivities
+          .filter((a) => a.type === 'community_post')
+          .map((a) => ({
+            id: a.id,
+            userId: a.userId,
+            userName: a.userName || 'Anonymous',
+            content: a.description || '',
+            createdAt: new Date(a.createdAt).getTime(),
+            likes: 0,
+            isLiked: false,
+            type: 'community_post' as FeedType,
+          }));
+
+        if (isRefresh) {
+          // Merge API community posts with sample data on refresh
+          setCommunityPosts([...apiCommunityPosts, ...SAMPLE_FEED_ITEMS]);
+        } else {
+          setCommunityPosts((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const unique = apiCommunityPosts.filter((p) => !existingIds.has(p.id));
+            return [...prev, ...unique];
+          });
+        }
       } catch (err) {
         console.error('Activities fetch error:', err);
-        if (isRefresh) setActivities([]);
+        if (isRefresh) {
+          setActivities([]);
+          // Fall back to sample data on error
+          setCommunityPosts(SAMPLE_FEED_ITEMS);
+        }
       } finally {
         setFeedLoading(false);
         setRefreshing(false);
         setPulling(false);
+        setCommunityLoading(false);
       }
     },
     [currentUser, offset]
@@ -1071,11 +1103,15 @@ export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
 
   // ─── Community Post Actions ─────────────────────────────────
 
-  const handleCreatePost = useCallback((content: string, type: FeedType) => {
+  const handleCreatePost = useCallback(async (content: string, type: FeedType) => {
+    if (!currentUser?.id) return;
+
+    // Optimistic update
+    const tempId = `post_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const newPost: CommunityPost = {
-      id: `post_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      userId: currentUser?.id || 'anonymous',
-      userName: currentUser?.name || 'You',
+      id: tempId,
+      userId: currentUser.id,
+      userName: currentUser.name || 'You',
       content,
       createdAt: Date.now(),
       likes: 0,
@@ -1083,10 +1119,47 @@ export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
       type,
     };
     setCommunityPosts((prev) => [newPost, ...prev]);
-    toast({
-      title: 'Post created!',
-      description: 'Your post has been added to the feed',
-    });
+
+    try {
+      // Persist to API
+      const res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          type: type === 'community_post' ? 'community_post' : type,
+          title: type === 'community_post' ? 'Community Post' : content.slice(0, 50),
+          description: content,
+          metadata: JSON.stringify({ postType: type }),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Replace temp post with server version
+        setCommunityPosts((prev) =>
+          prev.map((p) =>
+            p.id === tempId
+              ? { ...p, id: data.activity.id, createdAt: new Date(data.activity.createdAt).getTime() }
+              : p
+          )
+        );
+        toast({
+          title: 'Post created!',
+          description: 'Your post has been shared with the community',
+        });
+      } else {
+        toast({
+          title: 'Post created locally',
+          description: 'Could not sync to server, but your post is visible here',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Post created locally',
+        description: 'Could not sync to server, but your post is visible here',
+      });
+    }
   }, [currentUser, toast]);
 
   const handleLikePost = useCallback((postId: string) => {
@@ -1109,7 +1182,7 @@ export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
 
   // ─── Derived ────────────────────────────────────────────────
 
-  const feedIsEmpty = !feedLoading && activities.length === 0 && communityPosts.length === 0;
+  const feedIsEmpty = !feedLoading && !communityLoading && activities.length === 0 && communityPosts.length === 0;
 
   // ─── Render ─────────────────────────────────────────────────
 

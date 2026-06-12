@@ -1,4 +1,66 @@
 ---
+Task ID: R9-E
+Agent: Enhancement Agent
+Task: Enhance AdvancedStatsScreen, ReferralScreen, BroadcastScreen, and add global CSS utilities
+
+Work Log:
+- Read worklog.md to understand project history and existing code structure
+- Read all four target files (AdvancedStatsScreen, ReferralScreen, BroadcastScreen, globals.css) in full
+- Enhanced globals.css with 17 new CSS utility classes and keyframe animations:
+  - `.stat-card` - card for displaying statistics with gradient top border
+  - `.chart-container` - container for chart components
+  - `.comparison-bar` / `.comparison-bar-fill` - horizontal bar for comparisons
+  - `.referral-code-box` - large code display with dashed border and decorative symbols
+  - `.broadcast-live` - pulsing live indicator with dot animation
+  - `.coin-flip` - 3D Y-axis rotation animation
+  - `.stat-counter` - animated number counter styling
+  - `.progress-ring` / `.progress-ring-content` - circular progress indicator
+  - `.glass-stat-card` - glassmorphism stat card
+  - `.gold-gradient-bg` - gold gradient background for referral theme
+  - `.broadcast-dark` - dark theme default for broadcast screen
+  - `.countdown-digit` / `.countdown-separator` - countdown timer styling
+  - `.viewer-count` / `.viewer-count-dot` - viewer count indicator
+  - `.qr-code-pattern` / `.qr-cell-dark` / `.qr-cell-light` - CSS-based QR code
+  - `.score-flash` - broadcast score change animation
+  - `.confetti-reveal` - confetti reveal animation class
+  - New keyframes: `@keyframes coin-flip`, `@keyframes counter-up`, `@keyframes pulse-live`, `@keyframes pulse-live-dot`, `@keyframes reveal-confetti`, `@keyframes score-flash`
+  - All new utilities support dark mode
+- Enhanced AdvancedStatsScreen with major new features:
+  - Performance Analytics: Raid Success Rate line chart, Tackle Success Rate line chart, Points per Match trend bars
+  - Performance by Half: 1st vs 2nd half comparison with circular gauges and trend indicators
+  - Performance by Position: Raider vs Defender stats grid
+  - Detailed Breakdown: Super Raid frequency, Do-or-Die rate, All Out causation rate, Bonus point efficiency, Avg points per raid, Raid-to-tackle ratio
+  - Comparison: VS League Average (comparison bars for raid rate, tackle rate, avg pts), VS Top Player, Percentile rankings with badges, Strengths/Weaknesses analysis
+  - Filters: Time period (Last 5, Last 10, All Time), Match type (All, Tournament, Practice), Gender filter, animated filter panel with AnimatePresence
+  - Visual: MiniLineChart SVG component with gradient fills, ComparisonBar component, PercentileBadge component, glass-stat-card, stat-counter animations, dark mode support
+  - All new sections wrapped in PremiumLock for premium gating
+- Enhanced ReferralScreen with major new features:
+  - Gold gradient theme header with animated gift icon
+  - Referral Code: coin-flip animation, QR code pattern (CSS-based), Copy/WhatsApp/Twitter share buttons
+  - Referral Stats: 3-column grid (Total Sent, Signed Up, Premium Days) with stat-card styling
+  - How It Works: 3-step visual guide with animated step indicators and connecting lines
+  - Reward detail card with PartyPopper animation and gold gradient
+  - Referral History: Status badges (Pending/amber, Signed Up/green, Rewarded/gold), card-win/card styling, empty state with floating gift icon
+  - Confetti animation on successful referral code application
+  - General share button at bottom with gold gradient
+  - Dark mode support throughout
+- Polished BroadcastScreen with major new features:
+  - Dark theme default (broadcast-dark class) for cinema-like viewing
+  - Live Match List: Currently live matches with team scores, viewer count indicator, "Watch Live" button
+  - Broadcast View: Full-screen score display with team color gradients and glow shadows, score change flash animations (gold color), auto-updating commentary feed, key event notifications
+  - Upcoming Broadcasts: Scheduled matches with countdown timers (live-updating seconds), "Set Reminder" toggle button with Bell/BellOff icons, match preview with team comparison
+  - Visual: Pulsing live indicator with broadcast-live class, viewer count with animated dot, team color gradient headers, broadcast-style typography, AnimatePresence for view transitions (list ↔ broadcast), skeleton loading states
+- Lint passes with zero errors
+- No runtime errors in dev server log
+
+Stage Summary:
+- AdvancedStatsScreen: 6 new premium sections (Performance Trends, Half Comparison, Position Stats, Detailed Breakdown, League Comparison, Top Player Comparison, Percentile Ranking, Strengths/Weaknesses), 3 filter types, SVG line charts, comparison bars
+- ReferralScreen: Gold gradient theme, QR code pattern, WhatsApp/Twitter sharing, confetti animation, 3-step guide, coin-flip animation, enhanced history with status badges
+- BroadcastScreen: Dark theme, live match list, countdown timers, viewer counts, score flash animations, reminder system, list/broadcast view toggle
+- globals.css: 17+ new utility classes and 6+ new keyframe animations, all with dark mode support
+- Zero lint errors, no runtime errors
+
+---
 Task ID: 4
 Agent: Main Agent (Cron Review Session - Round 2)
 Task: QA testing, bug fixes, new features, and styling improvements
@@ -2627,3 +2689,347 @@ Unresolved issues / Next phase recommendations:
 - Match Predictions use local state - could add server-side persistence
 - Could add player comparison feature (side-by-side stats)
 - Could add team comparison with head-to-head history
+
+---
+Task ID: R9-C
+Agent: Main Agent
+Task: Enhance ShareScorecard, Social Feed API persistence, and ChallengeScreen
+
+Work Log:
+- Read worklog.md and all existing component files (ShareScorecard, SocialFeedScreen, ChallengeScreen, activities API, challenges API)
+- Enhanced ShareScorecard component:
+  - Professional scorecard layout with team logos/initials and team color accents
+  - Full score display with half-score breakdown
+  - Top performers section with icons (Best Raider/Swords, Best Defender/Shield, MOTM/Trophy)
+  - Match info footer with Date, Tournament, Venue, Duration
+  - "Generated by Kabaddi Pro" watermark
+  - Dark/Light card theme selector toggle
+  - Toggle "Show Player Stats" on/off
+  - Toggle "Show Commentary" on/off
+  - Share Options: Download as Image, Copy to Clipboard, Web Share API, WhatsApp deep link, Twitter/X deep link
+  - Hidden DOM element approach for html-to-image capture
+  - Gradient top bar using team colors
+  - Professional typography and spacing
+  - Customization controls panel with glassmorphism
+- Enhanced /api/activities route:
+  - GET supports type filter query param
+  - GET returns community_post type activities visible to all users (mixed feed)
+  - GET returns hasMore and total for pagination
+  - POST supports community_post type with just description (no title required for posts)
+  - POST returns full activity with user data
+- Enhanced SocialFeedScreen:
+  - Community posts now persisted to API via POST /api/activities
+  - Optimistic UI updates on post creation
+  - Falls back to sample data on API error
+  - Community posts extracted from API activities response
+  - Community loading state tracking
+  - Posts synced to server and temp IDs replaced with server IDs
+  - feedIsEmpty check includes communityLoading state
+- Enhanced ChallengeScreen:
+  - Searchable team dropdown with search, team logos, short names
+  - Pending/History/Send tabs with counts
+  - Challenge creation with searchable dropdown for both teams
+  - Match preview showing team logos and names
+  - Confirmation modal before sending challenge
+  - Challenge cards with glassmorphism and team color accents
+  - Animated status transitions with status-specific glow effects
+  - Sword/Shield icons for challenge/defense
+  - Expanded history cards with click-to-expand
+  - Completed challenges show "View Match Result" button
+  - Rivalries section in history tab with animated win/loss bars
+  - Full dark mode support
+  - Tab transitions with framer-motion
+  - Pending count badges on tab headers
+- All changes support dark mode
+- Lint passes with 0 errors (1 pre-existing warning in different file)
+- Dev server running correctly
+
+---
+Task ID: R9-B
+Agent: Subagent (GroundsScreen & MatchHistoryScreen Enhancement)
+Task: Enhance GroundsScreen and MatchHistoryScreen components with full functionality and polished styling
+
+Work Log:
+- Read worklog.md to understand project history and current state
+- Read existing GroundsScreen.tsx, MatchHistoryScreen.tsx, API routes, store, and Prisma schema
+- Enhanced GroundsScreen with:
+  - Ground detail view (click to expand with hero section, surface description, amenities, matches)
+  - Surface type color coding (Mat=teal, Mud=amber, Grass=green, Synthetic=purple) with colored left borders
+  - Amenities with lucide icons (Sun, ShowerHead, Armchair, Car) instead of emojis
+  - Search & Filter panel: surface type, amenity, sort (newest/popular/nearest)
+  - Distance indicator using geolocation API when available
+  - Popularity indicator (star + match count)
+  - Add Ground form with lat/lng optional fields
+  - Dark mode support throughout
+  - Animated transitions with framer-motion
+- Updated /api/grounds/route.ts:
+  - Added surface filter, amenity filter, sort (newest/popular/nearest)
+  - Added lat/lng query params for proximity sorting
+  - Include related matches in ground response (upcoming + recent)
+- Enhanced MatchHistoryScreen with:
+  - Date range filter (All Time, This Week, This Month, This Year)
+  - Score comparison bar in match cards (animated)
+  - Current streak (W/L) display in stats
+  - Highest scoring match stat
+  - Average score per match stat
+  - Key events timeline in expanded match detail (with icons)
+  - Score breakdown by team (raid/tackle/bonus/all-out)
+  - Extended stats row (Avg Score, High Score, Current Streak)
+  - All existing functionality preserved
+  - Dark mode support throughout
+- Ran `bun run lint` - 0 errors (1 pre-existing warning in unrelated file)
+- Dev server running cleanly
+
+Stage Summary:
+- GroundsScreen: Full-featured grounds browser with detail view, filters, surface color coding, distance sorting, amenity filtering
+- MatchHistoryScreen: Enhanced match history with date range filters, streak tracking, score comparison bars, key events timeline, score breakdowns
+- API: Enhanced grounds endpoint with filter/sort support and match inclusion
+- All components support dark mode with proper animations
+- Zero lint errors introduced
+
+---
+Task ID: R9-A
+Agent: Enhancement Agent
+Task: Enhance PlayerComparisonScreen and FollowScreen components with full functionality and polished styling
+
+Work Log:
+- Read worklog.md and understood project history (2726 lines of context from prior sessions)
+- Read existing PlayerComparisonScreen.tsx, FollowScreen.tsx, API routes, Prisma schema, store, and CSS
+- Enhanced PlayerComparisonScreen with:
+  - Separate PlayerSearchResult and FullPlayerProfile types for proper API data handling
+  - Auto-select current user as Player 1 on mount
+  - Swap Players button with animated swap icon (ArrowLeftRight)
+  - Head-to-Head comparison with animated bars: winner in team color (red for P1, teal for P2), loser in grey
+  - Animated difference counter on each stat row
+  - SVG Radar Chart comparing 6 dimensions: Raid, Tackle, Bonus, Fitness, Experience, Consistency
+  - Filled areas with transparency (red for P1, teal for P2)
+  - Performance Breakdown with Tournament vs Practice toggle
+  - Recent form comparison (last 5 matches with W/L/D dots)
+  - Win rate comparison side-by-side
+  - Best performance comparison
+  - Split screen layout: Player 1 (left, red) vs Player 2 (right, teal)
+  - Animated VS divider with spring animation
+  - Player cards with gradient backgrounds in team colors
+  - Glass-morphism cards (bg-white/70 backdrop-blur-sm) for each comparison section
+  - Dark mode support throughout
+- Enhanced FollowScreen with:
+  - Tab transition animations (horizontal slide: left for followers, right for following)
+  - Count badge on each tab
+  - Search within followers/following tabs with filtering
+  - User cards with avatar gradient backgrounds (8 gradient palettes based on user ID hash)
+  - Player code display in suggested users
+  - Position, total matches, total points shown in suggested section
+  - Follow/Unfollow button with gradient when "Follow" (teal gradient with shadow), outlined when "Following"
+  - Suggested for You section at bottom of both tabs
+  - Empty state with gradient icon background
+  - Animated list entrance (staggered with horizontal offset)
+  - Hover effect on user cards
+  - Dark mode support throughout
+- Enhanced /api/follow route:
+  - Added playerCode and profile data (position, overallRating, totalPoints, totalMatches) to followers/following responses
+  - Search endpoint now includes profile data
+- Lint passes with zero errors and zero warnings
+
+Files Modified:
+- /home/z/my-project/src/components/kabaddi/PlayerComparisonScreen.tsx
+- /home/z/my-project/src/components/kabaddi/FollowScreen.tsx
+- /home/z/my-project/src/app/api/follow/route.ts
+
+---
+Task ID: R9-D
+Agent: Polish Agent
+Task: Polish LiveScoringScreen, enhance SeasonScreen, enhance TossScreen
+
+Work Log:
+- Read worklog.md to understand project history and existing component structure
+- Read all three target files thoroughly to understand existing logic and structure
+- Read store.ts to understand data types and state management
+
+LiveScoringScreen Polish:
+- Enhanced Score Header with team color gradient background spanning full width
+- Added AnimatedScore component with 6xl size, animated counter (scale + spring animation on change)
+- Added half indicator badge (1ST HALF / 2ND HALF / HALF TIME / FULL TIME / NOT STARTED)
+- Timer with mm:ss format, pulsing when under 1 minute (red color)
+- Current raider indicator: animated arrow pointing to raiding team side
+- Do-or-Die raid warning with flame animation in score header area
+- Quick Action Redesign: Tabbed sections (Raid | Defense | Special | Cards)
+  - Raid: ✅ Successful Raid / ❌ Caught Out / ⏭ Empty Raid
+  - Defense: 🛡 Tackle Point / ⚡ Super Tackle
+  - Special: 🎯 Bonus Point / 💥 All Out / 📋 Timeout
+  - Cards: 🟨 Yellow Card / 🟥 Red Card
+  - Each button with gradient background and tap animation
+- Event Log/Commentary: Live scrolling event log at bottom with expand/collapse
+  - Each event with: time, team color dot, player name, event type icon, points badge
+  - Auto-scroll to latest event
+  - "View All (N)" expandable button
+- Match Controls: Enhanced dark theme bottom bar
+- Visual Design: Complete dark theme (bg-gray-950) for better visibility during matches
+  - Team colors prominently used throughout
+  - Score animations (scale + color flash on change)
+  - Event type icons with color coding
+  - Dark mode support throughout
+
+SeasonScreen Enhancement:
+- Season List: Cards with animated gradient borders based on status
+  - Active=green gradient border with animated shimmer
+  - Upcoming=amber gradient
+  - Completed=gray gradient
+  - Status badge with color coding and pulse animation for active
+  - Date range display
+  - Team count, match count badges
+- Season Detail: Enhanced header with gradient background and status info
+  - Standings table: Sortable columns (Rank, Team, Played, Won, Lost, Drawn, Points, Score Diff)
+  - Rank #1 highlighted with gold background and 👑 crown
+  - User's team highlighted with teal border
+  - SortHeader component extracted as standalone to avoid lint error
+- Top Performers section: Best Attacker and Best Defense cards with team colors
+- Recent Matches and Upcoming Matches sections split from single matches list
+- Live Matches section with red highlight
+- MatchCard component for consistent match display
+
+TossScreen Enhancement:
+- 3D Coin flip animation with team logos on each side
+  - Home team on heads side with gold metallic gradient
+  - Away team on tails side with silver metallic gradient
+  - 3600° rotation animation with scale changes
+- Dramatic reveal with confetti particles (40 particles, multi-color)
+- Sound effect visualization (wave pattern) during coin flip
+- Team color spotlights as background (radial gradients, animated during flip)
+- Floating particles around coin area
+- Winner announcement with team color flash (box-shadow animation)
+- "Choose to Raid or Defend" strategy cards with:
+  - Strategy recommendation text based on team strengths
+  - Gradient hover effects
+- Countdown to match start (3-2-1) with large animated numbers
+- Dark background (bg-gray-950) with team color accents
+
+Critical Rules Verified:
+- All existing component structure, events, and scoring logic preserved
+- framer-motion used for all animations
+- Tailwind CSS classes for styling
+- Dark mode support throughout all three components
+- bun run lint passes with zero errors
+
+Files Modified:
+- /home/z/my-project/src/components/kabaddi/LiveScoringScreen.tsx
+- /home/z/my-project/src/components/kabaddi/SeasonScreen.tsx
+- /home/z/my-project/src/components/kabaddi/TossScreen.tsx
+
+---
+Task ID: R9
+Agent: Main Agent (Cron Review Session - Round 9)
+Task: QA testing, new features (Player Comparison, Grounds, Match History, Share Scorecard, Social Feed persistence, Challenges, Advanced Stats, Referral, Broadcast, Live Scoring polish, Season, Toss), and styling improvements
+
+Work Log:
+- Read worklog.md to assess project status from 8+ prior rounds
+- Performed comprehensive QA with agent-browser: all tabs, auth, onboarding, dark mode, search, notifications all working
+- Verified lint passes clean (0 errors, 0 warnings)
+- All API endpoints returning 200 (search, polls, stats, teams, activities, follow, grounds, seasons, challenges)
+- No bugs found during QA - app is stable
+- Launched 5 parallel subagents for major improvements
+
+Stage Summary:
+
+- **PlayerComparisonScreen (R9-A):**
+  - Two player selection cards with search, auto-selects current user as Player 1
+  - Swap Players button with animated ArrowLeftRight icon
+  - 9 stat categories with animated comparison bars (winner=team color, loser=grey)
+  - Custom SVG radar chart comparing 6 dimensions (Raid, Tackle, Bonus, Fitness, Experience, Consistency)
+  - Tournament vs Practice toggle, recent form dots, win rate comparison
+  - Split screen layout with animated VS divider, glass-morphism cards
+
+- **FollowScreen (R9-A):**
+  - Followers/Following tabs with animated transitions and count badges
+  - User cards with gradient avatar backgrounds, player code, position, stats
+  - Follow/Unfollow with API integration, optimistic UI, loading spinner, toast
+  - Suggested Players section, staggered entrance animation, dark mode
+
+- **GroundsScreen (R9-B):**
+  - Ground detail view with surface-type gradient, amenities icons, upcoming/recent matches
+  - Search by name/city/state, filter by surface type and amenities
+  - Sort by: Newest, Most Popular, Nearest (with geolocation)
+  - Surface type color coding: Mat=teal, Mud=amber, Grass=green, Synthetic=purple
+  - Enhanced Grounds API with surface/amenity/sort/lat/lng query params
+
+- **MatchHistoryScreen (R9-B):**
+  - Date range filter (All Time, This Week, This Month, This Year)
+  - Score comparison bar on each match card
+  - Extended stats: avg score, highest scoring, current streak
+  - Match detail expand with score breakdown by team, key events timeline
+  - Dark mode support throughout
+
+- **ShareScorecard (R9-C):**
+  - Professional scorecard with gradient top bar, team logos, half scores
+  - Top performers section (MOTM, Best Raider, Best Defender)
+  - Match info footer, "Generated by Kabaddi Pro" watermark
+  - Customization: Dark/Light theme, Show Player Stats, Show Commentary toggles
+  - 5 share options: Download PNG, Copy Clipboard, Web Share, WhatsApp, Twitter
+
+- **Social Feed API Persistence (R9-C):**
+  - Enhanced /api/activities with POST for community posts, type filtering, pagination
+  - SocialFeedScreen now persists posts to API with optimistic UI updates
+  - Falls back to sample data on API error
+
+- **ChallengeScreen (R9-C):**
+  - SearchableTeamSelect with search, team logos, click-outside handling
+  - Pending/History/Send tabs with count badges
+  - Challenge creation with searchable dropdowns + confirm modal
+  - Rivalries section with animated win/loss/draw progress bars
+  - Expandable history cards with match result link
+
+- **LiveScoringScreen Polish (R9-D):**
+  - Score header: team color gradient, 6xl animated scores, half badge, mm:ss timer
+  - Tabbed action buttons: Raid | Defense | Special | Cards with gradient backgrounds
+  - Event log with auto-scroll, team color dots, event type icons, expand button
+  - Complete dark theme (bg-gray-950) for better match visibility
+
+- **SeasonScreen (R9-D):**
+  - Season cards with status-based gradient borders (active/upcoming/completed)
+  - Sortable standings table with gold #1 highlight
+  - Top performers section, live/recent/upcoming match sections
+  - Match cards with consistent styling
+
+- **TossScreen (R9-D):**
+  - 3D coin flip with team logos on each side (3600° rotation)
+  - 40 confetti particles on reveal, sound wave visualization
+  - Team color spotlights with animated gradients
+  - Strategy cards (Raid/Defend) with recommendations
+  - 3-2-1 countdown before match start
+
+- **AdvancedStatsScreen (R9-E):**
+  - Performance trends: Raid/Tackle success rate line charts, points per match bars
+  - Half comparison with circular gauges, position stats grid
+  - Detailed breakdown: Super Raid freq, Do-or-Die rate, All Out rate, Bonus efficiency
+  - League comparison bars, percentile ranking badges
+  - Auto-generated strengths/weaknesses analysis
+  - Filters: time period, match type, gender
+
+- **ReferralScreen (R9-E):**
+  - Gold gradient theme, animated Gift icon header
+  - Referral code box with QR code pattern, Copy/WhatsApp/Twitter share
+  - 3-column stats (Total Sent, Signed Up, Premium Days)
+  - 3-step "How It Works" visual guide with animated indicators
+  - Enhanced history with status badges, confetti on success
+
+- **BroadcastScreen (R9-E):**
+  - Dark theme default for cinema-like viewing
+  - Live match list with viewer counts, "Watch Live" button
+  - Broadcast view: full-screen scores, score flash animations, auto commentary
+  - Upcoming broadcasts with live countdown timers, Set Reminder toggle
+
+- **Global CSS (R9-E):**
+  - 17+ new utility classes: stat-card, chart-container, comparison-bar, referral-code-box, broadcast-live, coin-flip, stat-counter, progress-ring, glass-stat-card, gold-gradient-bg, broadcast-dark
+  - 6 new keyframe animations: coin-flip, counter-up, pulse-live, pulse-live-dot, reveal-confetti, score-flash
+
+- Zero lint errors, all APIs returning 200, no runtime errors
+
+Unresolved issues / Next phase recommendations:
+- Framer-motion click events don't always register with agent-browser (known limitation)
+- Tournament creation requires Premium - could add free tier limit
+- Could add WebSocket support for real-time live match updates
+- Vercel deployment will need cloud database instead of SQLite
+- Could add more achievements and gamification elements
+- Could add team chat/messaging within teams
+- Could add video replay/highlight clips feature
+- Could add tournament bracket visualization improvements
+- Could add more detailed player profile cards with bio/history

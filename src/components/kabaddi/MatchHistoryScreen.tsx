@@ -19,7 +19,12 @@ import {
   Star,
   Target,
   Loader2,
-  Search,
+  TrendingUp,
+  Flame,
+  Activity,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +41,7 @@ type ResultFilter = 'all' | 'won' | 'lost' | 'draw';
 type TypeFilter = 'all' | 'tournament' | 'practice';
 type GenderFilter = 'all' | 'boys' | 'girls';
 type SortFilter = 'newest' | 'oldest' | 'highest_score';
+type DateFilter = 'all' | 'week' | 'month' | 'year';
 
 interface MatchTeam {
   id: string;
@@ -141,7 +147,7 @@ function AnimatedCounter({ target, duration = 1000 }: { target: number; duration
 
 // ─── Mini Circular Progress ───────────────────────────────────────
 
-function MiniProgressRing({ percent, size = 40 }: { percent: number; size?: number }) {
+function MiniProgressRing({ percent, size = 40, colorClass = 'stroke-emerald-500 dark:stroke-emerald-400' }: { percent: number; size?: number; colorClass?: string }) {
   const strokeWidth = 4;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -162,7 +168,7 @@ function MiniProgressRing({ percent, size = 40 }: { percent: number; size?: numb
         cy={size / 2}
         r={radius}
         strokeWidth={strokeWidth}
-        className="stroke-emerald-500 dark:stroke-emerald-400"
+        className={colorClass}
         fill="none"
         strokeLinecap="round"
         strokeDasharray={circumference}
@@ -171,6 +177,37 @@ function MiniProgressRing({ percent, size = 40 }: { percent: number; size?: numb
         transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
       />
     </svg>
+  );
+}
+
+// ─── Score Comparison Bar ─────────────────────────────────────────
+
+function ScoreBar({ homeScore, awayScore }: { homeScore: number; awayScore: number }) {
+  const total = homeScore + awayScore;
+  if (total === 0) return null;
+  const homePercent = (homeScore / total) * 100;
+  const awayPercent = (awayScore / total) * 100;
+
+  return (
+    <div className="flex items-center gap-1 w-full mt-2">
+      <span className="text-[9px] font-bold text-warm-600 dark:text-warm-300 w-5 text-right tabular-nums">{homeScore}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-warm-200 dark:bg-warm-700 overflow-hidden flex">
+        <motion.div
+          className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-l-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${homePercent}%` }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        />
+        <div className="flex-1" />
+        <motion.div
+          className="h-full bg-red-500 dark:bg-red-400 rounded-r-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${awayPercent}%` }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        />
+      </div>
+      <span className="text-[9px] font-bold text-warm-600 dark:text-warm-300 w-5 tabular-nums">{awayScore}</span>
+    </div>
   );
 }
 
@@ -202,6 +239,30 @@ function formatMatchDate(dateStr: string): string {
   });
 }
 
+function isWithinDateFilter(dateStr: string, filter: DateFilter): boolean {
+  if (filter === 'all') return true;
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (filter === 'week') {
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return date >= weekAgo;
+  }
+  if (filter === 'month') {
+    const monthAgo = new Date(today);
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    return date >= monthAgo;
+  }
+  if (filter === 'year') {
+    const yearAgo = new Date(today);
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+    return date >= yearAgo;
+  }
+  return true;
+}
+
 function getMatchResult(match: MatchItem, userId?: string): 'won' | 'lost' | 'draw' {
   if (match.homeScore === match.awayScore) return 'draw';
   const homeWon = match.homeScore > match.awayScore;
@@ -221,9 +282,34 @@ function getMatchResult(match: MatchItem, userId?: string): 'won' | 'lost' | 'dr
 }
 
 function getWinnerTeamId(match: MatchItem): string | null {
-  if (match.homeScore > match.awayScore) return match.homeTeamId;
-  if (match.awayScore > match.homeScore) return match.awayTeamId;
+  if (match.homeScore > match.awayScore) return match.homeTeam.id;
+  if (match.awayScore > match.homeScore) return match.awayTeam.id;
   return null;
+}
+
+// ─── Event Icon Helper ────────────────────────────────────────────
+
+function getEventIcon(eventType: string): { icon: string; color: string } {
+  switch (eventType) {
+    case 'raid_point':
+      return { icon: '⚔️', color: 'text-blue-600 dark:text-blue-400' };
+    case 'tackle_point':
+      return { icon: '🛡️', color: 'text-emerald-600 dark:text-emerald-400' };
+    case 'bonus_point':
+      return { icon: '⭐', color: 'text-amber-600 dark:text-amber-400' };
+    case 'super_raid':
+      return { icon: '🔥', color: 'text-orange-600 dark:text-orange-400' };
+    case 'super_tackle':
+      return { icon: '💪', color: 'text-teal-600 dark:text-teal-400' };
+    case 'all_out':
+      return { icon: '💥', color: 'text-red-600 dark:text-red-400' };
+    case 'empty_raid':
+      return { icon: '○', color: 'text-warm-500 dark:text-warm-400' };
+    case 'do_or_die_raid':
+      return { icon: '🎲', color: 'text-purple-600 dark:text-purple-400' };
+    default:
+      return { icon: '•', color: 'text-warm-500 dark:text-warm-400' };
+  }
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -240,6 +326,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
   const [sortFilter, setSortFilter] = useState<SortFilter>('newest');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -294,35 +381,85 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
     fetchMatches(0, false);
   }, [fetchMatches]);
 
-  // Compute stats from all loaded matches
+  // Compute stats from all loaded matches (respecting date filter)
   const stats = (() => {
     let wins = 0;
     let losses = 0;
     let draws = 0;
     let totalPoints = 0;
+    let highestScore = 0;
+    let highestScoringMatch: string | null = null;
 
-    for (const match of matches) {
+    const dateFiltered = matches.filter((m) =>
+      isWithinDateFilter(m.completedAt || m.createdAt, dateFilter)
+    );
+
+    for (const match of dateFiltered) {
       const result = getMatchResult(match, userId);
       if (result === 'won') wins++;
       else if (result === 'lost') losses++;
       else draws++;
 
-      totalPoints += match.homeScore + match.awayScore;
+      const matchTotal = match.homeScore + match.awayScore;
+      totalPoints += matchTotal;
+
+      if (matchTotal > highestScore) {
+        highestScore = matchTotal;
+        highestScoringMatch = match.id;
+      }
     }
 
+    // Current streak
+    const streak = (() => {
+      const sorted = [...dateFiltered].sort(
+        (a, b) =>
+          new Date(b.completedAt || b.createdAt).getTime() -
+          new Date(a.completedAt || a.createdAt).getTime()
+      );
+      if (sorted.length === 0) return { type: 'none', count: 0 };
+
+      const firstResult = getMatchResult(sorted[0], userId);
+      let streakCount = 0;
+      for (const m of sorted) {
+        const r = getMatchResult(m, userId);
+        if (r === firstResult) {
+          streakCount++;
+        } else if (r === 'draw' && firstResult !== 'draw') {
+          // draws don't break streaks but don't count either
+          continue;
+        } else {
+          break;
+        }
+      }
+      return { type: firstResult, count: streakCount };
+    })();
+
+    const avgScore = dateFiltered.length > 0
+      ? Math.round(totalPoints / dateFiltered.length)
+      : 0;
+
     return {
-      total: matches.length,
+      total: dateFiltered.length,
       wins,
       losses,
       draws,
-      winRate: matches.length > 0 ? Math.round((wins / matches.length) * 100) : 0,
+      winRate: dateFiltered.length > 0 ? Math.round((wins / dateFiltered.length) * 100) : 0,
       totalPoints,
+      highestScore,
+      highestScoringMatch,
+      avgScore,
+      streak,
     };
   })();
 
   // Filter and sort matches
   const filteredMatches = (() => {
     let filtered = [...matches];
+
+    // Date filter
+    filtered = filtered.filter((m) =>
+      isWithinDateFilter(m.completedAt || m.createdAt, dateFilter)
+    );
 
     // Result filter
     if (resultFilter !== 'all') {
@@ -424,13 +561,6 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             whileTap={{ scale: 0.95 }}
           >
             {opt.label}
-            {value === opt.value && (
-              <motion.div
-                layoutId={`filter-indicator-${opt.value}`}
-                className="absolute inset-0 rounded-full bg-warm-800 dark:bg-warm-100 -z-10"
-                transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-              />
-            )}
           </motion.button>
         ))}
       </div>
@@ -496,14 +626,14 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
 
     // Top performers
     const topPerformers = (() => {
-      const playerPoints: Record<string, { name: string; points: number }> = {};
+      const playerPoints: Record<string, { name: string; points: number; teamSide: 'home' | 'away' }> = {};
       for (const evt of match.events) {
         if (!evt.playerId) continue;
-        // Try to find scorer name
         const scorer = match.scorers.find((s) => s.userId === evt.playerId);
         const name = scorer?.user?.name || 'Player';
+        const teamSide = evt.teamId === match.homeTeam.id ? 'home' : 'away';
         if (!playerPoints[evt.playerId]) {
-          playerPoints[evt.playerId] = { name, points: 0 };
+          playerPoints[evt.playerId] = { name, points: 0, teamSide };
         }
         playerPoints[evt.playerId].points += evt.value;
       }
@@ -511,6 +641,20 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
         .sort((a, b) => b[1].points - a[1].points)
         .slice(0, 3);
     })();
+
+    // Home/Away event breakdown
+    const homeEvents = match.events.filter((e) => e.teamId === match.homeTeam.id);
+    const awayEvents = match.events.filter((e) => e.teamId === match.awayTeam.id);
+
+    const homeRaidPts = homeEvents.filter((e) => e.eventType === 'raid_point' || e.eventType === 'super_raid' || e.eventType === 'do_or_die_raid').reduce((s, e) => s + e.value, 0);
+    const homeTacklePts = homeEvents.filter((e) => e.eventType === 'tackle_point' || e.eventType === 'super_tackle').reduce((s, e) => s + e.value, 0);
+    const homeBonusPts = homeEvents.filter((e) => e.eventType === 'bonus_point').reduce((s, e) => s + e.value, 0);
+    const homeAllOuts = homeEvents.filter((e) => e.eventType === 'all_out').length;
+
+    const awayRaidPts = awayEvents.filter((e) => e.eventType === 'raid_point' || e.eventType === 'super_raid' || e.eventType === 'do_or_die_raid').reduce((s, e) => s + e.value, 0);
+    const awayTacklePts = awayEvents.filter((e) => e.eventType === 'tackle_point' || e.eventType === 'super_tackle').reduce((s, e) => s + e.value, 0);
+    const awayBonusPts = awayEvents.filter((e) => e.eventType === 'bonus_point').reduce((s, e) => s + e.value, 0);
+    const awayAllOuts = awayEvents.filter((e) => e.eventType === 'all_out').length;
 
     // Match duration
     const matchDuration = (() => {
@@ -525,12 +669,29 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
       return null;
     })();
 
+    // Key events timeline (last 8 events)
+    const keyEvents = match.events
+      .filter((e) => ['raid_point', 'tackle_point', 'super_raid', 'super_tackle', 'all_out', 'bonus_point', 'do_or_die_raid'].includes(e.eventType))
+      .slice(0, 8);
+
     const borderClass =
       result === 'won'
         ? 'border-l-4 border-l-emerald-500 dark:border-l-emerald-400'
         : result === 'lost'
           ? 'border-l-4 border-l-red-500 dark:border-l-red-400'
           : 'border-l-4 border-l-amber-500 dark:border-l-amber-400';
+
+    const resultBadgeClass =
+      result === 'won'
+        ? 'badge-win'
+        : result === 'lost'
+          ? 'badge-loss'
+          : 'bg-amber-500 dark:bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase';
+
+    const resultIcon =
+      result === 'won' ? <Trophy className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" /> :
+      result === 'lost' ? <Swords className="w-3.5 h-3.5 text-red-500 dark:text-red-400" /> :
+      <Shield className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />;
 
     return (
       <motion.div variants={itemVariants} custom={index}>
@@ -542,24 +703,8 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             {/* Header Row */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                {result === 'won' && (
-                  <Trophy className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-                )}
-                {result === 'lost' && (
-                  <Swords className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
-                )}
-                {result === 'draw' && (
-                  <Shield className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                )}
-                <span
-                  className={
-                    result === 'won'
-                      ? 'badge-win'
-                      : result === 'lost'
-                        ? 'badge-loss'
-                        : 'bg-amber-500 dark:bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase'
-                  }
-                >
+                {resultIcon}
+                <span className={resultBadgeClass}>
                   {result}
                 </span>
                 {!match.isPractice ? (
@@ -598,7 +743,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                 <div className="min-w-0">
                   <p
                     className={`text-sm font-semibold truncate ${
-                      winnerId === match.homeTeamId
+                      winnerId === match.homeTeam.id
                         ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                         : 'text-warm-800 dark:text-warm-100'
                     }`}
@@ -617,7 +762,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
               <div className="flex items-center gap-2 px-3 shrink-0">
                 <span
                   className={`text-xl font-black tabular-nums ${
-                    winnerId === match.homeTeamId
+                    winnerId === match.homeTeam.id
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-warm-700 dark:text-warm-200'
                   }`}
@@ -627,7 +772,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                 <span className="text-warm-400 dark:text-warm-500 text-xs font-bold">-</span>
                 <span
                   className={`text-xl font-black tabular-nums ${
-                    winnerId === match.awayTeamId
+                    winnerId === match.awayTeam.id
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-warm-700 dark:text-warm-200'
                   }`}
@@ -641,7 +786,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                 <div className="min-w-0 text-right">
                   <p
                     className={`text-sm font-semibold truncate ${
-                      winnerId === match.awayTeamId
+                      winnerId === match.awayTeam.id
                         ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                         : 'text-warm-800 dark:text-warm-100'
                     }`}
@@ -657,6 +802,9 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                 </div>
               </div>
             </div>
+
+            {/* Score Comparison Bar */}
+            <ScoreBar homeScore={match.homeScore} awayScore={match.awayScore} />
 
             {/* Info Row */}
             <div className="flex items-center gap-3 mt-2 text-[10px] text-warm-500 dark:text-warm-400">
@@ -699,6 +847,59 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                   className="overflow-hidden"
                 >
                   <div className="mt-3 pt-3 border-t border-warm-200 dark:border-warm-700 space-y-3">
+                    {/* Score Breakdown */}
+                    <div>
+                      <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5">
+                        Score Breakdown
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2 rounded-lg border border-warm-200 dark:border-warm-600">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold" style={{ backgroundColor: homeColor }}>
+                              {homeTeamName.charAt(0)}
+                            </div>
+                            <span className="text-[10px] font-bold text-warm-700 dark:text-warm-200 truncate">{homeTeamName}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
+                            <span className="text-warm-500 dark:text-warm-400">Raid</span>
+                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{homeRaidPts}</span>
+                            <span className="text-warm-500 dark:text-warm-400">Tackle</span>
+                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{homeTacklePts}</span>
+                            <span className="text-warm-500 dark:text-warm-400">Bonus</span>
+                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{homeBonusPts}</span>
+                            {homeAllOuts > 0 && (
+                              <>
+                                <span className="text-warm-500 dark:text-warm-400">All-Out</span>
+                                <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{homeAllOuts}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="p-2 rounded-lg border border-warm-200 dark:border-warm-600">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold" style={{ backgroundColor: awayColor }}>
+                              {awayTeamName.charAt(0)}
+                            </div>
+                            <span className="text-[10px] font-bold text-warm-700 dark:text-warm-200 truncate">{awayTeamName}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
+                            <span className="text-warm-500 dark:text-warm-400">Raid</span>
+                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{awayRaidPts}</span>
+                            <span className="text-warm-500 dark:text-warm-400">Tackle</span>
+                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{awayTacklePts}</span>
+                            <span className="text-warm-500 dark:text-warm-400">Bonus</span>
+                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{awayBonusPts}</span>
+                            {awayAllOuts > 0 && (
+                              <>
+                                <span className="text-warm-500 dark:text-warm-400">All-Out</span>
+                                <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{awayAllOuts}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Top Performers */}
                     {topPerformers.length > 0 && (
                       <div>
@@ -726,7 +927,40 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                       </div>
                     )}
 
-                    {/* Event Summary */}
+                    {/* Key Events Timeline */}
+                    {keyEvents.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5">
+                          Key Events
+                        </p>
+                        <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                          {keyEvents.map((evt) => {
+                            const eventInfo = getEventIcon(evt.eventType);
+                            const isHome = evt.teamId === match.homeTeam.id;
+                            return (
+                              <div key={evt.id} className="flex items-center gap-2 text-[10px]">
+                                <span className="text-xs">{eventInfo.icon}</span>
+                                <div
+                                  className="w-3 h-3 rounded-full shrink-0"
+                                  style={{ backgroundColor: isHome ? homeColor : awayColor }}
+                                />
+                                <span className={`font-medium ${eventInfo.color}`}>
+                                  {evt.eventType.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                                </span>
+                                {evt.value > 0 && (
+                                  <Badge className="bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 text-[8px] border-0 font-bold px-1 py-0">
+                                    +{evt.value}
+                                  </Badge>
+                                )}
+                                <span className="text-warm-400 dark:text-warm-500 ml-auto">H{evt.half}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Event Summary Grid */}
                     <div>
                       <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5">
                         Match Summary
@@ -812,7 +1046,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
   // ─── Empty State ────────────────────────────────────────────────
   function EmptyState() {
     const isFilterActive =
-      resultFilter !== 'all' || typeFilter !== 'all' || genderFilter !== 'all';
+      resultFilter !== 'all' || typeFilter !== 'all' || genderFilter !== 'all' || dateFilter !== 'all';
 
     return (
       <motion.div
@@ -844,6 +1078,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
               setResultFilter('all');
               setTypeFilter('all');
               setGenderFilter('all');
+              setDateFilter('all');
             }}
             className="text-brand-red border-brand-red/30 hover:bg-brand-red/10"
           >
@@ -888,6 +1123,8 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
               <div className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 animate-pulse" />
             </div>
           </div>
+          {/* Score bar skeleton */}
+          <div className="h-1.5 rounded-full bg-warm-200 dark:bg-warm-700 animate-pulse mt-3" />
         </CardContent>
       </Card>
     );
@@ -1014,6 +1251,53 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             </motion.div>
           </div>
 
+          {/* Extended Stats Row */}
+          <motion.div
+            className="mt-2 grid grid-cols-3 gap-2"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+          >
+            {/* Avg Score */}
+            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-warm-50 dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700">
+              <Activity className="w-3 h-3 text-brand-teal shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-warm-800 dark:text-warm-100">{stats.avgScore}</p>
+                <p className="text-[7px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Avg Score</p>
+              </div>
+            </div>
+
+            {/* Highest Score */}
+            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-warm-50 dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700">
+              <TrendingUp className="w-3 h-3 text-brand-gold shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-warm-800 dark:text-warm-100">{stats.highestScore}</p>
+                <p className="text-[7px] text-warm-500 dark:text-warm-400 uppercase font-semibold">High Score</p>
+              </div>
+            </div>
+
+            {/* Current Streak */}
+            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-warm-50 dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700">
+              {stats.streak.type === 'won' ? (
+                <ArrowUpRight className="w-3 h-3 text-emerald-500 shrink-0" />
+              ) : stats.streak.type === 'lost' ? (
+                <ArrowDownRight className="w-3 h-3 text-red-500 shrink-0" />
+              ) : (
+                <Minus className="w-3 h-3 text-warm-400 shrink-0" />
+              )}
+              <div>
+                <p className={`text-xs font-bold ${
+                  stats.streak.type === 'won' ? 'text-emerald-600 dark:text-emerald-400' :
+                  stats.streak.type === 'lost' ? 'text-red-600 dark:text-red-400' :
+                  'text-warm-600 dark:text-warm-300'
+                }`}>
+                  {stats.streak.count > 0 ? `${stats.streak.count}${stats.streak.type === 'won' ? 'W' : stats.streak.type === 'lost' ? 'L' : 'D'}` : '-'}
+                </p>
+                <p className="text-[7px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Streak</p>
+              </div>
+            </div>
+          </motion.div>
+
           {/* Total Points */}
           <motion.div
             className="mt-2 flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-gradient-to-r from-brand-red/5 via-brand-gold/5 to-brand-teal/5 dark:from-brand-red/10 dark:via-brand-gold/10 dark:to-brand-teal/10 border border-warm-200 dark:border-warm-700"
@@ -1033,6 +1317,23 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
 
         {/* Filter Bar */}
         <div className="px-4 mt-4 space-y-2.5">
+          {/* Date Range Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
+              Time
+            </span>
+            <FilterPill
+              options={[
+                { label: 'All Time', value: 'all' as DateFilter },
+                { label: 'This Week', value: 'week' as DateFilter },
+                { label: 'This Month', value: 'month' as DateFilter },
+                { label: 'This Year', value: 'year' as DateFilter },
+              ]}
+              value={dateFilter}
+              onChange={setDateFilter}
+            />
+          </div>
+
           {/* Result Filter */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">

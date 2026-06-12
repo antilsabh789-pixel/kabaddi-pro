@@ -1,16 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-// GET /api/activities?userId=xxx — Get social feed (activities from followed users + own)
+// GET /api/activities — Get social feed (activities from followed users + own + community posts)
+// Query params: userId (required), limit, offset, type (optional filter)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
+    const type = searchParams.get('type'); // optional type filter
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+
+    // Build where clause
+    const where: Record<string, unknown> = {};
+
+    // Type filter
+    if (type) {
+      where.type = type;
+    } else {
+      // By default, show all types including community_post
+      // No filter needed — fetch all
     }
 
     // Get IDs of users the current user follows
@@ -23,8 +36,22 @@ export async function GET(request: NextRequest) {
     // Include own activities + followed users' activities
     const userIds = [userId, ...followingIds];
 
+    // Include community posts (visible to everyone) in the feed
+    if (type) {
+      // If filtering by type, just use that type
+      where.OR = [
+        { userId: { in: userIds } },
+        { type: type },
+      ];
+    } else {
+      where.OR = [
+        { userId: { in: userIds } },
+        { type: 'community_post' },
+      ];
+    }
+
     const activities = await db.activity.findMany({
-      where: { userId: { in: userIds } },
+      where,
       take: limit,
       skip: offset,
       orderBy: { createdAt: 'desc' },
@@ -34,6 +61,8 @@ export async function GET(request: NextRequest) {
         },
       },
     });
+
+    const totalCount = await db.activity.count({ where });
 
     return NextResponse.json({
       activities: activities.map((a) => ({
@@ -50,6 +79,8 @@ export async function GET(request: NextRequest) {
         metadata: a.metadata,
         createdAt: a.createdAt,
       })),
+      total: totalCount,
+      hasMore: offset + limit < totalCount,
     });
   } catch (error) {
     console.error('Activities GET error:', error);
@@ -57,29 +88,68 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/activities — Create an activity
+// POST /api/activities — Create an activity or community post
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { userId, type, title, description, matchId, tournamentId, metadata } = body;
 
-    if (!userId || !type || !title || !description) {
-      return NextResponse.json({ error: 'userId, type, title, and description are required' }, { status: 400 });
+    if (!userId || !type) {
+      return NextResponse.json(
+        { error: 'userId and type are required' },
+        { status: 400 }
+      );
+    }
+
+    // For community posts, description is required
+    if (type === 'community_post' && !description) {
+      return NextResponse.json(
+        { error: 'description is required for community posts' },
+        { status: 400 }
+      );
+    }
+
+    // For non-community posts, title and description are required
+    if (type !== 'community_post' && (!title || !description)) {
+      return NextResponse.json(
+        { error: 'title and description are required' },
+        { status: 400 }
+      );
     }
 
     const activity = await db.activity.create({
       data: {
         userId,
         type,
-        title,
-        description,
+        title: title || (type === 'community_post' ? 'Community Post' : ''),
+        description: description || '',
         matchId: matchId || null,
         tournamentId: tournamentId || null,
         metadata: metadata || null,
       },
+      include: {
+        user: {
+          select: { id: true, name: true, avatar: true, gender: true },
+        },
+      },
     });
 
-    return NextResponse.json({ activity }, { status: 201 });
+    return NextResponse.json({
+      activity: {
+        id: activity.id,
+        userId: activity.userId,
+        userName: activity.user.name,
+        userAvatar: activity.user.avatar,
+        userGender: activity.user.gender,
+        type: activity.type,
+        title: activity.title,
+        description: activity.description,
+        matchId: activity.matchId,
+        tournamentId: activity.tournamentId,
+        metadata: activity.metadata,
+        createdAt: activity.createdAt,
+      },
+    }, { status: 201 });
   } catch (error) {
     console.error('Activities POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

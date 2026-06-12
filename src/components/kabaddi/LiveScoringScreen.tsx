@@ -6,7 +6,8 @@ import {
   Undo2, Pause, Play, Square, Timer, Swords, X, Check,
   Crown, Share2, Zap, Shield, Hand, Clock, ArrowLeftRight,
   ChevronUp, AlertTriangle, Sparkles, Flame, Star,
-  Users, ArrowRight,
+  Users, ArrowRight, Target, RotateCcw, Trophy,
+  MessageSquare, ChevronDown,
 } from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer, type MatchEvent } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils';
 // Raid flow states
 type RaidPhase = 'idle' | 'result' | 'defenders';
 type RaidResult = 'success' | 'caught' | 'empty' | null;
+type ActionTab = 'raid' | 'defense' | 'special' | 'cards';
 
 const RAID_TIME_LIMIT = 30; // seconds
 const ON_COURT_MAX = 7; // kabaddi standard: 7 players on court
@@ -381,6 +383,83 @@ function EventConfirmation({
   );
 }
 
+// ─── Event Log Entry ────────────────────────────────────────────────
+
+function EventLogEntry({ event, matchInfo }: { event: MatchEvent; matchInfo: { homeTeamId: string; homeTeamColor: string; awayTeamColor: string } }) {
+  const isHome = event.teamId === matchInfo.homeTeamId;
+  const teamColor = isHome ? matchInfo.homeTeamColor : matchInfo.awayTeamColor;
+
+  const eventIcons: Record<string, string> = {
+    raid_point: '✅',
+    bonus_point: '🎯',
+    tackle_point: '🛡',
+    super_tackle: '⚡',
+    super_raid: '🔥',
+    do_or_die_raid: '🔥',
+    all_out: '💥',
+    empty_raid: '⏭',
+    substitution: '🔄',
+    timeout: '📋',
+    yellow_card: '🟨',
+    red_card: '🟥',
+    green_card: '🟩',
+  };
+
+  const eventLabels: Record<string, string> = {
+    raid_point: 'Raid Pt',
+    bonus_point: 'Bonus Pt',
+    tackle_point: 'Tackle Pt',
+    super_tackle: 'Super Tackle',
+    super_raid: 'Super Raid',
+    do_or_die_raid: 'Do-or-Die',
+    all_out: 'All Out',
+    empty_raid: 'Empty',
+    substitution: 'Sub',
+    timeout: 'Timeout',
+    yellow_card: 'Yellow Card',
+    red_card: 'Red Card',
+    green_card: 'Green Card',
+  };
+
+  const timeStr = new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-gray-800/30 dark:hover:bg-gray-700/30 transition-colors"
+    >
+      <span className="text-[9px] font-mono text-gray-500 dark:text-gray-400 w-14 shrink-0">{timeStr}</span>
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamColor }} />
+      <span className="text-xs truncate max-w-[80px] font-medium text-gray-700 dark:text-gray-300">{event.playerName || '—'}</span>
+      <span className="text-xs">{eventIcons[event.eventType] || '📌'}</span>
+      <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 flex-1">{eventLabels[event.eventType] || event.eventType}</span>
+      {event.value > 0 && (
+        <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md" style={{ backgroundColor: `${teamColor}20`, color: teamColor }}>
+          +{event.value}
+        </span>
+      )}
+    </motion.div>
+  );
+}
+
+// ─── Animated Score Counter ─────────────────────────────────────────
+
+function AnimatedScore({ value, color }: { value: number; color: string }) {
+  return (
+    <motion.span
+      key={value}
+      initial={{ scale: 1.5, opacity: 0.5 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: 'spring', damping: 12, stiffness: 300 }}
+      className="text-6xl font-black tabular-nums leading-none"
+      style={{ color }}
+    >
+      {value}
+    </motion.span>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────
 
 export default function LiveScoringScreen() {
@@ -455,6 +534,13 @@ export default function LiveScoringScreen() {
 
   // Player profiles (avatars)
   const [playerProfiles, setPlayerProfiles] = useState<Record<string, { avatar?: string }>>({});
+
+  // Action tab state
+  const [actionTab, setActionTab] = useState<ActionTab>('raid');
+
+  // Event log state
+  const [showFullLog, setShowFullLog] = useState(false);
+  const eventLogRef = useRef<HTMLDivElement>(null);
 
   const match = activeMatch;
 
@@ -660,6 +746,13 @@ export default function LiveScoringScreen() {
     };
   }, [showTimeoutOverlay]);
 
+  // ═══ AUTO-SCROLL EVENT LOG ═══
+  useEffect(() => {
+    if (showFullLog && eventLogRef.current) {
+      eventLogRef.current.scrollTop = eventLogRef.current.scrollHeight;
+    }
+  }, [match?.events.length, showFullLog]);
+
   // Calculate MOTM
   const calculateMotm = useCallback(() => {
     if (!match) return null;
@@ -742,6 +835,19 @@ export default function LiveScoringScreen() {
   const raidingTeamName = raidingTeam === 'home' ? match.homeTeam : match.awayTeam;
   const defendingTeamName = defendingTeam === 'home' ? match.homeTeam : match.awayTeam;
 
+  // Half indicator
+  const halfLabel = !hasStartedRaiding
+    ? 'NOT STARTED'
+    : match.timer === 0 && match.currentHalf === 1
+      ? 'HALF TIME'
+      : match.timer === 0 && match.currentHalf === 2
+        ? 'FULL TIME'
+        : match.currentHalf === 1
+          ? '1ST HALF'
+          : '2ND HALF';
+
+  const isTimerPulsing = match.timer > 0 && match.timer < 60 && hasStartedRaiding && !isPaused;
+
   // Split lineup: first 7 = on court, rest = substitutes
   const splitLineup = (lineup: MatchPlayer[], outIds: string[]) => {
     const onCourt = lineup.slice(0, ON_COURT_MAX);
@@ -764,6 +870,7 @@ export default function LiveScoringScreen() {
     setRaidResult(null);
     setSelectedDefenders(new Set());
     setBonusPoint(false);
+    setActionTab('raid');
 
     setRaidTimer(RAID_TIME_LIMIT);
 
@@ -1047,6 +1154,65 @@ export default function LiveScoringScreen() {
     setShowTimeoutOverlay(true);
   };
 
+  // Quick action handlers for special events
+  const handleBonusPoint = () => {
+    if (!match) return;
+    const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    addEvent({
+      matchId: match.id, eventType: 'bonus_point', teamId,
+      half: match.currentHalf, value: 1,
+      playerId: raider?.id, playerName: raider?.name,
+    });
+    triggerFeedback(SoundType.WHISTLE);
+    setEventConfirm({ message: 'Bonus Point!', teamColor: raidingTeamColor });
+  };
+
+  const handleAllOut = () => {
+    if (!match) return;
+    const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    addEvent({
+      matchId: match.id, eventType: 'all_out', teamId,
+      half: match.currentHalf, value: 2,
+    });
+    triggerFeedback(SoundType.WHISTLE);
+    setAllOutCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor });
+    setEventConfirm({ message: 'All Out! +2', teamColor: raidingTeamColor });
+  };
+
+  const handleCard = (cardType: 'yellow_card' | 'red_card') => {
+    if (!match) return;
+    const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    addEvent({
+      matchId: match.id, eventType: cardType, teamId,
+      half: match.currentHalf, value: 0,
+      playerId: raider?.id, playerName: raider?.name,
+    });
+    const label = cardType === 'yellow_card' ? '🟨 Yellow Card' : '🟥 Red Card';
+    setEventConfirm({ message: label, teamColor: raidingTeamColor });
+  };
+
+  const handleTacklePoint = () => {
+    if (!match) return;
+    const teamId = defendingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    addEvent({
+      matchId: match.id, eventType: 'tackle_point', teamId,
+      half: match.currentHalf, value: 1,
+    });
+    triggerFeedback(SoundType.WHISTLE);
+    setEventConfirm({ message: `${defendingTeamName} +1 Tackle`, teamColor: defendingTeamColor });
+  };
+
+  const handleSuperTackle = () => {
+    if (!match) return;
+    const teamId = defendingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    addEvent({
+      matchId: match.id, eventType: 'super_tackle', teamId,
+      half: match.currentHalf, value: 1,
+    });
+    triggerFeedback(SoundType.WHISTLE);
+    setEventConfirm({ message: `${defendingTeamName} +1 Super Tackle!`, teamColor: defendingTeamColor });
+  };
+
   // Substitute handler
   const handleSub = (outPlayer: MatchPlayer, inPlayer: MatchPlayer) => {
     const teamId = outPlayer.team === 'home' ? match.homeTeamId : match.awayTeamId;
@@ -1231,8 +1397,8 @@ export default function LiveScoringScreen() {
     return (
       <div className={`relative px-3 pt-3 pb-2 transition-all ${
         isRaidingSide && isIdle
-          ? 'bg-gradient-to-b from-white to-gray-50 dark:from-warm-800 dark:to-warm-900'
-          : 'bg-white dark:bg-warm-800'
+          ? 'bg-gradient-to-b from-gray-900 to-gray-950 dark:from-warm-800 dark:to-warm-900'
+          : 'bg-gray-900 dark:bg-warm-800'
       }`}>
         {/* Team header */}
         <div className="flex items-center justify-between mb-2">
@@ -1244,7 +1410,7 @@ export default function LiveScoringScreen() {
               {teamName.charAt(0)}
             </div>
             <div>
-              <div className="text-sm font-bold text-gray-800 dark:text-warm-100 truncate max-w-[100px]">{teamName}</div>
+              <div className="text-sm font-bold text-gray-100 dark:text-warm-100 truncate max-w-[100px]">{teamName}</div>
               <div className="text-[10px] text-gray-400 dark:text-warm-500">
                 {onCourtActive.length} on court
                 {onCourtOut.length > 0 && ` · ${onCourtOut.length} out`}
@@ -1257,13 +1423,12 @@ export default function LiveScoringScreen() {
             {substitutes.length > 0 && (
               <button
                 onClick={() => setShowSubMode(side)}
-                className="text-[9px] font-bold px-2 py-1 rounded-lg bg-gray-100 dark:bg-warm-700 text-gray-500 dark:text-warm-400 hover:bg-gray-200 dark:hover:bg-warm-600 transition-colors flex items-center gap-0.5"
+                className="text-[9px] font-bold px-2 py-1 rounded-lg bg-gray-700 dark:bg-warm-700 text-gray-300 dark:text-warm-400 hover:bg-gray-600 dark:hover:bg-warm-600 transition-colors flex items-center gap-0.5"
               >
                 <ArrowLeftRight className="w-3 h-3" />
                 SUB
               </button>
             )}
-            <div className="text-3xl font-black" style={{ color: teamColor }}>{score}</div>
           </div>
         </div>
 
@@ -1284,8 +1449,8 @@ export default function LiveScoringScreen() {
 
         {/* Substitutes (rest) */}
         {substitutes.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-dashed border-gray-200 dark:border-warm-600">
-            <div className="text-[8px] font-bold text-gray-400 dark:text-warm-500 uppercase tracking-wider mb-1.5 text-center">
+          <div className="mt-2 pt-2 border-t border-dashed border-gray-700 dark:border-warm-600">
+            <div className="text-[8px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1.5 text-center">
               Substitutes
             </div>
             <div className="flex flex-wrap justify-center gap-x-2 gap-y-1">
@@ -1312,7 +1477,7 @@ export default function LiveScoringScreen() {
           >
             <span
               className="inline-flex items-center gap-1 text-[10px] font-bold px-3 py-1 rounded-full"
-              style={{ backgroundColor: `${teamColor}18`, color: teamColor }}
+              style={{ backgroundColor: `${teamColor}25`, color: teamColor }}
             >
               <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 0.8, repeat: Infinity }}>
                 <ChevronUp className="w-3 h-3" />
@@ -1336,8 +1501,12 @@ export default function LiveScoringScreen() {
   // Raid gap indicator
   const showGapIndicator = raidGapTimer !== null && raidGapTimer > 0 && raidPhase === 'idle';
 
+  // Recent events for compact log (last 5)
+  const recentEvents = match.events.slice(-5);
+  const allEvents = match.events;
+
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] bg-gray-50 dark:bg-warm-900">
+    <div className="flex flex-col h-[calc(100vh-80px)] bg-gray-950 dark:bg-warm-950">
       {/* Share Scorecard Overlay */}
       {showShareScorecard && savedMatchData && (
         <ShareScorecard onClose={() => setShowShareScorecard(false)} matchData={savedMatchData} />
@@ -1400,16 +1569,16 @@ export default function LiveScoringScreen() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              className="w-full max-w-xs rounded-2xl p-6 text-center bg-white dark:bg-warm-800"
+              className="w-full max-w-xs rounded-2xl p-6 text-center bg-gray-900 dark:bg-warm-800 border border-gray-700 dark:border-warm-700"
             >
               <Hand className="w-10 h-10 text-orange-500 mx-auto mb-3" />
-              <h3 className="text-lg font-black text-gray-800 dark:text-warm-100">Timeout</h3>
-              <p className="text-sm text-gray-500 dark:text-warm-400 mb-3">
+              <h3 className="text-lg font-black text-gray-100 dark:text-warm-100">Timeout</h3>
+              <p className="text-sm text-gray-400 dark:text-warm-400 mb-3">
                 {raidingTeamName} called a timeout
               </p>
               <div className="relative w-20 h-20 mx-auto mb-3">
                 <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-                  <circle cx="40" cy="40" r="35" fill="none" stroke="#e5e7eb" strokeWidth="4" />
+                  <circle cx="40" cy="40" r="35" fill="none" stroke="#374151" strokeWidth="4" />
                   <circle cx="40" cy="40" r="35" fill="none" stroke="#f97316" strokeWidth="4"
                     strokeDasharray={`${2 * Math.PI * 35}`}
                     strokeDashoffset={`${2 * Math.PI * 35 * (1 - timeoutCountdown / 30)}`}
@@ -1447,20 +1616,20 @@ export default function LiveScoringScreen() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-3xl p-4 max-h-[70vh] overflow-y-auto"
+              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-4 max-h-[70vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="text-sm font-black text-gray-800 dark:text-warm-100">Substitution</div>
+                  <div className="text-sm font-black text-gray-100 dark:text-warm-100">Substitution</div>
                   <div className="text-[10px] text-gray-400 dark:text-warm-500">
                     Tap an on-court player OUT, then tap a substitute IN
                   </div>
                 </div>
                 <button
                   onClick={() => { setShowSubMode(null); setSubOutPlayer(null); }}
-                  className="w-8 h-8 rounded-full bg-gray-100 dark:bg-warm-700 flex items-center justify-center"
+                  className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"
                 >
-                  <X className="w-4 h-4 text-gray-500 dark:text-warm-400" />
+                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
                 </button>
               </div>
 
@@ -1474,7 +1643,7 @@ export default function LiveScoringScreen() {
                   <>
                     {!subOutPlayer && (
                       <>
-                        <div className="text-[10px] font-bold text-red-600 uppercase mb-2">
+                        <div className="text-[10px] font-bold text-red-400 uppercase mb-2">
                           1. Tap player going OUT
                         </div>
                         <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 mb-4">
@@ -1494,14 +1663,14 @@ export default function LiveScoringScreen() {
 
                     {subOutPlayer && (
                       <>
-                        <div className="text-[10px] font-bold text-red-600 uppercase mb-2">
+                        <div className="text-[10px] font-bold text-red-400 uppercase mb-2">
                           Going OUT:
                         </div>
                         <div className="flex justify-center mb-3">
                           <PlayerCircle player={subOutPlayer} isOut={false} teamColor={color} />
                         </div>
 
-                        <div className="text-[10px] font-bold text-green-600 uppercase mb-2">
+                        <div className="text-[10px] font-bold text-green-400 uppercase mb-2">
                           2. Tap substitute coming IN
                         </div>
                         <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 mb-3">
@@ -1519,7 +1688,7 @@ export default function LiveScoringScreen() {
 
                         <button
                           onClick={() => setSubOutPlayer(null)}
-                          className="w-full py-2 rounded-xl bg-gray-100 dark:bg-warm-700 text-gray-600 dark:text-warm-300 font-bold text-sm"
+                          className="w-full py-2 rounded-xl bg-gray-700 dark:bg-warm-700 text-gray-300 dark:text-warm-300 font-bold text-sm"
                         >
                           Cancel selection
                         </button>
@@ -1583,33 +1752,100 @@ export default function LiveScoringScreen() {
         )}
       </AnimatePresence>
 
-      {/* ═══ TOP BAR — Redesigned with Team Color Gradients ═══ */}
-      <div className="bg-gray-900 dark:bg-warm-950 text-white">
-        {/* Main timer row */}
-        <div className="px-4 py-2 flex items-center justify-between">
+      {/* ═══ ENHANCED SCORE HEADER — Dark Theme with Team Color Gradients ═══ */}
+      <div className="relative overflow-hidden" style={{
+        background: `linear-gradient(135deg, ${match.homeTeamColor}30, #111827, ${match.awayTeamColor}30)`,
+      }}>
+        {/* Subtle animated background stripes */}
+        <div className="absolute inset-0 opacity-5">
+          <motion.div
+            animate={{ x: ['-100%', '100%'] }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            className="absolute inset-y-0 w-[200%] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+          />
+        </div>
+
+        {/* Top info row */}
+        <div className="relative px-4 pt-2 pb-1 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] bg-gray-700 dark:bg-warm-700 px-2 py-0.5 rounded font-medium">
+            <span className="text-[10px] bg-gray-700/80 px-2 py-0.5 rounded font-medium text-gray-300">
               7v7
             </span>
             {match.isPractice && (
-              <span className="text-[10px] bg-green-900 text-green-300 px-2 py-0.5 rounded font-medium">Practice</span>
-            )}
-            {match.isDoOrDie && (
-              <motion.span animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 0.8, repeat: Infinity }} className="text-[10px] bg-red-700 text-red-100 px-2 py-0.5 rounded font-bold">
-                🔥 DO OR DIE
-              </motion.span>
+              <span className="text-[10px] bg-green-900/60 text-green-300 px-2 py-0.5 rounded font-medium">Practice</span>
             )}
           </div>
-          <div className="text-center">
-            <div className="text-xl font-mono font-bold tracking-wider">
-              {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
-            </div>
-            <div className="text-[10px] text-gray-400 -mt-0.5">
-              Half {match.currentHalf} &middot; {match.halfDuration}min
-            </div>
-          </div>
+          {/* Half indicator badge */}
+          <motion.div
+            key={halfLabel}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={`text-[9px] font-black tracking-[0.15em] px-3 py-0.5 rounded-full ${
+              halfLabel === 'HALF TIME' || halfLabel === 'FULL TIME'
+                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                : halfLabel === 'NOT STARTED'
+                  ? 'bg-gray-600/40 text-gray-400 border border-gray-500/30'
+                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+            }`}
+          >
+            {halfLabel}
+          </motion.div>
           <div className="text-[10px] text-gray-400 font-medium">
             {match.gender === 'male' ? '♂ Boys' : '♀ Girls'}
+          </div>
+        </div>
+
+        {/* Score center — Large with animated counters */}
+        <div className="relative px-4 pb-2 flex items-center justify-between">
+          {/* Home team */}
+          <div className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg" style={{ backgroundColor: match.homeTeamColor, boxShadow: `0 0 12px ${match.homeTeamColor}40` }}>
+              {match.homeTeam.charAt(0)}
+            </div>
+            <span className="text-[10px] font-bold text-gray-300 truncate max-w-[70px]">{match.homeTeam}</span>
+            <AnimatedScore value={match.homeScore} color={match.homeTeamColor} />
+          </div>
+
+          {/* Center: Timer + VS */}
+          <div className="flex flex-col items-center gap-0.5 px-4">
+            {/* Current raider indicator arrow */}
+            {hasStartedRaiding && raidPhase === 'idle' && (
+              <motion.div
+                animate={{ x: raidingTeam === 'home' ? [-4, 4, -4] : [4, -4, 4] }}
+                transition={{ duration: 1, repeat: Infinity }}
+                className="mb-1"
+              >
+                <ArrowRight className="w-4 h-4" style={{ color: raidingTeamColor, transform: raidingTeam === 'home' ? 'scaleX(-1)' : 'none' }} />
+              </motion.div>
+            )}
+            {/* Do-or-Die flame */}
+            {match.isDoOrDie && raidPhase === 'idle' && (
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 0.5, repeat: Infinity }}
+                className="text-lg"
+              >
+                🔥
+              </motion.div>
+            )}
+            <div className={cn(
+              'text-2xl font-mono font-black tracking-wider',
+              isTimerPulsing && 'animate-pulse'
+            )} style={{ color: isTimerPulsing ? '#ef4444' : '#e5e7eb' }}>
+              {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
+            </div>
+            <span className="text-[9px] text-gray-500 font-medium">
+              Half {match.currentHalf} · {match.halfDuration}min
+            </span>
+          </div>
+
+          {/* Away team */}
+          <div className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg" style={{ backgroundColor: match.awayTeamColor, boxShadow: `0 0 12px ${match.awayTeamColor}40` }}>
+              {match.awayTeam.charAt(0)}
+            </div>
+            <span className="text-[10px] font-bold text-gray-300 truncate max-w-[70px]">{match.awayTeam}</span>
+            <AnimatedScore value={match.awayScore} color={match.awayTeamColor} />
           </div>
         </div>
 
@@ -1620,7 +1856,7 @@ export default function LiveScoringScreen() {
               <div className="px-4 pb-2">
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: raidTimerColor }} />
-                  <div className="flex-1 h-2 bg-gray-700 dark:bg-warm-700 rounded-full overflow-hidden">
+                  <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
                     <motion.div className="h-full rounded-full" style={{ backgroundColor: raidTimerColor }} animate={{ width: `${raidTimerPercent}%` }} transition={{ duration: 0.5 }} />
                   </div>
                   <span className="text-sm font-mono font-black min-w-[28px] text-right" style={{ color: raidTimerColor }}>{raidTimer}</span>
@@ -1650,95 +1886,14 @@ export default function LiveScoringScreen() {
         </AnimatePresence>
       </div>
 
-      {/* ═══ SCORE BAR — Redesigned with Team Color Gradients ═══ */}
-      <div className="bg-white dark:bg-warm-800 border-b border-gray-100 dark:border-warm-700 shadow-sm">
-        <div className="flex items-center">
-          {/* Home team side */}
-          <div
-            className="flex-1 flex items-center gap-2 px-3 py-2"
-            style={{ background: `linear-gradient(90deg, ${match.homeTeamColor}12, transparent)` }}
-          >
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm" style={{ backgroundColor: match.homeTeamColor }}>
-              {match.homeTeam.charAt(0)}
-            </div>
-            <span className="text-sm font-bold text-gray-800 dark:text-warm-100 truncate max-w-[80px]">{match.homeTeam}</span>
-          </div>
-
-          {/* Score center */}
-          <div className="flex items-center gap-3 px-3">
-            <motion.span
-              key={`home-${match.homeScore}`}
-              initial={{ scale: 1.4, color: match.homeTeamColor }}
-              animate={{ scale: 1 }}
-              className="text-3xl font-black tabular-nums"
-              style={{ color: match.homeTeamColor }}
-            >
-              {match.homeScore}
-            </motion.span>
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-gray-300 dark:text-warm-600 font-bold">-</span>
-            </div>
-            <motion.span
-              key={`away-${match.awayScore}`}
-              initial={{ scale: 1.4, color: match.awayTeamColor }}
-              animate={{ scale: 1 }}
-              className="text-3xl font-black tabular-nums"
-              style={{ color: match.awayTeamColor }}
-            >
-              {match.awayScore}
-            </motion.span>
-          </div>
-
-          {/* Away team side */}
-          <div
-            className="flex-1 flex items-center justify-end gap-2 px-3 py-2"
-            style={{ background: `linear-gradient(270deg, ${match.awayTeamColor}12, transparent)` }}
-          >
-            <span className="text-sm font-bold text-gray-800 dark:text-warm-100 truncate max-w-[80px]">{match.awayTeam}</span>
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm" style={{ backgroundColor: match.awayTeamColor }}>
-              {match.awayTeam.charAt(0)}
-            </div>
-          </div>
-        </div>
-
-        {/* Current raider indicator with animated arrow */}
-        {raidPhase !== 'idle' && raider && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div
-              className="flex items-center justify-center gap-2 py-1"
-              style={{ backgroundColor: raidingTeamColor + '10' }}
-            >
-              <motion.div animate={{ x: [-4, 4, -4] }} transition={{ duration: 1, repeat: Infinity }}>
-                <ArrowRight className="w-3 h-3" style={{ color: raidingTeamColor }} />
-              </motion.div>
-              <span className="text-[10px] font-black" style={{ color: raidingTeamColor }}>
-                #{raider.jerseyNumber || '?'} {raider.name} RAIDING
-              </span>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Do or Die indicator */}
-        <AnimatePresence>
-          {match.isDoOrDie && raidPhase === 'idle' && (
-            <DoOrDieIndicator teamColor={raidingTeamColor} />
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* ═══ TEAM SECTIONS ═══ */}
+      {/* ═══ TEAM SECTIONS — Dark Theme ═══ */}
       <div className="flex-1 overflow-y-auto">
         <TeamSection
           side="home" teamName={match.homeTeam} teamColor={match.homeTeamColor}
           score={match.homeScore} fullLineup={match.homeLineup}
           outIds={match.homeOutPlayerIds} isRaidingSide={raidingTeam === 'home'}
         />
-        <div className="h-px bg-gray-200 dark:bg-warm-700 mx-4" />
+        <div className="h-px bg-gray-700 dark:bg-warm-700 mx-4" />
         <TeamSection
           side="away" teamName={match.awayTeam} teamColor={match.awayTeamColor}
           score={match.awayScore} fullLineup={match.awayLineup}
@@ -1746,23 +1901,23 @@ export default function LiveScoringScreen() {
         />
       </div>
 
-      {/* ═══ RAID FLOW OVERLAYS ─── Redesigned Event Buttons ═══ */}
+      {/* ═══ RAID FLOW OVERLAYS — Tabbed Quick Actions ═══ */}
       <AnimatePresence>
         {raidPhase === 'result' && raider && (
           <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed inset-x-0 bottom-[76px] z-40 px-4">
-            <div className="bg-white dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-warm-700 p-4 max-w-md mx-auto">
+            <div className="bg-gray-900 dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-700 dark:border-warm-700 p-4 max-w-md mx-auto">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md" style={{ backgroundColor: raidingTeamColor }}>
                   {raider.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
                 </div>
                 <div className="flex-1">
-                  <div className="text-base font-black text-gray-800 dark:text-warm-100">#{raider.jerseyNumber || '?'} {raider.name}</div>
+                  <div className="text-base font-black text-gray-100 dark:text-warm-100">#{raider.jerseyNumber || '?'} {raider.name}</div>
                   <div className="text-xs text-gray-400 dark:text-warm-500">goes to raid for {raidingTeamName}</div>
                 </div>
                 {raidTimer !== null && (
                   <div className="relative w-11 h-11 flex-shrink-0">
                     <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44">
-                      <circle cx="22" cy="22" r="19" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                      <circle cx="22" cy="22" r="19" fill="none" stroke="#374151" strokeWidth="3" />
                       <circle cx="22" cy="22" r="19" fill="none" stroke={raidTimerColor} strokeWidth="3"
                         strokeDasharray={`${2 * Math.PI * 19}`} strokeDashoffset={`${2 * Math.PI * 19 * (1 - raidTimer / RAID_TIME_LIMIT)}`}
                         strokeLinecap="round" className="transition-all duration-500" />
@@ -1772,40 +1927,108 @@ export default function LiveScoringScreen() {
                     </div>
                   </div>
                 )}
-                <button onClick={cancelRaid} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-warm-700 flex items-center justify-center flex-shrink-0">
-                  <X className="w-4 h-4 text-gray-500 dark:text-warm-400" />
+                <button onClick={cancelRaid} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center flex-shrink-0">
+                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
                 </button>
               </div>
 
-              <div className="text-xs font-bold text-gray-500 dark:text-warm-400 uppercase tracking-wider mb-3">What happened?</div>
-
-              {/* Redesigned event buttons with gradient backgrounds grouped by category */}
-              <div className="space-y-2">
-                {/* Raid category */}
-                <div className="text-[9px] font-bold text-gray-400 dark:text-warm-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Swords className="w-3 h-3" /> Raid Outcome
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleSelectResult('success')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, #22c55e20, #22c55e05)`, border: '2px solid #22c55e40' }}>
-                    <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center shadow-md">
-                      <Check className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-[10px] font-bold text-green-700 dark:text-green-400">Success</span>
-                  </motion.button>
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleSelectResult('caught')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, #ef444420, #ef444405)`, border: '2px solid #ef444440' }}>
-                    <div className="w-9 h-9 rounded-full bg-red-500 flex items-center justify-center shadow-md">
-                      <Shield className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-[10px] font-bold text-red-700 dark:text-red-400">Caught</span>
-                  </motion.button>
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleSelectResult('empty')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, #9ca3af20, #9ca3af05)`, border: '2px solid #9ca3af40' }}>
-                    <div className="w-9 h-9 rounded-full bg-gray-400 flex items-center justify-center shadow-md">
-                      <Swords className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">Empty</span>
-                  </motion.button>
-                </div>
+              {/* Tabbed action sections */}
+              <div className="flex gap-1 mb-3 bg-gray-800 dark:bg-warm-900 rounded-xl p-1">
+                {([
+                  { id: 'raid' as ActionTab, label: 'Raid', icon: Swords },
+                  { id: 'defense' as ActionTab, label: 'Defense', icon: Shield },
+                  { id: 'special' as ActionTab, label: 'Special', icon: Sparkles },
+                  { id: 'cards' as ActionTab, label: 'Cards', icon: AlertTriangle },
+                ]).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActionTab(tab.id)}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold transition-all',
+                      actionTab === tab.id
+                        ? 'bg-gray-600 dark:bg-warm-700 text-white shadow-sm'
+                        : 'text-gray-400 hover:text-gray-300'
+                    )}
+                  >
+                    <tab.icon className="w-3 h-3" />
+                    {tab.label}
+                  </button>
+                ))}
               </div>
+
+              <AnimatePresence mode="wait">
+                {actionTab === 'raid' && (
+                  <motion.div key="raid" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Raid Outcome</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('success')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #22c55e25, #22c55e08)', border: '2px solid #22c55e50' }}>
+                        <div className="text-xl">✅</div>
+                        <span className="text-[10px] font-bold text-green-400">Successful Raid</span>
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('caught')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #ef444425, #ef444408)', border: '2px solid #ef444450' }}>
+                        <div className="text-xl">❌</div>
+                        <span className="text-[10px] font-bold text-red-400">Caught Out</span>
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('empty')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #9ca3af25, #9ca3af08)', border: '2px solid #9ca3af50' }}>
+                        <div className="text-xl">⏭</div>
+                        <span className="text-[10px] font-bold text-gray-400">Empty Raid</span>
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {actionTab === 'defense' && (
+                  <motion.div key="defense" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Defense Actions</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleTacklePoint} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, ${defendingTeamColor}25, ${defendingTeamColor}08)`, border: `2px solid ${defendingTeamColor}50` }}>
+                        <div className="text-xl">🛡</div>
+                        <span className="text-[10px] font-bold" style={{ color: defendingTeamColor }}>Tackle Point</span>
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleSuperTackle} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #a855f725, #a855f708)', border: '2px solid #a855f750' }}>
+                        <div className="text-xl">⚡</div>
+                        <span className="text-[10px] font-bold text-purple-400">Super Tackle</span>
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {actionTab === 'special' && (
+                  <motion.div key="special" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Special Events</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleBonusPoint} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #eab30825, #eab30808)', border: '2px solid #eab30850' }}>
+                        <div className="text-xl">🎯</div>
+                        <span className="text-[10px] font-bold text-yellow-400">Bonus Point</span>
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleAllOut} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, ${raidingTeamColor}25, ${raidingTeamColor}08)`, border: `2px solid ${raidingTeamColor}50` }}>
+                        <div className="text-xl">💥</div>
+                        <span className="text-[10px] font-bold" style={{ color: raidingTeamColor }}>All Out</span>
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleTimeout} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #f9731625, #f9731608)', border: '2px solid #f9731650' }}>
+                        <div className="text-xl">📋</div>
+                        <span className="text-[10px] font-bold text-orange-400">Timeout</span>
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {actionTab === 'cards' && (
+                  <motion.div key="cards" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Card Penalties</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleCard('yellow_card')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #eab30825, #eab30808)', border: '2px solid #eab30850' }}>
+                        <div className="text-xl">🟨</div>
+                        <span className="text-[10px] font-bold text-yellow-400">Yellow Card</span>
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleCard('red_card')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #ef444425, #ef444408)', border: '2px solid #ef444450' }}>
+                        <div className="text-xl">🟥</div>
+                        <span className="text-[10px] font-bold text-red-400">Red Card</span>
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         )}
@@ -1814,14 +2037,14 @@ export default function LiveScoringScreen() {
       <AnimatePresence>
         {raidPhase === 'defenders' && raider && raidResult && (
           <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed inset-x-0 bottom-[76px] z-40 px-4">
-            <div className="bg-white dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-warm-700 p-4 max-w-md mx-auto max-h-[60vh] overflow-y-auto">
+            <div className="bg-gray-900 dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-700 dark:border-warm-700 p-4 max-w-md mx-auto max-h-[60vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex-1">
                   {raidResult === 'success' ? (
-                    <><div className="text-sm font-black text-green-700 dark:text-green-400">✅ Tap defenders the raider touched</div>
+                    <><div className="text-sm font-black text-green-400">✅ Tap defenders the raider touched</div>
                     <div className="text-[10px] text-gray-400 dark:text-warm-500 mt-0.5">Each selected defender = 1 point for {raidingTeamName}</div></>
                   ) : (
-                    <><div className="text-sm font-black text-red-700 dark:text-red-400">❌ Who caught the raider?</div>
+                    <><div className="text-sm font-black text-red-400">❌ Who caught the raider?</div>
                     <div className="text-[10px] text-gray-400 dark:text-warm-500 mt-0.5">Select the defender(s) who tackled</div></>
                   )}
                 </div>
@@ -1831,8 +2054,8 @@ export default function LiveScoringScreen() {
                     <span className="text-sm font-black font-mono" style={{ color: raidTimerColor }}>{raidTimer}</span>
                   </div>
                 )}
-                <button onClick={() => { setRaidPhase('result'); setSelectedDefenders(new Set()); setBonusPoint(false); }} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-warm-700 flex items-center justify-center flex-shrink-0">
-                  <X className="w-4 h-4 text-gray-500 dark:text-warm-400" />
+                <button onClick={() => { setRaidPhase('result'); setSelectedDefenders(new Set()); setBonusPoint(false); }} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center flex-shrink-0">
+                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
                 </button>
               </div>
 
@@ -1856,7 +2079,7 @@ export default function LiveScoringScreen() {
               {raidResult === 'success' && (
                 <button onClick={() => setBonusPoint(!bonusPoint)}
                   className={`mt-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                    bonusPoint ? 'bg-yellow-100 dark:bg-yellow-900/30 border-2 border-yellow-400 text-yellow-800 dark:text-yellow-400' : 'bg-gray-50 dark:bg-warm-700 border-2 border-gray-200 dark:border-warm-600 text-gray-500 dark:text-warm-400'
+                    bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : 'bg-gray-800 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-gray-400 dark:text-warm-400'
                   }`}>
                   <span className="text-lg">⭐</span>Bonus Point {bonusPoint ? 'ON' : 'OFF'}
                 </button>
@@ -1865,16 +2088,16 @@ export default function LiveScoringScreen() {
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex-1">
                   {raidResult === 'success' && (
-                    <div className="text-xs text-gray-500 dark:text-warm-400">
-                      <span className="font-bold text-green-700 dark:text-green-400">+{selectedDefenders.size + (bonusPoint ? 1 : 0)}</span> point{selectedDefenders.size + (bonusPoint ? 1 : 0) !== 1 ? 's' : ''} for {raidingTeamName}
+                    <div className="text-xs text-gray-400">
+                      <span className="font-bold text-green-400">+{selectedDefenders.size + (bonusPoint ? 1 : 0)}</span> point{selectedDefenders.size + (bonusPoint ? 1 : 0) !== 1 ? 's' : ''} for {raidingTeamName}
                     </div>
                   )}
                   {raidResult === 'caught' && (() => {
                     const { onCourtActive } = splitLineup(fullDefendingLineup, defendingOutIds);
                     return (
-                      <div className="text-xs text-gray-500 dark:text-warm-400">
-                        <span className="font-bold text-red-700 dark:text-red-400">+1</span> tackle point for {defendingTeamName}
-                        {onCourtActive.length <= 3 && <span className="ml-1 text-purple-600 dark:text-purple-400 font-bold">(+1 super tackle!)</span>}
+                      <div className="text-xs text-gray-400">
+                        <span className="font-bold text-red-400">+1</span> tackle point for {defendingTeamName}
+                        {onCourtActive.length <= 3 && <span className="ml-1 text-purple-400 font-bold">(+1 super tackle!)</span>}
                       </div>
                     );
                   })()}
@@ -1892,37 +2115,71 @@ export default function LiveScoringScreen() {
         )}
       </AnimatePresence>
 
-      {/* ═══ COMMENTARY PANEL ═══ */}
-      <LiveCommentaryTicker
-        mode="full"
-        events={match.events}
-        match={toCommentaryMatchInfo(match)}
-      />
+      {/* ═══ EVENT LOG / COMMENTARY ═══ */}
+      <div className="bg-gray-900 dark:bg-warm-900 border-t border-gray-700 dark:border-warm-700">
+        {/* Compact event log */}
+        <div className="px-3 py-1.5">
+          {allEvents.length > 0 && (
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-1.5">
+                <MessageSquare className="w-3 h-3 text-gray-500" />
+                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Live Events</span>
+              </div>
+              <button
+                onClick={() => setShowFullLog(!showFullLog)}
+                className="flex items-center gap-0.5 text-[9px] font-bold text-gray-400 hover:text-gray-300 transition-colors"
+              >
+                {showFullLog ? 'Less' : `View All (${allEvents.length})`}
+                <ChevronDown className={cn('w-3 h-3 transition-transform', showFullLog && 'rotate-180')} />
+              </button>
+            </div>
+          )}
 
-      {/* ═══ BOTTOM CONTROL BAR ═══ */}
-      <div className="border-t border-gray-200 dark:border-warm-700 bg-white dark:bg-warm-800 px-3 py-2.5">
+          <div
+            ref={eventLogRef}
+            className={cn(
+              'overflow-y-auto custom-scrollbar transition-all duration-300',
+              showFullLog ? 'max-h-40' : 'max-h-16'
+            )}
+          >
+            {(showFullLog ? allEvents : recentEvents).map((event, i) => (
+              <EventLogEntry
+                key={event.id}
+                event={event}
+                matchInfo={{ homeTeamId: match.homeTeamId, homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor }}
+              />
+            ))}
+            {allEvents.length === 0 && (
+              <div className="text-[10px] text-gray-600 text-center py-2">No events yet — start scoring!</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ BOTTOM CONTROL BAR — Enhanced ═══ */}
+      <div className="border-t border-gray-700 dark:border-warm-700 bg-gray-900 dark:bg-warm-800 px-3 py-2.5">
         <div className="grid grid-cols-5 gap-1">
-          <button onClick={handleUndo} disabled={match.events.length === 0} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-100 dark:active:bg-warm-700 disabled:opacity-30">
-            <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-warm-700 flex items-center justify-center"><Undo2 className="w-4 h-4 text-gray-600 dark:text-warm-300" /></div>
-            <span className="text-[9px] font-semibold text-gray-500 dark:text-warm-400">UNDO</span>
+          <button onClick={handleUndo} disabled={match.events.length === 0} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700 disabled:opacity-30">
+            <div className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"><Undo2 className="w-4 h-4 text-gray-400 dark:text-warm-300" /></div>
+            <span className="text-[9px] font-semibold text-gray-400 dark:text-warm-400">UNDO</span>
           </button>
-          <button onClick={handlePause} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-100 dark:active:bg-warm-700">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isPaused ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-600' : 'bg-gray-100 dark:bg-warm-700 text-gray-600 dark:text-warm-300'}`}>
+          <button onClick={handlePause} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isPaused ? 'bg-teal-900/40 text-teal-400' : 'bg-gray-700 dark:bg-warm-700 text-gray-400 dark:text-warm-300'}`}>
               {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
             </div>
-            <span className="text-[9px] font-semibold text-gray-500 dark:text-warm-400">{isPaused ? 'PLAY' : 'PAUSE'}</span>
+            <span className="text-[9px] font-semibold text-gray-400 dark:text-warm-400">{isPaused ? 'PLAY' : 'PAUSE'}</span>
           </button>
-          <button onClick={handleTimeout} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-100 dark:active:bg-warm-700">
-            <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center"><Hand className="w-4 h-4 text-orange-600 dark:text-orange-400" /></div>
-            <span className="text-[9px] font-semibold text-gray-500 dark:text-warm-400">TIMEOUT</span>
+          <button onClick={handleTimeout} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
+            <div className="w-8 h-8 rounded-full bg-orange-900/30 flex items-center justify-center"><Hand className="w-4 h-4 text-orange-400" /></div>
+            <span className="text-[9px] font-semibold text-gray-400 dark:text-warm-400">TIMEOUT</span>
           </button>
-          <button onClick={handleEndHalf} className={`flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors ${showEndHalfConfirm ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'active:bg-gray-100 dark:active:bg-warm-700'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${showEndHalfConfirm ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-700 dark:text-yellow-300 animate-pulse' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'}`}><Timer className="w-4 h-4" /></div>
-            <span className={`text-[9px] font-semibold ${showEndHalfConfirm ? 'text-yellow-700 dark:text-yellow-300' : 'text-gray-500 dark:text-warm-400'}`}>{showEndHalfConfirm ? 'CONFIRM?' : `END H${match.currentHalf}`}</span>
+          <button onClick={handleEndHalf} className={`flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors ${showEndHalfConfirm ? 'bg-yellow-900/20' : 'active:bg-gray-800 dark:active:bg-warm-700'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${showEndHalfConfirm ? 'bg-yellow-800 text-yellow-300 animate-pulse' : 'bg-yellow-900/30 text-yellow-400'}`}><Timer className="w-4 h-4" /></div>
+            <span className={`text-[9px] font-semibold ${showEndHalfConfirm ? 'text-yellow-300' : 'text-gray-400 dark:text-warm-400'}`}>{showEndHalfConfirm ? 'CONFIRM?' : `END H${match.currentHalf}`}</span>
           </button>
-          <button onClick={handleEndMatch} className={`flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors ${showEndMatchConfirm ? 'bg-red-50 dark:bg-red-900/20' : 'active:bg-gray-100 dark:active:bg-warm-700'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${showEndMatchConfirm ? 'bg-red-200 dark:bg-red-800 text-red-700 dark:text-red-300 animate-pulse' : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}><Square className="w-4 h-4" /></div>
-            <span className={`text-[9px] font-semibold ${showEndMatchConfirm ? 'text-red-700 dark:text-red-300' : 'text-gray-500 dark:text-warm-400'}`}>{showEndMatchConfirm ? 'CONFIRM?' : 'END'}</span>
+          <button onClick={handleEndMatch} className={`flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors ${showEndMatchConfirm ? 'bg-red-900/20' : 'active:bg-gray-800 dark:active:bg-warm-700'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${showEndMatchConfirm ? 'bg-red-800 text-red-300 animate-pulse' : 'bg-red-900/30 text-red-400'}`}><Square className="w-4 h-4" /></div>
+            <span className={`text-[9px] font-semibold ${showEndMatchConfirm ? 'text-red-300' : 'text-gray-400 dark:text-warm-400'}`}>{showEndMatchConfirm ? 'CONFIRM?' : 'END'}</span>
           </button>
         </div>
       </div>

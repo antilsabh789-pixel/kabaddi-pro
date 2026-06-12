@@ -1,0 +1,1004 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useMemo } from 'react';
+     4→import { motion } from 'framer-motion';
+     5→import {
+     6→  X, BarChart3, Swords, Shield, Star, Zap, MapPin,
+     7→  Trophy, Target, Activity, TrendingUp,
+     8→} from 'lucide-react';
+     9→import { Card, CardContent } from '@/components/ui/card';
+    10→import { Badge } from '@/components/ui/badge';
+    11→import { useKabaddiStore } from '@/lib/store';
+    12→import PremiumLock from './PremiumLock';
+    13→
+    14→// ─── Types ────────────────────────────────────────────────────────
+    15→
+    16→interface AdvancedStatsScreenProps {
+    17→  userId: string;
+    18→  onClose: () => void;
+    19→}
+    20→
+    21→interface PlayerUser {
+    22→  id: string;
+    23→  name: string;
+    24→  avatar: string | null;
+    25→  gender?: string;
+    26→}
+    27→
+    28→interface PlayerProfileData {
+    29→  id?: string;
+    30→  userId?: string;
+    31→  jerseyNumber: number | null;
+    32→  position: string | null;
+    33→  overallRating: number;
+    34→  totalRaids: number;
+    35→  successfulRaids: number;
+    36→  totalTackles: number;
+    37→  successfulTackles: number;
+    38→  bonusPoints: number;
+    39→  superTackles: number;
+    40→  playerOfMonth?: number;
+    41→  playerOfYear?: number;
+    42→}
+    43→
+    44→interface MatchHistoryEntry {
+    45→  id: string;
+    46→  opponent: string;
+    47→  score: string;
+    48→  playerPoints: number;
+    49→  result: 'W' | 'L' | 'D';
+    50→}
+    51→
+    52→// ─── Animation variants ──────────────────────────────────────────
+    53→
+    54→const containerVariants = {
+    55→  hidden: { opacity: 0 },
+    56→  visible: {
+    57→    opacity: 1,
+    58→    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+    59→  },
+    60→};
+    61→
+    62→const itemVariants = {
+    63→  hidden: { opacity: 0, y: 20, scale: 0.97 },
+    64→  visible: {
+    65→    opacity: 1,
+    66→    y: 0,
+    67→    scale: 1,
+    68→    transition: { type: 'spring', damping: 20, stiffness: 200 },
+    69→  },
+    70→};
+    71→
+    72→// ─── SVG Circular Gauge ───────────────────────────────────────────
+    73→
+    74→function CircularGauge({
+    75→  value,
+    76→  max = 100,
+    77→  size = 100,
+    78→  strokeWidth = 8,
+    79→  color = '#14B8A6',
+    80→  label,
+    81→  sublabel,
+    82→  children,
+    83→}: {
+    84→  value: number;
+    85→  max?: number;
+    86→  size?: number;
+    87→  strokeWidth?: number;
+    88→  color?: string;
+    89→  label?: string;
+    90→  sublabel?: string;
+    91→  children?: React.ReactNode;
+    92→}) {
+    93→  const radius = (size - strokeWidth) / 2;
+    94→  const circumference = 2 * Math.PI * radius;
+    95→  const percentage = Math.min(value / max, 1);
+    96→  const offset = circumference - percentage * circumference;
+    97→
+    98→  return (
+    99→    <div className="flex flex-col items-center gap-1">
+   100→      <div className="relative" style={{ width: size, height: size }}>
+   101→        <svg width={size} height={size} className="-rotate-90">
+   102→          {/* Background circle */}
+   103→          <circle
+   104→            cx={size / 2}
+   105→            cy={size / 2}
+   106→            r={radius}
+   107→            fill="none"
+   108→            stroke="currentColor"
+   109→            strokeWidth={strokeWidth}
+   110→            className="text-warm-200"
+   111→          />
+   112→          {/* Progress circle */}
+   113→          <motion.circle
+   114→            cx={size / 2}
+   115→            cy={size / 2}
+   116→            r={radius}
+   117→            fill="none"
+   118→            stroke={color}
+   119→            strokeWidth={strokeWidth}
+   120→            strokeLinecap="round"
+   121→            strokeDasharray={circumference}
+   122→            initial={{ strokeDashoffset: circumference }}
+   123→            animate={{ strokeDashoffset: offset }}
+   124→            transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
+   125→          />
+   126→        </svg>
+   127→        {/* Center content */}
+   128→        <div className="absolute inset-0 flex flex-col items-center justify-center">
+   129→          {children || (
+   130→            <>
+   131→              <motion.span
+   132→                className="text-lg font-black"
+   133→                style={{ color }}
+   134→                initial={{ opacity: 0, scale: 0.5 }}
+   135→                animate={{ opacity: 1, scale: 1 }}
+   136→                transition={{ delay: 0.6, type: 'spring', damping: 12 }}
+   137→              >
+   138→                {value.toFixed(value % 1 === 0 ? 0 : 1)}
+   139→              </motion.span>
+   140→              {label && (
+   141→                <span className="text-[9px] font-semibold text-warm-500 uppercase tracking-wide">
+   142→                  {label}
+   143→                </span>
+   144→              )}
+   145→            </>
+   146→          )}
+   147→        </div>
+   148→      </div>
+   149→      {sublabel && (
+   150→        <span className="text-[10px] text-warm-500 font-medium">{sublabel}</span>
+   151→      )}
+   152→    </div>
+   153→  );
+   154→}
+   155→
+   156→// ─── SVG Radar Chart ──────────────────────────────────────────────
+   157→
+   158→function SkillRadar({ dimensions }: { dimensions: { label: string; value: number }[] }) {
+   159→  const size = 220;
+   160→  const center = size / 2;
+   161→  const radius = 80;
+   162→  const levels = 4;
+   163→  const count = dimensions.length;
+   164→  const angleStep = (2 * Math.PI) / count;
+   165→
+   166→  const getPoint = (index: number, value: number) => {
+   167→    const angle = angleStep * index - Math.PI / 2;
+   168→    const r = (value / 100) * radius;
+   169→    return {
+   170→      x: center + r * Math.cos(angle),
+   171→      y: center + r * Math.sin(angle),
+   172→    };
+   173→  };
+   174→
+   175→  const radarPoints = dimensions.map((d, i) => getPoint(i, d.value));
+   176→  const radarPath = radarPoints.map((p) => `${p.x},${p.y}`).join(' ');
+   177→
+   178→  return (
+   179→    <div className="flex flex-col items-center">
+   180→      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+   181→        {/* Grid levels */}
+   182→        {Array.from({ length: levels }).map((_, level) => {
+   183→          const r = radius * ((level + 1) / levels);
+   184→          const points = Array.from({ length: count }).map((_, i) => {
+   185→            const angle = angleStep * i - Math.PI / 2;
+   186→            return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
+   187→          });
+   188→          return (
+   189→            <polygon
+   190→              key={level}
+   191→              points={points.join(' ')}
+   192→              fill="none"
+   193→              stroke="#E2E8F0"
+   194→              strokeWidth={1}
+   195→            />
+   196→          );
+   197→        })}
+   198→
+   199→        {/* Axis lines */}
+   200→        {dimensions.map((_, i) => {
+   201→          const angle = angleStep * i - Math.PI / 2;
+   202→          return (
+   203→            <line
+   204→              key={i}
+   205→              x1={center}
+   206→              y1={center}
+   207→              x2={center + radius * Math.cos(angle)}
+   208→              y2={center + radius * Math.sin(angle)}
+   209→              stroke="#E2E8F0"
+   210→              strokeWidth={1}
+   211→            />
+   212→          );
+   213→        })}
+   214→
+   215→        {/* Radar fill */}
+   216→        <motion.polygon
+   217→          points={radarPath}
+   218→          fill="rgba(20, 184, 166, 0.2)"
+   219→          stroke="#14B8A6"
+   220→          strokeWidth={2}
+   221→          initial={{ opacity: 0, scale: 0.3 }}
+   222→          animate={{ opacity: 1, scale: 1 }}
+   223→          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
+   224→          style={{ transformOrigin: `${center}px ${center}px` }}
+   225→        />
+   226→
+   227→        {/* Data points */}
+   228→        {radarPoints.map((p, i) => (
+   229→          <motion.circle
+   230→            key={i}
+   231→            cx={p.x}
+   232→            cy={p.y}
+   233→            r={4}
+   234→            fill="#14B8A6"
+   235→            stroke="white"
+   236→            strokeWidth={2}
+   237→            initial={{ r: 0 }}
+   238→            animate={{ r: 4 }}
+   239→            transition={{ delay: 0.8 + i * 0.1, type: 'spring', damping: 12 }}
+   240→          />
+   241→        ))}
+   242→
+   243→        {/* Labels */}
+   244→        {dimensions.map((d, i) => {
+   245→          const angle = angleStep * i - Math.PI / 2;
+   246→          const labelR = radius + 22;
+   247→          const x = center + labelR * Math.cos(angle);
+   248→          const y = center + labelR * Math.sin(angle);
+   249→          const anchor = Math.abs(Math.cos(angle)) < 0.1 ? 'middle' : Math.cos(angle) > 0 ? 'start' : 'end';
+   250→          const dy = Math.sin(angle) < -0.5 ? -4 : Math.sin(angle) > 0.5 ? 8 : 2;
+   251→          return (
+   252→            <text
+   253→              key={i}
+   254→              x={x}
+   255→              y={y + dy}
+   256→              textAnchor={anchor}
+   257→              className="fill-warm-700"
+   258→              fontSize="9"
+   259→              fontWeight="700"
+   260→            >
+   261→              {d.label}
+   262→            </text>
+   263→          );
+   264→        })}
+   265→      </svg>
+   266→    </div>
+   267→  );
+   268→}
+   269→
+   270→// ─── Position Heatmap ─────────────────────────────────────────────
+   271→
+   272→function PositionHeatmap({ position }: { position: string | null }) {
+   273→  const pos = (position || 'all-rounder').toLowerCase();
+   274→
+   275→  const isRaider = pos === 'raider';
+   276→  const isDefender = pos === 'defender';
+   277→  const isAllRounder = pos === 'all-rounder';
+   278→
+   279→  return (
+   280→    <div className="flex flex-col items-center gap-2">
+   281→      <svg width="280" height="160" viewBox="0 0 280 160">
+   282→        {/* Court background */}
+   283→        <rect x="4" y="4" width="272" height="152" rx="6" fill="#F8FAFC" stroke="#CBD5E1" strokeWidth="2" />
+   284→
+   285→        {/* Center line */}
+   286→        <line x1="140" y1="4" x2="140" y2="156" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="6 4" />
+   287→
+   288→        {/* Center circle */}
+   289→        <circle cx="140" cy="80" r="20" fill="none" stroke="#94A3B8" strokeWidth="1.5" />
+   290→        <circle cx="140" cy="80" r="3" fill="#94A3B8" />
+   291→
+   292→        {/* Baulk lines */}
+   293→        <line x1="4" y1="45" x2="136" y2="45" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="4 3" />
+   294→        <line x1="144" y1="115" x2="276" y2="115" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="4 3" />
+   295→
+   296→        {/* Bonus lines */}
+   297→        <line x1="4" y1="65" x2="136" y2="65" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
+   298→        <line x1="144" y1="95" x2="276" y2="95" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 3" />
+   299→
+   300→        {/* Labels */}
+   301→        <text x="70" y="90" textAnchor="middle" className="fill-warm-400" fontSize="9" fontWeight="600">DEFENSE</text>
+   302→        <text x="210" y="90" textAnchor="middle" className="fill-warm-400" fontSize="9" fontWeight="600">RAID ZONE</text>
+   303→
+   304→        {/* Hot zones - Raider: highlight opponent half */}
+   305→        {(isRaider || isAllRounder) && (
+   306→          <>
+   307→            <motion.rect
+   308→              x="142" y="6" width="132" height="148" rx="4"
+   309→              fill="rgba(220, 38, 38, 0.15)"
+   310→              stroke="rgba(220, 38, 38, 0.4)"
+   311→              strokeWidth="1.5"
+   312→              initial={{ opacity: 0 }}
+   313→              animate={{ opacity: 1 }}
+   314→              transition={{ duration: 0.6, delay: 0.5 }}
+   315→            />
+   316→            {/* Hot spots in raid zone */}
+   317→            <motion.circle cx="210" cy="55" r="18" fill="rgba(220, 38, 38, 0.25)"
+   318→              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.7, type: 'spring', damping: 12 }} />
+   319→            <motion.circle cx="190" cy="100" r="14" fill="rgba(220, 38, 38, 0.2)"
+   320→              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.8, type: 'spring', damping: 12 }} />
+   321→            <motion.circle cx="240" cy="80" r="12" fill="rgba(220, 38, 38, 0.18)"
+   322→              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.9, type: 'spring', damping: 12 }} />
+   323→          </>
+   324→        )}
+   325→
+   326→        {/* Hot zones - Defender: highlight own half corners */}
+   327→        {(isDefender || isAllRounder) && (
+   328→          <>
+   329→            <motion.rect
+   330→              x="6" y="6" width="132" height="148" rx="4"
+   331→              fill="rgba(30, 41, 59, 0.12)"
+   332→              stroke="rgba(30, 41, 59, 0.3)"
+   333→              strokeWidth="1.5"
+   334→              initial={{ opacity: 0 }}
+   335→              animate={{ opacity: 1 }}
+   336→              transition={{ duration: 0.6, delay: 0.5 }}
+   337→            />
+   338→            {/* Corner hot spots */}
+   339→            <motion.circle cx="35" cy="30" r="16" fill="rgba(30, 41, 59, 0.2)"
+   340→              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.7, type: 'spring', damping: 12 }} />
+   341→            <motion.circle cx="35" cy="130" r="16" fill="rgba(30, 41, 59, 0.2)"
+   342→              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.8, type: 'spring', damping: 12 }} />
+   343→            <motion.circle cx="70" cy="80" r="12" fill="rgba(30, 41, 59, 0.15)"
+   344→              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.9, type: 'spring', damping: 12 }} />
+   345→          </>
+   346→        )}
+   347→      </svg>
+   348→      {/* Legend */}
+   349→      <div className="flex items-center gap-4 mt-1">
+   350→        {(isRaider || isAllRounder) && (
+   351→          <div className="flex items-center gap-1.5">
+   352→            <div className="w-3 h-3 rounded-full bg-brand-red/30 border border-brand-red/50" />
+   353→            <span className="text-[10px] text-warm-600 font-medium">Raid Zone</span>
+   354→          </div>
+   355→        )}
+   356→        {(isDefender || isAllRounder) && (
+   357→          <div className="flex items-center gap-1.5">
+   358→            <div className="w-3 h-3 rounded-full bg-brand-navy/20 border border-brand-navy/40" />
+   359→            <span className="text-[10px] text-warm-600 font-medium">Defense Zone</span>
+   360→          </div>
+   361→        )}
+   362→      </div>
+   363→    </div>
+   364→  );
+   365→}
+   366→
+   367→// ─── Simulated match history ─────────────────────────────────────
+   368→
+   369→function generateMatchHistory(
+   370→  profile: PlayerProfileData,
+   371→  user: PlayerUser,
+   372→): MatchHistoryEntry[] {
+   373→  const totalPoints = profile.successfulRaids + profile.bonusPoints + profile.successfulTackles;
+   374→  const matchCount = Math.max(1, Math.round(totalPoints / 6));
+   375→  const opponents = [
+   376→    'Warriors FC', 'Royal Titans', 'Storm Riders', 'Thunder Hawks',
+   377→    'Phoenix United', 'Dark Panthers', 'Golden Eagles', 'Silver Sharks',
+   378→  ];
+   379→  const matches: MatchHistoryEntry[] = [];
+   380→
+   381→  for (let i = 0; i < Math.min(7, matchCount); i++) {
+   382→    const pts = Math.floor(Math.random() * 8) + 2;
+   383→    const teamScore = pts + Math.floor(Math.random() * 15) + 10;
+   384→    const oppScore = Math.floor(Math.random() * 25) + 8;
+   385→    const result: 'W' | 'L' | 'D' = teamScore > oppScore ? 'W' : teamScore < oppScore ? 'L' : 'D';
+   386→
+   387→    matches.push({
+   388→      id: `match_${i}`,
+   389→      opponent: opponents[i % opponents.length],
+   390→      score: `${teamScore}-${oppScore}`,
+   391→      playerPoints: pts,
+   392→      result,
+   393→    });
+   394→  }
+   395→
+   396→  return matches;
+   397→}
+   398→
+   399→// ─── Simulated raid trend ────────────────────────────────────────
+   400→
+   401→function generateRaidTrend(profile: PlayerProfileData): number[] {
+   402→  if (profile.totalRaids === 0) return [0, 0, 0, 0, 0];
+   403→  const avg = profile.successfulRaids / Math.max(1, profile.totalRaids) * 100;
+   404→  return Array.from({ length: 5 }, () =>
+   405→    Math.max(0, Math.min(100, avg + (Math.random() - 0.5) * 30))
+   406→  );
+   407→}
+   408→
+   409→// ─── Main Component ───────────────────────────────────────────────
+   410→
+   411→export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsScreenProps) {
+   412→  const currentUser = useKabaddiStore((s) => s.currentUser);
+   413→  const [user, setUser] = useState<PlayerUser | null>(null);
+   414→  const [profile, setProfile] = useState<PlayerProfileData | null>(null);
+   415→  const [loading, setLoading] = useState(true);
+   416→
+   417→  useEffect(() => {
+   418→    const fetchData = async () => {
+   419→      setLoading(true);
+   420→      try {
+   421→        const res = await fetch(`/api/players/${userId}`);
+   422→        if (!res.ok) throw new Error('Failed to fetch');
+   423→        const data = await res.json();
+   424→
+   425→        // Handle API response format: { player, profile }
+   426→        const playerData = data.player || data.user;
+   427→        const profileData = data.profile;
+   428→
+   429→        setUser({
+   430→          id: playerData?.id || userId,
+   431→          name: playerData?.name || 'Player',
+   432→          avatar: playerData?.avatar || null,
+   433→          gender: playerData?.gender,
+   434→        });
+   435→
+   436→        setProfile({
+   437→          jerseyNumber: profileData?.jerseyNumber ?? null,
+   438→          position: profileData?.position ?? null,
+   439→          overallRating: profileData?.overallRating ?? 0,
+   440→          totalRaids: profileData?.totalRaids ?? 0,
+   441→          successfulRaids: profileData?.successfulRaids ?? 0,
+   442→          totalTackles: profileData?.totalTackles ?? 0,
+   443→          successfulTackles: profileData?.successfulTackles ?? 0,
+   444→          bonusPoints: profileData?.bonusPoints ?? 0,
+   445→          superTackles: profileData?.superTackles ?? 0,
+   446→          playerOfMonth: profileData?.playerOfMonth ?? 0,
+   447→          playerOfYear: profileData?.playerOfYear ?? 0,
+   448→        });
+   449→      } catch (err) {
+   450→        console.error('AdvancedStats fetch error:', err);
+   451→      } finally {
+   452→        setLoading(false);
+   453→      }
+   454→    };
+   455→    fetchData();
+   456→  }, [userId]);
+   457→
+   458→  // ─── Derived stats ──────────────────────────────────────────
+   459→
+   460→  const derivedStats = useMemo(() => {
+   461→    if (!profile) return null;
+   462→    const p = profile;
+   463→
+   464→    const totalPoints = p.successfulRaids + p.bonusPoints + p.successfulTackles + p.superTackles;
+   465→    const matchCount = Math.max(1, Math.round(totalPoints / 6));
+   466→    const avgPoints = totalPoints / matchCount;
+   467→    const raidSuccessRate = p.totalRaids > 0 ? (p.successfulRaids / p.totalRaids) * 100 : 0;
+   468→    const tackleSuccessRate = p.totalTackles > 0 ? (p.successfulTackles / p.totalTackles) * 100 : 0;
+   469→    const failedRaids = p.totalRaids - p.successfulRaids;
+   470→    const failedTackles = p.totalTackles - p.successfulTackles;
+   471→
+   472→    // Radar dimensions (0-100 scale)
+   473→    const radarDimensions = [
+   474→      { label: 'Raiding', value: Math.min(100, raidSuccessRate * 1.1) },
+   475→      { label: 'Defense', value: Math.min(100, tackleSuccessRate * 1.15) },
+   476→      { label: 'Bonus', value: Math.min(100, p.bonusPoints * 5) },
+   477→      { label: 'Super Plays', value: Math.min(100, (p.superTackles) * 12) },
+   478→      { label: 'Consistency', value: Math.min(100, p.overallRating) },
+   479→    ];
+   480→
+   481→    const matchHistory = generateMatchHistory(p, user!);
+   482→    const raidTrend = generateRaidTrend(p);
+   483→
+   484→    return {
+   485→      totalPoints,
+   486→      matchCount,
+   487→      avgPoints,
+   488→      raidSuccessRate,
+   489→      tackleSuccessRate,
+   490→      failedRaids,
+   491→      failedTackles,
+   492→      radarDimensions,
+   493→      matchHistory,
+   494→      raidTrend,
+   495→    };
+   496→  }, [profile, user]);
+   497→
+   498→  const getInitials = (name: string | null | undefined) => {
+   499→    if (!name) return '?';
+   500→    const parts = name.trim().split(/\s+/);
+   501→    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+   502→    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+   503→  };
+   504→
+   505→  const getResultColor = (result: string) => {
+   506→    switch (result) {
+   507→      case 'W': return 'bg-green-500 text-white';
+   508→      case 'L': return 'bg-brand-red text-white';
+   509→      case 'D': return 'bg-warm-400 text-white';
+   510→      default: return 'bg-warm-300 text-warm-700';
+   511→    }
+   512→  };
+   513→
+   514→  // ─── Loading state ──────────────────────────────────────────
+   515→
+   516→  if (loading) {
+   517→    return (
+   518→      <motion.div
+   519→        initial={{ opacity: 0 }}
+   520→        animate={{ opacity: 1 }}
+   521→        className="fixed inset-0 z-50 bg-warm-50 flex flex-col"
+   522→      >
+   523→        <header className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
+   524→          <div className="px-4 py-3 flex items-center justify-between">
+   525→            <div className="flex items-center gap-2">
+   526→              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-teal to-brand-teal-dark flex items-center justify-center">
+   527→                <BarChart3 className="w-4 h-4 text-white" />
+   528→              </div>
+   529→              <h1 className="text-base font-black tracking-wider text-warm-800">
+   530→                ADVANCED STATS
+   531→              </h1>
+   532→            </div>
+   533→            <button
+   534→              onClick={onClose}
+   535→              className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600"
+   536→            >
+   537→              <X className="w-4 h-4" />
+   538→            </button>
+   539→          </div>
+   540→        </header>
+   541→        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+   542→          {[1, 2, 3, 4, 5].map((i) => (
+   543→            <div key={i} className="h-40 rounded-2xl bg-warm-100 animate-pulse" />
+   544→          ))}
+   545→        </div>
+   546→      </motion.div>
+   547→    );
+   548→  }
+   549→
+   550→  if (!profile || !derivedStats) {
+   551→    return (
+   552→      <motion.div
+   553→        initial={{ opacity: 0 }}
+   554→        animate={{ opacity: 1 }}
+   555→        className="fixed inset-0 z-50 bg-warm-50 flex flex-col items-center justify-center gap-4"
+   556→      >
+   557→        <BarChart3 className="w-12 h-12 text-warm-300" />
+   558→        <p className="text-warm-600 font-medium">No stats data available</p>
+   559→        <button
+   560→          onClick={onClose}
+   561→          className="px-4 py-2 rounded-xl bg-brand-teal text-white font-bold text-sm"
+   562→        >
+   563→          Go Back
+   564→        </button>
+   565→      </motion.div>
+   566→    );
+   567→  }
+   568→
+   569→  // ─── Render ─────────────────────────────────────────────────
+   570→
+   571→  return (
+   572→    <motion.div
+   573→      initial={{ opacity: 0 }}
+   574→      animate={{ opacity: 1 }}
+   575→      exit={{ opacity: 0 }}
+   576→      className="fixed inset-0 z-50 bg-warm-50 flex flex-col"
+   577→    >
+   578→      {/* Header */}
+   579→      <header className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
+   580→        <div className="px-4 py-3 flex items-center justify-between">
+   581→          <div className="flex items-center gap-2">
+   582→            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-teal to-brand-teal-dark flex items-center justify-center">
+   583→              <BarChart3 className="w-4 h-4 text-white" />
+   584→            </div>
+   585→            <h1 className="text-base font-black tracking-wider text-warm-800">
+   586→              ADVANCED STATS
+   587→            </h1>
+   588→          </div>
+   589→          <button
+   590→            onClick={onClose}
+   591→            className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600 hover:bg-warm-300 transition-colors"
+   592→          >
+   593→            <X className="w-4 h-4" />
+   594→          </button>
+   595→        </div>
+   596→      </header>
+   597→
+   598→      {/* Content */}
+   599→      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
+   600→        <motion.div
+   601→          className="space-y-4"
+   602→          variants={containerVariants}
+   603→          initial="hidden"
+   604→          animate="visible"
+   605→        >
+   606→          {/* ── Player Info Bar ──────────────────────────────── */}
+   607→          <motion.div variants={itemVariants}>
+   608→            <Card className="p-4 border-0 bg-gradient-to-r from-brand-navy to-brand-navy-light">
+   609→              <div className="flex items-center gap-3">
+   610→                <div className="w-12 h-12 rounded-full bg-white/10 border-2 border-brand-teal flex items-center justify-center overflow-hidden shrink-0">
+   611→                  {user?.avatar ? (
+   612→                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+   613→                  ) : (
+   614→                    <span className="text-brand-teal font-bold text-lg">{getInitials(user?.name)}</span>
+   615→                  )}
+   616→                </div>
+   617→                <div className="flex-1 min-w-0">
+   618→                  <p className="text-white font-bold truncate">{user?.name || 'Player'}</p>
+   619→                  <div className="flex items-center gap-2 mt-0.5">
+   620→                    {profile.jerseyNumber && (
+   621→                      <Badge className="bg-brand-teal/20 text-brand-teal-light text-[10px] border-0 font-bold">
+   622→                        #{profile.jerseyNumber}
+   623→                      </Badge>
+   624→                    )}
+   625→                    <Badge className="bg-white/10 text-white/80 text-[10px] border-0 font-semibold capitalize">
+   626→                      {profile.position || 'Player'}
+   627→                    </Badge>
+   628→                  </div>
+   629→                </div>
+   630→              </div>
+   631→            </Card>
+   632→          </motion.div>
+   633→
+   634→          {/* ── Performance Overview ──────────────────────────── */}
+   635→          <motion.div variants={itemVariants}>
+   636→            <Card className="p-5 border-warm-200/60">
+   637→              <div className="flex items-center gap-2 mb-4">
+   638→                <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
+   639→                  <Activity className="w-3.5 h-3.5 text-brand-teal" />
+   640→                </div>
+   641→                <h2 className="text-sm font-black tracking-wider text-warm-800">
+   642→                  PERFORMANCE OVERVIEW
+   643→                </h2>
+   644→              </div>
+   645→
+   646→              <div className="flex items-center gap-6">
+   647→                {/* Circular rating */}
+   648→                <CircularGauge
+   649→                  value={profile.overallRating}
+   650→                  max={100}
+   651→                  size={110}
+   652→                  strokeWidth={9}
+   653→                  color="#14B8A6"
+   654→                  label="Rating"
+   655→                />
+   656→
+   657→                {/* Key stats */}
+   658→                <div className="flex-1 space-y-3">
+   659→                  <div>
+   660→                    <p className="text-[10px] text-warm-500 font-semibold uppercase tracking-wide">Total Points</p>
+   661→                    <p className="text-xl font-black text-warm-800">{derivedStats.totalPoints}</p>
+   662→                  </div>
+   663→                  <div className="flex items-center gap-4">
+   664→                    <div>
+   665→                      <p className="text-[10px] text-warm-500 font-semibold uppercase tracking-wide">Matches</p>
+   666→                      <p className="text-lg font-bold text-warm-700">{derivedStats.matchCount}</p>
+   667→                    </div>
+   668→                    <div>
+   669→                      <p className="text-[10px] text-warm-500 font-semibold uppercase tracking-wide">Avg Pts/Match</p>
+   670→                      <p className="text-lg font-bold text-warm-700">{derivedStats.avgPoints.toFixed(1)}</p>
+   671→                    </div>
+   672→                  </div>
+   673→                </div>
+   674→              </div>
+   675→            </Card>
+   676→          </motion.div>
+   677→
+   678→          {/* ── Raid Analysis (Premium) ───────────────────────── */}
+   679→          <motion.div variants={itemVariants}>
+   680→            <PremiumLock feature="Raid Analysis">
+   681→              <Card className="p-5 border-warm-200/60">
+   682→                <div className="flex items-center gap-2 mb-4">
+   683→                  <div className="w-6 h-6 rounded-md bg-brand-red/10 flex items-center justify-center">
+   684→                    <Swords className="w-3.5 h-3.5 text-brand-red" />
+   685→                  </div>
+   686→                  <h2 className="text-sm font-black tracking-wider text-warm-800">
+   687→                    RAID ANALYSIS
+   688→                  </h2>
+   689→                  <Badge className="bg-brand-red/10 text-brand-red text-[9px] border-0 font-bold ml-auto">
+   690→                    <Zap className="w-2.5 h-2.5 mr-0.5" />
+   691→                    PREMIUM
+   692→                  </Badge>
+   693→                </div>
+   694→
+   695→                <div className="flex items-start gap-5">
+   696→                  {/* Raid success gauge */}
+   697→                  <CircularGauge
+   698→                    value={derivedStats.raidSuccessRate}
+   699→                    max={100}
+   700→                    size={90}
+   701→                    strokeWidth={7}
+   702→                    color="#DC2626"
+   703→                    label="Success"
+   704→                  >
+   705→                    <span className="text-base font-black text-brand-red">
+   706→                      {derivedStats.raidSuccessRate.toFixed(1)}%
+   707→                    </span>
+   708→                    <span className="text-[8px] font-semibold text-warm-500 uppercase tracking-wide">
+   709→                      Success
+   710→                    </span>
+   711→                  </CircularGauge>
+   712→
+   713→                  <div className="flex-1 space-y-3">
+   714→                    {/* Raid trend (last 5 matches) */}
+   715→                    <div>
+   716→                      <p className="text-[10px] text-warm-500 font-semibold uppercase tracking-wide mb-1.5">
+   717→                        Raid Pts/Match Trend
+   718→                      </p>
+   719→                      <div className="flex items-end gap-1.5 h-10">
+   720→                        {derivedStats.raidTrend.map((val, i) => (
+   721→                          <motion.div
+   722→                            key={i}
+   723→                            className="flex-1 bg-brand-red/20 rounded-t-sm relative overflow-hidden"
+   724→                            initial={{ height: 0 }}
+   725→                            animate={{ height: `${Math.max(10, (val / 100) * 100)}%` }}
+   726→                            transition={{ duration: 0.5, delay: 0.3 + i * 0.1 }}
+   727→                          >
+   728→                            <div className="absolute bottom-0 inset-x-0 bg-brand-red/60 rounded-t-sm" style={{ height: '60%' }} />
+   729→                          </motion.div>
+   730→                        ))}
+   731→                      </div>
+   732→                      <div className="flex gap-1.5 mt-0.5">
+   733→                        {['M1', 'M2', 'M3', 'M4', 'M5'].map((label) => (
+   734→                          <span key={label} className="flex-1 text-center text-[8px] text-warm-400 font-medium">
+   735→                            {label}
+   736→                          </span>
+   737→                        ))}
+   738→                      </div>
+   739→                    </div>
+   740→
+   741→                    {/* Successful vs Failed Raids bar */}
+   742→                    <div>
+   743→                      <div className="flex items-center justify-between text-[10px] mb-1">
+   744→                        <span className="text-warm-500 font-semibold uppercase tracking-wide">
+   745→                          Raids Breakdown
+   746→                        </span>
+   747→                        <span className="text-warm-400">
+   748→                          {profile.successfulRaids}S / {derivedStats.failedRaids}F
+   749→                        </span>
+   750→                      </div>
+   751→                      <div className="h-3 bg-warm-200 rounded-full overflow-hidden flex">
+   752→                        <motion.div
+   753→                          className="h-full bg-brand-red"
+   754→                          initial={{ width: 0 }}
+   755→                          animate={{
+   756→                            width: profile.totalRaids > 0
+   757→                              ? `${(profile.successfulRaids / profile.totalRaids) * 100}%`
+   758→                              : '0%',
+   759→                          }}
+   760→                          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.5 }}
+   761→                        />
+   762→                        <motion.div
+   763→                          className="h-full bg-warm-300"
+   764→                          initial={{ width: 0 }}
+   765→                          animate={{
+   766→                            width: profile.totalRaids > 0
+   767→                              ? `${(derivedStats.failedRaids / profile.totalRaids) * 100}%`
+   768→                              : '0%',
+   769→                          }}
+   770→                          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.6 }}
+   771→                        />
+   772→                      </div>
+   773→                      <div className="flex items-center gap-3 mt-1">
+   774→                        <div className="flex items-center gap-1">
+   775→                          <div className="w-2 h-2 rounded-full bg-brand-red" />
+   776→                          <span className="text-[9px] text-warm-500">Successful</span>
+   777→                        </div>
+   778→                        <div className="flex items-center gap-1">
+   779→                          <div className="w-2 h-2 rounded-full bg-warm-300" />
+   780→                          <span className="text-[9px] text-warm-500">Failed</span>
+   781→                        </div>
+   782→                      </div>
+   783→                    </div>
+   784→                  </div>
+   785→                </div>
+   786→              </Card>
+   787→            </PremiumLock>
+   788→          </motion.div>
+   789→
+   790→          {/* ── Defense Analysis (Premium) ────────────────────── */}
+   791→          <motion.div variants={itemVariants}>
+   792→            <PremiumLock feature="Defense Analysis">
+   793→              <Card className="p-5 border-warm-200/60">
+   794→                <div className="flex items-center gap-2 mb-4">
+   795→                  <div className="w-6 h-6 rounded-md bg-brand-navy/10 flex items-center justify-center">
+   796→                    <Shield className="w-3.5 h-3.5 text-brand-navy" />
+   797→                  </div>
+   798→                  <h2 className="text-sm font-black tracking-wider text-warm-800">
+   799→                    DEFENSE ANALYSIS
+   800→                  </h2>
+   801→                  <Badge className="bg-brand-navy/10 text-brand-navy text-[9px] border-0 font-bold ml-auto">
+   802→                    <Zap className="w-2.5 h-2.5 mr-0.5" />
+   803→                    PREMIUM
+   804→                  </Badge>
+   805→                </div>
+   806→
+   807→                <div className="flex items-start gap-5">
+   808→                  {/* Tackle success gauge */}
+   809→                  <CircularGauge
+   810→                    value={derivedStats.tackleSuccessRate}
+   811→                    max={100}
+   812→                    size={90}
+   813→                    strokeWidth={7}
+   814→                    color="#1E293B"
+   815→                    label="Success"
+   816→                  >
+   817→                    <span className="text-base font-black text-brand-navy">
+   818→                      {derivedStats.tackleSuccessRate.toFixed(1)}%
+   819→                    </span>
+   820→                    <span className="text-[8px] font-semibold text-warm-500 uppercase tracking-wide">
+   821→                      Success
+   822→                    </span>
+   823→                  </CircularGauge>
+   824→
+   825→                  <div className="flex-1 space-y-3">
+   826→                    {/* Super tackles */}
+   827→                    <div className="flex items-center gap-3 p-2.5 rounded-xl bg-brand-gold/10 border border-brand-gold/20">
+   828→                      <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center">
+   829→                        <Star className="w-4 h-4 text-brand-gold" />
+   830→                      </div>
+   831→                      <div>
+   832→                        <p className="text-[10px] text-warm-500 font-semibold uppercase tracking-wide">
+   833→                          Super Tackles
+   834→                        </p>
+   835→                        <p className="text-lg font-black text-brand-gold-dark">{profile.superTackles}</p>
+   836→                      </div>
+   837→                    </div>
+   838→
+   839→                    {/* Successful vs Failed Tackles bar */}
+   840→                    <div>
+   841→                      <div className="flex items-center justify-between text-[10px] mb-1">
+   842→                        <span className="text-warm-500 font-semibold uppercase tracking-wide">
+   843→                          Tackles Breakdown
+   844→                        </span>
+   845→                        <span className="text-warm-400">
+   846→                          {profile.successfulTackles}S / {derivedStats.failedTackles}F
+   847→                        </span>
+   848→                      </div>
+   849→                      <div className="h-3 bg-warm-200 rounded-full overflow-hidden flex">
+   850→                        <motion.div
+   851→                          className="h-full bg-brand-navy"
+   852→                          initial={{ width: 0 }}
+   853→                          animate={{
+   854→                            width: profile.totalTackles > 0
+   855→                              ? `${(profile.successfulTackles / profile.totalTackles) * 100}%`
+   856→                              : '0%',
+   857→                          }}
+   858→                          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.5 }}
+   859→                        />
+   860→                        <motion.div
+   861→                          className="h-full bg-warm-300"
+   862→                          initial={{ width: 0 }}
+   863→                          animate={{
+   864→                            width: profile.totalTackles > 0
+   865→                              ? `${(derivedStats.failedTackles / profile.totalTackles) * 100}%`
+   866→                              : '0%',
+   867→                          }}
+   868→                          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.6 }}
+   869→                        />
+   870→                      </div>
+   871→                      <div className="flex items-center gap-3 mt-1">
+   872→                        <div className="flex items-center gap-1">
+   873→                          <div className="w-2 h-2 rounded-full bg-brand-navy" />
+   874→                          <span className="text-[9px] text-warm-500">Successful</span>
+   875→                        </div>
+   876→                        <div className="flex items-center gap-1">
+   877→                          <div className="w-2 h-2 rounded-full bg-warm-300" />
+   878→                          <span className="text-[9px] text-warm-500">Failed</span>
+   879→                        </div>
+   880→                      </div>
+   881→                    </div>
+   882→                  </div>
+   883→                </div>
+   884→              </Card>
+   885→            </PremiumLock>
+   886→          </motion.div>
+   887→
+   888→          {/* ── Skill Radar (Premium) ─────────────────────────── */}
+   889→          <motion.div variants={itemVariants}>
+   890→            <PremiumLock feature="Skill Radar">
+   891→              <Card className="p-5 border-warm-200/60">
+   892→                <div className="flex items-center gap-2 mb-3">
+   893→                  <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
+   894→                    <Target className="w-3.5 h-3.5 text-brand-teal" />
+   895→                  </div>
+   896→                  <h2 className="text-sm font-black tracking-wider text-warm-800">
+   897→                    SKILL RADAR
+   898→                  </h2>
+   899→                  <Badge className="bg-brand-teal/10 text-brand-teal text-[9px] border-0 font-bold ml-auto">
+   900→                    <Zap className="w-2.5 h-2.5 mr-0.5" />
+   901→                    PREMIUM
+   902→                  </Badge>
+   903→                </div>
+   904→
+   905→                <SkillRadar dimensions={derivedStats.radarDimensions} />
+   906→
+   907→                {/* Dimension values */}
+   908→                <div className="grid grid-cols-5 gap-1 mt-3">
+   909→                  {derivedStats.radarDimensions.map((d) => (
+   910→                    <div key={d.label} className="text-center">
+   911→                      <p className="text-xs font-bold text-brand-teal">{d.value.toFixed(0)}</p>
+   912→                      <p className="text-[8px] text-warm-500 font-medium">{d.label}</p>
+   913→                    </div>
+   914→                  ))}
+   915→                </div>
+   916→              </Card>
+   917→            </PremiumLock>
+   918→          </motion.div>
+   919→
+   920→          {/* ── Position Heatmap (Premium) ────────────────────── */}
+   921→          <motion.div variants={itemVariants}>
+   922→            <PremiumLock feature="Position Heatmap">
+   923→              <Card className="p-5 border-warm-200/60">
+   924→                <div className="flex items-center gap-2 mb-3">
+   925→                  <div className="w-6 h-6 rounded-md bg-brand-red/10 flex items-center justify-center">
+   926→                    <MapPin className="w-3.5 h-3.5 text-brand-red" />
+   927→                  </div>
+   928→                  <h2 className="text-sm font-black tracking-wider text-warm-800">
+   929→                    POSITION HEATMAP
+   930→                  </h2>
+   931→                  <Badge className="bg-brand-red/10 text-brand-red text-[9px] border-0 font-bold ml-auto">
+   932→                    <Zap className="w-2.5 h-2.5 mr-0.5" />
+   933→                    PREMIUM
+   934→                  </Badge>
+   935→                </div>
+   936→
+   937→                <PositionHeatmap position={profile.position} />
+   938→
+   939→                <p className="text-[10px] text-warm-500 text-center mt-2 font-medium">
+   940→                  {profile.position === 'raider'
+   941→                    ? 'Active in opponent half — primary raid zone'
+   942→                    : profile.position === 'defender'
+   943→                      ? 'Anchoring defense — corner & chain positions'
+   944→                      : 'Dominating both halves — versatile coverage'}
+   945→                </p>
+   946→              </Card>
+   947→            </PremiumLock>
+   948→          </motion.div>
+   949→
+   950→          {/* ── Match History ─────────────────────────────────── */}
+   951→          <motion.div variants={itemVariants}>
+   952→            <Card className="p-5 border-warm-200/60">
+   953→              <div className="flex items-center gap-2 mb-4">
+   954→                <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
+   955→                  <Trophy className="w-3.5 h-3.5 text-brand-teal" />
+   956→                </div>
+   957→                <h2 className="text-sm font-black tracking-wider text-warm-800">
+   958→                  MATCH HISTORY
+   959→                </h2>
+   960→              </div>
+   961→
+   962→              <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
+   963→                {derivedStats.matchHistory.map((match, i) => (
+   964→                  <motion.div
+   965→                    key={match.id}
+   966→                    initial={{ opacity: 0, x: -12 }}
+   967→                    animate={{ opacity: 1, x: 0 }}
+   968→                    transition={{ delay: 0.2 + i * 0.05 }}
+   969→                    className="flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/80 hover:bg-warm-200/60 transition-colors"
+   970→                  >
+   971→                    {/* Result badge */}
+   972→                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-black ${getResultColor(match.result)}`}>
+   973→                      {match.result}
+   974→                    </div>
+   975→
+   976→                    {/* Opponent & score */}
+   977→                    <div className="flex-1 min-w-0">
+   978→                      <p className="text-sm font-semibold text-warm-800 truncate">
+   979→                        vs {match.opponent}
+   980→                      </p>
+   981→                      <p className="text-[10px] text-warm-500">
+   982→                        Score: {match.score}
+   983→                      </p>
+   984→                    </div>
+   985→
+   986→                    {/* Player points */}
+   987→                    <div className="text-right shrink-0">
+   988→                      <p className="text-sm font-bold text-brand-teal">{match.playerPoints}</p>
+   989→                      <p className="text-[9px] text-warm-400">pts</p>
+   990→                    </div>
+   991→                  </motion.div>
+   992→                ))}
+   993→              </div>
+   994→            </Card>
+   995→          </motion.div>
+   996→
+   997→          {/* Bottom spacer */}
+   998→          <div className="h-6" />
+   999→        </motion.div>
+  1000→      </div>
+  1001→    </motion.div>
+  1002→  );
+  1003→}
+  1004→

@@ -1,0 +1,1524 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  ArrowLeft,
+     7→  RefreshCw,
+     8→  Trophy,
+     9→  Award,
+    10→  Flag,
+    11→  Milestone,
+    12→  UserPlus,
+    13→  UserCheck,
+    14→  Swords,
+    15→  Users,
+    16→  Rss,
+    17→  Heart,
+    18→  Share2,
+    19→  MessageCircle,
+    20→  Plus,
+    21→  X,
+    22→  Send,
+    23→  Calendar,
+    24→  Crown,
+    25→  Shield,
+    26→} from 'lucide-react';
+    27→import { Card, CardContent } from '@/components/ui/card';
+    28→import { Badge } from '@/components/ui/badge';
+    29→import { Button } from '@/components/ui/button';
+    30→import { useKabaddiStore } from '@/lib/store';
+    31→import { useToast } from '@/hooks/use-toast';
+    32→
+    33→// ─── Types ────────────────────────────────────────────────────────
+    34→
+    35→interface SocialFeedScreenProps {
+    36→  onClose: () => void;
+    37→}
+    38→
+    39→interface Activity {
+    40→  id: string;
+    41→  userId: string;
+    42→  userName: string | null;
+    43→  userAvatar: string | null;
+    44→  userGender: string | null;
+    45→  type: string;
+    46→  title: string | null;
+    47→  description: string | null;
+    48→  matchId: string | null;
+    49→  tournamentId: string | null;
+    50→  metadata: string | null;
+    51→  createdAt: string;
+    52→}
+    53→
+    54→interface SuggestedPlayer {
+    55→  id: string;
+    56→  name: string | null;
+    57→  avatar: string | null;
+    58→  phone: string;
+    59→  gender: string | null;
+    60→  isFollowing?: boolean;
+    61→}
+    62→
+    63→// Enhanced feed types for local/community posts
+    64→type FeedType = 'match_result' | 'player_achievement' | 'tournament_update' | 'team_activity' | 'community_post';
+    65→
+    66→interface CommunityPost {
+    67→  id: string;
+    68→  userId: string;
+    69→  userName: string;
+    70→  content: string;
+    71→  createdAt: number;
+    72→  likes: number;
+    73→  isLiked: boolean;
+    74→  type: FeedType;
+    75→}
+    76→
+    77→// ─── Helpers ──────────────────────────────────────────────────────
+    78→
+    79→function getInitial(name: string | null | undefined): string {
+    80→  if (!name) return '?';
+    81→  return name.trim().charAt(0).toUpperCase();
+    82→}
+    83→
+    84→function getDisplayName(name: string | null | undefined): string {
+    85→  return name?.trim() || 'Unnamed Player';
+    86→}
+    87→
+    88→function formatTimeAgo(dateStr: string): string {
+    89→  try {
+    90→    const diff = Date.now() - new Date(dateStr).getTime();
+    91→    const seconds = Math.floor(diff / 1000);
+    92→    if (seconds < 60) return 'just now';
+    93→    const minutes = Math.floor(seconds / 60);
+    94→    if (minutes < 60) return `${minutes}m ago`;
+    95→    const hours = Math.floor(minutes / 60);
+    96→    if (hours < 24) return `${hours}h ago`;
+    97→    const days = Math.floor(hours / 24);
+    98→    if (days === 1) return 'Yesterday';
+    99→    if (days < 7) return `${days}d ago`;
+   100→    if (days < 30) return `${Math.floor(days / 7)}w ago`;
+   101→    const months = Math.floor(days / 30);
+   102→    return `${months}mo ago`;
+   103→  } catch {
+   104→    return '';
+   105→  }
+   106→}
+   107→
+   108→function formatTimestampAgo(timestamp: number): string {
+   109→  const diff = Date.now() - timestamp;
+   110→  const seconds = Math.floor(diff / 1000);
+   111→  if (seconds < 60) return 'just now';
+   112→  const minutes = Math.floor(seconds / 60);
+   113→  if (minutes < 60) return `${minutes}m ago`;
+   114→  const hours = Math.floor(minutes / 60);
+   115→  if (hours < 24) return `${hours}h ago`;
+   116→  const days = Math.floor(hours / 24);
+   117→  if (days === 1) return 'Yesterday';
+   118→  if (days < 7) return `${days}d ago`;
+   119→  return `${Math.floor(days / 7)}w ago`;
+   120→}
+   121→
+   122→function parseMetadata(metadata: string | null): Record<string, unknown> | null {
+   123→  if (!metadata) return null;
+   124→  try {
+   125→    return JSON.parse(metadata);
+   126→  } catch {
+   127→    return null;
+   128→  }
+   129→}
+   130→
+   131→// ─── Activity Type Config (enhanced) ──────────────────────────────
+   132→
+   133→type ActivityType = 'match_completed' | 'tournament_joined' | 'achievement_unlocked' | 'player_milestone';
+   134→
+   135→interface ActivityTypeConfig {
+   136→  icon: typeof Trophy;
+   137→  color: string;
+   138→  bgColor: string;
+   139→  borderColor: string;
+   140→  badgeBg: string;
+   141→  badgeText: string;
+   142→  label: string;
+   143→  leftBorderColor: string;
+   144→}
+   145→
+   146→const ACTIVITY_CONFIG: Record<ActivityType, ActivityTypeConfig> = {
+   147→  match_completed: {
+   148→    icon: Trophy,
+   149→    color: 'text-brand-red',
+   150→    bgColor: 'bg-brand-red/5',
+   151→    borderColor: 'border-brand-red/20',
+   152→    badgeBg: 'bg-brand-red/15',
+   153→    badgeText: 'text-brand-red',
+   154→    label: 'Match',
+   155→    leftBorderColor: 'border-l-brand-red',
+   156→  },
+   157→  achievement_unlocked: {
+   158→    icon: Award,
+   159→    color: 'text-brand-gold',
+   160→    bgColor: 'bg-brand-gold/5',
+   161→    borderColor: 'border-brand-gold/20',
+   162→    badgeBg: 'bg-brand-gold/15',
+   163→    badgeText: 'text-brand-gold-dark',
+   164→    label: 'Achievement',
+   165→    leftBorderColor: 'border-l-brand-gold',
+   166→  },
+   167→  tournament_joined: {
+   168→    icon: Flag,
+   169→    color: 'text-brand-teal',
+   170→    bgColor: 'bg-brand-teal/5',
+   171→    borderColor: 'border-brand-teal/20',
+   172→    badgeBg: 'bg-brand-teal/15',
+   173→    badgeText: 'text-brand-teal-dark',
+   174→    label: 'Tournament',
+   175→    leftBorderColor: 'border-l-brand-teal',
+   176→  },
+   177→  player_milestone: {
+   178→    icon: Milestone,
+   179→    color: 'text-brand-navy',
+   180→    bgColor: 'bg-brand-navy/5',
+   181→    borderColor: 'border-brand-navy/20',
+   182→    badgeBg: 'bg-brand-navy/15',
+   183→    badgeText: 'text-brand-navy',
+   184→    label: 'Milestone',
+   185→    leftBorderColor: 'border-l-purple-500',
+   186→  },
+   187→};
+   188→
+   189→function getActivityConfig(type: string): ActivityTypeConfig {
+   190→  return ACTIVITY_CONFIG[type as ActivityType] ?? {
+   191→    icon: Rss,
+   192→    color: 'text-warm-500',
+   193→    bgColor: 'bg-warm-100',
+   194→    borderColor: 'border-warm-300',
+   195→    badgeBg: 'bg-warm-200',
+   196→    badgeText: 'text-warm-600',
+   197→    label: 'Activity',
+   198→    leftBorderColor: 'border-l-warm-400',
+   199→  };
+   200→}
+   201→
+   202→// ─── Feed Type Config (new) ───────────────────────────────────────
+   203→
+   204→interface FeedTypeConfig {
+   205→  icon: typeof Trophy;
+   206→  color: string;
+   207→  bgColor: string;
+   208→  borderColor: string;
+   209→  leftBorderColor: string;
+   210→  badgeBg: string;
+   211→  badgeText: string;
+   212→  label: string;
+   213→}
+   214→
+   215→const FEED_TYPE_CONFIG: Record<FeedType, FeedTypeConfig> = {
+   216→  match_result: {
+   217→    icon: Trophy,
+   218→    color: 'text-red-500',
+   219→    bgColor: 'bg-red-500/5',
+   220→    borderColor: 'border-red-500/20',
+   221→    leftBorderColor: 'border-l-red-500',
+   222→    badgeBg: 'bg-red-500/15',
+   223→    badgeText: 'text-red-600',
+   224→    label: 'Match Result',
+   225→  },
+   226→  player_achievement: {
+   227→    icon: Award,
+   228→    color: 'text-amber-500',
+   229→    bgColor: 'bg-amber-500/5',
+   230→    borderColor: 'border-amber-500/20',
+   231→    leftBorderColor: 'border-l-amber-500',
+   232→    badgeBg: 'bg-amber-500/15',
+   233→    badgeText: 'text-amber-600',
+   234→    label: 'Achievement',
+   235→  },
+   236→  tournament_update: {
+   237→    icon: Flag,
+   238→    color: 'text-teal-500',
+   239→    bgColor: 'bg-teal-500/5',
+   240→    borderColor: 'border-teal-500/20',
+   241→    leftBorderColor: 'border-l-teal-500',
+   242→    badgeBg: 'bg-teal-500/15',
+   243→    badgeText: 'text-teal-600',
+   244→    label: 'Tournament',
+   245→  },
+   246→  team_activity: {
+   247→    icon: Users,
+   248→    color: 'text-purple-500',
+   249→    bgColor: 'bg-purple-500/5',
+   250→    borderColor: 'border-purple-500/20',
+   251→    leftBorderColor: 'border-l-purple-500',
+   252→    badgeBg: 'bg-purple-500/15',
+   253→    badgeText: 'text-purple-600',
+   254→    label: 'Team',
+   255→  },
+   256→  community_post: {
+   257→    icon: MessageCircle,
+   258→    color: 'text-blue-500',
+   259→    bgColor: 'bg-blue-500/5',
+   260→    borderColor: 'border-blue-500/20',
+   261→    leftBorderColor: 'border-l-blue-500',
+   262→    badgeBg: 'bg-blue-500/15',
+   263→    badgeText: 'text-blue-600',
+   264→    label: 'Community',
+   265→  },
+   266→};
+   267→
+   268→// ─── Sample Data ──────────────────────────────────────────────────
+   269→
+   270→const SAMPLE_FEED_ITEMS: CommunityPost[] = [
+   271→  {
+   272→    id: 'sample_1',
+   273→    userId: 'system',
+   274→    userName: 'Kabaddi Pro',
+   275→    content: '🔥 Match Result: Patna Pirates 42 - 38 Bengaluru Bulls! What a thriller! An incredible comeback by the Pirates in the second half.',
+   276→    createdAt: Date.now() - 2 * 60 * 60 * 1000,
+   277→    likes: 24,
+   278→    isLiked: false,
+   279→    type: 'match_result',
+   280→  },
+   281→  {
+   282→    id: 'sample_2',
+   283→    userId: 'system',
+   284→    userName: 'Kabaddi Pro',
+   285→    content: '🏆 Milestone Alert! Pardeep Narwal crosses 1500 raid points in PKL history! The Dubki King continues to reign supreme.',
+   286→    createdAt: Date.now() - 4 * 60 * 60 * 1000,
+   287→    likes: 56,
+   288→    isLiked: false,
+   289→    type: 'player_achievement',
+   290→  },
+   291→  {
+   292→    id: 'sample_3',
+   293→    userId: 'system',
+   294→    userName: 'Kabaddi Pro',
+   295→    content: '🏟️ New Tournament: "City Kabaddi Championship 2025" has been created! 16 teams, single elimination bracket. Register now!',
+   296→    createdAt: Date.now() - 6 * 60 * 60 * 1000,
+   297→    likes: 18,
+   298→    isLiked: false,
+   299→    type: 'tournament_update',
+   300→  },
+   301→  {
+   302→    id: 'sample_4',
+   303→    userId: 'system',
+   304→    userName: 'Kabaddi Pro',
+   305→    content: '👤 Team Update: Vikram Singh has been appointed as the new captain of the Mumbai Mahi Raiders.',
+   306→    createdAt: Date.now() - 12 * 60 * 60 * 1000,
+   307→    likes: 8,
+   308→    isLiked: false,
+   309→    type: 'team_activity',
+   310→  },
+   311→];
+   312→
+   313→// ─── Avatar Component ─────────────────────────────────────────────
+   314→
+   315→function PlayerAvatar({
+   316→  name,
+   317→  avatar,
+   318→  gender,
+   319→  size = 'md',
+   320→}: {
+   321→  name: string | null;
+   322→  avatar: string | null;
+   323→  gender?: string | null;
+   324→  size?: 'sm' | 'md';
+   325→}) {
+   326→  const sizeClasses = size === 'sm' ? 'w-9 h-9 text-xs' : 'w-11 h-11 text-sm';
+   327→
+   328→  return (
+   329→    <div className="relative shrink-0">
+   330→      <div
+   331→        className={`${sizeClasses} rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light flex items-center justify-center overflow-hidden ring-2 ring-warm-100 dark:ring-warm-800`}
+   332→      >
+   333→        {avatar ? (
+   334→          <img
+   335→            src={avatar}
+   336→            alt={getDisplayName(name)}
+   337→            className="w-full h-full object-cover"
+   338→          />
+   339→        ) : (
+   340→          <span className="font-bold text-white">{getInitial(name)}</span>
+   341→        )}
+   342→      </div>
+   343→      {gender && (
+   344→        <span
+   345→          className={`absolute -bottom-0.5 -right-0.5 text-[10px] font-bold ${
+   346→            gender === 'male' ? 'text-brand-blue' : 'text-brand-red'
+   347→          }`}
+   348→        >
+   349→          {gender === 'male' ? '♂' : '♀'}
+   350→        </span>
+   351→      )}
+   352→    </div>
+   353→  );
+   354→}
+   355→
+   356→// ─── Activity-Specific Content ────────────────────────────────────
+   357→
+   358→function ActivityCardContent({ activity }: { activity: Activity }) {
+   359→  const config = getActivityConfig(activity.type);
+   360→  const meta = parseMetadata(activity.metadata);
+   361→
+   362→  switch (activity.type) {
+   363→    case 'match_completed': {
+   364→      const homeTeam = (meta?.homeTeam as string) || 'Team A';
+   365→      const awayTeam = (meta?.awayTeam as string) || 'Team B';
+   366→      const homeScore = (meta?.homeScore as number) ?? 0;
+   367→      const awayScore = (meta?.awayScore as number) ?? 0;
+   368→      const winner = (meta?.winner as string) || null;
+   369→
+   370→      return (
+   371→        <div className="mt-2.5 p-3 rounded-lg bg-white/60 dark:bg-white/5 border border-warm-200/60 dark:border-warm-700/40">
+   372→          <div className="flex items-center justify-between gap-3">
+   373→            <div className={`flex-1 text-center ${winner === 'home' ? 'font-bold text-brand-red' : 'text-warm-600 dark:text-warm-400'}`}>
+   374→              <p className="text-xs truncate">{homeTeam}</p>
+   375→              <p className="text-xl font-black">{homeScore}</p>
+   376→            </div>
+   377→            <div className="flex flex-col items-center gap-0.5">
+   378→              <Swords className="w-4 h-4 text-warm-400" />
+   379→              <span className="text-[9px] text-warm-400 font-semibold uppercase">vs</span>
+   380→            </div>
+   381→            <div className={`flex-1 text-center ${winner === 'away' ? 'font-bold text-brand-red' : 'text-warm-600 dark:text-warm-400'}`}>
+   382→              <p className="text-xs truncate">{awayTeam}</p>
+   383→              <p className="text-xl font-black">{awayScore}</p>
+   384→            </div>
+   385→          </div>
+   386→        </div>
+   387→      );
+   388→    }
+   389→
+   390→    case 'tournament_joined': {
+   391→      const tournamentName = (meta?.tournamentName as string) || activity.title || 'Tournament';
+   392→      const teamCount = (meta?.teamCount as number) ?? null;
+   393→
+   394→      return (
+   395→        <div className="mt-2.5 p-3 rounded-lg bg-white/60 dark:bg-white/5 border border-warm-200/60 dark:border-warm-700/40 flex items-center gap-2.5">
+   396→          <div className={`w-9 h-9 rounded-lg ${config.badgeBg} flex items-center justify-center shrink-0`}>
+   397→            <Flag className={`w-4 h-4 ${config.color}`} />
+   398→          </div>
+   399→          <div className="min-w-0">
+   400→            <p className="text-sm font-semibold text-warm-800 dark:text-warm-200 truncate">{tournamentName}</p>
+   401→            {teamCount && (
+   402→              <p className="text-[11px] text-warm-400">{teamCount} teams participating</p>
+   403→            )}
+   404→          </div>
+   405→        </div>
+   406→      );
+   407→    }
+   408→
+   409→    case 'achievement_unlocked': {
+   410→      const achievementName = (meta?.achievementName as string) || activity.title || 'Achievement';
+   411→      const achievementIcon = (meta?.achievementIcon as string) || '🏆';
+   412→
+   413→      return (
+   414→        <div className="mt-2.5 p-3 rounded-lg bg-white/60 dark:bg-white/5 border border-warm-200/60 dark:border-warm-700/40 flex items-center gap-2.5">
+   415→          <div className={`w-9 h-9 rounded-lg ${config.badgeBg} flex items-center justify-center shrink-0 text-lg`}>
+   416→            {achievementIcon}
+   417→          </div>
+   418→          <div className="min-w-0">
+   419→            <p className="text-sm font-semibold text-warm-800 dark:text-warm-200 truncate">{achievementName}</p>
+   420→            <p className="text-[11px] text-warm-400">New achievement unlocked!</p>
+   421→          </div>
+   422→        </div>
+   423→      );
+   424→    }
+   425→
+   426→    case 'player_milestone': {
+   427→      const milestoneType = (meta?.milestoneType as string) || activity.title || 'Milestone';
+   428→      const milestoneValue = (meta?.milestoneValue as string | number) ?? null;
+   429→
+   430→      return (
+   431→        <div className="mt-2.5 p-3 rounded-lg bg-white/60 dark:bg-white/5 border border-warm-200/60 dark:border-warm-700/40 flex items-center gap-2.5">
+   432→          <div className={`w-9 h-9 rounded-lg ${config.badgeBg} flex items-center justify-center shrink-0`}>
+   433→            <Milestone className={`w-4 h-4 ${config.color}`} />
+   434→          </div>
+   435→          <div className="min-w-0">
+   436→            <p className="text-sm font-semibold text-warm-800 dark:text-warm-200 truncate">{milestoneType}</p>
+   437→            {milestoneValue && (
+   438→              <p className="text-[11px] text-warm-400">Reached {String(milestoneValue)}</p>
+   439→            )}
+   440→          </div>
+   441→        </div>
+   442→      );
+   443→    }
+   444→
+   445→    default:
+   446→      return activity.description ? (
+   447→        <p className="mt-1.5 text-xs text-warm-500 dark:text-warm-400 leading-relaxed">{activity.description}</p>
+   448→      ) : null;
+   449→  }
+   450→}
+   451→
+   452→// ─── Feed Item Icons by Type ──────────────────────────────────────
+   453→
+   454→function getFeedTypeIcon(type: FeedType): typeof Trophy {
+   455→  return FEED_TYPE_CONFIG[type].icon;
+   456→}
+   457→
+   458→function getFeedTypeLabel(type: FeedType): string {
+   459→  return FEED_TYPE_CONFIG[type].label;
+   460→}
+   461→
+   462→// ─── Enhanced Community Feed Card ─────────────────────────────────
+   463→
+   464→function CommunityFeedCard({
+   465→  item,
+   466→  onLike,
+   467→  onShare,
+   468→  index,
+   469→}: {
+   470→  item: CommunityPost;
+   471→  onLike: (id: string) => void;
+   472→  onShare: (id: string) => void;
+   473→  index: number;
+   474→}) {
+   475→  const config = FEED_TYPE_CONFIG[item.type];
+   476→  const Icon = config.icon;
+   477→
+   478→  return (
+   479→    <motion.div
+   480→      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+   481→      animate={{ opacity: 1, y: 0, scale: 1 }}
+   482→      transition={{
+   483→        delay: Math.min(index * 0.04, 0.4),
+   484→        type: 'spring',
+   485→        damping: 20,
+   486→        stiffness: 200,
+   487→      }}
+   488→    >
+   489→      <Card
+   490→        className={`${config.bgColor} ${config.borderColor} border-l-4 ${config.leftBorderColor} rounded-xl py-0 gap-0 overflow-hidden backdrop-blur-md bg-white/70 dark:bg-warm-900/70 shadow-sm hover:shadow-md transition-shadow`}
+   491→      >
+   492→        <CardContent className="p-4">
+   493→          {/* Header row */}
+   494→          <div className="flex items-start gap-3">
+   495→            <div className={`w-10 h-10 rounded-xl ${config.badgeBg} flex items-center justify-center shrink-0`}>
+   496→              <Icon className={`w-5 h-5 ${config.color}`} />
+   497→            </div>
+   498→            <div className="flex-1 min-w-0">
+   499→              <div className="flex items-center gap-1.5 flex-wrap">
+   500→                <p className="font-bold text-sm text-warm-800 dark:text-warm-200 truncate">
+   501→                  {item.userName}
+   502→                </p>
+   503→                <Badge className={`${config.badgeBg} ${config.badgeText} text-[9px] font-semibold border-0 px-1.5 py-0 h-4`}>
+   504→                  <Icon className="w-2.5 h-2.5 mr-0.5" />
+   505→                  {getFeedTypeLabel(item.type)}
+   506→                </Badge>
+   507→              </div>
+   508→              <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-0.5">
+   509→                {formatTimestampAgo(item.createdAt)}
+   510→              </p>
+   511→            </div>
+   512→          </div>
+   513→
+   514→          {/* Content */}
+   515→          <p className="mt-2.5 text-sm text-warm-700 dark:text-warm-300 leading-relaxed whitespace-pre-line">
+   516→            {item.content}
+   517→          </p>
+   518→
+   519→          {/* Actions */}
+   520→          <div className="mt-3 flex items-center gap-4">
+   521→            <motion.button
+   522→              onClick={() => onLike(item.id)}
+   523→              className="flex items-center gap-1.5 group"
+   524→              whileTap={{ scale: 0.9 }}
+   525→            >
+   526→              <Heart
+   527→                className={`w-4 h-4 transition-colors ${
+   528→                  item.isLiked
+   529→                    ? 'text-red-500 fill-red-500'
+   530→                    : 'text-warm-400 group-hover:text-red-400'
+   531→                }`}
+   532→              />
+   533→              <span className={`text-xs font-medium ${item.isLiked ? 'text-red-500' : 'text-warm-500 dark:text-warm-400'}`}>
+   534→                {item.likes}
+   535→              </span>
+   536→            </motion.button>
+   537→
+   538→            <button
+   539→              onClick={() => onShare(item.id)}
+   540→              className="flex items-center gap-1.5 text-warm-400 hover:text-brand-teal transition-colors"
+   541→            >
+   542→              <Share2 className="w-4 h-4" />
+   543→              <span className="text-xs font-medium text-warm-500 dark:text-warm-400">Share</span>
+   544→            </button>
+   545→          </div>
+   546→        </CardContent>
+   547→      </Card>
+   548→    </motion.div>
+   549→  );
+   550→}
+   551→
+   552→// ─── Match Result Card (enhanced) ─────────────────────────────────
+   553→
+   554→function MatchResultCard({
+   555→  activity,
+   556→  index,
+   557→}: {
+   558→  activity: Activity;
+   559→  index: number;
+   560→}) {
+   561→  const meta = parseMetadata(activity.metadata);
+   562→  const homeTeam = (meta?.homeTeam as string) || 'Team A';
+   563→  const awayTeam = (meta?.awayTeam as string) || 'Team B';
+   564→  const homeScore = (meta?.homeScore as number) ?? 0;
+   565→  const awayScore = (meta?.awayScore as number) ?? 0;
+   566→  const winner = (meta?.winner as string) || null;
+   567→  const topRaider = (meta?.topRaider as string) || null;
+   568→  const topDefender = (meta?.topDefender as string) || null;
+   569→
+   570→  return (
+   571→    <motion.div
+   572→      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+   573→      animate={{ opacity: 1, y: 0, scale: 1 }}
+   574→      transition={{
+   575→        delay: Math.min(index * 0.04, 0.4),
+   576→        type: 'spring',
+   577→        damping: 20,
+   578→        stiffness: 200,
+   579→      }}
+   580→    >
+   581→      <Card className="bg-red-500/5 border border-red-500/20 border-l-4 border-l-red-500 rounded-xl py-0 gap-0 overflow-hidden backdrop-blur-md bg-white/70 dark:bg-warm-900/70 shadow-sm hover:shadow-md transition-shadow">
+   582→        <CardContent className="p-4">
+   583→          <div className="flex items-center gap-2 mb-2.5">
+   584→            <div className="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center">
+   585→              <Trophy className="w-4 h-4 text-red-500" />
+   586→            </div>
+   587→            <Badge className="bg-red-500/15 text-red-600 dark:text-red-400 text-[9px] font-semibold border-0 px-1.5 py-0 h-4">
+   588→              Match Result
+   589→            </Badge>
+   590→            <span className="text-[10px] text-warm-400 ml-auto">
+   591→              {formatTimeAgo(activity.createdAt)}
+   592→            </span>
+   593→          </div>
+   594→
+   595→          <div className="p-3 rounded-lg bg-white/60 dark:bg-white/5 border border-warm-200/60 dark:border-warm-700/40">
+   596→            <div className="flex items-center justify-between gap-3">
+   597→              <div className={`flex-1 text-center ${winner === 'home' ? 'font-bold text-red-500' : 'text-warm-600 dark:text-warm-400'}`}>
+   598→                <p className="text-xs truncate">{homeTeam}</p>
+   599→                <p className="text-xl font-black">{homeScore}</p>
+   600→              </div>
+   601→              <div className="flex flex-col items-center gap-0.5">
+   602→                <Swords className="w-4 h-4 text-warm-400" />
+   603→                <span className="text-[9px] text-warm-400 font-semibold uppercase">vs</span>
+   604→              </div>
+   605→              <div className={`flex-1 text-center ${winner === 'away' ? 'font-bold text-red-500' : 'text-warm-600 dark:text-warm-400'}`}>
+   606→                <p className="text-xs truncate">{awayTeam}</p>
+   607→                <p className="text-xl font-black">{awayScore}</p>
+   608→              </div>
+   609→            </div>
+   610→          </div>
+   611→
+   612→          {/* Key stats */}
+   613→          {(topRaider || topDefender) && (
+   614→            <div className="mt-2 flex items-center gap-3 text-[10px] text-warm-500 dark:text-warm-400">
+   615→              {topRaider && (
+   616→                <span className="flex items-center gap-1">
+   617→                  <Swords className="w-3 h-3 text-amber-500" />
+   618→                  Top Raider: {topRaider}
+   619→                </span>
+   620→              )}
+   621→              {topDefender && (
+   622→                <span className="flex items-center gap-1">
+   623→                  <Shield className="w-3 h-3 text-teal-500" />
+   624→                  Top Defender: {topDefender}
+   625→                </span>
+   626→              )}
+   627→            </div>
+   628→          )}
+   629→        </CardContent>
+   630→      </Card>
+   631→    </motion.div>
+   632→  );
+   633→}
+   634→
+   635→// ─── Achievement Card (enhanced) ──────────────────────────────────
+   636→
+   637→function AchievementCard({
+   638→  activity,
+   639→  index,
+   640→}: {
+   641→  activity: Activity;
+   642→  index: number;
+   643→}) {
+   644→  const meta = parseMetadata(activity.metadata);
+   645→  const achievementName = (meta?.achievementName as string) || activity.title || 'Achievement';
+   646→  const achievementIcon = (meta?.achievementIcon as string) || '🏆';
+   647→  const playerName = activity.userName || 'Player';
+   648→
+   649→  return (
+   650→    <motion.div
+   651→      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+   652→      animate={{ opacity: 1, y: 0, scale: 1 }}
+   653→      transition={{
+   654→        delay: Math.min(index * 0.04, 0.4),
+   655→        type: 'spring',
+   656→        damping: 20,
+   657→        stiffness: 200,
+   658→      }}
+   659→    >
+   660→      <Card className="bg-amber-500/5 border border-amber-500/20 border-l-4 border-l-amber-500 rounded-xl py-0 gap-0 overflow-hidden backdrop-blur-md bg-white/70 dark:bg-warm-900/70 shadow-sm hover:shadow-md transition-shadow">
+   661→        <CardContent className="p-4">
+   662→          <div className="flex items-center gap-3">
+   663→            <motion.div
+   664→              className="w-12 h-12 rounded-xl bg-amber-500/15 flex items-center justify-center text-2xl shrink-0"
+   665→              animate={{ scale: [1, 1.05, 1] }}
+   666→              transition={{ duration: 2, repeat: Infinity }}
+   667→            >
+   668→              {achievementIcon}
+   669→            </motion.div>
+   670→            <div className="flex-1 min-w-0">
+   671→              <div className="flex items-center gap-1.5">
+   672→                <Crown className="w-3.5 h-3.5 text-amber-500" />
+   673→                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[9px] font-semibold border-0 px-1.5 py-0 h-4">
+   674→                  Achievement
+   675→                </Badge>
+   676→              </div>
+   677→              <p className="text-sm font-bold text-warm-800 dark:text-warm-200 mt-1 truncate">
+   678→                {playerName}
+   679→              </p>
+   680→              <p className="text-xs text-warm-500 dark:text-warm-400">
+   681→                {achievementName}
+   682→              </p>
+   683→            </div>
+   684→            <span className="text-[10px] text-warm-400 shrink-0">
+   685→              {formatTimeAgo(activity.createdAt)}
+   686→            </span>
+   687→          </div>
+   688→        </CardContent>
+   689→      </Card>
+   690→    </motion.div>
+   691→  );
+   692→}
+   693→
+   694→// ─── Skeleton Loaders ─────────────────────────────────────────────
+   695→
+   696→function ActivitySkeleton() {
+   697→  return (
+   698→    <div className="rounded-xl bg-warm-100 dark:bg-warm-800 border border-warm-300 dark:border-warm-700 p-4 animate-pulse">
+   699→      <div className="flex items-center gap-3">
+   700→        <div className="w-11 h-11 rounded-full bg-warm-200 dark:bg-warm-700 shrink-0" />
+   701→        <div className="flex-1 space-y-2">
+   702→          <div className="h-3.5 w-32 rounded-full bg-warm-200 dark:bg-warm-700" />
+   703→          <div className="h-2.5 w-48 rounded-full bg-warm-200 dark:bg-warm-700" />
+   704→        </div>
+   705→        <div className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 shrink-0" />
+   706→      </div>
+   707→      <div className="mt-3 h-16 rounded-lg bg-warm-200 dark:bg-warm-700" />
+   708→    </div>
+   709→  );
+   710→}
+   711→
+   712→function SuggestedPlayerSkeleton() {
+   713→  return (
+   714→    <div className="flex items-center gap-3 py-2 animate-pulse">
+   715→      <div className="w-10 h-10 rounded-full bg-warm-200 dark:bg-warm-700 shrink-0" />
+   716→      <div className="flex-1 space-y-2">
+   717→        <div className="h-3 w-24 rounded-full bg-warm-200 dark:bg-warm-700" />
+   718→        <div className="h-2 w-16 rounded-full bg-warm-200 dark:bg-warm-700" />
+   719→      </div>
+   720→      <div className="w-16 h-7 rounded-full bg-warm-200 dark:bg-warm-700 shrink-0" />
+   721→    </div>
+   722→  );
+   723→}
+   724→
+   725→// ─── Follow Button (compact for suggestions) ──────────────────────
+   726→
+   727→function SuggestionFollowButton({
+   728→  isFollowing,
+   729→  onToggle,
+   730→  loading,
+   731→}: {
+   732→  isFollowing: boolean;
+   733→  onToggle: () => void;
+   734→  loading: boolean;
+   735→}) {
+   736→  return (
+   737→    <button
+   738→      onClick={onToggle}
+   739→      disabled={loading}
+   740→      className={`h-7 px-3 rounded-full text-[11px] font-bold transition-all duration-200 flex items-center gap-1 shrink-0 ${
+   741→        isFollowing
+   742→          ? 'bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-400 hover:bg-red-100 hover:text-brand-red'
+   743→          : 'bg-brand-teal text-white hover:bg-brand-teal-dark shadow-sm'
+   744→      } ${loading ? 'opacity-60 cursor-not-allowed' : 'active:scale-95'}`}
+   745→    >
+   746→      {loading ? (
+   747→        <motion.div
+   748→          className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"
+   749→          animate={{ rotate: 360 }}
+   750→          transition={{ duration: 0.6, repeat: Infinity, ease: 'linear' }}
+   751→        />
+   752→      ) : isFollowing ? (
+   753→        <>
+   754→          <UserCheck className="w-3 h-3" />
+   755→          <span>Following</span>
+   756→        </>
+   757→      ) : (
+   758→        <>
+   759→          <UserPlus className="w-3 h-3" />
+   760→          <span>Follow</span>
+   761→        </>
+   762→      )}
+   763→    </button>
+   764→  );
+   765→}
+   766→
+   767→// ─── Create Post Modal ────────────────────────────────────────────
+   768→
+   769→function CreatePostModal({
+   770→  onClose,
+   771→  onPost,
+   772→}: {
+   773→  onClose: () => void;
+   774→  onPost: (content: string, type: FeedType) => void;
+   775→}) {
+   776→  const [content, setContent] = useState('');
+   777→  const [selectedType, setSelectedType] = useState<FeedType>('community_post');
+   778→  const MAX_CHARS = 280;
+   779→  const remaining = MAX_CHARS - content.length;
+   780→
+   781→  const typeOptions: { value: FeedType; label: string; icon: typeof MessageCircle }[] = [
+   782→    { value: 'community_post', label: 'Post', icon: MessageCircle },
+   783→    { value: 'match_result', label: 'Match', icon: Trophy },
+   784→    { value: 'player_achievement', label: 'Achievement', icon: Award },
+   785→    { value: 'tournament_update', label: 'Tournament', icon: Flag },
+   786→    { value: 'team_activity', label: 'Team', icon: Users },
+   787→  ];
+   788→
+   789→  return (
+   790→    <motion.div
+   791→      initial={{ opacity: 0 }}
+   792→      animate={{ opacity: 1 }}
+   793→      exit={{ opacity: 0 }}
+   794→      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm"
+   795→      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+   796→    >
+   797→      <motion.div
+   798→        initial={{ y: '100%' }}
+   799→        animate={{ y: 0 }}
+   800→        exit={{ y: '100%' }}
+   801→        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+   802→        className="w-full max-w-md bg-warm-50 dark:bg-warm-900 rounded-t-2xl shadow-2xl"
+   803→        onClick={(e) => e.stopPropagation()}
+   804→      >
+   805→        {/* Handle bar */}
+   806→        <div className="flex justify-center pt-3 pb-1">
+   807→          <div className="w-10 h-1 rounded-full bg-warm-300 dark:bg-warm-600" />
+   808→        </div>
+   809→
+   810→        {/* Header */}
+   811→        <div className="flex items-center justify-between px-4 py-2">
+   812→          <h3 className="text-base font-black text-warm-800 dark:text-warm-200">Create Post</h3>
+   813→          <button
+   814→            onClick={onClose}
+   815→            className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 hover:bg-warm-300 dark:hover:bg-warm-600 transition-colors"
+   816→          >
+   817→            <X className="w-4 h-4" />
+   818→          </button>
+   819→        </div>
+   820→
+   821→        {/* Post type selector */}
+   822→        <div className="px-4 pb-2">
+   823→          <div className="flex gap-1.5 overflow-x-auto custom-scrollbar pb-1">
+   824→            {typeOptions.map((opt) => (
+   825→              <button
+   826→                key={opt.value}
+   827→                onClick={() => setSelectedType(opt.value)}
+   828→                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all ${
+   829→                  selectedType === opt.value
+   830→                    ? `${FEED_TYPE_CONFIG[opt.value].badgeBg} ${FEED_TYPE_CONFIG[opt.value].badgeText} shadow-sm`
+   831→                    : 'bg-warm-100 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+   832→                }`}
+   833→              >
+   834→                <opt.icon className="w-3 h-3" />
+   835→                {opt.label}
+   836→              </button>
+   837→            ))}
+   838→          </div>
+   839→        </div>
+   840→
+   841→        {/* Text area */}
+   842→        <div className="px-4 pb-3">
+   843→          <textarea
+   844→            value={content}
+   845→            onChange={(e) => setContent(e.target.value.slice(0, MAX_CHARS))}
+   846→            placeholder="What's happening in kabaddi?"
+   847→            className="w-full h-28 resize-none rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-3 text-sm text-warm-800 dark:text-warm-200 placeholder:text-warm-400 focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal transition-all"
+   848→            autoFocus
+   849→          />
+   850→          <div className="flex items-center justify-between mt-2">
+   851→            <span className={`text-[11px] font-medium ${remaining < 50 ? 'text-red-500' : 'text-warm-400'}`}>
+   852→              {remaining} characters left
+   853→            </span>
+   854→            <Button
+   855→              onClick={() => {
+   856→                if (content.trim()) {
+   857→                  onPost(content.trim(), selectedType);
+   858→                  onClose();
+   859→                }
+   860→              }}
+   861→              disabled={!content.trim()}
+   862→              size="sm"
+   863→              className="rounded-full bg-brand-teal hover:bg-brand-teal-dark text-white font-bold text-xs px-5 disabled:opacity-40"
+   864→            >
+   865→              <Send className="w-3.5 h-3.5 mr-1" />
+   866→              Post
+   867→            </Button>
+   868→          </div>
+   869→        </div>
+   870→      </motion.div>
+   871→    </motion.div>
+   872→  );
+   873→}
+   874→
+   875→// ─── Pull to Refresh Indicator ────────────────────────────────────
+   876→
+   877→function PullToRefreshIndicator({ pulling, refreshing }: { pulling: boolean; refreshing: boolean }) {
+   878→  return (
+   879→    <AnimatePresence>
+   880→      {(pulling || refreshing) && (
+   881→        <motion.div
+   882→          initial={{ height: 0, opacity: 0 }}
+   883→          animate={{ height: 40, opacity: 1 }}
+   884→          exit={{ height: 0, opacity: 0 }}
+   885→          className="flex items-center justify-center overflow-hidden"
+   886→        >
+   887→          <motion.div
+   888→            animate={refreshing ? { rotate: 360 } : { rotate: pulling ? 180 : 0 }}
+   889→            transition={refreshing ? { duration: 0.8, repeat: Infinity, ease: 'linear' } : { duration: 0.3 }}
+   890→          >
+   891→            <RefreshCw className="w-5 h-5 text-brand-teal" />
+   892→          </motion.div>
+   893→          <span className="ml-2 text-xs text-warm-500 dark:text-warm-400 font-medium">
+   894→            {refreshing ? 'Refreshing...' : 'Pull to refresh'}
+   895→          </span>
+   896→        </motion.div>
+   897→      )}
+   898→    </AnimatePresence>
+   899→  );
+   900→}
+   901→
+   902→// ─── Main Component ───────────────────────────────────────────────
+   903→
+   904→export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
+   905→  const currentUser = useKabaddiStore((s) => s.currentUser);
+   906→  const { toast } = useToast();
+   907→
+   908→  // Activity feed state
+   909→  const [activities, setActivities] = useState<Activity[]>([]);
+   910→  const [feedLoading, setFeedLoading] = useState(true);
+   911→  const [refreshing, setRefreshing] = useState(false);
+   912→  const [offset, setOffset] = useState(0);
+   913→  const [hasMore, setHasMore] = useState(true);
+   914→
+   915→  // Suggested players state
+   916→  const [suggestedPlayers, setSuggestedPlayers] = useState<SuggestedPlayer[]>([]);
+   917→  const [suggestedLoading, setSuggestedLoading] = useState(false);
+   918→  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+   919→
+   920→  // Community posts (local state)
+   921→  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(SAMPLE_FEED_ITEMS);
+   922→
+   923→  // Create post modal
+   924→  const [showCreatePost, setShowCreatePost] = useState(false);
+   925→
+   926→  // Pull to refresh state
+   927→  const [pulling, setPulling] = useState(false);
+   928→
+   929→  // ─── Fetch Activities ───────────────────────────────────────
+   930→
+   931→  const fetchActivities = useCallback(
+   932→    async (isRefresh = false) => {
+   933→      if (!currentUser) return;
+   934→
+   935→      if (isRefresh) {
+   936→        setRefreshing(true);
+   937→      } else {
+   938→        setFeedLoading(true);
+   939→      }
+   940→
+   941→      try {
+   942→        const params = new URLSearchParams({
+   943→          userId: currentUser.id,
+   944→          limit: '20',
+   945→          offset: isRefresh ? '0' : String(offset),
+   946→        });
+   947→        const res = await fetch(`/api/activities?${params}`);
+   948→        if (!res.ok) throw new Error('Failed to fetch');
+   949→        const data = await res.json();
+   950→        const newActivities: Activity[] = data.activities || [];
+   951→
+   952→        if (isRefresh) {
+   953→          setActivities(newActivities);
+   954→          setOffset(0);
+   955→        } else {
+   956→          setActivities((prev) => [...prev, ...newActivities]);
+   957→        }
+   958→        setHasMore(newActivities.length === 20);
+   959→      } catch (err) {
+   960→        console.error('Activities fetch error:', err);
+   961→        if (isRefresh) setActivities([]);
+   962→      } finally {
+   963→        setFeedLoading(false);
+   964→        setRefreshing(false);
+   965→        setPulling(false);
+   966→      }
+   967→    },
+   968→    [currentUser, offset]
+   969→  );
+   970→
+   971→  // ─── Fetch Suggested Players ────────────────────────────────
+   972→
+   973→  const fetchSuggestedPlayers = useCallback(async () => {
+   974→    if (!currentUser) return;
+   975→    setSuggestedLoading(true);
+   976→    try {
+   977→      const params = new URLSearchParams({
+   978→        userId: currentUser.id,
+   979→        type: 'search',
+   980→      });
+   981→      const res = await fetch(`/api/follow?${params}`);
+   982→      if (!res.ok) throw new Error('Failed to fetch');
+   983→      const data = await res.json();
+   984→      const players: SuggestedPlayer[] = (data.players || [])
+   985→        .filter((p: SuggestedPlayer) => !p.isFollowing && p.id !== currentUser.id)
+   986→        .slice(0, 5);
+   987→      setSuggestedPlayers(players);
+   988→    } catch (err) {
+   989→      console.error('Suggested players fetch error:', err);
+   990→      setSuggestedPlayers([]);
+   991→    } finally {
+   992→      setSuggestedLoading(false);
+   993→    }
+   994→  }, [currentUser]);
+   995→
+   996→  // ─── Follow / Unfollow action ───────────────────────────────
+   997→
+   998→  const handleFollowAction = async (
+   999→    targetId: string,
+  1000→    isCurrentlyFollowing: boolean
+  1001→  ) => {
+  1002→    if (!currentUser || actionLoadingId) return;
+  1003→    setActionLoadingId(targetId);
+  1004→    try {
+  1005→      const res = await fetch('/api/follow', {
+  1006→        method: 'POST',
+  1007→        headers: { 'Content-Type': 'application/json' },
+  1008→        body: JSON.stringify({
+  1009→          followerId: currentUser.id,
+  1010→          followingId: targetId,
+  1011→          action: isCurrentlyFollowing ? 'unfollow' : 'follow',
+  1012→        }),
+  1013→      });
+  1014→      if (!res.ok) throw new Error('Action failed');
+  1015→
+  1016→      const nowFollowing = !isCurrentlyFollowing;
+  1017→
+  1018→      // Update suggested players
+  1019→      setSuggestedPlayers((prev) =>
+  1020→        prev.map((p) =>
+  1021→          p.id === targetId ? { ...p, isFollowing: nowFollowing } : p
+  1022→        )
+  1023→      );
+  1024→
+  1025→      toast({
+  1026→        title: nowFollowing ? 'Following!' : 'Unfollowed',
+  1027→        description: nowFollowing
+  1028→          ? 'You are now following this player'
+  1029→          : 'You unfollowed this player',
+  1030→      });
+  1031→
+  1032→      // Refresh feed to show new followed user's activities
+  1033→      if (nowFollowing) {
+  1034→        fetchActivities(true);
+  1035→      }
+  1036→    } catch (err) {
+  1037→      console.error('Follow action error:', err);
+  1038→      toast({
+  1039→        title: 'Error',
+  1040→        description: 'Something went wrong. Please try again.',
+  1041→        variant: 'destructive',
+  1042→      });
+  1043→    } finally {
+  1044→      setActionLoadingId(null);
+  1045→    }
+  1046→  };
+  1047→
+  1048→  // ─── Load more ──────────────────────────────────────────────
+  1049→
+  1050→  const loadMore = useCallback(() => {
+  1051→    if (!hasMore || feedLoading) return;
+  1052→    setOffset((prev) => prev + 20);
+  1053→  }, [hasMore, feedLoading]);
+  1054→
+  1055→  // ─── Effects ────────────────────────────────────────────────
+  1056→
+  1057→  useEffect(() => {
+  1058→    fetchActivities();
+  1059→  }, [fetchActivities]);
+  1060→
+  1061→  // Refetch when offset changes (load more)
+  1062→  useEffect(() => {
+  1063→    if (offset > 0) {
+  1064→      fetchActivities();
+  1065→    }
+  1066→  }, [offset]);
+  1067→
+  1068→  useEffect(() => {
+  1069→    fetchSuggestedPlayers();
+  1070→  }, [fetchSuggestedPlayers]);
+  1071→
+  1072→  // ─── Community Post Actions ─────────────────────────────────
+  1073→
+  1074→  const handleCreatePost = useCallback((content: string, type: FeedType) => {
+  1075→    const newPost: CommunityPost = {
+  1076→      id: `post_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  1077→      userId: currentUser?.id || 'anonymous',
+  1078→      userName: currentUser?.name || 'You',
+  1079→      content,
+  1080→      createdAt: Date.now(),
+  1081→      likes: 0,
+  1082→      isLiked: false,
+  1083→      type,
+  1084→    };
+  1085→    setCommunityPosts((prev) => [newPost, ...prev]);
+  1086→    toast({
+  1087→      title: 'Post created!',
+  1088→      description: 'Your post has been added to the feed',
+  1089→    });
+  1090→  }, [currentUser, toast]);
+  1091→
+  1092→  const handleLikePost = useCallback((postId: string) => {
+  1093→    setCommunityPosts((prev) =>
+  1094→      prev.map((p) =>
+  1095→        p.id === postId
+  1096→          ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 }
+  1097→          : p
+  1098→      )
+  1099→    );
+  1100→  }, []);
+  1101→
+  1102→  const handleSharePost = useCallback((postId: string) => {
+  1103→    void postId;
+  1104→    toast({
+  1105→      title: 'Link copied!',
+  1106→      description: 'Post link has been copied to clipboard',
+  1107→    });
+  1108→  }, [toast]);
+  1109→
+  1110→  // ─── Derived ────────────────────────────────────────────────
+  1111→
+  1112→  const feedIsEmpty = !feedLoading && activities.length === 0 && communityPosts.length === 0;
+  1113→
+  1114→  // ─── Render ─────────────────────────────────────────────────
+  1115→
+  1116→  return (
+  1117→    <motion.div
+  1118→      initial={{ y: '100%' }}
+  1119→      animate={{ y: 0 }}
+  1120→      exit={{ y: '100%' }}
+  1121→      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+  1122→      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-950 flex flex-col"
+  1123→    >
+  1124→      {/* ═══ Header ═══ */}
+  1125→      <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-950/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-800/60">
+  1126→        <div className="px-4 py-3 flex items-center justify-between">
+  1127→          <div className="flex items-center gap-2">
+  1128→            <button
+  1129→              onClick={onClose}
+  1130→              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-800 flex items-center justify-center text-warm-600 dark:text-warm-400 hover:bg-warm-300 dark:hover:bg-warm-700 transition-colors"
+  1131→            >
+  1132→              <ArrowLeft className="w-4 h-4" />
+  1133→            </button>
+  1134→            <div className="flex items-center gap-2">
+  1135→              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-teal to-brand-teal-dark flex items-center justify-center">
+  1136→                <Rss className="w-4 h-4 text-white" />
+  1137→              </div>
+  1138→              <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-200">
+  1139→                SOCIAL FEED
+  1140→              </h1>
+  1141→            </div>
+  1142→          </div>
+  1143→          <div className="flex items-center gap-2">
+  1144→            <button
+  1145→              onClick={() => {
+  1146→                setPulling(true);
+  1147→                fetchActivities(true);
+  1148→              }}
+  1149→              disabled={refreshing}
+  1150→              className="w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-800 flex items-center justify-center text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700 hover:text-warm-700 transition-colors disabled:opacity-50"
+  1151→              aria-label="Refresh feed"
+  1152→            >
+  1153→              <RefreshCw
+  1154→                className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+  1155→              />
+  1156→            </button>
+  1157→          </div>
+  1158→        </div>
+  1159→      </header>
+  1160→
+  1161→      {/* ═══ Content ═══ */}
+  1162→      <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+  1163→        <PullToRefreshIndicator pulling={pulling} refreshing={refreshing} />
+  1164→
+  1165→        <AnimatePresence mode="wait">
+  1166→          {feedLoading ? (
+  1167→            <motion.div
+  1168→              key="loading"
+  1169→              initial={{ opacity: 0 }}
+  1170→              animate={{ opacity: 1 }}
+  1171→              exit={{ opacity: 0 }}
+  1172→              className="px-4 py-3 flex flex-col gap-3"
+  1173→            >
+  1174→              {[1, 2, 3, 4, 5].map((i) => (
+  1175→                <ActivitySkeleton key={i} />
+  1176→              ))}
+  1177→            </motion.div>
+  1178→          ) : feedIsEmpty ? (
+  1179→            <motion.div
+  1180→              key="empty"
+  1181→              initial={{ opacity: 0, y: 12 }}
+  1182→              animate={{ opacity: 1, y: 0 }}
+  1183→              exit={{ opacity: 0 }}
+  1184→              className="px-4 py-6"
+  1185→            >
+  1186→              {/* Empty State */}
+  1187→              <div className="flex flex-col items-center justify-center py-10">
+  1188→                <div className="w-16 h-16 rounded-full bg-warm-100 dark:bg-warm-800 flex items-center justify-center mb-4">
+  1189→                  <Rss className="w-8 h-8 text-warm-300 dark:text-warm-600" />
+  1190→                </div>
+  1191→                <p className="text-warm-700 dark:text-warm-300 font-bold text-sm">
+  1192→                  No activity yet
+  1193→                </p>
+  1194→                <p className="text-warm-400 dark:text-warm-500 text-xs mt-1 text-center max-w-[260px]">
+  1195→                  Follow players to see their updates, or create your first post!
+  1196→                </p>
+  1197→              </div>
+  1198→
+  1199→              {/* Suggested Players Section */}
+  1200→              <div className="mt-4">
+  1201→                <div className="flex items-center gap-2 mb-3">
+  1202→                  <Users className="w-4 h-4 text-brand-teal" />
+  1203→                  <h2 className="text-sm font-bold text-warm-800 dark:text-warm-200">
+  1204→                    Suggested Players
+  1205→                  </h2>
+  1206→                </div>
+  1207→
+  1208→                {suggestedLoading ? (
+  1209→                  <div className="space-y-1">
+  1210→                    {[1, 2, 3, 4, 5].map((i) => (
+  1211→                      <SuggestedPlayerSkeleton key={i} />
+  1212→                    ))}
+  1213→                  </div>
+  1214→                ) : suggestedPlayers.length > 0 ? (
+  1215→                  <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
+  1216→                    <CardContent className="p-0 divide-y divide-warm-200/60 dark:divide-warm-700/40">
+  1217→                      {suggestedPlayers.map((player, index) => (
+  1218→                        <motion.div
+  1219→                          key={player.id}
+  1220→                          initial={{ opacity: 0, x: -8 }}
+  1221→                          animate={{ opacity: 1, x: 0 }}
+  1222→                          transition={{ delay: index * 0.05 }}
+  1223→                          className="flex items-center gap-3 px-4 py-3 hover:bg-warm-50/50 dark:hover:bg-warm-700/30 transition-colors"
+  1224→                        >
+  1225→                          <PlayerAvatar
+  1226→                            name={player.name}
+  1227→                            avatar={player.avatar}
+  1228→                            gender={player.gender}
+  1229→                            size="sm"
+  1230→                          />
+  1231→                          <div className="flex-1 min-w-0">
+  1232→                            <div className="flex items-center gap-1.5">
+  1233→                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-200 truncate">
+  1234→                                {getDisplayName(player.name)}
+  1235→                              </p>
+  1236→                              {player.gender && (
+  1237→                                <span
+  1238→                                  className={`text-[11px] font-semibold ${
+  1239→                                    player.gender === 'male'
+  1240→                                      ? 'text-brand-blue'
+  1241→                                      : 'text-brand-red'
+  1242→                                  }`}
+  1243→                                >
+  1244→                                  {player.gender === 'male' ? '♂' : '♀'}
+  1245→                                </span>
+  1246→                              )}
+  1247→                            </div>
+  1248→                            <p className="text-[11px] text-warm-400 dark:text-warm-500 truncate">
+  1249→                              {player.phone}
+  1250→                            </p>
+  1251→                          </div>
+  1252→                          <SuggestionFollowButton
+  1253→                            isFollowing={!!player.isFollowing}
+  1254→                            onToggle={() =>
+  1255→                              handleFollowAction(
+  1256→                                player.id,
+  1257→                                !!player.isFollowing
+  1258→                              )
+  1259→                            }
+  1260→                            loading={actionLoadingId === player.id}
+  1261→                          />
+  1262→                        </motion.div>
+  1263→                      ))}
+  1264→                    </CardContent>
+  1265→                  </Card>
+  1266→                ) : (
+  1267→                  <div className="flex flex-col items-center py-8">
+  1268→                    <Users className="w-8 h-8 text-warm-300 dark:text-warm-600 mb-2" />
+  1269→                    <p className="text-warm-400 dark:text-warm-500 text-xs text-center">
+  1270→                      No suggestions available right now
+  1271→                    </p>
+  1272→                  </div>
+  1273→                )}
+  1274→              </div>
+  1275→            </motion.div>
+  1276→          ) : (
+  1277→            <motion.div
+  1278→              key="feed"
+  1279→              initial={{ opacity: 0 }}
+  1280→              animate={{ opacity: 1 }}
+  1281→              exit={{ opacity: 0 }}
+  1282→              className="px-4 py-3 pb-24"
+  1283→            >
+  1284→              {/* Community Posts Section */}
+  1285→              {communityPosts.length > 0 && (
+  1286→                <div className="mb-5">
+  1287→                  <div className="flex items-center gap-2 mb-3">
+  1288→                    <MessageCircle className="w-4 h-4 text-blue-500" />
+  1289→                    <h2 className="text-sm font-bold text-warm-800 dark:text-warm-200">
+  1290→                      Community Feed
+  1291→                    </h2>
+  1292→                  </div>
+  1293→                  <div className="flex flex-col gap-3">
+  1294→                    {communityPosts.map((post, index) => (
+  1295→                      <CommunityFeedCard
+  1296→                        key={post.id}
+  1297→                        item={post}
+  1298→                        onLike={handleLikePost}
+  1299→                        onShare={handleSharePost}
+  1300→                        index={index}
+  1301→                      />
+  1302→                    ))}
+  1303→                  </div>
+  1304→                </div>
+  1305→              )}
+  1306→
+  1307→              {/* Server Activity Cards */}
+  1308→              {activities.length > 0 && (
+  1309→                <div>
+  1310→                  <div className="flex items-center gap-2 mb-3">
+  1311→                    <Rss className="w-4 h-4 text-brand-teal" />
+  1312→                    <h2 className="text-sm font-bold text-warm-800 dark:text-warm-200">
+  1313→                      Activity
+  1314→                    </h2>
+  1315→                  </div>
+  1316→                  <div className="flex flex-col gap-3">
+  1317→                    {activities.map((activity, index) => {
+  1318→                      // Use enhanced card types for specific activity types
+  1319→                      if (activity.type === 'match_completed') {
+  1320→                        return (
+  1321→                          <MatchResultCard
+  1322→                            key={activity.id}
+  1323→                            activity={activity}
+  1324→                            index={index}
+  1325→                          />
+  1326→                        );
+  1327→                      }
+  1328→
+  1329→                      if (activity.type === 'achievement_unlocked' || activity.type === 'player_milestone') {
+  1330→                        return (
+  1331→                          <AchievementCard
+  1332→                            key={activity.id}
+  1333→                            activity={activity}
+  1334→                            index={index}
+  1335→                          />
+  1336→                        );
+  1337→                      }
+  1338→
+  1339→                      // Default card with type-specific left border
+  1340→                      const config = getActivityConfig(activity.type);
+  1341→                      const Icon = config.icon;
+  1342→                      const isOwnActivity = activity.userId === currentUser?.id;
+  1343→
+  1344→                      return (
+  1345→                        <motion.div
+  1346→                          key={activity.id}
+  1347→                          initial={{ opacity: 0, y: 16, scale: 0.97 }}
+  1348→                          animate={{ opacity: 1, y: 0, scale: 1 }}
+  1349→                          transition={{
+  1350→                            delay: Math.min(index * 0.04, 0.4),
+  1351→                            type: 'spring',
+  1352→                            damping: 20,
+  1353→                            stiffness: 200,
+  1354→                          }}
+  1355→                        >
+  1356→                          <Card
+  1357→                            className={`${config.bgColor} ${config.borderColor} border-l-4 ${config.leftBorderColor} rounded-xl py-0 gap-0 overflow-hidden backdrop-blur-md bg-white/70 dark:bg-warm-900/70 shadow-sm hover:shadow-md transition-shadow`}
+  1358→                          >
+  1359→                            <CardContent className="p-4">
+  1360→                              {/* Top row: avatar, name, timestamp, type icon */}
+  1361→                              <div className="flex items-start gap-3">
+  1362→                                <PlayerAvatar
+  1363→                                  name={activity.userName}
+  1364→                                  avatar={activity.userAvatar}
+  1365→                                  gender={activity.userGender}
+  1366→                                  size="sm"
+  1367→                                />
+  1368→
+  1369→                                <div className="flex-1 min-w-0">
+  1370→                                  <div className="flex items-center gap-1.5 flex-wrap">
+  1371→                                    <p className="font-bold text-sm text-warm-800 dark:text-warm-200 truncate">
+  1372→                                      {getDisplayName(activity.userName)}
+  1373→                                    </p>
+  1374→                                    {isOwnActivity && (
+  1375→                                      <Badge className="bg-brand-teal/15 text-brand-teal-dark dark:text-brand-teal text-[9px] font-semibold border-0 px-1.5 py-0 h-4">
+  1376→                                        You
+  1377→                                      </Badge>
+  1378→                                    )}
+  1379→                                  </div>
+  1380→                                  {/* Activity description line */}
+  1381→                                  <p className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 leading-relaxed">
+  1382→                                    {activity.description || activity.title}
+  1383→                                  </p>
+  1384→                                  <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">
+  1385→                                    {formatTimeAgo(activity.createdAt)}
+  1386→                                  </p>
+  1387→                                </div>
+  1388→
+  1389→                                {/* Activity type icon */}
+  1390→                                <div
+  1391→                                  className={`w-9 h-9 rounded-lg ${config.badgeBg} flex items-center justify-center shrink-0`}
+  1392→                                >
+  1393→                                  <Icon className={`w-4 h-4 ${config.color}`} />
+  1394→                                </div>
+  1395→                              </div>
+  1396→
+  1397→                              {/* Activity-specific content */}
+  1398→                              <ActivityCardContent activity={activity} />
+  1399→
+  1400→                              {/* Activity type badge at bottom */}
+  1401→                              <div className="mt-2.5 flex items-center gap-1.5">
+  1402→                                <Badge
+  1403→                                  className={`${config.badgeBg} ${config.badgeText} text-[9px] font-semibold border-0 px-2 py-0 h-5`}
+  1404→                                >
+  1405→                                  <Icon className="w-2.5 h-2.5" />
+  1406→                                  {config.label}
+  1407→                                </Badge>
+  1408→                              </div>
+  1409→                            </CardContent>
+  1410→                          </Card>
+  1411→                        </motion.div>
+  1412→                      );
+  1413→                    })}
+  1414→                  </div>
+  1415→
+  1416→                  {/* Load More */}
+  1417→                  {hasMore && (
+  1418→                    <div className="mt-4 flex justify-center">
+  1419→                      <Button
+  1420→                        variant="outline"
+  1421→                        size="sm"
+  1422→                        onClick={loadMore}
+  1423→                        disabled={feedLoading}
+  1424→                        className="rounded-full border-warm-300 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-800 text-xs font-semibold"
+  1425→                      >
+  1426→                        Load More
+  1427→                      </Button>
+  1428→                    </div>
+  1429→                  )}
+  1430→                </div>
+  1431→              )}
+  1432→
+  1433→              {/* Suggested Players at bottom of feed */}
+  1434→              {suggestedPlayers.length > 0 && (
+  1435→                <div className="mt-6 mb-4">
+  1436→                  <div className="flex items-center gap-2 mb-3">
+  1437→                    <Users className="w-4 h-4 text-brand-teal" />
+  1438→                    <h2 className="text-sm font-bold text-warm-800 dark:text-warm-200">
+  1439→                      Suggested Players
+  1440→                    </h2>
+  1441→                  </div>
+  1442→
+  1443→                  <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
+  1444→                    <CardContent className="p-0 divide-y divide-warm-200/60 dark:divide-warm-700/40">
+  1445→                      {suggestedPlayers.slice(0, 3).map((player, index) => (
+  1446→                        <motion.div
+  1447→                          key={player.id}
+  1448→                          initial={{ opacity: 0, x: -8 }}
+  1449→                          animate={{ opacity: 1, x: 0 }}
+  1450→                          transition={{ delay: 0.2 + index * 0.05 }}
+  1451→                          className="flex items-center gap-3 px-4 py-2.5 hover:bg-warm-50/50 dark:hover:bg-warm-700/30 transition-colors"
+  1452→                        >
+  1453→                          <PlayerAvatar
+  1454→                            name={player.name}
+  1455→                            avatar={player.avatar}
+  1456→                            gender={player.gender}
+  1457→                            size="sm"
+  1458→                          />
+  1459→                          <div className="flex-1 min-w-0">
+  1460→                            <div className="flex items-center gap-1.5">
+  1461→                              <p className="font-semibold text-xs text-warm-800 dark:text-warm-200 truncate">
+  1462→                                {getDisplayName(player.name)}
+  1463→                              </p>
+  1464→                              {player.gender && (
+  1465→                                <span
+  1466→                                  className={`text-[10px] font-semibold ${
+  1467→                                    player.gender === 'male'
+  1468→                                      ? 'text-brand-blue'
+  1469→                                      : 'text-brand-red'
+  1470→                                  }`}
+  1471→                                >
+  1472→                                  {player.gender === 'male' ? '♂' : '♀'}
+  1473→                                </span>
+  1474→                              )}
+  1475→                            </div>
+  1476→                          </div>
+  1477→                          <SuggestionFollowButton
+  1478→                            isFollowing={!!player.isFollowing}
+  1479→                            onToggle={() =>
+  1480→                              handleFollowAction(
+  1481→                                player.id,
+  1482→                                !!player.isFollowing
+  1483→                              )
+  1484→                            }
+  1485→                            loading={actionLoadingId === player.id}
+  1486→                          />
+  1487→                        </motion.div>
+  1488→                      ))}
+  1489→                    </CardContent>
+  1490→                  </Card>
+  1491→                </div>
+  1492→              )}
+  1493→            </motion.div>
+  1494→          )}
+  1495→        </AnimatePresence>
+  1496→      </div>
+  1497→
+  1498→      {/* ═══ Floating Create Post Button ═══ */}
+  1499→      <motion.button
+  1500→        onClick={() => setShowCreatePost(true)}
+  1501→        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-brand-teal hover:bg-brand-teal-dark text-white shadow-lg shadow-brand-teal/30 flex items-center justify-center transition-colors"
+  1502→        whileHover={{ scale: 1.05 }}
+  1503→        whileTap={{ scale: 0.95 }}
+  1504→        initial={{ scale: 0 }}
+  1505→        animate={{ scale: 1 }}
+  1506→        transition={{ delay: 0.3, type: 'spring', damping: 15, stiffness: 300 }}
+  1507→        aria-label="Create post"
+  1508→      >
+  1509→        <Plus className="w-6 h-6" />
+  1510→      </motion.button>
+  1511→
+  1512→      {/* ═══ Create Post Modal ═══ */}
+  1513→      <AnimatePresence>
+  1514→        {showCreatePost && (
+  1515→          <CreatePostModal
+  1516→            onClose={() => setShowCreatePost(false)}
+  1517→            onPost={handleCreatePost}
+  1518→          />
+  1519→        )}
+  1520→      </AnimatePresence>
+  1521→    </motion.div>
+  1522→  );
+  1523→}
+  1524→
