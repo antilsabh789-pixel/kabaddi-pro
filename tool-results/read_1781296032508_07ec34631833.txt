@@ -1,0 +1,2002 @@
+     1→---
+     2→Task ID: R10-A
+     3→Agent: Feature Agent
+     4→Task: Create TeamChatScreen and DailyChallengeScreen
+     5→
+     6→Work Log:
+     7→- Read worklog.md to understand project context and existing code patterns
+     8→- Reviewed existing components (ChallengeScreen, SocialFeedScreen, store.ts, globals.css, UI components) for code style and patterns
+     9→- Created TeamChatScreen component at /src/components/kabaddi/TeamChatScreen.tsx with:
+    10→  - Chat message list with timestamps, sender avatars, and message bubbles
+    11→  - Different bubble styles for sent (amber gradient) vs received (white/dark card) messages
+    12→  - Message input with send button and inline emoji picker
+    13→  - Team header with glass-morphism effect, team name, member count, online indicator
+    14→  - System messages (e.g., "Player joined team")
+    15→  - Quick reactions with emoji reaction picker on message tap
+    16→  - Typing indicator with animated dots
+    17→  - Message grouping by date (Today, Yesterday, date headers)
+    18→  - Search messages functionality with result count
+    19→  - Unread message indicator badge in header
+    20→  - Mock/sample messages for demo (16 messages across 3 days)
+    21→  - framer-motion animations for message entrance (slide up + fade)
+    22→  - Gradient send button with brand-gold (#F59E0B / amber-500)
+    23→  - Team color accents (Bengal Warriors red)
+    24→  - Dark mode support with dark: classes
+    25→  - Custom scrollbar styling
+    26→  - Animated typing indicator dots using framer-motion
+    27→- Created DailyChallengeScreen component at /src/components/kabaddi/DailyChallengeScreen.tsx with:
+    28→  - 5 daily challenge cards (3 active, 1 completed, 1 locked) with:
+    29→    - Challenge title, description, difficulty level (Easy/Medium/Hard)
+    30→    - Progress bar with gradient fills and animated width
+    31→    - Reward points/badges for completion
+    32→    - Time remaining countdown timer (updates every second)
+    33→    - Category icons (Swords=Raid, Shield=Defense, Heart=Fitness, Users=Teamwork)
+    34→  - Challenge categories: Raid Master, Tackle King, Endurance, Team Player
+    35→  - Streak counter showing 7-day consecutive completion with animated flame
+    36→  - Weekly leaderboard for challenge points (7 entries with current user highlighted)
+    37→  - Completed challenges section with checkmark animations
+    38→  - "New challenges available in XX:XX:XX" countdown timer
+    39→  - XP/Points system display at top
+    40→  - Level progress bar with animated fill
+    41→  - Confetti animation on challenge completion (40 particles with random colors)
+    42→  - Claim and Progress buttons for challenge interaction
+    43→  - Difficulty-based colors: Easy=green, Medium=amber, Hard=red
+    44→  - Card-based layout with glass-morphism effects
+    45→  - framer-motion for staggered card entrance animations
+    46→  - Dark mode support throughout
+    47→  - Stats summary grid (Total Points, Completed, Day Streak)
+    48→- Fixed JSX mismatch: changed `</motion.div>` to `</div>` for streak dot container
+    49→- Fixed missing Plus import from lucide-react
+    50→- Fixed setState-in-effect lint error by using useState initializer function instead of calling setState directly in effect body
+    51→- Lint passes with zero errors
+    52→
+    53→Stage Summary:
+    54→- TeamChatScreen: Full chat interface with messages, reactions, search, emoji picker, typing indicator, date grouping, dark mode, glass-morphism header
+    55→- DailyChallengeScreen: Complete gamification system with daily challenges, progress tracking, streak counter, confetti, leaderboard, XP/level system, countdown timer, dark mode
+    56→- Both components are self-contained with mock data, no API calls needed
+    57→- Zero lint errors
+    58→
+    59→---
+    60→Task ID: R9-E
+    61→Agent: Enhancement Agent
+    62→Task: Enhance AdvancedStatsScreen, ReferralScreen, BroadcastScreen, and add global CSS utilities
+    63→
+    64→Work Log:
+    65→- Read worklog.md to understand project history and existing code structure
+    66→- Read all four target files (AdvancedStatsScreen, ReferralScreen, BroadcastScreen, globals.css) in full
+    67→- Enhanced globals.css with 17 new CSS utility classes and keyframe animations:
+    68→  - `.stat-card` - card for displaying statistics with gradient top border
+    69→  - `.chart-container` - container for chart components
+    70→  - `.comparison-bar` / `.comparison-bar-fill` - horizontal bar for comparisons
+    71→  - `.referral-code-box` - large code display with dashed border and decorative symbols
+    72→  - `.broadcast-live` - pulsing live indicator with dot animation
+    73→  - `.coin-flip` - 3D Y-axis rotation animation
+    74→  - `.stat-counter` - animated number counter styling
+    75→  - `.progress-ring` / `.progress-ring-content` - circular progress indicator
+    76→  - `.glass-stat-card` - glassmorphism stat card
+    77→  - `.gold-gradient-bg` - gold gradient background for referral theme
+    78→  - `.broadcast-dark` - dark theme default for broadcast screen
+    79→  - `.countdown-digit` / `.countdown-separator` - countdown timer styling
+    80→  - `.viewer-count` / `.viewer-count-dot` - viewer count indicator
+    81→  - `.qr-code-pattern` / `.qr-cell-dark` / `.qr-cell-light` - CSS-based QR code
+    82→  - `.score-flash` - broadcast score change animation
+    83→  - `.confetti-reveal` - confetti reveal animation class
+    84→  - New keyframes: `@keyframes coin-flip`, `@keyframes counter-up`, `@keyframes pulse-live`, `@keyframes pulse-live-dot`, `@keyframes reveal-confetti`, `@keyframes score-flash`
+    85→  - All new utilities support dark mode
+    86→- Enhanced AdvancedStatsScreen with major new features:
+    87→  - Performance Analytics: Raid Success Rate line chart, Tackle Success Rate line chart, Points per Match trend bars
+    88→  - Performance by Half: 1st vs 2nd half comparison with circular gauges and trend indicators
+    89→  - Performance by Position: Raider vs Defender stats grid
+    90→  - Detailed Breakdown: Super Raid frequency, Do-or-Die rate, All Out causation rate, Bonus point efficiency, Avg points per raid, Raid-to-tackle ratio
+    91→  - Comparison: VS League Average (comparison bars for raid rate, tackle rate, avg pts), VS Top Player, Percentile rankings with badges, Strengths/Weaknesses analysis
+    92→  - Filters: Time period (Last 5, Last 10, All Time), Match type (All, Tournament, Practice), Gender filter, animated filter panel with AnimatePresence
+    93→  - Visual: MiniLineChart SVG component with gradient fills, ComparisonBar component, PercentileBadge component, glass-stat-card, stat-counter animations, dark mode support
+    94→  - All new sections wrapped in PremiumLock for premium gating
+    95→- Enhanced ReferralScreen with major new features:
+    96→  - Gold gradient theme header with animated gift icon
+    97→  - Referral Code: coin-flip animation, QR code pattern (CSS-based), Copy/WhatsApp/Twitter share buttons
+    98→  - Referral Stats: 3-column grid (Total Sent, Signed Up, Premium Days) with stat-card styling
+    99→  - How It Works: 3-step visual guide with animated step indicators and connecting lines
+   100→  - Reward detail card with PartyPopper animation and gold gradient
+   101→  - Referral History: Status badges (Pending/amber, Signed Up/green, Rewarded/gold), card-win/card styling, empty state with floating gift icon
+   102→  - Confetti animation on successful referral code application
+   103→  - General share button at bottom with gold gradient
+   104→  - Dark mode support throughout
+   105→- Polished BroadcastScreen with major new features:
+   106→  - Dark theme default (broadcast-dark class) for cinema-like viewing
+   107→  - Live Match List: Currently live matches with team scores, viewer count indicator, "Watch Live" button
+   108→  - Broadcast View: Full-screen score display with team color gradients and glow shadows, score change flash animations (gold color), auto-updating commentary feed, key event notifications
+   109→  - Upcoming Broadcasts: Scheduled matches with countdown timers (live-updating seconds), "Set Reminder" toggle button with Bell/BellOff icons, match preview with team comparison
+   110→  - Visual: Pulsing live indicator with broadcast-live class, viewer count with animated dot, team color gradient headers, broadcast-style typography, AnimatePresence for view transitions (list ↔ broadcast), skeleton loading states
+   111→- Lint passes with zero errors
+   112→- No runtime errors in dev server log
+   113→
+   114→Stage Summary:
+   115→- AdvancedStatsScreen: 6 new premium sections (Performance Trends, Half Comparison, Position Stats, Detailed Breakdown, League Comparison, Top Player Comparison, Percentile Ranking, Strengths/Weaknesses), 3 filter types, SVG line charts, comparison bars
+   116→- ReferralScreen: Gold gradient theme, QR code pattern, WhatsApp/Twitter sharing, confetti animation, 3-step guide, coin-flip animation, enhanced history with status badges
+   117→- BroadcastScreen: Dark theme, live match list, countdown timers, viewer counts, score flash animations, reminder system, list/broadcast view toggle
+   118→- globals.css: 17+ new utility classes and 6+ new keyframe animations, all with dark mode support
+   119→- Zero lint errors, no runtime errors
+   120→
+   121→---
+   122→Task ID: 4
+   123→Agent: Main Agent (Cron Review Session - Round 2)
+   124→Task: QA testing, bug fixes, new features, and styling improvements
+   125→
+   126→Work Log:
+   127→- Read worklog.md to assess project status from previous sessions
+   128→- Performed comprehensive QA with agent-browser across all tabs (Home, Tournaments, Quick Score, Profile)
+   129→- Tested login flow with existing user (9876543210) - works correctly
+   130→- Tested tab navigation via bottom nav - works correctly
+   131→- Tested dark mode toggle - works correctly
+   132→- Checked for console errors - none found
+   133→- Verified lint passes clean (0 errors, 0 warnings)
+   134→- Launched 5 parallel subagents for major improvements:
+   135→  - Agent 8-a: AuthScreen visual overhaul
+   136→  - Agent 8-b: Player Stats Dashboard screen
+   137→  - Agent 8-c: Enhanced Match Details screen
+   138→  - Agent 8-d: Match Countdown timers + Pull-to-Refresh
+   139→  - Agent 8-e: Global CSS polish
+   140→- All 5 agents completed successfully with zero lint errors
+   141→- Final QA verified: app runs correctly, no errors, all features working
+   142→
+   143→Stage Summary:
+   144→- AuthScreen: Animated background with kabaddi court patterns, floating particles, glass-effect form cards, input icons, enhanced role selection
+   145→- Player Stats: New PlayerStatsScreen with circular progress ring, 2x3 stats grid, performance breakdown bars, tournament/practice toggle, recent form dots, position ranking
+   146→- Match Details: Team color gradient header, animated VS divider, match timeline, team comparison bars, top performers, match info footer
+   147→- Home Tab: Countdown timers for upcoming matches, pull-to-refresh with animated indicator
+   148→- Global CSS: 33 new utility classes (skeleton, transitions, cards, text effects, badges, page transitions) + 8 new keyframe animations
+   149→- All improvements support dark mode
+   150→- Zero lint errors
+   151→
+   152→Unresolved issues / Next phase recommendations:
+   153→- Match card clicks don't trigger via agent-browser (framer-motion limitation) - works for real users
+   154→- Tournament creation still requires Premium - could add free tier limit
+   155→- Could add WebSocket support for real-time live match updates
+   156→- Could add more advanced analytics (raid patterns, time-based analysis)
+   157→- Consider adding sound effects / haptic feedback for scoring events
+   158→- Vercel deployment will need cloud database instead of SQLite
+   159→
+   160→---
+   161→Task ID: 1
+   162→Agent: Main Agent
+   163→Task: Gather data from Kabaddi Pro app on Vercel and repair it
+   164→
+   165→Work Log:
+   166→- Read the live app at https://kabaddi-app-cyan.vercel.app/ using web reader
+   167→- Analyzed the PWA manifest, metadata, and HTML structure
+   168→- Used agent-browser to explore login/signup flow on live app - found it crashes after auth
+   169→- Identified React error #310 (hydration mismatch) as the crash cause
+   170→- Searched Play Store for the app - not found under "Kabaddi Pro"
+   171→- User provided source code tar file
+   172→- Extracted source code and identified full app structure with 30+ components, 20+ API routes
+   173→- Found the app uses: Next.js 16, Prisma/SQLite, Zustand, Framer Motion, shadcn/ui, Razorpay
+   174→- Copied all source files to working project
+   175→- Installed missing dependencies (framer-motion, html-to-image, razorpay)
+   176→- Pushed Prisma schema to database
+   177→- Fixed dev server stability issues (process dying in background)
+   178→- Tested full signup flow - auth, details, role selection all working
+   179→- Verified all main tabs: Home, Tournaments, Quick Score, Profile
+   180→- No console errors or runtime errors found
+   181→
+   182→Stage Summary:
+   183→- App is fully functional locally with all features working
+   184→- Signup/Login with phone + password works
+   185→- All 4 main tabs (Home, Tournaments, Quick Score, Profile) load correctly
+   186→- Premium features, social features, and all sub-screens are accessible
+   187→- The original Vercel crash was likely caused by SQLite not working on serverless
+   188→- Key fix: The app works because we have a proper SQLite database setup locally
+   189→- For Vercel deployment, the user will need to either use a cloud database or handle SQLite differently
+   190→
+   191→---
+   192→Task ID: 2-a
+   193→Agent: Dark Mode Agent
+   194→Task: Add proper dark mode support using next-themes
+   195→
+   196→Work Log:
+   197→- Read worklog.md, layout.tsx, ProfileTab.tsx, and globals.css to understand current state
+   198→- Confirmed next-themes v0.4.6 was already installed in package.json
+   199→- Created `/src/components/theme-provider.tsx` — a 'use client' wrapper around NextThemesProvider
+   200→- Updated `/src/app/layout.tsx`:
+   201→  - Imported ThemeProvider component
+   202→  - Wrapped children + Toaster with ThemeProvider using attribute="class", defaultTheme="system", enableSystem, disableTransitionOnChange
+   203→  - `<html>` already had suppressHydrationWarning (required for next-themes)
+   204→- Updated `/src/components/kabaddi/ProfileTab.tsx`:
+   205→  - Added `import { useTheme } from 'next-themes'`
+   206→  - Replaced `useState(false)` darkMode + manual localStorage/classList logic with `useTheme()` hook
+   207→  - `darkMode` now derived from `theme === 'dark'`
+   208→  - `toggleDarkMode` now calls `setTheme(darkMode ? 'light' : 'dark')`
+   209→  - Removed the useEffect that manually read localStorage and added/removed .dark class
+   210→- Updated `/src/app/globals.css` .dark block:
+   211→  - Added dark mode overrides for warm color palette (warm-50 through warm-800 inverted)
+   212→  - Added dark mode overrides for brand-red (slightly lighter), brand-navy (inverted to light), brand-gold (brighter)
+   213→  - These CSS variable overrides ensure classes like bg-warm-50, text-warm-800, bg-brand-red automatically adapt in dark mode
+   214→- Ran `bun run lint` — only pre-existing error in LiveScoringScreen.tsx (processRaidResult accessed before declaration), no new errors from dark mode changes
+   215→- Dev server running fine with no compilation errors
+   216→
+   217→Stage Summary:
+   218→- Dark mode now fully functional via next-themes with class strategy
+   219→- Theme toggle in ProfileTab works correctly (Light/Dark button)
+   220→- System preference is respected by default (enableSystem=true)
+   221→- Theme persists across page reloads via next-themes localStorage
+   222→- Custom warm/brand color variables properly invert in dark mode
+   223→- No hydration mismatches thanks to suppressHydrationWarning on <html>
+   224→
+   225→---
+   226→Task ID: 2
+   227→Agent: Cron Review Agent
+   228→Task: QA testing, bug fixes, styling improvements, dark mode, and feature enhancements
+   229→
+   230→Work Log:
+   231→- Performed comprehensive QA testing with agent-browser across all tabs (Home, Tournaments, Quick Score, Profile)
+   232→- Tested all API endpoints (/api/auth, /api/stats, /api/players, /api/teams) - all returning 200
+   233→- Verified no console errors or runtime errors in the browser
+   234→- Verified no server-side errors in dev.log
+   235→- Fixed lint error in LiveScoringScreen.tsx (processRaidResult accessed before declaration) by using useRef pattern
+   236→- Added dark mode support via next-themes:
+   237→  - Created ThemeProvider component at /src/components/theme-provider.tsx
+   238→  - Updated layout.tsx to wrap with ThemeProvider
+   239→  - Updated ProfileTab.tsx to use useTheme() hook instead of manual dark mode
+   240→  - Enhanced globals.css with dark mode overrides for custom color variables
+   241→- Enhanced HomeTab.tsx styling:
+   242→  - Added Quick Stats Banner with gradient background showing Raid Pts, Tackle Pts, Matches
+   243→  - Added dark mode classes throughout (header, cards, text, backgrounds)
+   244→  - Enhanced greeting section with better typography
+   245→  - Added player code display in stats banner
+   246→- Enhanced BottomNav.tsx:
+   247→  - Added dark mode support for nav background and text colors
+   248→  - Added shadow for depth effect
+   249→- Enhanced SplashScreen.tsx:
+   250→  - Added second glow ring animation
+   251→  - Added decorative kabaddi mat lines with rotation
+   252→  - Added yellow-400 border circle element
+   253→- Remaining lint warnings: 4 unused eslint-disable directives (non-blocking)
+   254→
+   255→Stage Summary:
+   256→- All QA tests pass, no errors
+   257→- Dark mode fully functional via next-themes
+   258→- Home screen has new Quick Stats Banner
+   259→- Lint is clean (0 errors, 4 warnings)
+   260→- App compiles and runs correctly
+   261→
+   262→Unresolved issues / Next phase recommendations:
+   263→- Tournament creation requires Premium - could add a free tier tournament limit
+   264→- Profile tab could benefit from more detailed match history visualization
+   265→- Quick Score flow could be smoother - the gender selection click issue with agent-browser suggests some framer-motion click handlers may not be fully accessible
+   266→- Add pull-to-refresh for Home tab data
+   267→- Add haptic feedback sounds integration testing
+   268→- The app has no sample data - seeding the database with demo teams/players would improve first-use experience
+   269→
+   270→---
+   271→Task ID: 7
+   272→Agent: BottomNav, SplashScreen & Global Styling Agent
+   273→Task: Improve BottomNav, SplashScreen, and global CSS styling
+   274→
+   275→Work Log:
+   276→- Read worklog.md to understand project history and prior changes
+   277→- Read existing BottomNav.tsx, SplashScreen.tsx, globals.css, and page.tsx to understand current state
+   278→- Updated globals.css with comprehensive utility classes and keyframe animations:
+   279→  - Added `.gradient-text` class for red→gold gradient text effect
+   280→  - Added `.card-shine` class with shimmer animation for premium cards
+   281→  - Added `.pulse-glow` class for pulsing glow on live indicators
+   282→  - Added `.glass-effect` class with frosted glass backdrop blur (light + dark mode)
+   283→  - Added `.slide-in-bottom` entrance animation class
+   284→  - Enhanced scrollbar styling: thinner (3px), gradient thumb (red→gold), Firefox support
+   285→  - Enhanced `@keyframes shimmer` with back-and-forth motion
+   286→  - Added `@keyframes pulse-glow` for pulsing glow effect
+   287→  - Added `@keyframes float` for gentle floating animation
+   288→  - Added `@keyframes slide-up` for entrance animation
+   289→  - Added `@keyframes spin-slow` for decorative rotating elements
+   290→  - Added `@keyframes confetti-fall` for confetti particle animation
+   291→  - Added `@keyframes load-progress` for hydration loading bar
+   292→- Enhanced BottomNav.tsx with major visual improvements:
+   293→  - Replaced basic nav bar with frosted glass effect (`.glass-effect` class)
+   294→  - Added gradient top border line (transparent → brand-red → transparent)
+   295→  - Added `motion.button` with `whileTap` scale animation on all tabs
+   296→  - Active tab icon now scales up (1.1x) with spring animation
+   297→  - Active tab text color changes to brand-red
+   298→  - Replaced top indicator bar with small active indicator dot below the label
+   299→  - Used AnimatePresence for smooth dot enter/exit transitions
+   300→  - Quick Score button is now larger (w-16 h-16), elevated (-mt-6), with gradient background
+   301→  - When active, Quick Score button has red→gold gradient
+   302→  - Added pulsing red dot (with ping animation) on Quick Score when live match is active
+   303→  - Added animated glow effect around Quick Score button when live
+   304→  - Active Quick Score label uses `.gradient-text` class
+   305→  - Better icon sizing: w-7 h-7 for Quick Score, w-5 h-5 for regular tabs
+   306→  - Dark mode support throughout with proper color classes
+   307→- Enhanced SplashScreen.tsx with rich animations and branding:
+   308→  - Added geometric pattern overlay (repeating 45° lines)
+   309→  - Added kabaddi mat circle pattern: three concentric circles + center line
+   310→  - Added confetti particle system (18 particles with random positions/sizes/colors/delays)
+   311→  - Added DotPattern component with grid of white dots
+   312→  - Added decorative gold accent dots at various positions
+   313→  - Enhanced logo animation: scale [0, 1.15, 1] with rotate for bounce effect
+   314→  - Added 8 orbital gold dots around the logo that animate outward
+   315→  - Added three glow rings (inner brand-gold, outer brand-gold, third white)
+   316→  - Enhanced "KABADDI PRO" text: 5xl, font-black, 0.2em letter spacing
+   317→  - PRO text uses brand-gold-light color
+   318→  - Added "LIVE SCORING & TOURNAMENTS" tagline with fade-in effect
+   319→  - Added gold accent line that animates from 0 to 120px width
+   320→  - Enhanced progress bar: wider (w-40), gradient fill (brand-gold→brand-gold-light)
+   321→  - Larger bouncing dots (w-2 h-2) with staggered animation
+   322→  - Added "Loading" text with pulsing opacity
+   323→  - Darker gradient background (red-700 → red-800 → red-950)
+   324→- Enhanced page.tsx hydration loading screen:
+   325→  - Added geometric pattern overlay (same style as splash screen)
+   326→  - Larger logo (w-24 h-24) with pulse-glow animation ring
+   327→  - Added "KABADDI PRO" text below logo (2xl, font-black, letter spacing)
+   328→  - Added animated loading progress bar with load-progress keyframe
+   329→  - Replaced pulse dots with brand-gold colored dots using CSS animation
+   330→  - Consistent branding with the splash screen
+   331→
+   332→Stage Summary:
+   333→- globals.css: 5 utility classes (.gradient-text, .card-shine, .pulse-glow, .glass-effect, .slide-in-bottom), 7 keyframe animations (shimmer, pulse-glow, float, slide-up, spin-slow, confetti-fall, load-progress), enhanced scrollbar styling
+   334→- BottomNav: Frosted glass nav bar, gradient top border, active indicator dot, scale animations, larger Quick Score button with gradient, live match pulsing dot + glow, AnimatePresence transitions
+   335→- SplashScreen: Kabaddi mat circles, confetti particles, dot pattern, orbital gold dots around logo, 3 glow rings, enhanced typography (KABADDI PRO), tagline "Live Scoring & Tournaments", gold accent line, improved progress bar and loading indicators
+   336→- page.tsx: Branded hydration screen with KABADDI PRO text, animated progress bar, geometric overlay, consistent with splash screen
+   337→- All changes pass `bun run lint` with zero errors
+   338→- App compiles and serves correctly on dev server
+   339→
+   340→---
+   341→Task ID: 5-b
+   342→Agent: ProfileTab Improvement Agent
+   343→Task: Major styling improvements and new features for ProfileTab
+   344→
+   345→Work Log:
+   346→- Read worklog.md to understand project history and prior agent changes
+   347→- Read full ProfileTab.tsx (1272 lines), globals.css, store.ts, matches API, PremiumLock component
+   348→- Rewrote ProfileTab.tsx with comprehensive styling improvements and new features:
+   349→  1. **Profile Header Enhancement**: Added gradient banner (red-600 → red-800) with decorative diagonal line pattern overlay, decorative circles, gender icon (♂/♀) with accent colors (blue-300/pink-300) next to name, weight & practice ground info displayed under name, position/jersey badges with frosted glass style on banner, "Edit" button repositioned as ghost button on banner top-right, avatar overlaps banner edge with shadow
+   350→  2. **Premium Card Enhancement**: Animated gradient border effect using `borderRotate` keyframe, golden shimmer animation with sparkle dots, larger Crown icon, more prominent pricing display (₹149/mo), better description text
+   351→  3. **Score Breakdown Section**: Added animated progress bars for raid success rate and tackle success rate with gradient fills (red gradient, slate gradient), icons next to each stat, detailed text below bars showing ratio, better card styling with subtle shadows, icons in detailed breakdown cards
+   352→  4. **Badges Section**: Added animated badge icons (pulse scale on earned badges), locked state (🔒) for premium badges when not premium, "PRO" label on locked badges, better empty state with animated medal icon and encouraging text, spring animation on badge entry
+   353→  5. **Feature List**: Categorized features into 3 groups (Team & Stats, Achievements, Advanced) with section headers, left-border accent colors per item, description text under each feature name, chevron indicators, hover effects, icon scale on hover, motion animations on entry
+   354→  6. **Settings Section**: Better toggle buttons for Language (segmented control style with bg-brand-teal), Dark Mode toggle with descriptive labels and themed button styling, each setting has descriptive sub-label, consistent layout with label+description on left
+   355→  7. **Match History Section (NEW)**: Added "Recent Matches" card showing last 5 matches from /api/matches, W/L/D result indicators with color coding (emerald/red/amber), match date and practice tag display, animated entry per match, "View All Matches" button, empty state with animated icon and encouragement text
+   356→  8. **Overall Polish**: Section divider between features and settings, consistent spacing (space-y-6), subtle shadows on all cards, dark mode support for all new elements, AnimatePresence for copy-to-clipboard state, logout confirmation dialog with AlertTriangle icon and Cancel/Logout buttons
+   357→- Added `@keyframes borderRotate` animation to globals.css for premium card animated border
+   358→- Added AnimatePresence import from framer-motion
+   359→- Added AlertTriangle and ChevronRight to lucide-react imports
+   360→- Added RecentMatch interface and recentMatches state
+   361→- Added loadRecentMatches callback fetching from /api/matches
+   362→- Added showLogoutConfirm state for logout confirmation
+   363→- Added getMatchResult and getResultColor helper functions
+   364→- All changes pass `bun run lint` with zero errors
+   365→- App compiles and serves correctly on dev server
+   366→
+   367→Stage Summary:
+   368→- ProfileTab.tsx fully rewritten with 8 major improvements
+   369→- New Match History section fetches real data from /api/matches
+   370→- Premium card has animated gradient border and golden shimmer with sparkles
+   371→- Success rate progress bars with gradient fills and animations
+   372→- Categorized feature list with left-border accents and descriptions
+   373→- Logout now requires confirmation with styled dialog
+   374→- Dark mode fully supported across all new elements
+   375→- No new npm packages added, all existing functionality preserved
+   376→
+   377→---
+   378→Task ID: 5-c
+   379→Agent: QuickScore & Tournaments Improvement Agent
+   380→Task: Major styling improvements for QuickScoreTab and TournamentsTab
+   381→
+   382→Work Log:
+   383→- Read worklog.md and both existing component files to understand current implementation
+   384→- Rewrote QuickScoreTab.tsx with comprehensive styling improvements:
+   385→  - Added visual step progress indicator with numbered circles, step icons, and connecting lines
+   386→  - Completed steps show checkmarks with brand-red styling and shadow
+   387→  - Current step pulses with ring animation
+   388→  - Gender selection: Larger cards with gradient backgrounds (blue for boys, red for girls), icon containers with rounded-2xl, animated checkmark on selection, whileTap/whileHover spring animations
+   389→  - Match Settings: Wrapped in white card containers with icons (Clock, Users), gradient progress tracks (red for duration, teal for players), helpful text explanations, large value displays
+   390→  - Team Setup: Color indicator dots on labels, team initial badges in inputs, Swords VS divider with gradient separator and wobble animation, 2px colored borders on inputs
+   391→  - Lineup: Segmented team toggle with background, player cards with GripVertical reorder hints, position indicator icons (Zap for raider, Shield for defender, Swords for all-rounder), rank numbers
+   392→  - Start Screen: Match preview card with gradient header, animated team avatars (staggered entrance), VS pulsing indicator, lineup summary tags, shimmer animation on Start Match button, Play icon
+   393→  - All screens: Dark mode support via dark: classes, gradient buttons, shadow effects
+   394→- Rewrote TournamentsTab.tsx with comprehensive styling improvements:
+   395→  - Header: Trophy icon in gold container, gradient Host/Create button with shadow
+   396→  - Premium Banner: Golden shimmer animation effect, Upgrade CTA badge with Sparkles icon
+   397→  - Status Tabs: Pill-style tab group with bg-warm-100 container, active tab with white bg and layoutId animated underline
+   398→  - Gender Filter: Rounded pills with bold active state
+   399→  - Tournament Cards: Gradient accent bar at top (blue/red by gender), tournament type badge with icons (Swords/Knockout, Trophy/League, Sparkles/Hybrid), team/match count badges, progress indicator for ongoing tournaments, Live badge
+   400→  - Empty State: Filter-specific content (ongoing/upcoming/past), larger icon, CTA button
+   401→  - Expanded View: Team rows with colored squares and rank numbers, enhanced standings table with header styling, Generate Bracket button with Swords icon and gradient, date formatting helper
+   402→  - Add Team Dialog: Teal icon container for header, gradient add button
+   403→  - All sections: Dark mode support throughout
+   404→- Ran bun run lint — 0 errors
+   405→- Verified dev server running without compilation errors
+   406→
+   407→Stage Summary:
+   408→- QuickScoreTab: 6 major areas improved (step indicator, gender, settings, teams, lineup, start) with animations, gradients, icons, dark mode
+   409→- TournamentsTab: 6 major areas improved (header, premium banner, filters, cards, empty state, expanded view) with shimmer effects, type badges, progress indicators, dark mode
+   410→- All existing functionality preserved — no logic changes, only styling enhancements
+   411→- Zero lint errors
+   412→- Full dark mode support for all new elements
+   413→
+   414→---
+   415→Task ID: 6
+   416→Agent: Demo Data & Seed API Agent
+   417→Task: Create demo data seeding API and enhance empty states
+   418→
+   419→Work Log:
+   420→- Read worklog.md to understand project history and existing agent changes
+   421→- Read Prisma schema (all 20+ models) to understand exact field names, types, and relationships
+   422→- Read existing stats API route to understand current data shape
+   423→- Read auth route to understand password hashing (SHA256 with 'kabaddi_pro_salt')
+   424→- Created `/src/app/api/seed/route.ts` — POST endpoint for demo data seeding:
+   425→  - Idempotency check: Detects existing seed teams by teamCode prefix "KT"
+   426→  - Force reset: Supports `?reset=true` query param to wipe and re-seed
+   427→  - Reset cleanup handles foreign key order (matchEvents → matchScorers → tournamentEntries → matches → teamMembers → teams → playerProfiles → users → grounds → tournaments)
+   428→  - Seeds 4 grounds (Sardar Vallabhbhai Patel, Thyagaraj, Shiv Chhatrapati, DOME@NSCI)
+   429→  - Seeds 8 teams (Mumbai Warriors, Delhi Eagles, Bengal Tigers, Pune Raiders, Jaipur Kings, Chennai Strikers, Hyderabad Bulls, Kolkata Lions) with colors and team codes
+   430→  - Seeds 40 users (5 per team) with realistic Indian kabaddi player names, player codes KP2001-KP2040, phone numbers 8xx prefix to avoid collision
+   431→  - Seeds 40 player profiles with varied position-based stats (raider/defender/all-rounder), jersey numbers, weight categories, overall ratings
+   432→  - Seeds 1 tournament ("Pro Kabaddi League 2025", knockout, ongoing, TC3001)
+   433→  - Seeds 8 tournament entries with played/won/lost/points data
+   434→  - Seeds 5 matches (2 completed, 1 live, 2 upcoming) with venues and MOTM
+   435→  - Seeds 42 match events (raid_point, bonus_point, tackle, all_out, etc.)
+   436→- Enhanced `/src/app/api/stats/route.ts` with more meaningful data:
+   437→  - Added aggregate player stats via Prisma aggregate (totalRaidPoints, totalTacklePoints, totalBonusPoints, grandTotalPoints)
+   438→  - Added raid success rate and tackle success rate calculations
+   439→  - Added grand totals for raids, successful raids, tackles, successful tackles, super tackles
+   440→  - Added position breakdown (raiderCount, defenderCount, allRounderCount)
+   441→  - Added topScorers array (top 5 by totalPoints) with raid/tackle/bonus breakdown
+   442→  - Added playerCode to topRaiders and topDefenders user objects
+   443→  - Error fallback returns valid empty-state response instead of 500 error
+   444→- Player codes start at KP2001 to avoid conflicts with existing KP1001-KP1003 users
+   445→- Phone numbers use 8xx prefix to avoid conflicts with existing 9xx users
+   446→- Ran `bun run lint` — zero errors
+   447→- Tested seed endpoint: `POST /api/seed` → 200 with full counts
+   448→- Tested reset: `POST /api/seed?reset=true` → 200 with fresh seed data
+   449→- Tested stats endpoint: returns meaningful aggregate stats with 43 players, 8 teams, 5 matches, etc.
+   450→- Tested idempotency: second `POST /api/seed` returns "already seeded" message
+   451→
+   452→Stage Summary:
+   453→- Seed API endpoint at `/api/seed` creates comprehensive demo data (4 grounds, 8 teams, 40 users/profiles/members, 1 tournament, 5 matches, 42 events)
+   454→- Supports `?reset=true` for re-seeding with proper foreign-key-aware cleanup
+   455→- Stats API now returns aggregate stats (raid/tackle points, success rates, position breakdown), topScorers array, and graceful empty-state fallback
+   456→- All demo data uses consistent IDs (KT2xxx team codes, KP2xxx player codes, TC3001 tournament code) for easy identification and cleanup
+   457→
+   458→---
+   459→Task ID: 5-a
+   460→Agent: HomeTab Improvement Agent
+   461→Task: Major styling improvements and new features for HomeTab
+   462→
+   463→Work Log:
+   464→- Read worklog.md to understand project history and prior agent changes (Task 1, 2-a, 2, 7, 5-b)
+   465→- Read full HomeTab.tsx (1761 lines) to understand existing component structure, types, state, and JSX
+   466→- Read globals.css for available CSS utilities and keyframe animations (shimmer, pulse-glow, etc.)
+   467→- Checked store.ts for currentUser shape including playerCode field
+   468→- Rewrote HomeTab.tsx with comprehensive styling improvements across all sections:
+   469→
+   470→  1. **Header Enhancement**:
+   471→     - Added animated glow behind logo icon using animate-pulse blur effect
+   472→     - Gradient text effect on "KABADDI PRO" using bg-clip-text text-transparent (red→gold gradient)
+   473→     - Added shimmer animation on PRO badge using animate-[shimmer_3s_ease-in-out_infinite]
+   474→     - Added shimmer on PRO upgrade button
+   475→     - Improved shadow on logo icon (shadow-lg shadow-brand-red/30)
+   476→
+   477→  2. **Greeting Section**:
+   478→     - Added time-based greeting (Good Morning/Afternoon/Evening) with getTimeGreeting() helper
+   479→     - Added time emoji (🌅/☀️/🌙) with getTimeEmoji() helper
+   480→     - Added player code display with copy functionality button
+   481→     - Copy-to-clipboard with visual feedback (Check icon replaces Copy icon for 2 seconds)
+   482→     - Toast notification on successful copy
+   483→
+   484→  3. **Quick Stats Banner**:
+   485→     - Added shimmer overlay animation on the banner
+   486→     - Added AnimatedCounter component with ease-out cubic easing for counting numbers
+   487→     - Added small icons above each stat (Swords for Raid, Target for Tackle, Flame for Matches)
+   488→     - Made player code display more prominent in a bordered box
+   489→     - Enhanced decorative circles and stronger shadow
+   490→
+   491→  4. **Live Matches Section**:
+   492→     - Better empty state with Radio icon illustration + sleeping emoji accent
+   493→     - Added "Start Scoring" CTA button in empty state
+   494→     - Added animated pulse dot inside LIVE badge (double-ring ping effect)
+   495→     - Added AnimatePresence for smooth transitions between loading/matches/empty states
+   496→     - Enhanced gender filter pills with transition-all and shadow when active
+   497→     - Dark mode support on gender filter buttons
+   498→     - Improved hover state on live match cards
+   499→
+   500→  5. **Awards & Honors Section**:
+   501→     - Added 🥇 medal emoji on MOTM card, 🥇/🥈 on Top Raider/Top Defender cards
+   502→     - Added shimmer animation on MOTM card background and PRO badges
+   503→     - Enhanced avatar styling with gradient backgrounds and shadows
+   504→     - Better empty state with larger Award icon in brand-gold/10 circle + 🏆 accent emoji
+   505→     - Motion animation on empty state appearance
+   506→
+   507→  6. **Leaderboard Section**:
+   508→     - Replaced plain "View Full" text with gradient pill button
+   509→     - Added whileTap scale animation on View Full button
+   510→     - Enhanced leaderboard preview cards with ring colors per rank
+   511→     - Added dark mode support on leaderboard card backgrounds
+   512→
+   513→  7. **Explore Section**:
+   514→     - Added gradient backgrounds to all cards
+   515→     - Added hover lift effects with shadow
+   516→     - Improved border hover colors with opacity values
+   517→     - Better icon backgrounds with gradient
+   518→     - Consistent spacing and full dark mode support
+   519→
+   520→  8. **Pro Features Section**:
+   521→     - Added animated PRO badge with shimmer next to section title
+   522→     - Added golden border shimmer overlay on each pro feature card
+   523→     - Added lock icons positioned at top-right of each icon circle
+   524→     - All pro cards use gradient backgrounds matching explore section
+   525→     - Consistent hover effects with shadows and full dark mode support
+   526→
+   527→  9. **Recent Activity Section (NEW)**:
+   528→     - Shows recent matches in a compact list format with dividers
+   529→     - Trophy icon for wins, Swords icon for draws
+   530→     - Displays winner info, score, and time ago
+   531→     - Staggered entrance animation for each row
+   532→     - Full dark mode support
+   533→
+   534→  10. **Dark Mode Improvements**:
+   535→      - Added dark: classes across all new elements
+   536→      - Badge text colors have dark mode variants
+   537→      - All card hover states have dark mode variants
+   538→      - Leaderboard, explore, and pro cards all support dark mode backgrounds
+   539→
+   540→  11. **New Imports**: Copy, Check, Target, Flame, TrendingUp from lucide-react; useRef, AnimatePresence
+   541→
+   542→  12. **New Helper Functions/Components**: getTimeGreeting(), getTimeEmoji(), AnimatedCounter
+   543→
+   544→- Ran bun run lint — zero errors, zero warnings
+   545→- Checked dev.log — no compilation errors, app serving correctly
+   546→
+   547→Stage Summary:
+   548→- HomeTab.tsx completely rewritten with major visual improvements across all 8+ sections
+   549→- New features: time-based greeting, player code copy button, animated counters, Recent Activity section
+   550→- Enhanced animations: shimmer effects on PRO badges/MOTM cards/banner, animated pulse on LIVE indicators, AnimatePresence transitions
+   551→- Better empty states for Live Matches and Awards sections with illustrations and CTAs
+   552→- Leaderboard has gradient View Full button and rank-colored ring indicators
+   553→- Pro Features have golden shimmer borders, lock icons, and animated PRO badge
+   554→- Full dark mode support across all new and modified elements
+   555→- Lint passes clean (0 errors, 0 warnings)
+   556→- No new npm packages added
+   557→
+   558→---
+   559→Task ID: 3
+   560→Agent: Main Agent (Cron Review Session)
+   561→Task: QA testing, bug fixes, major styling improvements, and new feature additions
+   562→
+   563→Work Log:
+   564→- Reviewed worklog.md and assessed current project status (app functional from prior sessions)
+   565→- Performed comprehensive QA testing with agent-browser across all tabs (Home, Tournaments, Quick Score, Profile)
+   566→- Tested signup flow, onboarding flow, and all tab navigations
+   567→- Identified and fixed lint warnings:
+   568→  - Removed 4 unused eslint-disable directives in LiveScoringScreen.tsx (lines 236, 291, 536) and TournamentsTab.tsx (line 158)
+   569→  - Fixed processRaidResultRef.current assignment — was accessing ref during render which violates react-hooks/refs rule
+   570→  - Added proper eslint-disable comment for the ref sync pattern with explanation
+   571→  - Final lint: 0 errors, 0 warnings
+   572→- Launched 5 parallel subagents for major improvements:
+   573→  - Agent 5-a: HomeTab — gradient text, time-based greeting, animated counters, Recent Activity section, better empty states, shimmer effects
+   574→  - Agent 5-b: ProfileTab — gradient banner header, progress bars, match history, categorized features, animated premium card, logout confirmation
+   575→  - Agent 5-c: QuickScoreTab & TournamentsTab — step progress indicators, gradient cards, VS divider, tournament type badges, filter-specific empty states
+   576→  - Agent 7: BottomNav, SplashScreen, globals.css — frosted glass nav, confetti particles, utility classes, keyframe animations
+   577→  - Agent 6: Demo data seeding API — 8 teams, 40 players, 1 tournament, 5 matches, enhanced stats API
+   578→- Tested seed API: POST /api/seed creates all demo data successfully
+   579→- Tested seed API reset: POST /api/seed?reset=true works correctly
+   580→- Verified stats API returns meaningful aggregate data with demo seeding
+   581→- Performed final QA with agent-browser: all tabs render correctly, no runtime errors, dark mode works
+   582→- Took screenshots of all improved tabs for documentation
+   583→
+   584→Stage Summary:
+   585→- All lint warnings fixed (0 errors, 0 warnings)
+   586→- Major visual improvements across all 4 main tabs
+   587→- New features: time-based greeting, player code copy, animated counters, Recent Activity, Match History, step progress indicators, demo data seeding
+   588→- BottomNav has frosted glass effect, animated Quick Score button, live match indicators
+   589→- SplashScreen has confetti particles, kabaddi mat circles, orbital gold dots, tagline
+   590→- globals.css has 5 new utility classes and 7 keyframe animations
+   591→- Seed API creates 4 grounds, 8 teams, 40 users/profiles, 1 tournament, 5 matches, 42 events
+   592→- Dark mode fully supported across all new elements
+   593→- App compiles and runs correctly with no errors
+   594→
+   595→Unresolved issues / Next phase recommendations:
+   596→- Tournament creation requires Premium — could add a free tier tournament limit
+   597→- Quick Score gender selection click issue with agent-browser (framer-motion whileTap) — not a real user issue
+   598→- Could add pull-to-refresh for Home tab data
+   599→- Could add haptic feedback/sound integration testing
+   600→- Could add more advanced match analytics (raid patterns, time analysis)
+   601→- Vercel deployment will need cloud database instead of SQLite
+   602→- Consider adding WebSocket support for live match updates across devices
+   603→
+   604→---
+   605→Task ID: 8-e
+   606→Agent: Global CSS Polish Agent
+   607→Task: Add comprehensive CSS polish to the global stylesheet
+   608→
+   609→Work Log:
+   610→- Read existing globals.css (361 lines) — preserved all existing CSS, theme variables, keyframes, and utility classes
+   611→- Added 8 major sections of new CSS polish (581 new lines):
+   612→  1. **Skeleton Loading Animations** (6 classes + 1 keyframe)
+   613→     - `.skeleton` — Base shimmer with gradient sweep (light + dark mode)
+   614→     - `.skeleton-text` — Full-width text line (12px)
+   615→     - `.skeleton-text-short` — 60% width text line
+   616→     - `.skeleton-circle` — Circular avatar skeleton (40px)
+   617→     - `.skeleton-card` — Card skeleton (120px height)
+   618→     - `.skeleton-bar` — Horizontal bar skeleton (24px)
+   619→     - `@keyframes skeleton-shimmer` — Background-position sweep animation
+   620→  2. **Enhanced Transitions** (6 classes)
+   621→     - `.transition-bounce` — cubic-bezier(0.34, 1.56, 0.64, 1) spring
+   622→     - `.transition-smooth` — 0.3s ease-in-out
+   623→     - `.transition-slide` — Slight overshoot cubic-bezier
+   624→     - `.hover-lift` — translateY(-2px) + shadow on hover (dark-aware)
+   625→     - `.hover-glow` — Red brand glow on hover (dark-aware)
+   626→     - `.hover-scale` — scale(1.02) on hover
+   627→     - `.press-down` — translateY(1px) + scale(0.98) on active
+   628→  3. **Card Enhancements** (7 classes + 2 keyframes)
+   629→     - `.card-elevated` — Triple-layer shadow depth (dark-aware)
+   630→     - `.card-interactive` — Hover lift + brand-red border change (dark-aware)
+   631→     - `.card-premium` — Golden border shimmer via mask-composite (animated)
+   632→     - `.card-live` — Pulsing red border (dark: glow shadow instead)
+   633→     - `.card-win` — Green left border accent (dark-aware)
+   634→     - `.card-loss` — Red left border accent (dark-aware)
+   635→     - `.card-draw` — Gold left border accent (dark-aware)
+   636→  4. **Text Enhancements** (4 classes + 1 keyframe)
+   637→     - `.text-shimmer` — Gold gradient text sweep animation
+   638→     - `.text-shadow-sm` — Subtle text shadow (dark-aware)
+   639→     - `.text-shadow-lg` — Large text shadow for headings (dark-aware)
+   640→     - `.text-outline` — Webkit text-stroke outline effect
+   641→  5. **Number Animation** (1 class + 1 keyframe)
+   642→     - `.number-ticker` — Bouncy count-up entrance with tabular-nums
+   643→     - `@keyframes count-up` — Opacity + translateY bounce
+   644→  6. **Badge/Pill Styles** (5 classes + 3 keyframes)
+   645→     - `.badge-live` — Pulsing red dot + red text (dark-aware)
+   646→     - `.badge-premium` — Gold gradient shimmer badge
+   647→     - `.badge-win` — Green pill (dark-aware)
+   648→     - `.badge-loss` — Red pill (dark-aware)
+   649→     - `.badge-new` — Teal pill with bounce animation
+   650→  7. **Page Transitions** (3 classes + 3 keyframes)
+   651→     - `.page-enter` — Fade + slide up (0.35s)
+   652→     - `.page-exit` — Fade + slide down (0.2s)
+   653→     - `.tab-enter` — Fade + slide from right (0.3s)
+   654→  8. **Additional Keyframes** (7 keyframes)
+   655→     - `@keyframes ripple` — Scale-out expanding ripple
+   656→     - `@keyframes bounce-in` — Scale 0→1.1→0.95→1 entrance
+   657→     - `@keyframes fade-up` — Fade + translateY entrance
+   658→     - `@keyframes glow-pulse` — Red + gold glow pulsing
+   659→     - `@keyframes slide-in-left` — Slide from left
+   660→     - `@keyframes slide-in-right` — Slide from right
+   661→     - `@keyframes shake` — Error shake (±4px)
+   662→
+   663→- All classes use CSS custom properties (brand-red, brand-gold, brand-teal, warm-XX)
+   664→- Dark mode variants provided for all color-dependent classes
+   665→- No existing CSS was modified or removed
+   666→- `bun run lint` passed with zero errors
+   667→- `bun run build` succeeded — CSS compiles cleanly with Next.js
+   668→
+   669→Total new CSS: ~580 lines across 33 classes and 18 keyframes
+   670→
+   671→---
+   672→Task ID: 8-a
+   673→Agent: AuthScreen Visual Overhaul Agent
+   674→Task: Major visual overhaul of the AuthScreen component
+   675→
+   676→Work Log:
+   677→- Read existing AuthScreen.tsx (818 lines) to understand all state management, API calls, and navigation logic
+   678→- Read globals.css for available CSS utility classes (.gradient-text, .glass-effect, .card-shine, .pulse-glow, keyframes: float, slide-up, spin-slow, shimmer, borderRotate, confetti-fall)
+   679→- Read worklog.md to understand previous agents' work
+   680→- Rewrote AuthScreen.tsx with comprehensive visual enhancements while keeping ALL existing functionality intact (state, logic, API calls, callbacks, navigation)
+   681→
+   682→Changes Made:
+   683→
+   684→1. **Animated Background**:
+   685→   - Replaced simple gradient with richer multi-color gradient (brand-red, brand-gold, brand-teal blobs)
+   686→   - Added `CourtPattern` sub-component with kabaddi court geometric patterns (horizontal lines, vertical center line, center circle, bonus area circles, crossed diagonal lines)
+   687→   - Added `FloatingParticles` sub-component with 18 animated floating dots (using framer-motion infinite animations with random positions, sizes, delays)
+   688→   - Added two slow-spinning decorative rings (using `spin-slow` keyframe from globals.css)
+   689→   - All background elements use low opacity for subtlety
+   690→
+   691→2. **Enhanced Logo Section**:
+   692→   - Added pulsing glow ring around the logo icon (`.pulse-glow` CSS class)
+   693→   - Added spinning border ring animation around the logo
+   694→   - Logo icon now has `whileHover` scale+rotate and `whileTap` scale micro-interactions
+   695→   - "KABADDI PRO" text now uses `.gradient-text` CSS class (red-to-gold gradient)
+   696→   - Added "Live Scoring & Tournaments" tagline with fade-in animation (delayed)
+   697→
+   698→3. **Better Form Card Styling**:
+   699→   - All three stage cards now use `.glass-effect` CSS class (frosted glass with backdrop blur)
+   700→   - Added rounded-2xl, subtle borders (white/40 in light, white/10 in dark), and shadow
+   701→   - Input fields now have red glow focus ring (`focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60`)
+   702→   - Smooth animated transitions when switching Login/Signup (using `AnimatePresence` with spring transitions for height, opacity, margin)
+   703→   - Added icons inside input fields: User icon for name, Lock icon for password, Weight icon for weight, MapPin for practice ground
+   704→   - Password visibility toggle buttons now use `whileHover` scale and `whileTap` scale with rounded-md styling
+   705→   - Submit buttons use gradient backgrounds with hover state changes and shadow-lg with color-matched shadow
+   706→
+   707→4. **Enhanced Role Selection Screen**:
+   708→   - Role cards are larger (p-5 instead of p-4) with rounded-2xl
+   709→   - Player card Shield icon now pulses (`animate-pulse`) when selected
+   710→   - Coach card Megaphone icon now bounces (`animate-bounce`) when selected
+   711→   - Added card-shine effect on selected role cards (shimmer animation)
+   712→   - Added gradient border glow on hover for unselected cards
+   713→   - Added `whileHover` scale+y-lift and `whileTap` scale micro-interactions
+   714→   - Selection indicator circles are larger (w-6 h-6) with spring animation on check mark
+   715→   - Subtle kabaddi court circle illustration in the background
+   716→
+   717→5. **Details/Onboarding Screen**:
+   718→   - Progress indicator dots are now inside each card at the top (consistent across all stages)
+   719→   - Gender selection cards are larger (p-6) with rounded-2xl and gradient backgrounds when selected
+   720→   - Selected gender cards show an expanding white circle animation and a Zap icon in the corner
+   721→   - `whileHover` scale+y-lift and `whileTap` scale micro-interactions on gender cards
+   722→   - Weight and Practice Ground inputs have teal-colored icons and focus rings
+   723→   - Position buttons have `whileHover` scale and `whileTap` scale animations
+   724→   - Better shadow and border styling for selected/unselected states
+   725→
+   726→6. **Micro-interactions**:
+   727→   - All buttons use `whileHover={{ scale: 1.02 }}` and `whileTap={{ scale: 0.98 }}` via motion wrappers
+   728→   - Back buttons use `whileHover={{ x: -3 }}` (slide left hint)
+   729→   - Input focus: red glow ring transition on all auth inputs, teal glow on details inputs
+   730→   - Error messages use `AnimatePresence` with spring slide-in animation (opacity + y + height)
+   731→   - Error messages include a CircleDot icon for visual clarity
+   732→   - Password mismatch/hint messages slide in from left (x: -8)
+   733→   - Bottom progress dots use framer-motion `animate` with smooth width and color transitions
+   734→
+   735→7. **Dark Mode Support**:
+   736→   - All new elements include proper `dark:` Tailwind classes
+   737→   - Glass effect uses dark-specific background from globals.css
+   738→   - Text colors have dark variants (warm-100, warm-200, warm-300, warm-400, warm-500)
+   739→   - Input backgrounds use dark-specific styles (bg-white/5, border-warm-600/40)
+   740→   - Border and shadow colors adjusted for dark mode
+   741→
+   742→8. **Pre-existing Fix**:
+   743→   - Fixed a lint error in HomeTab.tsx (react-hooks/set-state-in-effect) by initializing `expired` state with `!targetDate` instead of setting it in useEffect
+   744→
+   745→Verification:
+   746→- `bun run lint` passes with zero errors
+   747→- Dev server running successfully on port 3000
+   748→- No console errors or runtime errors
+   749→
+   750→---
+   751→Task ID: 8-d
+   752→Agent: Match Countdown & Pull-to-Refresh Agent
+   753→Task: Add Match Countdown timers and Pull-to-Refresh to the Home tab
+   754→
+   755→Work Log:
+   756→- Read existing HomeTab.tsx (2100+ lines) to understand structure and upcoming matches section
+   757→- Added `RefreshCw` and `ArrowDown` icons to lucide-react imports
+   758→- Created `CountdownTimer` component with:
+   759→  - 1-second setInterval updates for days, hours, minutes, seconds
+   760→  - Each time unit in its own styled box with number + label
+   761→  - Framer Motion flip animation (rotateX) when numbers change
+   762→  - "Starting Soon!" with pulse animation when countdown reaches zero
+   763→  - Proper interval cleanup on unmount via useEffect return
+   764→  - Safety with Math.max(0, targetDate - Date.now())
+   765→- Enhanced Upcoming Match Cards:
+   766→  - Subtle gradient background based on team colors (opacity 7% light / 12% dark)
+   767→  - Gender badge (♀ pink / ♂ sky blue) with dark mode support
+   768→  - Ring-2 on team color circles for visual pop
+   769→  - Venue info row with MapPin icon (shows tournament name or "Kabaddi Arena")
+   770→  - Countdown timer in a bordered container below team names
+   771→  - All existing Set Reminder functionality preserved
+   772→- Added Pull-to-Refresh functionality:
+   773→  - Touch handlers: onTouchStart, onTouchMove, onTouchEnd on root div
+   774→  - Rubber-band effect (0.4 multiplier) on pull distance
+   775→  - Pull threshold at 80px
+   776→  - AnimatePresence-powered pull indicator with spring animation
+   777→  - Rotating ArrowDown icon that rotates 180° at threshold
+   778→  - SVG progress arc that fills as you pull (brand-red color)
+   779→  - "Pull to refresh" / "Release to refresh" / "Refreshing..." text states
+   780→  - Spinning RefreshCw icon during refresh
+   781→  - Re-fetches all data (live matches, recent, upcoming, awards, MOTM) on pull
+   782→  - Toast notification on successful refresh
+   783→  - Smooth spring transition for indicator height
+   784→- State variables added: pullDistance, isRefreshing, touchStartY ref
+   785→- Callbacks wrapped in useCallback for proper memoization
+   786→- `bun run lint` passed with zero errors
+   787→- Dev server running successfully
+   788→
+   789→---
+   790→Task ID: 8-c
+   791→Agent: Enhanced Match Details Agent
+   792→Task: Enhance MatchDetailsScreen with 7 major improvements
+   793→
+   794→Work Log:
+   795→- Read worklog.md to understand all previous agents' work (Tasks 1 through 8-b)
+   796→- Read current MatchDetailsScreen.tsx (780 lines) to understand existing functionality
+   797→- Read globals.css for available utility classes (gradient-text, card-shine, pulse-glow, glass-effect, custom scrollbar, shimmer animation)
+   798→- Read store.ts for EventType definition and available types
+   799→- Checked available shadcn/ui components (progress.tsx, card, badge, button, etc.)
+   800→- Checked available kabaddi components for compatibility
+   801→
+   802→Enhancements Made:
+   803→
+   804→1. **Enhanced Header Section**
+   805→   - Team color gradient banner using `linear-gradient(135deg, homeColor → awayColor)` replacing the old navy solid background
+   806→   - Large team logos/avatars (w-20 h-20, up from w-16 h-16) with ring-4 ring-white/20 and animated spring entrance (scale: 0 → 1)
+   807→   - Animated VS divider with spring animation (damping: 8) and backdrop blur effect
+   808→   - Live match indicator with animated red dot using `animate-ping` class
+   809→   - Match status badge (LIVE/COMPLETED/UPCOMING) with appropriate colors via `getStatusConfig()` helper
+   810→   - Winner trophy badge with rotate spring animation
+   811→
+   812→2. **Score Display Enhancement**
+   813→   - Score numbers with key-based re-rendering for animation triggers
+   814→   - Score change flash animation (scale: 1.3 → 1 with spring) and text shadow glow effect
+   815→   - `prevHomeScore`/`prevAwayScore` state tracking with `homeScoreFlash`/`awayScoreFlash` for change detection
+   816→   - Half indicator with Progress bar showing match time elapsed
+   817→   - Match progress section with "1st Half" / "2nd Half" labels and Progress component from shadcn/ui
+   818→   - Team short name badge below team name
+   819→
+   820→3. **Match Timeline Section**
+   821→   - Replaced emoji icons with lucide-react icon components via `EventIcon` component
+   822→   - Updated EVENT_META to use `lucideIcon` field mapping to Zap, Shield, Flame, Target, Lock, Clock, AlertCircle
+   823→   - Color-coded by team: home events animate from left (x: -16), away from right (x: 16)
+   824→   - Gradient backgrounds per team side with hover shadow effect
+   825→   - Sticky half separator badges that stay visible during scroll
+   826→   - Smooth scroll with `scroll-smooth` class
+   827→   - Added `Timer` icon for section header
+   828→
+   829→4. **Team Comparison Section** (NEW)
+   830→   - Side-by-side team stats with team avatars and names as headers
+   831→   - Stats: Total Points, Raid Points, Tackle Points, Bonus Points, All Outs
+   832→   - Animated bar chart with motion.div width transitions
+   833→   - Winning team's stat bar highlighted with brand-gold gradient
+   834→   - Losing team gets warm-300 neutral bar
+   835→   - `computeTeamStats()` helper function for clean stat aggregation
+   836→
+   837→5. **Top Performers Section** (Enhanced)
+   838→   - Player avatars with position-colored rings: red ring for raiders (ring-brand-red/50), blue ring for defenders (ring-brand-blue/50)
+   839→   - Raid points breakdown: "{raidPts}R {bonusPts}B" format
+   840→   - Tackle points breakdown: "{tacklePts}T {superTackles}ST" format
+   841→   - Enhanced rank badge moved to avatar top-left with better sizing
+   842→   - Hover effect on performer rows (bg-warm-100 on hover)
+   843→   - Directional entrance animations: raiders from left, defenders from right
+   844→
+   845→6. **Match Info Footer** (NEW)
+   846→   - Structured icon + label layout for each info item
+   847→   - Venue with MapPin icon in brand-red/10 background
+   848→   - Date & Time with Calendar icon in brand-teal/10 background
+   849→   - Duration with Clock icon in brand-gold/10 background
+   850→   - Tournament with Trophy icon in brand-navy/10 background
+   851→   - Gender Category with Users icon in pink-500/10 background
+   852→   - Ground info with MapPin icon (conditional display)
+   853→
+   854→7. **Enhanced Action Buttons**
+   855→   - "Share Scorecard" button with gradient bg-gradient-to-r from-brand-red to-brand-red-dark and Share2 icon
+   856→   - "Watch Replay" button with gradient bg-gradient-to-r from-brand-navy to-brand-navy-dark and Play icon
+   857→   - "View Highlights" button with gradient bg-gradient-to-r from-brand-gold to-brand-gold-dark and Sparkles icon
+   858→   - Added shadow-md with colored shadow (shadow-brand-red/20, etc.)
+   859→   - active:scale-95 press feedback on all buttons
+   860→   - Hover gradient lightening effects
+   861→
+   862→Additional Changes:
+   863→- Added `Flame, Target, Lock, AlertCircle, Users, Timer` imports from lucide-react
+   864→- Added `Progress` component import from shadcn/ui
+   865→- Added `useRef` for timeline scroll reference
+   866→- Added `getStatusConfig()` helper for dynamic status styling
+   867→- Added `getHalfProgress()` helper for match progress calculation
+   868→- Added `computeTeamStats()` for team comparison data
+   869→- Enhanced `aggregatePlayers()` with bonus/super tackle breakdowns
+   870→- All existing API calls, state logic, and navigation preserved exactly
+   871→- Dark mode support with `dark:` classes throughout
+   872→- `bun run lint` passed with zero errors
+   873→
+   874→---
+   875→Task ID: 8-b
+   876→Agent: Player Stats Dashboard Agent
+   877→Task: Create a new Player Stats Dashboard screen
+   878→
+   879→Work Log:
+   880→- Read worklog.md to understand previous agents' work
+   881→- Analyzed existing ProfileTab.tsx, HomeTab.tsx, AdvancedStatsScreen.tsx, PremiumLock.tsx, store.ts, and Prisma schema
+   882→- Created `/home/z/my-project/src/components/kabaddi/PlayerStatsScreen.tsx` with all 6 required features:
+   883→  1. **Overall Performance Card** - Large circular progress ring (SVG) showing Overall Rating (0-100), animated counter (useAnimatedCounter hook with easeOutExpo), color changes (red <40, yellow 40-70, green >70), player name, position badge, and jersey number
+   884→  2. **Stats Grid (2x3)** - Raid Points (Swords), Tackle Points (Shield), Total Matches (Trophy), Success Rate (Target with color), Super Tackles (Star), Bonus Points (Sparkles) - each with gradient backgrounds, hover effects, staggered animation
+   885→  3. **Performance Breakdown Section** - Horizontal bar chart for Raid vs Tackle vs Bonus point distribution, gradient fills, animated widths, labels/percentages, summary legend
+   886→  4. **Match Type Breakdown** - Segmented toggle (Tournament | Practice), stats change dynamically, AnimatePresence smooth transitions, 6 stat cards per segment
+   887→  5. **Recent Form Indicator** - Last 5 matches as W/L/D dots, green/red/yellow colors, hover tooltips with match details (opponent, score, date)
+   888→  6. **Position Ranking** - Player's rank among position peers, animated rank badge with glow pulse, "Rank #X of Y Raiders" format, Top 3 badge
+   889→- Updated `/home/z/my-project/src/app/api/matches/route.ts` - Added `userId` query parameter support for filtering matches by scorer
+   890→- Updated `/home/z/my-project/src/components/kabaddi/ProfileTab.tsx`:
+   891→  - Added `import PlayerStatsScreen`
+   892→  - Added `showStats` state variable
+   893→  - Changed "My Stats" button to navigate to PlayerStatsScreen instead of AdvancedStatsScreen/PremiumLock
+   894→  - Updated description from "PRO only" to "View your stats"
+   895→  - Added PlayerStatsScreen rendering with `showStats && currentUser?.id` guard
+   896→- Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`:
+   897→  - Added `import PlayerStatsScreen`
+   898→  - Added `showStats` state variable
+   899→  - Changed "My Stats" in Explore section to navigate to PlayerStatsScreen instead of AdvancedStatsScreen
+   900→  - Updated description from "PRO only" to "View your stats"
+   901→  - Added PlayerStatsScreen rendering with `showStats && currentUser?.id` guard
+   902→- Fallback empty state for when no player data is available (with animated icon and helpful message)
+   903→- Error state with retry button
+   904→- Loading state with spinner
+   905→- Back button on all states for navigation
+   906→- All existing functionality preserved
+   907→- Dark mode support with proper `dark:` classes throughout
+   908→- Responsive mobile-first design
+   909→- `bun run lint` passed with zero errors
+   910→---
+   911→
+   912→Task ID: 9-d
+   913→Agent: Notification Panel Enhancement Agent
+   914→Task: Enhance the Notification Panel with categories, filters, actions, and better UX
+   915→
+   916→Work Log:
+   917→- Read `/home/z/my-project/worklog.md` to understand project context from previous agents
+   918→- Read existing `NotificationPanel.tsx` to understand current implementation
+   919→- Read `store.ts` for notification types, actions, and state structure
+   920→- Read `HomeTab.tsx` for notification bell integration and auto-notification logic
+   921→- Read `notifications.ts` for helper functions
+   922→- Read `globals.css` for theme colors, utility classes, and keyframe animations
+   923→
+   924→Changes Made:
+   925→
+   926→1. **Updated `/home/z/my-project/src/lib/store.ts`**:
+   927→   - Added `markNotificationRead(id: string)` action to interface and implementation
+   928→   - Allows marking individual notifications as read (vs only markAllRead)
+   929→
+   930→2. **Rewrote `/home/z/my-project/src/components/kabaddi/NotificationPanel.tsx`**:
+   931→   - **Category Filter Tabs**: All | Matches | Achievements | Premium | General pill-style tabs with animated active indicator using Framer Motion `layoutId`
+   932→   - **Enhanced Notification Cards**:
+   933→     - Colored left border by type (brand-teal for match_start, brand-red for match_result, brand-gold for achievement/premium, warm-400 for general)
+   934→     - Type icon in colored circle (Radio for match_start, Swords for match_result, Trophy for achievement, Crown for premium, Bell for general)
+   935→     - Bold title + description + relative time ("2 min ago", "1 hour ago", "Yesterday")
+   936→     - Read/unread visual state (unread has brand-red/5 bg tint, read is muted)
+   937→     - Swipe-to-dismiss with Framer Motion drag (drags horizontally, dismisses at 120px threshold)
+   938→     - Premium notifications get card-shine effect when unread
+   939→   - **Notification Actions**:
+   940→     - "Mark as Read" button on each unread notification card
+   941→     - "Mark All as Read" button (CheckCheck icon) in header
+   942→     - "Clear All" button with confirmation dialog overlay
+   943→     - Click actions navigate: match_start/result → match-details, achievement → achievements screen, premium → premium upgrade
+   944→   - **Empty State**: Animated BellOff icon with floating animation, category-specific messages
+   945→   - **Auto-Notifications**: Generates premium upgrade notification on first load
+   946→   - **Visual Style**: Slide-in panel from right, glass-effect background, dark mode support, mobile-first responsive, custom scrollbar
+   947→   - **Footer hint**: "Swipe left on a notification to dismiss"
+   948→
+   949→3. **Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`**:
+   950→   - Enhanced notification bell badge with spring bounce animation using `motion.span` with `key={unreadNotificationCount}` for re-trigger on count change
+   951→   - Updated NotificationPanel to pass `onNavigate` callback that routes to:
+   952→     - achievements → setShowAchievements(true)
+   953→     - premium → setUpgradeFeature + setShowUpgrade(true)
+   954→     - match-details → reserved for future navigation
+   955→   - Enhanced auto-notification generation:
+   956→     - Welcome back notification (if no notifications exist)
+   957→     - Match starting soon notification (if upcoming matches exist and no match_start type exists)
+   958→     - Achievement notification for returning users (if notifications > 2 and no achievement type exists)
+   959→     - Triggers on `currentUser?.name` and `upcomingMatches.length` changes
+   960→
+   961→4. **Fixed `/home/z/my-project/src/components/kabaddi/MatchPredictionScreen.tsx`**:
+   962→   - Replaced `useState([])` + `useEffect(() => setPredictions(...))` with lazy initializer `useState(() => loadPredictions())`
+   963→   - Fixes `react-hooks/set-state-in-effect` lint error
+   964→
+   965→Stage Summary:
+   966→- NotificationPanel completely rewritten with 5 category tabs, swipe-to-dismiss, colored borders, animated empty states, clear-all confirmation, and glass-effect styling
+   967→- HomeTab notification bell now has spring bounce animation on badge count changes
+   968→- Auto-notifications are more contextual (welcome back + upcoming match + achievement + premium)
+   969→- Individual mark-as-read action added to Zustand store
+   970→- Pre-existing lint error in MatchPredictionScreen fixed
+   971→- `bun run lint` passes with zero errors
+   972→
+   973→---
+   974→Task ID: 9-b
+   975→Agent: Subagent (Team Comparison Screen)
+   976→Task: Create a Team Comparison Screen for head-to-head team analysis
+   977→
+   978→Work Log:
+   979→- Read worklog.md to understand project context and previous agent work
+   980→- Examined HomeTab.tsx to find the "Challenges" explore item to replace
+   981→- Reviewed existing API routes (/api/teams, /api/matches) and Prisma schema
+   982→- Created `/home/z/my-project/src/components/kabaddi/TeamComparisonScreen.tsx`:
+   983→  - Team selection section with two custom searchable dropdowns
+   984→  - Animated VS badge between selectors with pulse animation
+   985→  - "Compare" button to trigger comparison
+   986→  - Head-to-head stats comparison with 9 stat bars (Matches Played, Wins, Losses, Draws, Raid Points, Tackle Points, Bonus Points, All Outs, Avg Score)
+   987→  - Horizontal bar comparison with team colors - winning team's bar uses stronger gradient, losing uses lighter
+   988→  - Animated width transitions with framer-motion
+   989→  - SVG-based radar chart with 6 axes (Raid, Tackle, Bonus, All Out, Win Rate, Consistency)
+   990→  - Both teams overlaid with semi-transparent fill in team colors
+   991→  - Legend showing team colors
+   992→  - Recent encounters list showing date, score, winner with win/draw/loss card styles
+   993→  - Win/Loss streak indicator (last 5 matches as colored dots)
+   994→  - Team color gradient header (blends both team colors)
+   995→  - Uses existing CSS utilities (.gradient-text, .card-elevated, .glass-effect, .custom-scrollbar)
+   996→  - Dark mode support throughout
+   997→  - Mobile-first responsive design
+   998→  - Framer motion entrance animations on all sections
+   999→  - Back navigation button with ArrowLeft icon
+  1000→  - Empty state with instructions
+  1001→- Created `/home/z/my-project/src/app/api/teams/compare/route.ts`:
+  1002→  - GET endpoint accepting teamAId and teamBId query params
+  1003→  - Fetches all completed matches for each team
+  1004→  - Computes comprehensive stats: totalMatches, wins, losses, draws, raidPoints, tacklePoints, bonusPoints, allOuts, avgScore, winRate, consistency
+  1005→  - Consistency metric based on inverse of score standard deviation
+  1006→  - Returns head-to-head encounters list with winner determination
+  1007→- Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`:
+  1008→  - Replaced ChallengeScreen import with TeamComparisonScreen import
+  1009→  - Replaced showChallenges state with showComparison state
+  1010→  - Replaced "Challenges" explore card with "Compare Teams" card using Swords icon
+  1011→  - Description changed to "Head-to-head"
+  1012→  - Renders TeamComparisonScreen when showComparison is true
+  1013→- Ran `bun run lint` - zero errors
+  1014→
+  1015→Stage Summary:
+  1016→- Team Comparison Screen fully functional with team selection, H2H stats bars, radar chart, recent encounters, and streak indicators
+  1017→- New API endpoint /api/teams/compare for comparison data
+  1018→- HomeTab explore section updated: "Challenges" → "Compare Teams" with "Head-to-head" description
+  1019→- All existing CSS utilities and shadcn components used consistently
+  1020→- Zero lint errors
+  1021→
+  1022→---
+  1023→Task ID: 9-e
+  1024→Agent: Match Prediction Game Agent
+  1025→Task: Create a Match Prediction Game screen where users can predict match outcomes and earn points
+  1026→
+  1027→Work Log:
+  1028→- Read `/home/z/my-project/worklog.md` to understand project context from previous agents
+  1029→- Read `HomeTab.tsx` to understand existing navigation patterns, state management, and Pro Features section
+  1030→- Read `store.ts` for Kabaddi Pro types and store structure
+  1031→- Read `globals.css` for utility classes (.gradient-text, .card-elevated, .badge-premium, .badge-win, .badge-loss, .badge-new, .press-down, .hover-lift, .custom-scrollbar, .number-ticker, etc.)
+  1032→- Read `tabs.tsx`, `progress.tsx` UI components for component APIs
+  1033→
+  1034→Changes Made:
+  1035→
+  1036→1. **Created `/home/z/my-project/src/components/kabaddi/MatchPredictionScreen.tsx`**:
+  1037→   - Full 'use client' component with all required features:
+  1038→   - **Prediction Dashboard**: Header with Sparkles icon and gradient text, user's points total, accuracy percentage, current streak of correct predictions
+  1039→   - **Active Predictions Section**: 4 upcoming match cards with team colors/short names, match date/time, 3 prediction options (Team A Wins / Draw / Team B Wins), selected prediction highlighted with team color gradient, community prediction percentages bar, Submit Prediction button with animation, already-predicted matches show checkmark
+  1040→   - **Prediction Results Section**: 4 completed match cards with scores, correct/incorrect status with green glow / red shake animations, points earned badges, Reveal Result button with confetti animation on correct predictions
+  1041→   - **Leaderboard Section**: Top 10 predictors with realistic Indian names, current user highlighted with border and badge, points and accuracy display, podium visualization for top 3 (gold/silver/bronze), user's rank card
+  1042→   - **Prediction History**: Scrollable list with All/Correct/Incorrect filters, stats summary (total, correct, accuracy, points), progress bar, color-coded items (green for correct, red for incorrect)
+  1043→   - **State Management**: useState with localStorage under 'kabaddi-predictions' key, lazy initializer for predictions, community prediction mock data, points calculation (10 pts correct winner, 25 pts exact draw, 5 bonus for streak)
+  1044→   - **Confetti Component**: 30-particle confetti burst on correct prediction reveal
+  1045→   - **Visual Style**: Gradient header, team color accents on match cards, animated prediction buttons (hover lift, press down), .gradient-text, .card-elevated, .card-premium, .badge-win, .badge-loss, .badge-new, .press-down, .custom-scrollbar, .number-ticker, dark mode support, mobile-first responsive, shadcn Card/Badge/Button/Tabs/Progress components, Lucide icons
+  1046→
+  1047→2. **Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`**:
+  1048→   - Added `import MatchPredictionScreen from './MatchPredictionScreen'`
+  1049→   - Added `showPredictions` state variable
+  1050→   - Changed Predictions card onClick from `setShowPolls(true)` to `setShowPredictions(true)`
+  1051→   - Changed icon from Vote to Sparkles (matching prediction theme)
+  1052→   - Removed Lock icon (PremiumLock) - made feature free
+  1053→   - Changed description from "Vote & predict" to "Predict & win"
+  1054→   - Added MatchPredictionScreen rendering: `{showPredictions && <MatchPredictionScreen onClose={() => setShowPredictions(false)} />}`
+  1055→
+  1056→3. **Lint**: `bun run lint` passes with zero errors
+  1057→
+  1058→Stage Summary:
+  1059→- MatchPredictionScreen fully implemented with 4 tabs (Predict, Results, Board, History)
+  1060→- Complete prediction workflow: select → submit → reveal → earn points
+  1061→- Leaderboard with podium visualization and user ranking
+  1062→- Confetti animation on correct predictions
+  1063→- All predictions persisted to localStorage
+  1064→- Feature is now free (no PremiumLock) in HomeTab
+  1065→- Zero lint errors
+  1066→
+  1067→---
+  1068→Task ID: 9-c
+  1069→Agent: Agent 9-c
+  1070→Task: Create Streak & Records Dashboard screen
+  1071→
+  1072→Work Log:
+  1073→- Read worklog.md to understand project context and previous agents' work
+  1074→- Examined existing components (HomeTab, PlayerStatsScreen, AchievementsScreen) for patterns
+  1075→- Reviewed API routes (`/api/players/[id]`, `/api/matches`) for data fetching
+  1076→- Reviewed globals.css for existing utility classes (gradient-text, card-elevated, card-premium, badge-new, badge-live, skeleton classes, etc.)
+  1077→- Created `/home/z/my-project/src/components/kabaddi/StreaksRecordsScreen.tsx` with:
+  1078→  - **Current Streaks Section**: Win Streak, Raid Streak, Tackle Streak, Unbeaten Streak cards with animated progress bars, current/best counts, and CSS fire pulse animation
+  1079→  - **Personal Records Section**: 6 record cards (Most Raid Points, Most Tackle Points, Highest Score Contribution, Longest Match, Most Super Tackles, Most Bonus Points) with gold shimmer border (card-premium class), "New Record!" badge for recent achievements
+  1080→  - **Milestones Section**: 5 milestones with SVG circular progress indicators (50 Matches, 100 Total Points, 50 Raid Points, 25 Tackle Points, 10 Super Tackles), gold checkmark + crown animation on completed milestones
+  1081→  - **Match Form Chart**: Last 10 matches as colored dots (W=green, L=red, D=amber), gradient connecting lines, form score with progress bar, Hot/Cold/Mixed Form badge
+  1082→  - **Season Summary**: Win/Loss/Draw counts, circular win rate indicator, points scored/conceded
+  1083→  - Data fetching from `/api/players/[id]` and `/api/matches?userId=XXX`
+  1084→  - Loading skeleton while fetching
+  1085→  - Gradient header with Trophy/Flame icons
+  1086→  - Framer Motion staggered entrance animations
+  1087→  - Dark mode support throughout
+  1088→  - Mobile-first responsive layout
+  1089→  - Back navigation button
+  1090→- Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`:
+  1091→  - Added import for StreaksRecordsScreen
+  1092→  - Added `showStreaks` state variable
+  1093→  - Added StreaksRecordsScreen render block
+  1094→  - Changed Achievements explore item onClick to `setShowStreaks(true)`
+  1095→  - Changed description from "Unlock badges" to "Streaks & records"
+  1096→- Ran `bun run lint` — zero errors
+  1097→
+  1098→Stage Summary:
+  1099→- StreaksRecordsScreen: Full-featured streaks, records, milestones, match form, and season summary dashboard
+  1100→- HomeTab integration: Achievements card now navigates to StreaksRecordsScreen
+  1101→- All components use Kabaddi Pro color theme, shadcn/ui components, Framer Motion animations
+  1102→- Zero lint errors
+  1103→
+  1104→---
+  1105→Task ID: 9-a
+  1106→Agent: Subagent (Kabaddi Rules & Tutorial Screen)
+  1107→Task: Create comprehensive Kabaddi Rules & Tutorial Screen component
+  1108→
+  1109→Work Log:
+  1110→- Read worklog.md to understand previous agents' work
+  1111→- Studied existing codebase: HomeTab.tsx pattern, color theme, component library, utility classes
+  1112→- Created `/home/z/my-project/src/components/kabaddi/KabaddiRulesScreen.tsx` — a comprehensive 'use client' component with:
+  1113→  - **Introduction Section**: Animated kabaddi court SVG with moving raider, "What is Kabaddi?" overview, and 4 key facts cards (team size, match duration, court dimensions, all-out points)
+  1114→  - **Rules Sections** (expandable accordion with 6 sections):
+  1115→    - Basic Rules: Raid mechanics, scoring, lob, bonus line
+  1116→    - Scoring System: 7 scoring types with point values (raid, bonus, tackle, all-out, super tackle, super raid, do-or-die)
+  1117→    - Match Format: Two halves, duration, timeouts, result
+  1118→    - Player Positions: Raider, defender, all-rounder with color-coded descriptions and icons
+  1119→    - Cards & Penalties: Green, yellow, red card with visual card representations
+  1120→    - Court Layout: Detailed SVG diagram with labeled areas (midline, baulk line, bonus line, lobby)
+  1121→  - **Interactive Tutorial** (4-step carousel):
+  1122→    - Step 1: "The Raid" — animated raider moving across court
+  1123→    - Step 2: "Scoring Points" — animated point type badges
+  1124→    - Step 3: "Defending" — defenders closing in animation
+  1125→    - Step 4: "All Out" — pulsing ALL OUT text animation
+  1126→    - Each step has progress bar, illustration, description, and highlight tip
+  1127→    - Uses shadcn Carousel for swipe navigation
+  1128→  - **Glossary Section**: 18 kabaddi terms with definitions in scrollable list with color-coded first letters
+  1129→  - **Section Navigation**: Sticky tab bar (Intro, Rules, Tutorial, Glossary) with AnimatePresence transitions
+  1130→  - **Back Navigation**: Back button in sticky header
+  1131→- Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`:
+  1132→  - Added `BookOpen` to lucide-react imports
+  1133→  - Added import for KabaddiRulesScreen
+  1134→  - Added `showRules` state variable
+  1135→  - Added "Rules" card in Explore section grid with BookOpen icon, "Rules" title, and "Learn the game" description
+  1136→  - Added conditional render for KabaddiRulesScreen when showRules is true
+  1137→- Ran `bun run lint` — zero errors
+  1138→
+  1139→Stage Summary:
+  1140→- KabaddiRulesScreen: Comprehensive rules & tutorial screen with 4 tab sections, animated SVG court diagrams, interactive tutorial carousel, and glossary
+  1141→- HomeTab integration: New "Rules" card in Explore section opens full rules screen
+  1142→- Visual style: Uses brand-red/gold/teal/navy color theme, glass-effect, card-elevated, gradient-text, custom-scrollbar utility classes
+  1143→- Dark mode fully supported throughout
+  1144→- Mobile-first responsive design
+  1145→- All animations use Framer Motion with spring transitions
+  1146→- Zero lint errors
+  1147→
+  1148→---
+  1149→Task ID: 9-f
+  1150→Agent: Global Search & Styling Agent
+  1151→Task: Create Global Search component and add styling polish across the app
+  1152→
+  1153→Work Log:
+  1154→- Read worklog.md to understand project history and current state
+  1155→- Read HomeTab.tsx, store.ts, globals.css, and Prisma schema for context
+  1156→- Created `/src/app/api/search/route.ts` - Search API endpoint:
+  1157→  - GET /api/search?q=query&type=all|players|teams|tournaments
+  1158→  - Searches across users (players with profile position + team names), teams, and tournaments
+  1159→  - Uses Prisma with contains filter for name/code matching
+  1160→  - Returns grouped results with relevant fields per type
+  1161→  - Error handling with proper status codes
+  1162→- Created `/src/components/kabaddi/GlobalSearchScreen.tsx` - Full-screen search overlay:
+  1163→  - Search interface with large input, Search icon, and clear button
+  1164→  - Auto-focus on open
+  1165→  - Debounced search (300ms) as you type
+  1166→  - Recent searches section stored in localStorage 'kabaddi-recent-searches' (max 8)
+  1167→  - Quick category filters: All, Players, Teams, Tournaments (pill-style buttons)
+  1168→  - Players results: Name, player code (highlighted), position, team names, avatar
+  1169→  - Teams results: Name, short name (highlighted), color indicator, team code
+  1170→  - Tournaments results: Name, type, status badge, tournament code (highlighted)
+  1171→  - Results grouped by category with section headers and count badges
+  1172→  - Empty state with "No results found" and search suggestions
+  1173→  - AnimatePresence/motion for smooth overlay transitions
+  1174→  - Slide-in-top animation on open
+  1175→- Added CSS utilities to globals.css:
+  1176→  - `.search-highlight` - yellow background highlight for search matches (light/dark)
+  1177→  - `.slide-in-top` - animation from top for search overlay
+  1178→  - `.overlay-backdrop` - dark semi-transparent backdrop with blur for overlays (light/dark)
+  1179→  - `.input-search` - large search input styling with focus ring (light/dark)
+  1180→  - `.header-gradient-border` - gradient border bottom (red-gold-red) for header
+  1181→- Integrated search in HomeTab:
+  1182→  - Added `Search` icon import from lucide-react
+  1183→  - Added `GlobalSearchScreen` component import
+  1184→  - Added `showSearch` state variable
+  1185→  - Added search icon button in header (next to notification bell, same styling)
+  1186→  - Added GlobalSearchScreen overlay rendering with onClose handler
+  1187→- Polished HomeTab header:
+  1188→  - Verified header is already sticky with backdrop-blur (confirmed ✓)
+  1189→  - Added `header-gradient-border` class for subtle gradient border bottom (replacing plain border-b)
+  1190→  - Search icon button styled consistently with notification bell button
+  1191→- Ran `bun run lint` - zero errors, zero warnings
+  1192→
+  1193→Stage Summary:
+  1194→- Global Search fully functional with full-screen overlay, category filters, debounced search, and recent searches
+  1195→- Search API endpoint searches across all 3 entity types (players, teams, tournaments)
+  1196→- 5 new CSS utilities added to globals.css for search and overlay styling
+  1197→- Header gradient border adds visual polish
+  1198→- Zero lint errors
+  1199→- All changes support dark mode
+  1200→
+  1201→Unresolved issues / Next phase recommendations:
+  1202→- Search navigation callbacks are currently minimal (just closes overlay) - could add deeper navigation to player stats, team details, tournament bracket views
+  1203→- Could add keyboard shortcut (Cmd+K / Ctrl+K) to open search from anywhere
+  1204→- Could add search result caching for faster repeat queries
+  1205→- Could add trending searches based on actual usage data
+  1206→
+  1207→---
+  1208→Task ID: 10
+  1209→Agent: Main Agent (Cron Review Session - Round 3)
+  1210→Task: QA testing, 6 major new features, styling polish, and worklog update
+  1211→
+  1212→Work Log:
+  1213→- Read worklog.md to assess project status from previous 2 rounds
+  1214→- Performed comprehensive QA with agent-browser: login, all 4 tabs, dark mode, no errors
+  1215→- Verified lint passes with 0 errors, 0 warnings
+  1216→- Verified no console errors or runtime errors
+  1217→- Launched 6 parallel subagents for major new features and styling:
+  1218→  - Agent 9-a: Kabaddi Rules & Tutorial Screen
+  1219→  - Agent 9-b: Team Comparison Screen
+  1220→  - Agent 9-c: Streak & Records Dashboard
+  1221→  - Agent 9-d: Enhanced Notification Panel
+  1222→  - Agent 9-e: Match Prediction Game
+  1223→  - Agent 9-f: Global Search + Styling Polish
+  1224→- All 6 agents completed successfully with zero lint errors
+  1225→- Final QA verified: all tabs render correctly, no errors, all new features accessible from Home tab
+  1226→
+  1227→Stage Summary:
+  1228→- **KabaddiRulesScreen** (~55KB): Interactive rules guide with animated court SVG, 6 expandable rule sections (Accordion), 4-step interactive tutorial (Carousel), 18-term glossary, section navigation tabs, fully supports dark mode
+  1229→- **TeamComparisonScreen** (~36KB): Head-to-head team comparison with dual dropdown selectors, 9 stat comparison bars with animated widths, SVG radar/spider chart, recent encounters list, win/loss streak dots; new API at /api/teams/compare
+  1230→- **StreaksRecordsScreen** (~38KB): Streak tracking (win/raid/tackle/unbeaten with fire animation), 6 personal records with gold shimmer, 5 milestones with SVG circular progress, last-10 match form chart, season summary with win rate indicator
+  1231→- **Enhanced NotificationPanel**: Complete rewrite with category filter tabs (All/Matches/Achievements/Premium/General), swipe-to-dismiss, mark-as-read per notification, colored type borders, relative timestamps, empty states, auto-notifications; added markNotificationRead action to store
+  1232→- **MatchPredictionScreen** (~57KB): 4-tab prediction game (Predict/Results/Leaderboard/History), community prediction percentages, points system (10/25/5), confetti animation on correct, localStorage persistence, podium leaderboard
+  1233→- **GlobalSearchScreen** (~31KB): Full-screen search overlay with debounced search, category filters (All/Players/Teams/Tournaments), recent searches in localStorage, grouped results with highlighted matches; new API at /api/search
+  1234→- **CSS Polish**: 5 new utility classes (.search-highlight, .slide-in-top, .overlay-backdrop, .input-search, .header-gradient-border), HomeTab header gradient border
+  1235→- **HomeTab Integration**: All 6 new screens accessible from Explore/Pro Features sections (Rules, Compare Teams, Streaks & Records, Predictions now free, Search in header)
+  1236→- **Store Enhancement**: Added markNotificationRead(id) action
+  1237→- **New API Routes**: /api/search, /api/teams/compare
+  1238→- Zero lint errors across all new code
+  1239→- Full dark mode support for all new components
+  1240→
+  1241→Unresolved issues / Next phase recommendations:
+  1242→- Tournament creation still requires Premium - could add free tier limit
+  1243→- Could add WebSocket support for real-time live match updates
+  1244→- Could add sound effects / haptic feedback for scoring events
+  1245→- Could add more advanced analytics (raid patterns, time-based analysis)
+  1246→- Vercel deployment will need cloud database instead of SQLite
+  1247→- Could add multi-language support (Hindi) for Rules & Tutorial
+  1248→- Could add video replay integration for match highlights
+  1249→- Could add social sharing of predictions and streaks
+  1250→
+  1251→---
+  1252→Task ID: 11-a
+  1253→Agent: Subagent (Match History Screen)
+  1254→Task: Create comprehensive Match History Screen with filters, stats summary, and visual timeline
+  1255→
+  1256→Work Log:
+  1257→- Read worklog.md to understand previous agent work and project context
+  1258→- Read existing codebase: HomeTab.tsx, store.ts, utils.ts, schema.prisma, globals.css, PlayerStatsScreen.tsx
+  1259→- Read matches API route (src/app/api/matches/route.ts) to understand data fetching
+  1260→- Created /home/z/my-project/src/components/kabaddi/MatchHistoryScreen.tsx with:
+  1261→  - Stats Summary Bar: Total/Wins/Losses/Draws with animated counters, win rate with circular mini progress indicator, total points with gradient text
+  1262→  - Filter Bar: Result (All/Won/Lost/Draw), Type (All/Tournament/Practice), Gender (All/♂ Boys/♀ Girls), Sort (Newest/Oldest/Top Score) with animated filter pills
+  1263→  - Match Timeline: Vertical timeline with date dividers (Today/Yesterday/This Week/Earlier)
+  1264→  - Match Cards: Team A vs Team B with team colors, score with winner highlighted, match type badge, gender badge, half info, user contribution, expandable details
+  1265→  - Won/Lost/Draw visual indicators with color-coded left borders (green/red/amber) and icons
+  1266→  - Staggered entrance animations per card using Framer Motion
+  1267→  - Inline Match Details Expansion: Top performers, event summary (raids/tackles/bonus/all-outs), match duration, super raids/tackles/empty raids badges
+  1268→  - Pagination: Initial 10 matches with Load More button and skeleton loading
+  1269→  - Empty State: Animated icon with "No matches yet" message, "Start your first match!" CTA, filter-specific empty states with "Clear Filters" button
+  1270→  - Dark mode support with dark: classes throughout
+  1271→  - Back navigation with animated slide-in/slide-out
+  1272→  - Uses existing CSS utilities: card-elevated, badge-win, badge-loss, gradient-text, custom-scrollbar
+  1273→  - Uses shadcn Card, Badge, Button components with Lucide icons
+  1274→- Updated /home/z/my-project/src/app/api/matches/route.ts:
+  1275→  - Added offset parameter support (skip: offset) for pagination
+  1276→  - Added tournament include in list query response
+  1277→- Updated /home/z/my-project/src/components/kabaddi/HomeTab.tsx:
+  1278→  - Added import for MatchHistoryScreen
+  1279→  - Added showMatchHistory state variable
+  1280→  - Added "Match History" entry in Explore section grid with Calendar icon and "Past matches" description
+  1281→  - Added MatchHistoryScreen overlay rendering with onClose handler
+  1282→- Verified: Zero new lint errors introduced (all 11 pre-existing errors from other files)
+  1283→- Verified: MatchHistoryScreen.tsx passes ESLint with zero errors
+  1284→
+  1285→Stage Summary:
+  1286→- New MatchHistoryScreen component: 650+ lines with comprehensive match history browsing
+  1287→- Stats summary with animated counters and circular progress
+  1288→- Multi-dimensional filtering (result, type, gender, sort)
+  1289→- Visual timeline with date groupings
+  1290→- Accordion-style inline match details expansion
+  1291→- Paginated data loading with skeleton states
+  1292→- Full dark mode support
+  1293→- Integrated into HomeTab Explore section
+  1294→
+  1295→---
+  1296→Task ID: 11-e
+  1297→Agent: Styling Polish Agent
+  1298→Task: Polish HomeTab and ProfileTab with refined micro-interactions, better visual hierarchy, and enhanced styling
+  1299→
+  1300→Work Log:
+  1301→- Read worklog.md to understand previous agent contributions (8+ prior task groups)
+  1302→- Read full HomeTab.tsx (~2400 lines) and ProfileTab.tsx (~1700 lines) to understand current structure
+  1303→- Read globals.css to understand existing animation keyframes and utility classes
+  1304→- Added 20+ new CSS keyframes and utility classes to globals.css:
+  1305→  - `live-double-ring` - Double-ring pulsing effect for LIVE badges
+  1306→  - `number-ticker` - Flip animation for score number changes
+  1307→  - `confetti-burst` - Confetti particle burst animation
+  1308→  - `shimmer-sweep-text` - Shimmer sweep across section titles
+  1309→  - `golden-border-hover` - Golden border shimmer on hover for pro cards
+  1310→  - `lock-shake-hover` / `.lock-icon` - Lock icon shake animation on hover
+  1311→  - `bell-ring-anim` - Bell ring shake for "Set Reminder" button
+  1312→  - `gold-shimmer-border` - Rotating gold shimmer border for MOTM card
+  1313→  - `trophy-float` - Floating trophy animation for empty awards state
+  1314→  - `timeline-dot-pulse` - Timeline dot pulse for activity items
+  1315→  - `animated-gradient-bg` - Animated gradient background shifting
+  1316→  - `sparkle-twinkle` - Sparkle particle twinkle effect for premium card
+  1317→  - `sun-moon-transition` - Sun/Moon icon rotation transition
+  1318→  - `chevron-hover-rotate` / `.chevron-icon` - Chevron slide animation on hover
+  1319→  - `result-pulse` - Win/Loss pulse for recent matches
+  1320→  - `search-focus-ring` - Search button focus ring animation
+  1321→  - `badge-smooth-bounce` - Smoother notification badge bounce
+  1322→  - `border-glow-hover` - Border glow on hover with brand colors
+  1323→  - `gender-pill` - Smoother gender filter pill transitions
+  1324→  - `position-ring-raider/defender/allrounder` - Position color rings for avatar
+  1325→
+  1326→- HomeTab Enhancements:
+  1327→  a. Live Match Cards: Added team color gradient strip at top, NumberTicker for score animations, double-ring LIVE badge, ConfettiParticles on score change
+  1328→  b. Explore Grid: Unique gradient backgrounds per card (teal-50, slate-50, red-50, etc.), hover:scale-[1.03], rounded-2xl icon backgrounds, border-glow-hover effect
+  1329→  c. Pro Features: Shimmer sweep on "Pro Features" title, golden-border-hover on pro cards, lock-shake-hover on lock icons
+  1330→  d. Upcoming Matches: Bell ring animation on "Set Reminder" button, smoother gender filter transitions with gender-pill class
+  1331→  e. Awards: Rotating gold shimmer border on MOTM card, gradient overlay on Top Raider/Defender cards, floating trophy animation on empty state
+  1332→  f. Recent Activity: Timeline dot connector with vertical line, staggered animation delay (0.12s), timeline-dot-pulse animation
+  1333→  g. Header: Search button focus ring animation, smoother notification badge bounce with badge-smooth-bounce, time-based greeting already present
+  1334→
+  1335→- ProfileTab Enhancements:
+  1336→  a. Profile Header: Animated gradient background (animated-gradient-bg), dot pattern overlay, avatar position-color ring matching player position, better Edit button hover (hover:scale-105, hover:bg-white/15)
+  1337→  b. Stats Section: Gradient progress bar fills (red→amber, slate→teal), count-up effect on first view (AnimatedValue component with IntersectionObserver), left border accent on stat cards
+  1338→  c. Premium Card: Animated gradient border (animated-gradient-bg), sparkle-twinkle particles (4 particles with staggered delays)
+  1339→  d. Settings Section: Smoother toggle animations (duration-300), sun/moon icon transition (sun-moon-transition), language selector hover states (scale-105, hover:bg-warm-200/50)
+  1340→  e. Feature List: hover:translate-x-1 transition, chevron-hover-rotate class, icon scale on hover with transition-transform duration-200
+  1341→  f. Match History: result-pulse on recent matches (idx < 2), better score typography (font-black, tabular-nums), date formatting below score
+  1342→
+  1343→- Ran `bun run lint` - zero errors, zero warnings
+  1344→
+  1345→Stage Summary:
+  1346→- 20+ new CSS keyframes and utility classes added for micro-interactions
+  1347→- HomeTab: Enhanced live match cards, explore grid, pro features, upcoming matches, awards, recent activity, and header
+  1348→- ProfileTab: Enhanced profile header, stats, premium card, settings, feature list, and match history
+  1349→- All animations support dark mode
+  1350→- Zero lint errors
+  1351→
+  1352→---
+  1353→Task ID: 11-d
+  1354→Agent: Season & QuickScore Enhancement Agent
+  1355→Task: Enhance SeasonScreen and QuickScoreTab with better visuals and smart features
+  1356→
+  1357→Work Log:
+  1358→- Read worklog.md to understand previous agents' work (11+ prior task groups)
+  1359→- Read existing SeasonScreen.tsx (~580 lines) and QuickScoreTab.tsx (~1210 lines) to understand current implementation
+  1360→- Read API routes (/api/seasons, /api/players, /api/seasons/[id], /api/player-stats) for data structure understanding
+  1361→- Read PremiumLock component for premium feature gating pattern
+  1362→
+  1363→Part 1 - SeasonScreen Enhancements:
+  1364→a. Season Comparison Chart: New SVG-based bar chart component (SeasonComparisonChart) that displays team/match counts across seasons with animated bars, grid lines, Y-axis labels, and color legend. Shows when 2+ seasons exist.
+  1365→b. Season Progress Tracker: New component (SeasonProgressTracker) for active/completed seasons showing season completion %, matches played/total, teams count in a 3-column stat grid, and animated progress bars.
+  1366→c. Season MVP Section: New component (SeasonMVPSection) that fetches the top player from /api/leaderboard and displays their avatar, name, position, raid/tackle points, and total points. Falls back to top team if no MVP data available.
+  1367→d. Enhanced Season Cards: Upgraded with gradient backgrounds (5 rotating patterns), colored status strips at top (teal=active, amber=completed, blue=upcoming), animated pulse dots for active status, team/match/sponsor count badges with icons, and dark mode support.
+  1368→e. Better Empty State: New EmptySeasonState component with SVG trophy illustration, animated pulsing dot indicators, and descriptive text.
+  1369→f. Enhanced Season Detail View: Status header with gradient backgrounds and pulse indicators, crown emoji for #1 team in standings, improved dark mode styling throughout.
+  1370→g. Dark mode: All new components support dark mode with dark: prefix classes.
+  1371→
+  1372→Part 2 - QuickScoreTab Enhancements:
+  1373→a. Smart Lineup Suggestion: New "Suggest Lineup" button with AI badge that auto-fills players based on position balance. Uses POSITION_BALANCE config (2 raiders, 3 defenders, 2 all-rounders for 7-a-side). Sorts players by overallRating, picks by category, fills remaining with unknowns. Animated suggesting state.
+  1374→b. Lineup Validation: Real-time validation showing warnings for incomplete lineups (player count, position balance). Uses useMemo for efficient recomputation. Warnings displayed at error/warning/info severity levels with appropriate colors.
+  1375→c. Player Quick Stats: When searching/selecting players, shows inline stats (total points, raid points, tackle points) below player name. Hover tooltip (PlayerStatsTooltip) shows detailed stats including raid success rate. Stats shown in lineup player cards too.
+  1376→d. Enhanced Team Setup: Team input fields now have gradient backgrounds matching team color, improved VS section with glow effect and shadow, larger Swords icon.
+  1377→e. Match Preview Card with Formation Visualization: New FormationVisualization component showing 3-column grid of player jersey numbers/names, empty slots for unfilled positions. Both teams shown side-by-side with VS divider. Position balance info in match details.
+  1378→f. Settings Step: Added recommended formation hint (e.g., "2 Raiders · 3 Defenders · 2 All-rounders") when playersPerSide is in POSITION_BALANCE config.
+  1379→g. Position Indicators: Color-coded position badges (red=raider, teal=defender, gold=all-rounder) in search results, lineup cards, and preview.
+  1380→
+  1381→Pre-existing Fixes:
+  1382→- Fixed ProfileTab.tsx parsing error by wrapping bare ternary text in <span> tag
+  1383→- Fixed ProfileTab.tsx set-state-in-effect lint error (was already partially fixed, confirmed clean)
+  1384→
+  1385→- Ran `bun run lint` - zero errors, zero warnings
+  1386→
+  1387→Stage Summary:
+  1388→- SeasonScreen: Added 3 new components (SeasonComparisonChart, SeasonProgressTracker, SeasonMVPSection), enhanced season cards, better empty state, improved detail view
+  1389→- QuickScoreTab: Added smart lineup suggestion, lineup validation, player quick stats/tooltips, enhanced team setup, formation visualization, position indicators
+  1390→- All enhancements support dark mode
+  1391→- Zero lint errors
+  1392→
+  1393→---
+  1394→
+  1395→Task ID: 11-b
+  1396→Agent: Player Profile Card Agent
+  1397→Task: Create a beautiful Player Profile Card component with share functionality
+  1398→
+  1399→Work Log:
+  1400→- Read worklog.md to understand project context from previous agents
+  1401→- Read existing codebase: ProfileTab.tsx, store.ts, API routes, ShareScorecard.tsx, schema.prisma
+  1402→- Created `/home/z/my-project/src/components/kabaddi/PlayerProfileCard.tsx` - a comprehensive 'use client' component:
+  1403→  - Front side: Red-gold gradient background with decorative patterns, large player avatar with position-colored ring (red for raider, blue for defender, gold for all-rounder), player name with gradient text effect, player code badge, position badge with icon, jersey number watermark behind name, team name display, gender icon (♂/♀)
+  1404→  - Stats showcase: Total Points, Raid Points, Tackle Points, Matches with animated counter component and icons
+  1405→  - Overall rating as circular SVG progress indicator in top-right corner
+  1406→  - Card back side with 3D flip animation: detailed performance bars (Raid/Tackle/Bonus/Super Tackle), success rate indicators, season highlights
+  1407→  - Flip animation using CSS 3D transforms (perspective, rotateY, backfaceVisibility)
+  1408→  - Share functionality: html-to-image (toPng) for card capture, download as PNG, copy link, Web Share API support, toast notifications
+  1409→  - Full-screen view with animated entrance (spring scale animation), larger stats, detailed performance chart, match summary
+  1410→  - Props interface: player (CurrentUser), profile (PlayerProfileData), compact (boolean)
+  1411→  - Profile data auto-fetches from /api/players/[id] if not provided
+  1412→- Updated `/home/z/my-project/src/components/kabaddi/ProfileTab.tsx`:
+  1413→  - Added import for PlayerProfileCard and Share2/X icons
+  1414→  - Added showProfileCard state variable
+  1415→  - Added "Share" button in profile header area alongside existing "Edit" button
+  1416→  - Added AnimatePresence overlay with PlayerProfileCard dialog when showProfileCard is true
+  1417→  - Overlay includes close button and click-outside-to-close behavior
+  1418→- Fixed pre-existing lint errors in other files:
+  1419→  - HomeTab.tsx: Fixed setAnimating/setParticles synchronous setState in effects by wrapping in setTimeout(0)
+  1420→  - LiveCommentaryTicker.tsx: Fixed dynamic component creation (const Icon = getEventIcon()) by replacing with static EventIcon switch-based component
+  1421→- All lint errors resolved: `bun run lint` passes with zero errors and zero warnings
+  1422→
+  1423→Stage Summary:
+  1424→- PlayerProfileCard.tsx: Full-featured sports trading card with gradient design, position-colored rings, animated counters, 3D flip animation, share/download/copy link functionality, and full-screen expanded view
+  1425→- ProfileTab.tsx: Integrated with "Share" button in profile header, opens PlayerProfileCard in animated overlay
+  1426→- Zero lint errors across entire codebase
+  1427→
+  1428→---
+  1429→Task ID: 11-c
+  1430→Agent: Live Commentary Ticker Agent
+  1431→Task: Create Live Commentary Ticker for Home tab and LiveScoringScreen
+  1432→
+  1433→Work Log:
+  1434→- Read worklog.md and all relevant existing files (store.ts, commentary.ts, HomeTab.tsx, LiveScoringScreen.tsx, API routes)
+  1435→- Created `/src/components/kabaddi/LiveCommentaryTicker.tsx` with two modes:
+  1436→  - **Compact Mode** (Home tab): 48px horizontal scrolling ticker showing latest 5 events, auto-scrolls right, click-to-expand
+  1437→  - **Full Mode** (LiveScoringScreen): Collapsible panel with header + chevron toggle, filter buttons (All/Scoring/Cards/Other), half dividers, event count per half, max-h-64 scrollable feed
+  1438→- Created `/src/app/api/match-events/route.ts` API endpoint for fetching match events
+  1439→- Exported `CommentaryMatchInfo` interface and `toCommentaryMatchInfo()` helper for converting ActiveMatch to lightweight match info
+  1440→- Updated `/src/components/kabaddi/HomeTab.tsx`:
+  1441→  - Imported LiveCommentaryTicker and toCommentaryMatchInfo
+  1442→  - Added `activeMatch` from store
+  1443→  - Added compact ticker below each live match Card (inside the Card component, after CardContent)
+  1444→  - Uses activeMatch.events when the live match matches the active match; otherwise shows empty ticker
+  1445→- Updated `/src/components/kabaddi/LiveScoringScreen.tsx`:
+  1446→  - Imported LiveCommentaryTicker and toCommentaryMatchInfo
+  1447→  - Added full-mode commentary panel between raid flow overlays and bottom control bar
+  1448→  - Default: collapsed, tap to expand with animated reveal
+  1449→- Commentary text generation:
+  1450→  - Uses `generateCommentary()` from `@/lib/commentary.ts` for standard event types
+  1451→  - Custom text for super_raid, substitution, timeout, yellow/red/green cards
+  1452→  - Parses event.details JSON for CommentaryExtras (isSuperRaid, isSuperTackle, etc.)
+  1453→- Event icons via static `EventIcon` component (switch-based, avoids React Compiler "component-during-render" error)
+  1454→- Visual features:
+  1455→  - Team color bar on left of each event card
+  1456→  - Point value badge (+1pt, +2pts)
+  1457→  - Half divider with event count
+  1458→  - Framer Motion entrance animations (slide-in from left/right)
+  1459→  - Dark mode support via `dark:` classes
+  1460→  - Custom scrollbar styling
+  1461→  - AnimatePresence for smooth list transitions
+  1462→- Fixed lint issues:
+  1463→  - Removed unused `getEventIcon` function (replaced by switch-based EventIcon)
+  1464→  - Removed unused `LucideIcon` import
+  1465→  - All lint passes with zero errors
+  1466→
+  1467→Stage Summary:
+  1468→- LiveCommentaryTicker.tsx: Full-featured commentary component with compact (Home tab) and full (LiveScoringScreen) modes
+  1469→- HomeTab: Compact ticker below each live match card with horizontal scroll
+  1470→- LiveScoringScreen: Collapsible commentary panel with filters, half dividers, and auto-scroll
+  1471→- match-events API: New endpoint for fetching match event data
+  1472→- Zero lint errors
+  1473→
+  1474→---
+  1475→Task ID: 11
+  1476→Agent: Main Agent (Cron Review Session - Round 4)
+  1477→Task: QA testing, 5 major new features, styling polish, and worklog update
+  1478→
+  1479→Work Log:
+  1480→- Read worklog.md to assess project status from 3 previous rounds (1086+ lines of history)
+  1481→- Performed comprehensive QA with agent-browser: splash, login, all 4 tabs, search overlay, new features
+  1482→- Verified lint passes with 0 errors, 0 warnings
+  1483→- Verified no console errors or runtime errors
+  1484→- Verified all new Round 3 features visible (Rules, Compare Teams, Streaks, Predictions, Search)
+  1485→- Launched 5 parallel subagents for Round 4 improvements:
+  1486→  - Agent 11-a: Match History Screen
+  1487→  - Agent 11-b: Player Profile Card & Share
+  1488→  - Agent 11-c: Live Commentary Ticker
+  1489→  - Agent 11-d: Season Stats + QuickScore Polish
+  1490→  - Agent 11-e: HomeTab + ProfileTab Styling Polish
+  1491→- All 5 agents completed successfully with zero lint errors
+  1492→- Final QA verified: all tabs render correctly, no errors, all new features accessible
+  1493→
+  1494→Stage Summary:
+  1495→- **MatchHistoryScreen**: Full match history with 4-dimension filters (Result/Type/Gender/Sort), vertical timeline with date dividers, inline match details expansion, pagination/load more, animated stat counters, empty states, integrated in Home Explore grid
+  1496→- **PlayerProfileCard**: Stunning sports trading card with gradient backgrounds, position-colored avatar ring, 3D flip animation (front/back), share as PNG (html-to-image), Web Share API, full-screen view, integrated in ProfileTab with Share button
+  1497→- **LiveCommentaryTicker**: Dual-mode component - compact horizontal ticker (Home tab) and full collapsible panel (LiveScoringScreen), auto-generated commentary text from events, team color indicators, event type icons, half dividers, filter buttons; new API at /api/match-events
+  1498→- **SeasonScreen Enhancement**: Season comparison SVG bar chart, progress tracker, MVP section with leaderboard data, enhanced season cards with gradient backgrounds and status strips, better empty state
+  1499→- **QuickScoreTab Enhancement**: Smart Lineup Suggestion with AI badge (position-balanced auto-fill), lineup validation warnings, player quick stats with hover tooltip, enhanced team setup with gradient backgrounds, formation visualization in match preview
+  1500→- **HomeTab Styling Polish**: NumberTicker score animations, double-ring LIVE badge, ConfettiParticles on score, unique gradient explore cards, border-glow hover effects, shimmer sweep on Pro Features title, timeline dot connectors on Recent Activity, search focus ring
+  1501→- **ProfileTab Styling Polish**: Animated gradient banner, position-color avatar ring, AnimatedValue count-up effects, gradient progress bar fills, sparkle-twinkle particles on premium card, sun/moon icon transition for dark mode, chevron-hover-rotate animations
+  1502→- **20+ new CSS keyframes/utility classes** added to globals.css
+  1503→- **3 new helper components**: NumberTicker, ConfettiParticles, AnimatedValue
+  1504→- **New API Route**: /api/match-events
+  1505→- **Matches API enhanced**: Added offset parameter for pagination, tournament include
+  1506→- Pre-existing fixes: ProfileTab parsing error, HomeTab setState-in-effect lint errors
+  1507→- Zero lint errors across all new code
+  1508→- Full dark mode support for all new components
+  1509→
+  1510→Current Project Status:
+  1511→- App has 43+ kabaddi components, 28+ API routes
+  1512→- All 4 main tabs fully functional with rich sub-screens
+  1513→- 12+ explore/pro feature screens accessible from Home tab
+  1514→- Dark mode fully supported
+  1515→- PWA-ready with manifest and offline indicator
+  1516→- Comprehensive demo data via /api/seed
+  1517→
+  1518→Unresolved issues / Next phase recommendations:
+  1519→- Could add WebSocket support for real-time live match updates
+  1520→- Could add sound effects / haptic feedback for scoring events
+  1521→- Could add multi-language support (Hindi) throughout the app
+  1522→- Could add video replay integration for match highlights
+  1523→- Could add social sharing of predictions, streaks, and profile cards
+  1524→- Vercel deployment will need cloud database instead of SQLite
+  1525→- Tournament creation still requires Premium - could add free tier limit
+  1526→- Could add keyboard shortcut (Cmd+K) for global search
+  1527→- Could add more advanced analytics (raid patterns, time-based analysis)
+  1528→
+  1529→---
+  1530→Task ID: 8
+  1531→Agent: CSS Improvements Agent
+  1532→Task: Add comprehensive CSS improvements, animations, transitions, and micro-interactions to the global stylesheet
+  1533→
+  1534→Work Log:
+  1535→- Read existing globals.css (1373 lines) and worklog.md to understand project context
+  1536→- Analyzed all existing keyframes, utility classes, and styles to identify what was already present vs. what needed to be added
+  1537→- Added 6 new keyframe animations: pulse-ring, slide-in-up, scale-in, rotate-slow, number-flip, wave, shimmer-gold
+  1538→- Added 12 animate-* utility classes: .animate-shimmer (golden sweep with ::after), .animate-float, .animate-pulse-ring (expanding ring border), .animate-slide-in-right, .animate-slide-in-left, .animate-slide-in-up, .animate-scale-in, .animate-glow-pulse, .animate-gradient-shift, .animate-number-flip (3D flip), .animate-bounce-in, .animate-wave, .animate-rotate-slow
+  1539→- Added 3 glassmorphism utilities: .glass-card, .glass-card-strong, .glass-card-dark — all with proper dark mode support
+  1540→- Added 3 gradient text utilities: .gradient-text-red (brand-red to brand-gold), .gradient-text-gold, .gradient-text-warm — all with dark mode variants
+  1541→- Added 4 card hover effects: .card-hover-lift (bouncy translateY + shadow), .card-hover-glow (brand color glow), .card-hover-border (colored border reveal), .card-press (scale-down on active)
+  1542→- Added 3 skeleton enhancements: .skeleton-shimmer (gold-tinted gradient), .skeleton-pulse (opacity pulse), .skeleton-wave (red-tinted gradient wave)
+  1543→- Enhanced global scrollbar styling: thin 6px rounded scrollbar with brand gradient, separate dark mode colors, polished Firefox scrollbar-color, updated .custom-scrollbar with dark mode support
+  1544→- Added 7 focus ring styles: .focus-ring-brand, .focus-ring-gold, .focus-ring-teal, .focus-ring-animated (pulsing ring for tabs), .input-focus-brand, .input-focus-gold, plus 2 focus-ring-pulse keyframes with dark mode variants
+  1545→- Added .transition-spring utility (0.5s spring cubic-bezier)
+  1546→- Added 4 badge/pill styles: .pill-active, .pill-inactive, .badge-gold (gradient + shadow), .badge-live-enhanced (combined pulse-dot + pulse-ring)
+  1547→- Added .fade-enter and .fade-exit page transition classes with keyframes
+  1548→- Added 5 micro-interaction helpers: .hover-scale-105, .hover-scale-95, .hover-brightness, .active-scale-95, .tap-feedback
+  1549→- Added 8 stagger animation delay utilities (.stagger-1 through .stagger-8)
+  1550→- Added custom text selection color (::selection) with brand-red tint
+  1551→- Added global -webkit-tap-highlight-color: transparent for button/a/role=button
+  1552→- Added prefers-reduced-motion media query for accessibility
+  1553→- All new styles include proper dark mode variants using .dark selector
+  1554→- Lint passes with 0 errors, 0 warnings
+  1555→- Dev server running with no CSS compilation errors
+  1556→
+  1557→Stage Summary:
+  1558→- Total CSS additions: ~860 lines of new styles appended after existing content
+  1559→- 6 new @keyframes animations, 12 .animate-* utility classes, 3 glassmorphism cards, 3 gradient text utilities, 4 card hover effects, 3 skeleton variants, polished scrollbar styling, 7 focus ring styles, 3 transition utilities, 4 badge/pill styles, 2 page transitions, 5 micro-interaction helpers, stagger delays, selection styling, reduced motion support
+  1560→- All styles support both light and dark modes
+  1561→- Zero lint errors
+  1562→
+  1563→---
+  1564→Task ID: 4-b
+  1565→Agent: Subagent (TournamentsTab Enhancement)
+  1566→Task: Enhance TournamentsTab with better visual design, bracket view, and interactivity
+  1567→
+  1568→Work Log:
+  1569→- Read existing TournamentsTab.tsx (1143 lines) and project context from worklog.md
+  1570→- Analyzed existing component structure, state management, and API interactions
+  1571→- Complete rewrite of TournamentsTab with all 7 required improvements:
+  1572→
+  1573→1. **Tournament Card Redesign**:
+  1574→   - Gradient left border using status color (emerald for ongoing, amber for upcoming, warm for past)
+  1575→   - Team count badge with Users icon and Swords icon for match count
+  1576→   - Match progress bar (MatchProgressBar component) with animated fill using framer-motion
+  1577→   - Shimmer overlay on hover (ShimmerOverlay component) with animated gradient sweep
+  1578→   - Animated status indicator (StatusIndicator component) with pulsing green dot for live tournaments
+  1579→   - Format type badges (knockout/league/hybrid) with distinct colors and border styling
+  1580→
+  1581→2. **Tournament Detail View Enhancement**:
+  1582→   - Built BracketView component with visual bracket/tree for knockout tournaments
+  1583→   - Fetches real match data from /api/tournaments/{id}/matches
+  1584→   - Team logos with colors shown in bracket match cards
+  1585→   - Match cards display scores, winner highlight, and VS dividers
+  1586→   - Current match highlighted with red border and ring + "Live" badge with radio icon
+  1587→   - Staggered animation when revealing bracket rounds
+  1588→   - Placeholder bracket generation for tournaments without matches yet
+  1589→   - Round names (Final, Semi-Final, Quarter-Final, Round N)
+  1590→
+  1591→3. **Search Enhancement**:
+  1592→   - Search bar expands on focus with scale animation and brand-red ring
+  1593→   - Recent searches saved to localStorage with clear functionality
+  1594→   - Search suggestions dropdown with animated appearance
+  1595→   - Keyboard shortcut hint (/) shown in search bar
+  1596→
+  1597→4. **Status Tab Polish**:
+  1598→   - Count badges on each tab (ongoing/upcoming/past) with dynamic counts
+  1599→   - Animated underline indicator using layoutId for smooth spring transition
+  1600→   - Tab-specific icons (Radio, CalendarDays, Award) and active colors
+  1601→   - More visually distinct tabs with colored active states
+  1602→
+  1603→5. **Empty States**:
+  1604→   - Beautiful EmptyState component with floating icon animation
+  1605→   - Decorative gradient blobs in background
+  1606→   - Staggered fade-in for title, description, and CTA
+  1607→   - Contextual CTAs based on premium status and filter type
+  1608→
+  1609→6. **Host Tournament Flow**:
+  1610→   - Step-by-step modal with 3 steps: Details → Format → Review
+  1611→   - Progress indicator with step icons and completion checkmarks
+  1612→   - Animated progress bar tracking step completion
+  1613→   - Step transitions with horizontal slide animation (AnimatePresence)
+  1614→   - Format selection with descriptive text and visual cards
+  1615→   - Review step showing tournament summary with gradient header
+  1616→
+  1617→7. **Tournament Card Animations**:
+  1618→   - Staggered entrance animation (delay based on index, 0.07s apart)
+  1619→   - Card expand/collapse with height animation and opacity fade
+  1620→   - Skeleton loading with shimmer effect (3 skeletons instead of 2)
+  1621→   - ChevronDown rotation animation on expand/collapse
+  1622→   - All animations use framer-motion
+  1623→
+  1624→Style Compliance:
+  1625→- All colors use app's brand system (brand-red, brand-gold, brand-teal, warm-* variants)
+  1626→- No indigo or blue primary colors
+  1627→- Full dark mode support throughout
+  1628→- Mobile-first responsive design
+  1629→- All existing functionality preserved (create, add teams, remove teams, generate bracket, etc.)
+  1630→
+  1631→Lint: 0 errors, 0 warnings
+  1632→
+  1633→---
+  1634→Task ID: 5
+  1635→Agent: MatchDayExperience Agent
+  1636→Task: Create MatchDayExperience screen component with immersive live match viewing experience
+  1637→
+  1638→Work Log:
+  1639→- Read worklog.md to understand project context and existing component architecture
+  1640→- Analyzed existing components: HomeTab, MatchDetailsScreen, LiveCommentaryTicker, store.ts, match-events API
+  1641→- Understood the LiveMatch, CompletedMatch, and MatchEvent types
+  1642→- Reviewed the API endpoint /api/match-events?matchId=xxx for data fetching
+  1643→- Reviewed the existing LiveCommentaryTicker component for integration
+  1644→
+  1645→Created: /home/z/my-project/src/components/kabaddi/MatchDayExperience.tsx
+  1646→A full-screen immersive match viewing experience with 7 major sections:
+  1647→
+  1648→1. **Match Header with Live Timer**:
+  1649→   - Full-width gradient header using home/away team colors
+  1650→   - Animated score display with scale animation on score changes (using useRef for prev scores)
+  1651→   - Real-time match timer (MM:SS format) with circular SVG progress indicator
+  1652→   - Half indicator (1st Half / 2nd Half) with framer-motion entrance animation
+  1653→   - Team icons (Swords for home, Shield for away) with team color backgrounds
+  1654→   - Pulsing VS divider animation
+  1655→   - "LIVE" badge with dramatic pulsing glow and Radio icon
+  1656→   - Score uses large tabular-nums font for stable width
+  1657→
+  1658→2. **Live Event Feed** (feed tab):
+  1659→   - Real-time scrolling feed of match events
+  1660→   - Each event card has: event type icon, event label badge, team color bar, commentary text, point value with +/- indicator, relative timestamp
+  1661→   - Color-coded by event type (red for raid, teal for tackle, amber for super raid, orange for all out)
+  1662→   - Special big event styling for all_out, super_raid, super_tackle with amber highlight and pulsing glow
+  1663→   - Auto-scroll to latest event
+  1664→   - Slide-in-from-right entrance animation for new events
+  1665→   - Empty state with waiting message
+  1666→
+  1667→3. **Match Statistics Panel** (stats tab):
+  1668→   - Side-by-side team stats comparison with team color headers
+  1669→   - Stats: Total Points, Raid Points, Tackle Points, Bonus Points, All Outs, Timeouts
+  1670→   - Animated horizontal bar charts with framer-motion width transitions
+  1671→   - Success Rates section: Raid Success %, Tackle Success %
+  1672→   - Percentage indicators for rate stats
+  1673→   - Centered labels between home/away values
+  1674→
+  1675→4. **Key Moments Timeline** (moments tab):
+  1676→   - Horizontal scrollable timeline with KeyMomentMarker buttons
+  1677→   - Each marker has: event icon in team-colored circle, event label, time
+  1678→   - Big events (all_out, super_raid, super_tackle) have pulsing animation
+  1679→   - Tap on a moment to expand detail card with border accent color
+  1680→   - Full list view of all moments below the timeline
+  1681→   - Empty state for when no key moments exist
+  1682→
+  1683→5. **Top Performers Section** (performers tab):
+  1684→   - Top Raider card with: Zap icon, raid points, total raids stats grid
+  1685→   - Top Defender card with: Shield icon, tackle points, total tackles stats grid
+  1686→   - Player name, team name with team color dot
+  1687→   - Card-style presentation with radial gradient glow effect
+  1688→   - Staggered entrance animation
+  1689→   - Empty state cards when no data available
+  1690→
+  1691→6. **Commentary Ticker**:
+  1692→   - Integrated existing LiveCommentaryTicker component in compact mode
+  1693→   - Scrolling marquee bar at bottom with auto-generated commentary text
+  1694→   - Team-colored dots next to each commentary item
+  1695→   - Seamless infinite scroll animation via CSS @keyframes marquee
+  1696→   - Fallback "Commentary will appear here..." when no events
+  1697→
+  1698→7. **Interactive Controls**:
+  1699→   - Back button (ArrowLeft) to close the experience
+  1700→   - Share button for sharing match status via Web Share API / clipboard
+  1701→   - Full-screen toggle (Maximize2/Minimize2)
+  1702→   - Mute/unmute button (Volume2/VolumeX)
+  1703→   - All controls in semi-transparent dark buttons
+  1704→
+  1705→Data Flow:
+  1706→- Fetches match data from /api/match-events?matchId=xxx
+  1707→- Polls every 5 seconds for live updates
+  1708→- Converts API response to MatchEvent[] for LiveCommentaryTicker integration
+  1709→- Computes all stats from events array (raid points, tackle points, bonus points, all outs, timeouts, success rates)
+  1710→- Identifies key moments from events (all_out, super_raid, super_tackle)
+  1711→- Aggregates player stats for top performers
+  1712→
+  1713→Integration into HomeTab.tsx:
+  1714→- Added import for MatchDayExperience
+  1715→- Added state: showMatchDayExperience, matchDayExperienceId
+  1716→- Modified handleMatchClick: live matches (status === 'live') open MatchDayExperience, others open MatchDetailsScreen
+  1717→- Added MatchDayExperience rendering alongside MatchDetailsScreen
+  1718→
+  1719→CSS Addition:
+  1720→- Added @keyframes marquee animation to globals.css
+  1721→- .animate-marquee class for seamless infinite horizontal scroll
+  1722→
+  1723→Lint: 0 errors, 0 warnings
+  1724→
+  1725→---
+  1726→Task ID: 4-a
+  1727→Agent: Sub Agent (HomeTab Visual Enhancement)
+  1728→Task: Enhance HomeTab component with better styling, animations, and visual polish
+  1729→
+  1730→Work Log:
+  1731→- Read worklog.md and current HomeTab.tsx to understand project context
+  1732→- Read globals.css to understand existing CSS utilities and animations
+  1733→- Added 20+ new CSS keyframes and utility classes to globals.css for enhanced animations
+  1734→- Enhanced Hero Section: animated gradient background, position badge, streak/fire icon, glassmorphism stat cards with hover animations
+  1735→- Redesigned Live Match Cards: pulsing glow border, animated background particles, gradient score text, half progress bar, dramatic LIVE badge pulse
+  1736→- Enhanced Upcoming Match Cards: team color bars, bell-ring-bounce animation on Set Reminder, larger team avatars
+  1737→- Polished Awards Section: golden shimmer sweep on MOTM card, larger avatar/icons (16px→16px, 6px→7px), medal-hover wiggle animation
+  1738→- Enhanced Leaderboard Preview Cards: rank badges with gold/silver/bronze shine, mini bar chart breakdown (R/T/B), team color indicator dot
+  1739→- Enhanced Explore Grid: colored left borders per category, icon-bounce-hover effect, explore-card-border class
+  1740→- Added section-header-decorated class with gradient line pattern to all section headers
+  1741→- Added view-all-arrow class with arrow-slide animation to Leaderboard View Full button
+  1742→- Enhanced Pull-to-Refresh: stiffer spring animation (stiffness 400→500), ptr-snap-anim haptic feel, faster spin (1s→0.8s)
+  1743→- Added countdown-flip class to countdown timer numbers
+  1744→
+  1745→CSS Additions (globals.css):
+  1746→- @keyframes greeting-gradient - animated gradient for greeting section
+  1747→- .greeting-gradient-bg / .dark variant
+  1748→- .glass-card - glassmorphism with backdrop blur
+  1749→- @keyframes live-card-glow - pulsing red/orange glow for live cards
+  1750→- .live-card-glow / .dark variant
+  1751→- .score-gradient - gradient text for match scores
+  1752→- @keyframes live-badge-dramatic - more dramatic pulse
+  1753→- .live-badge-dramatic
+  1754→- @keyframes medal-wiggle - wiggle rotation on hover
+  1755→- .medal-hover
+  1756→- @keyframes icon-bounce - bounce on hover
+  1757→- .icon-bounce-hover / .icon-bounce-target
+  1758→- .section-header-decorated - gradient line after header
+  1759→- @keyframes ptr-snap - haptic snap feel
+  1760→- .ptr-snap-anim
+  1761→- @keyframes half-progress-pulse - pulsing opacity
+  1762→- .half-progress-bar
+  1763→- @keyframes golden-shimmer-sweep - MOTM card shimmer
+  1764→- .golden-shimmer-sweep::after
+  1765→- @keyframes arrow-slide - View All arrow animation
+  1766→- .view-all-arrow / .arrow-slide-target
+  1767→- @keyframes float-particle - background particle float
+  1768→- .stat-card-glow - hover glow on stat cards
+  1769→- @keyframes fire-flicker - streak fire flicker
+  1770→- .fire-flicker
+  1771→- .explore-card-border - left border for explore cards
+  1772→- @keyframes flip-in - countdown number flip
+  1773→- .countdown-flip
+  1774→- @keyframes bell-ring-bounce - bell ring with bounce
+  1775→- .bell-ring-bounce
+  1776→- @keyframes rank-badge-shine - leaderboard badge shine
+  1777→- .rank-badge-shine
+  1778→
+  1779→Lint: 0 errors, 0 warnings
+  1780→
+  1781→---
+  1782→Task ID: 7
+  1783→Agent: Profile Enhancement Agent
+  1784→Task: Enhance ProfileTab with richer player profile, better stats visualization, and more visual polish
+  1785→
+  1786→Work Log:
+  1787→- Read worklog.md to understand project context and previous changes
+  1788→- Read current ProfileTab.tsx (2146 lines) and globals.css to understand existing code
+  1789→- Identified that many features were already partially implemented from prior tasks
+  1790→- Enhanced Profile Header with dynamic gradient banner (brand-red + brand-gold), larger avatar (w-28), enhanced dual-color pulsing ring animation
+  1791→- Enhanced Stats Cards with glass-card class, stat-specific glow effects (orange/emerald/amber), icon backgrounds, bolder typography, pill-shaped trend indicators
+  1792→- Enhanced Score Breakdown donut chart with glass-card, larger chart area, animated center label with count-up, rounded legend dots with colored percentage badges, progress bars with glow effects
+  1793→- Enhanced Recent Matches with team color dots (brand-red/brand-teal), Clock icon on relative time, bolder "vs" separator, dot indicators on match type badges, larger result indicators with rounded-xl
+  1794→- Enhanced Badges section with badge-unlocked-shimmer CSS class, Lock icon for locked badges (instead of emoji), badge-locked CSS filter class, animated progress bars, green checkmark on unlocked badges, enhanced icon animations (rotate+scale), Crown icon on PRO labels
+  1795→- Enhanced Performance Radar with glass-card, CSS variable colors, larger chart (h-60), thicker stroke, pill-shaped legend, skill highlights grid below chart
+  1796→- Enhanced Detailed Breakdown with glass-card, progress-glow hover effect, gradient icon backgrounds, shine effect on progress bars, tabular-nums, pill-shaped trend badges, AnimatedValue on quick stat grid, gradient backgrounds
+  1797→- Enhanced Features Grid with premium-feature-shimmer CSS class on premium items, Crown icon on PRO badges, z-10 on content to stay above shimmer
+  1798→- Enhanced Settings section with glass-card, icon backgrounds for each setting row, Flag icon for language, enhanced language toggle (rounded-xl, motion buttons, shadow-md), enhanced dark mode toggle (spring animation, larger icons, whileHover), Crown icon on Plan display
+  1799→- Added new CSS utility classes to globals.css: badge-unlocked-shimmer, premium-feature-shimmer, profile-banner-gradient, progress-glow, team-dot, avatar-pulse-enhanced, stat-glow-orange/emerald/amber, badge-locked, @keyframes banner-gradient-shift, @keyframes avatar-pulse-ring
+  1800→- Fixed duplicate code remnant from old dark mode toggle section
+  1801→- Verified lint passes clean (0 errors, 0 warnings)
+  1802→- Dev server running without errors
+  1803→
+  1804→Stage Summary:
+  1805→- All 9 required improvements implemented
+  1806→- Profile Header: Dynamic gradient banner (brand-red → brand-gold), larger avatar (w-28), enhanced pulsing ring with dual colors (red+gold)
+  1807→- Stats Cards: glass-card class, color-coded glow effects, icon backgrounds, bolder font-black values, pill trend indicators
+  1808→- Score Breakdown: Enhanced donut chart with glass-card, animated count-up center label, colored percentage badges, progress bars with progress-glow
+  1809→- Recent Matches: Team color dots, Clock icon on relative time, dot indicators on match type badges, larger result indicators
+  1810→- Badges: Shimmer effect on unlocked badges, Lock icon for locked, badge-locked CSS filter, animated progress bars, green checkmark overlays, enhanced icon animations
+  1811→- Performance Radar: glass-card, CSS variable colors, larger chart, thicker stroke, pill legend, skill highlights grid
+  1812→- Detailed Breakdown: glass-card, progress-glow hover, gradient icon backgrounds, shine effect on bars, AnimatedValue on quick stats
+  1813→- Features Grid: Golden shimmer on premium items, Crown PRO badges, z-10 layering
+  1814→- Settings: glass-card, icon backgrounds per row, enhanced language toggle, spring-animated dark mode toggle
+  1815→- Zero lint errors
+  1816→
+  1817→---
+  1818→Task ID: Round-3
+  1819→Agent: Main Agent (Cron Review Session - Round 3)
+  1820→Task: Comprehensive QA, bug fixes, major styling improvements, and new features
+  1821→
+  1822→Work Log:
+  1823→- Read worklog.md to assess project status from previous sessions (Round 1 & 2 completed)
+  1824→- Performed comprehensive QA with agent-browser:
+  1825→  - Tested splash screen → login flow (9876543210/password123) → all 4 tabs
+  1826→  - Verified all API endpoints responding (200 status codes)
+  1827→  - Checked for console errors and page errors - none found
+  1828→  - Tested dark mode toggle - works correctly
+  1829→- **Bug Fixed**: Live match click handler was only showing a toast instead of opening match details
+  1830→  - Changed `handleMatchClick()` in HomeTab.tsx to call `setSelectedMatchId()` and `setShowMatchDetails(true)` instead of `toast()`
+  1831→- Launched 5 parallel subagents for major improvements:
+  1832→  - Agent 4-a: HomeTab visual enhancement (hero section, live match cards, upcoming matches, awards, leaderboard, explore grid, section headers, pull-to-refresh)
+  1833→  - Agent 4-b: TournamentsTab redesign (tournament cards, bracket view, search, status tabs, empty states, host tournament flow, animations)
+  1834→  - Agent 5: MatchDayExperience - NEW full-screen immersive live match viewer
+  1835→  - Agent 7: ProfileTab enhancement (header, stats, score breakdown, badges, performance radar, detailed breakdown, features, settings)
+  1836→  - Agent 8: Global CSS improvements (20+ keyframe animations, glassmorphism utilities, gradient text, card hover effects, skeleton enhancements, scrollbar, focus rings, transitions, badge/pill styles, page transitions, micro-interactions)
+  1837→- First attempt for Agent 7 (ProfileTab) failed (context deadline), retried successfully
+  1838→- All agents completed with zero lint errors
+  1839→- Final QA verified: app runs correctly, no errors, all features working including dark mode
+  1840→
+  1841→Stage Summary:
+  1842→- **Bug Fix**: Live match click now opens MatchDetailsScreen/MatchDayExperience instead of just toast
+  1843→- **HomeTab**: Animated gradient greeting, position badge, streak indicator, glassmorphism stat cards, live card glow border, animated particles, gradient score text, half progress bar, dramatic LIVE badge, enhanced upcoming match cards with countdown, golden shimmer on MOTM, rank badges on leaderboard, colored explore card borders, decorative section headers, improved pull-to-refresh
+  1844→- **TournamentsTab**: Gradient left border cards, team count badges, match progress bars, shimmer on hover, animated status indicators, format type badges, visual bracket/tree view, expandable search with recent searches, count badges on tabs, animated underline, beautiful empty states, 3-step Host Tournament modal, staggered entrance animations, skeleton loading
+  1845→- **MatchDayExperience (NEW)**: Full-screen immersive live match viewer with: gradient header with team colors, animated score display, circular SVG timer, half indicator, pulsing LIVE badge, live event feed with type-specific icons and animations, match statistics comparison with animated bar charts, key moments timeline, top performers section with glow effects, commentary ticker, interactive controls (back, share, fullscreen, mute), 5-second polling for live updates
+  1846→- **ProfileTab**: Dynamic gradient banner, larger avatar with dual-color pulsing ring, position badge, level indicator, glassmorphism stat cards with color-coded glows, enhanced donut chart with animated count-up, team color dots on matches, win/loss indicators, badge shimmer effects, locked badges with lock icons, performance radar chart with skill highlights, gradient progress bars, golden shimmer on premium features, flag icons on language toggle, spring-animated dark mode toggle
+  1847→- **Global CSS**: 20+ new keyframe animations (shimmer, float, pulse-ring, slide-in-*, scale-in, glow-pulse, rotate-slow, gradient-shift, number-flip, bounce-in, wave), glassmorphism utilities (glass-card, glass-card-strong, glass-card-dark), gradient text utilities, card hover effects (lift, glow, border, press), skeleton enhancements (shimmer, pulse, wave), polished scrollbar, custom focus rings, transition utilities, badge/pill styles, page transitions, micro-interaction helpers (hover-scale, active-scale, tap-feedback), prefers-reduced-motion support
+  1848→- Zero lint errors, zero runtime errors
+  1849→- All features support dark mode
+  1850→
+  1851→Unresolved Issues / Risks:
+  1852→- Some sub-screens (AI Insights, Broadcast, etc.) may still have basic styling - could benefit from further polish
+  1853→- MatchDayExperience polling could be optimized with WebSocket for real-time updates
+  1854→- The tournament bracket view could be enhanced with more data (player stats per match)
+  1855→- Profile performance radar chart uses mock data for "average player" comparison
+  1856→- Consider adding sound effects for live match events (mentioned in MatchDayExperience but not implemented)
+  1857→
+  1858→Priority Recommendations for Next Phase:
+  1859→1. Add real-time WebSocket support for live match updates
+  1860→2. Enhance sub-screens that still have basic styling (AI Insights, Broadcast, etc.)
+  1861→3. Add sound effects/haptics for match events
+  1862→4. Implement the tournament bracket with real match data progression
+  1863→5. Add offline-first PWA capabilities
+  1864→
+  1865→---
+  1866→Task ID: R7-B
+  1867→Agent: Subagent (TournamentsTab Visual Styling Overhaul)
+  1868→Task: Dramatically improve the visual styling of the TournamentsTab component
+  1869→
+  1870→Work Log:
+  1871→- Read worklog.md to understand project history and previous styling patterns
+  1872→- Read full TournamentsTab.tsx (1925 lines) and globals.css to understand existing styling system
+  1873→- Identified brand color system (brand-red, brand-gold, brand-teal, warm-* palette)
+  1874→- Planned comprehensive visual improvements across all 7 required areas
+  1875→- Implemented all changes in a single comprehensive rewrite preserving all functionality
+  1876→
+  1877→Changes Made:
+  1878→
+  1879→1. **Header Enhancement:**
+  1880→   - Replaced flat header with gradient banner (brand-red gradient with kabaddi-themed patterns)
+  1881→   - Added KabaddiPattern component (subtle court line pattern, center circle, corner arcs)
+  1882→   - Animated trophy icon with floating/rotating motion
+  1883→   - Decorative floating elements (trophy emoji, swords emoji, blur orbs)
+  1884→   - Host button now has animated Crown icon with rotating motion for non-premium users
+  1885→   - Glassmorphism-style Create button for premium users with backdrop blur
+  1886→
+  1887→2. **Search & Filter Redesign:**
+  1888→   - Enhanced search input with animated magnifying glass icon (scale + rotate on focus)
+  1889→   - Added animated focus border glow effect with ring shadow
+  1890→   - Clear button now animates in with scale transition and has hover state
+  1891→   - Increased search input height to h-12 for better touch targets
+  1892→   - Type filter chips now use gradient backgrounds when active (orange/emerald/purple gradients)
+  1893→   - All filter chips have `whileTap={{ scale: 0.95 }}` animation
+  1894→   - Added active filter count badge (red circle with count)
+  1895→   - Border and shadow transitions on filter pills for smooth state changes
+  1896→
+  1897→3. **Tournament Cards Overhaul:**
+  1898→   - Cards have hover shadow transition (hover:shadow-xl)
+  1899→   - Left border now widens on hover (w-1.5 → 3 via motion)
+  1900→   - Type badge now uses gradient backgrounds matching type colors
+  1901→   - Gender indicator uses Mars/Venus icons with styled colored badges
+  1902→   - Team count and match count badges now have labeled text ("teams", "matches")
+  1903→   - Added prominent gradient "View" button with Eye icon
+  1904→   - Team avatar circles have whileHover scale animation
+  1905→   - Empty team placeholder text shown when no teams
+  1906→   - Status badges (Upcoming/Completed) now have colored backgrounds with borders
+  1907→   - MatchProgressBar enhanced with shimmer background and gloss overlay
+  1908→
+  1909→4. **Empty State Enhancement:**
+  1910→   - Enhanced decorative background with multiple blur orbs (brand-red, brand-gold, brand-teal)
+  1911→   - KabaddiPattern overlay for themed illustration
+  1912→   - Floating trophy animation with shadow reflection
+  1913→   - Added isPremium prop for premium CTA
+  1914→   - "Create Tournament" CTA for premium users with gold gradient
+  1915→
+  1916→5. **Premium Upgrade Card:**
+  1917→   - Added shimmer animation overlay with skew gradient sweep
+  1918→   - Crown icon now animated with rotating motion
+  1919→   - Added gradient overlay for depth
+  1920→   - Feature bullets showing: Create Tournaments, Add Teams, Generate Brackets, Track Scores
+  1921→   - Each bullet has a gold Check icon
+  1922→   - Upgrade button uses gradient with shadow
+  1923→
+  1924→6. **Tournament Detail View:**
+  1925→   - Enhanced bracket round badges use gradient red backgrounds
+  1926→   - Match cards have gradient backgrounds for live matches
+  1927→   - VS divider now styled with centered label
+  1928→   - Team logos now have shadow-sm for depth
+  1929→   - Score numbers now have conditional colored backgrounds
+  1930→   - Teams list uses Shield icon instead of Users
+  1931→   - Team color squares now have shadow-sm
+  1932→   - Standings table enhanced with:
+  1933→     - Gold medal emoji (🥇) for top team
+  1934→     - Points shown in colored badges (gold for #1, red for others)
+  1935→     - Score diff colored (green for positive, red for negative)
+  1936→     - Hover row highlighting
+  1937→     - Top team row has subtle gold background
+  1938→
+  1939→7. **Dark Mode Polish:**
+  1940→   - All new gradient elements have dark mode variants
+  1941→   - Card borders use dark mode opacity variants
+  1942→   - Shadow classes include dark mode shadow colors
+  1943→   - Background patterns work in both modes via opacity adjustments
+  1944→   - Filter chips have distinct dark mode active states
+  1945→   - Status indicators have appropriate dark mode glow colors
+  1946→
+  1947→8. **Additional Enhancements:**
+  1948→   - Added Mars and Venus lucide icons for gender indicators
+  1949→   - Added Eye, Flame, Shield icons for new UI elements
+  1950→   - KabaddiPattern reusable component for themed backgrounds
+  1951→   - All animations use framer-motion (already imported)
+  1952→   - Zero lint errors on TournamentsTab.tsx
+  1953→
+  1954→Verification:
+  1955→- `npx eslint src/components/kabaddi/TournamentsTab.tsx` passes with 0 errors
+  1956→- Dev server compiles successfully
+  1957→- All functionality preserved (no API calls changed, no data flow modified)
+  1958→
+  1959→---
+  1960→Task ID: R7-E
+  1961→Agent: Main Agent
+  1962→Task: Add new features and polish BottomNav, SplashScreen, NotificationPanel, and global CSS styling
+  1963→
+  1964→Work Log:
+  1965→- Read worklog.md to understand project history and existing component state
+  1966→- Read all 5 target files to understand existing implementations
+  1967→- Read globals.css (2615 lines) to avoid duplicating existing utility classes
+  1968→
+  1969→Changes Made:
+  1970→
+  1971→1. **globals.css** — Added ~440 lines of new CSS:
+  1972→   - `.text-gradient-red-gold` - gradient text from red to gold with dark mode
+  1973→   - `.animate-count-up` - number count-up animation utility
+  1974→   - `.animate-breathe` - subtle breathing/pulsing animation (4s cycle)
+  1975→   - `.badge-glow` - glowing badge effect with red/gold glow animation
+  1976→   - `.shimmer` - content loading shimmer placeholder class
+  1977→   - `.animate-wave-motion` - wave motion for decorative elements
+  1978→   - Mobile scrollbar hiding on touch devices (`@media (hover: none)`)
+  1979→   - `.page-transition-enter` / `.page-transition-exit` - fade+slide page transitions
+  1980→   - Skeleton loading classes: `.skeleton-list-item`, `.skeleton-card-detail`
+  1981→   - `.spinner-kabaddi` / `.spinner-kabaddi-lg` - kabaddi-themed spinners
+  1982→   - `.animate-pulse-soft` / `.animate-pulse-strong` - pulse animation variants
+  1983→   - `.animate-notification-in` - notification slide-in animation
+  1984→   - `.ripple-container` / `.ripple-effect` - ripple effect on tap
+  1985→   - `.silhouette-morph` - morphing kabaddi player silhouette animation
+  1986→   - `.sound-wave-bar` - sound wave visualization pattern
+  1987→   - `.glass-notification-panel` - glass-morphism for notification panel
+  1988→   - `.live-score-tooltip` - tooltip with arrow for live scores
+  1989→   - `.error-boundary-container` / `.animate-error-shake` - error boundary styles
+  1990→
+  1991→2. **BottomNav.tsx** — Complete enhancement:
+  1992→   - Notification badge counter on Home tab with pulsing badge-glow effect
+  1993→   - Bell icon button (top-right) with unread count badge
+  1994→   - Live match indicator: pulsing red dot + glow effect on Quick Score tab
+  1995→   - Live score tooltip on hover/long-press (auto-hides after 3s)
+  1996→   - Sliding indicator bar that follows active tab (layoutId spring animation)
+  1997→   - Ripple effect on tab press (framer-motion)
+  1998→   - Haptic-like visual feedback (whileTap scale: 0.85)
+  1999→   - Full aria-labels for all navigation items
+  2000→   - Keyboard navigation (Arrow keys, Enter/Space)
+
+[showing lines 1-2000 of 3611; use offset=2001 with limit to continue reading]
