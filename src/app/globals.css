@@ -3839,3 +3839,1399 @@ a,
   background: transparent;
   border-radius: 1px;
 }
+
+/* ==========================================
+   37. Chat / Messaging Utilities
+   ========================================== */
+
+/* Sent message bubble — right-aligned, brand-red gradient */
+.chat-bubble-sent {
+  align-self: flex-end;
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 16px 16px 4px 16px;
+  background: linear-gradient(135deg, var(--color-brand-red), var(--color-brand-red-dark));
+  color: #FFFFFF;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+.dark .chat-bubble-sent {
+  background: linear-gradient(135deg, var(--color-brand-red-light), var(--color-brand-red));
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+}
+
+/* Received message bubble — left-aligned, light gray */
+.chat-bubble-received {
+  align-self: flex-start;
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 16px 16px 16px 4px;
+  background: var(--color-warm-100);
+  color: var(--color-warm-800);
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+  border: 1px solid var(--color-warm-200);
+}
+.dark .chat-bubble-received {
+  background: var(--color-warm-200);
+  color: var(--color-warm-700);
+  border-color: var(--color-warm-300);
+}
+
+/* Chat input area with border and shadow */
+.chat-input-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-xl);
+  background: var(--color-warm-50);
+  border: 1px solid var(--color-warm-200);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.chat-input-container:focus-within {
+  border-color: var(--color-brand-red);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.dark .chat-input-container {
+  background: var(--color-warm-200);
+  border-color: var(--color-warm-300);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.dark .chat-input-container:focus-within {
+  border-color: var(--color-brand-red-light);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Message entrance animation */
+.chat-message-enter {
+  animation: chat-message-enter 0.3s ease-out forwards;
+}
+
+/* Animated typing dots container */
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: 16px 16px 16px 4px;
+  background: var(--color-warm-100);
+  border: 1px solid var(--color-warm-200);
+}
+.dark .typing-indicator {
+  background: var(--color-warm-200);
+  border-color: var(--color-warm-300);
+}
+
+/* Single typing dot with staggered animation */
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-warm-400);
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+.dark .typing-dot {
+  background: var(--color-warm-500);
+}
+
+@keyframes chat-message-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+/* ==========================================
+   38. Timeline Utilities (Extended)
+   ========================================== */
+
+/* Vertical timeline layout */
+.timeline-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-left: 40px;
+}
+
+/* Timeline node dot with pulse — extends existing timeline-dot pattern */
+.timeline-node {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-brand-red);
+  border: 3px solid var(--color-warm-50);
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--color-brand-red);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dark .timeline-node {
+  background: var(--color-brand-red-light);
+  border-color: var(--color-warm-800);
+  box-shadow: 0 0 0 2px var(--color-brand-red-light);
+}
+.timeline-node-active {
+  animation: timeline-pulse 2s ease-in-out infinite;
+}
+
+/* Alternating timeline cards */
+.timeline-card-left,
+.timeline-card-right {
+  position: relative;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.timeline-card-left:hover,
+.timeline-card-right:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.dark .timeline-card-left:hover,
+.dark .timeline-card-right:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.timeline-card-left {
+  margin-right: 20%;
+}
+.timeline-card-right {
+  margin-left: 20%;
+}
+
+/* Active/current event highlight */
+.timeline-card-active {
+  border-color: var(--color-brand-red);
+  box-shadow: 0 0 0 1px var(--color-brand-red), 0 4px 16px rgba(220, 38, 38, 0.12);
+}
+.dark .timeline-card-active {
+  border-color: var(--color-brand-red-light);
+  box-shadow: 0 0 0 1px var(--color-brand-red-light), 0 4px 16px rgba(239, 68, 68, 0.15);
+}
+
+@keyframes timeline-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 2px var(--color-brand-red), 0 0 0 0 rgba(220, 38, 38, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--color-brand-red), 0 0 0 8px rgba(220, 38, 38, 0);
+  }
+}
+.dark .timeline-node-active {
+  animation: timeline-pulse-dark 2s ease-in-out infinite;
+}
+@keyframes timeline-pulse-dark {
+  0%, 100% {
+    box-shadow: 0 0 0 2px var(--color-brand-red-light), 0 0 0 0 rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--color-brand-red-light), 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+/* ==========================================
+   39. Challenge / Gamification Utilities
+   ========================================== */
+
+/* Challenge card with difficulty border */
+.challenge-card {
+  position: relative;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.challenge-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-warm-300);
+  transition: background 0.3s ease;
+}
+.challenge-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+}
+.dark .challenge-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.dark .challenge-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Easy difficulty variant */
+.challenge-easy::before {
+  background: linear-gradient(90deg, #22C55E, #4ADE80);
+}
+.challenge-easy {
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+/* Medium difficulty variant */
+.challenge-medium::before {
+  background: linear-gradient(90deg, var(--color-brand-gold), var(--color-brand-gold-light));
+}
+.challenge-medium {
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* Hard difficulty variant */
+.challenge-hard::before {
+  background: linear-gradient(90deg, var(--color-brand-red), var(--color-brand-red-light));
+}
+.challenge-hard {
+  border-color: rgba(220, 38, 38, 0.2);
+}
+.dark .challenge-hard {
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+/* Animated progress bar fill */
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--color-brand-red), var(--color-brand-gold));
+  transition: width 0.6s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  animation: challenge-shimmer 2s ease-in-out infinite;
+}
+.dark .progress-fill::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+}
+
+/* Animated flame effect for streaks */
+.streak-flame {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(220, 38, 38, 0.15));
+  animation: flame-flicker 1.5s ease-in-out infinite;
+  font-size: 20px;
+}
+.dark .streak-flame {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(239, 68, 68, 0.2));
+}
+
+/* XP/points badge with glow */
+.xp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, var(--color-brand-gold-dark), var(--color-brand-gold));
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+.dark .xp-badge {
+  background: linear-gradient(135deg, var(--color-brand-gold), var(--color-brand-gold-light));
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.35);
+}
+
+/* Circular level progress ring */
+.level-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.level-ring svg {
+  transform: rotate(-90deg);
+}
+.level-ring circle {
+  fill: none;
+  stroke-linecap: round;
+}
+.level-ring .level-ring-track {
+  stroke: var(--color-warm-200);
+  transition: stroke 0.3s ease;
+}
+.dark .level-ring .level-ring-track {
+  stroke: var(--color-warm-300);
+}
+.level-ring .level-ring-progress {
+  stroke: var(--color-brand-red);
+  stroke-dasharray: 283;
+  stroke-dashoffset: 283;
+  transition: stroke-dashoffset 1s ease-out;
+  animation: ring-draw 1.5s ease-out forwards;
+}
+.dark .level-ring .level-ring-progress {
+  stroke: var(--color-brand-red-light);
+}
+
+/* Timer display with monospace digits */
+.countdown-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-warm-700);
+  letter-spacing: 0.02em;
+}
+.dark .countdown-timer {
+  color: var(--color-warm-400);
+}
+.countdown-timer-urgent {
+  color: var(--color-brand-red);
+  animation: glow-pulse 1s ease-in-out infinite;
+}
+.dark .countdown-timer-urgent {
+  color: var(--color-brand-red-light);
+}
+
+@keyframes challenge-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes flame-flicker {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  25% {
+    transform: scale(1.05) translateY(-1px);
+    filter: brightness(1.15);
+  }
+  50% {
+    transform: scale(0.97);
+    filter: brightness(0.95);
+  }
+  75% {
+    transform: scale(1.03) translateY(-1px);
+    filter: brightness(1.1);
+  }
+}
+
+/* ==========================================
+   40. Micro-interaction Utilities
+   ========================================== */
+
+/* Press scale — scale down on active press */
+.press-scale {
+  transition: transform 0.15s ease;
+}
+.press-scale:active {
+  transform: scale(0.95);
+}
+
+/* Animated focus ring — generic reusable */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--color-brand-red);
+  transition: box-shadow 0.2s ease;
+}
+.dark .focus-ring:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--color-brand-red-light);
+}
+
+/* Directional slide-in classes — reference existing keyframes */
+.slide-in-right {
+  animation: slide-in-right 0.35s ease-out forwards;
+}
+.slide-in-left {
+  animation: slide-in-left 0.35s ease-out forwards;
+}
+.slide-in-up {
+  animation: slide-in-up 0.4s ease-out forwards;
+}
+.slide-in-down {
+  animation: slide-in-down 0.35s ease-out forwards;
+}
+
+/* Directional slide-out classes */
+.slide-out-right {
+  animation: slide-out-right 0.3s ease-in forwards;
+}
+.slide-out-left {
+  animation: slide-out-left 0.3s ease-in forwards;
+}
+
+@keyframes slide-in-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-out-right {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes slide-out-left {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+/* ==========================================
+   41. Glass / Material Utilities
+   ========================================== */
+
+/* Enhanced glassmorphism panel */
+.glass-panel {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.dark .glass-panel {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Glass-styled input field */
+.glass-input {
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  color: var(--color-warm-800);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+.glass-input::placeholder {
+  color: var(--color-warm-400);
+}
+.glass-input:focus {
+  outline: none;
+  border-color: var(--color-brand-red);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+.dark .glass-input {
+  background: rgba(30, 41, 59, 0.55);
+  border: 1px solid rgba(71, 85, 105, 0.35);
+  color: var(--color-warm-200);
+}
+.dark .glass-input::placeholder {
+  color: var(--color-warm-500);
+}
+.dark .glass-input:focus {
+  border-color: var(--color-brand-red-light);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+/* Bottom toolbar with glass effect */
+.glass-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 8px 16px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(255, 255, 255, 0.75);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+  z-index: 50;
+}
+.dark .glass-toolbar {
+  background: rgba(15, 23, 42, 0.8);
+  border-top: 1px solid rgba(71, 85, 105, 0.3);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Frosted glass card with blur */
+.frosted-card {
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  padding: 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.frosted-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.dark .frosted-card {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.25);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.dark .frosted-card:hover {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ==========================================
+   42. Data Visualization Utilities
+   ========================================== */
+
+/* Circular stat ring (SVG-ready) */
+.stat-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.stat-ring svg {
+  transform: rotate(-90deg);
+}
+.stat-ring .stat-ring-track {
+  fill: none;
+  stroke: var(--color-warm-200);
+  stroke-width: 4;
+}
+.dark .stat-ring .stat-ring-track {
+  stroke: var(--color-warm-300);
+}
+.stat-ring .stat-ring-value {
+  fill: none;
+  stroke: var(--color-brand-red);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 283;
+  stroke-dashoffset: 283;
+  animation: ring-draw 1.2s ease-out forwards;
+}
+.dark .stat-ring .stat-ring-value {
+  stroke: var(--color-brand-red-light);
+}
+.stat-ring-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--color-warm-800);
+}
+.dark .stat-ring-label {
+  color: var(--color-warm-200);
+}
+
+/* Animated bar fill */
+.bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--color-brand-red), var(--color-brand-teal));
+  transform-origin: left;
+  animation: bar-grow 1s ease-out forwards;
+}
+.dark .bar-fill {
+  background: linear-gradient(90deg, var(--color-brand-red-light), var(--color-brand-teal-light));
+}
+
+/* Pulse effect on radar chart */
+.radar-pulse {
+  animation: radar-pulse-anim 2s ease-in-out infinite;
+}
+
+/* Tooltip for chart data points */
+.chart-tooltip {
+  position: absolute;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-navy);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 40;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateX(-50%);
+}
+.chart-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--color-brand-navy);
+}
+.dark .chart-tooltip {
+  background: var(--color-warm-200);
+  color: var(--color-warm-800);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.dark .chart-tooltip::after {
+  border-top-color: var(--color-warm-200);
+}
+
+@keyframes ring-draw {
+  0% {
+    stroke-dashoffset: 283;
+  }
+  100% {
+    stroke-dashoffset: var(--ring-offset, 0);
+  }
+}
+
+@keyframes bar-grow {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes radar-pulse-anim {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.04);
+  }
+}
+
+/* ==========================================
+   43. Celebration / Feedback Utilities
+   ========================================== */
+
+/* Confetti explosion container */
+.confetti-burst {
+  position: relative;
+  display: inline-flex;
+  pointer-events: none;
+}
+
+/* Single confetti piece */
+.confetti-piece {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-piece-fall 1.2s ease-out forwards;
+}
+.confetti-piece:nth-child(1) { animation-delay: 0s; --confetti-x: -20px; --confetti-rot: 180deg; background: var(--color-brand-red); }
+.confetti-piece:nth-child(2) { animation-delay: 0.05s; --confetti-x: -10px; --confetti-rot: 240deg; background: var(--color-brand-gold); }
+.confetti-piece:nth-child(3) { animation-delay: 0.1s; --confetti-x: 10px; --confetti-rot: 120deg; background: var(--color-brand-teal); }
+.confetti-piece:nth-child(4) { animation-delay: 0.08s; --confetti-x: 20px; --confetti-rot: 300deg; background: #8B5CF6; }
+.confetti-piece:nth-child(5) { animation-delay: 0.12s; --confetti-x: -5px; --confetti-rot: 60deg; background: var(--color-brand-red-light); }
+.confetti-piece:nth-child(6) { animation-delay: 0.03s; --confetti-x: 15px; --confetti-rot: 200deg; background: var(--color-brand-gold-light); }
+
+@keyframes confetti-piece-fall {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--confetti-x, 0px), 60px) rotate(var(--confetti-rot, 180deg)) scale(0.4);
+  }
+}
+
+/* Animated crown for winners */
+.victory-crown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: crown-float 2s ease-in-out infinite;
+  filter: drop-shadow(0 2px 6px rgba(245, 158, 11, 0.4));
+}
+.dark .victory-crown {
+  filter: drop-shadow(0 2px 6px rgba(251, 191, 36, 0.5));
+}
+
+/* Medal shine sweep animation */
+.medal-shine {
+  position: relative;
+  overflow: hidden;
+}
+.medal-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: medal-sweep 3s ease-in-out infinite;
+}
+.dark .medal-shine::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+}
+
+/* Trophy bounce animation */
+.trophy-bounce {
+  display: inline-flex;
+  animation: trophy-bounce-anim 1.5s ease-in-out infinite;
+}
+
+/* Score change flash animation — enhanced version */
+.score-flash-enhanced {
+  animation: score-pop 0.6s ease-out;
+}
+
+@keyframes crown-float {
+  0%, 100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  25% {
+    transform: translateY(-6px) rotate(2deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(-1deg);
+  }
+  75% {
+    transform: translateY(-8px) rotate(3deg);
+  }
+}
+
+@keyframes medal-sweep {
+  0% {
+    left: -100%;
+  }
+  40%, 100% {
+    left: 150%;
+  }
+}
+
+@keyframes trophy-bounce-anim {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  20% {
+    transform: translateY(-12px) scale(1.05);
+  }
+  40% {
+    transform: translateY(0) scale(0.98);
+  }
+  60% {
+    transform: translateY(-6px) scale(1.02);
+  }
+  80% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes score-pop {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  25% {
+    transform: scale(1.4);
+    color: var(--color-brand-gold);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+  75% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ==========================================
+   44. Layout Helpers
+   ========================================== */
+
+/* Horizontal scroll with snap */
+.scroll-snap-x {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-snap-x > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Vertical scroll with snap */
+.scroll-snap-y {
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-snap-y > * {
+  scroll-snap-align: start;
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent overscroll bounce */
+.no-overscroll {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+
+/* ==========================================
+   45. Reduced Motion Support
+   ========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-message-enter,
+  .typing-dot,
+  .timeline-node-active,
+  .progress-fill::after,
+  .streak-flame,
+  .xp-badge,
+  .level-ring .level-ring-progress,
+  .press-scale:active,
+  .slide-in-right,
+  .slide-in-left,
+  .slide-in-up,
+  .slide-in-down,
+  .slide-out-right,
+  .slide-out-left,
+  .confetti-piece,
+  .victory-crown,
+  .medal-shine::after,
+  .trophy-bounce,
+  .score-flash-enhanced,
+  .bar-fill,
+  .stat-ring .stat-ring-value,
+  .radar-pulse {
+    animation: none !important;
+    transition: none !important;
+  }
+  .chat-message-enter {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .slide-in-right,
+  .slide-in-left,
+  .slide-in-up,
+  .slide-in-down {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .bar-fill {
+    transform: scaleX(1) !important;
+  }
+  .stat-ring .stat-ring-value {
+    stroke-dashoffset: var(--ring-offset, 0) !important;
+  }
+  .level-ring .level-ring-progress {
+    stroke-dashoffset: var(--ring-offset, 0) !important;
+  }
+  .press-scale:active {
+    transform: none !important;
+  }
+}
+
+/* ==========================================
+   37. Score Change Flash Glow
+   ========================================== */
+
+@keyframes score-change-glow {
+  0% { text-shadow: 0 0 0 transparent; }
+  30% { text-shadow: 0 0 20px rgba(245, 158, 11, 0.8), 0 0 40px rgba(245, 158, 11, 0.4); }
+  100% { text-shadow: 0 0 0 transparent; }
+}
+
+.score-change-flash {
+  animation: score-change-glow 0.6s ease-out;
+}
+
+/* ==========================================
+   38. Click Ripple Effect
+   ========================================== */
+
+@keyframes ripple-click {
+  0% { transform: scale(0); opacity: 0.5; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  animation: ripple-click 0.6s ease-out forwards;
+}
+
+/* ==========================================
+   39. Rotating Trophy Animation
+   ========================================== */
+
+@keyframes rotate-trophy {
+  0% { transform: rotateY(0deg); }
+  25% { transform: rotateY(90deg); }
+  50% { transform: rotateY(180deg); }
+  75% { transform: rotateY(270deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+.trophy-rotate {
+  animation: rotate-trophy 4s ease-in-out infinite;
+  perspective: 800px;
+}
+
+/* ==========================================
+   40. Animated Border Gradient Flow
+   ========================================== */
+
+@keyframes border-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.border-gradient-flow {
+  background: linear-gradient(90deg, var(--color-brand-red), var(--color-brand-gold), var(--color-brand-teal), var(--color-brand-red));
+  background-size: 300% 100%;
+  animation: border-flow 4s ease infinite;
+}
+
+/* ==========================================
+   41. Progress Shimmer
+   ========================================== */
+
+@keyframes progress-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.progress-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: progress-shimmer 2s ease-in-out infinite;
+}
+
+/* ==========================================
+   42. Clear Button Spin
+   ========================================== */
+
+@keyframes clear-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.clear-btn-spin {
+  animation: clear-spin 0.3s ease-out;
+}
+
+/* ==========================================
+   43. Pill Selection Bounce
+   ========================================== */
+
+@keyframes pill-bounce {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.12); }
+  60% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.pill-bounce {
+  animation: pill-bounce 0.4s ease-out;
+}
+
+/* ==========================================
+   44. Standing Row Highlight
+   ========================================== */
+
+@keyframes standing-highlight {
+  0% { background-color: transparent; }
+  30% { background-color: rgba(245, 158, 11, 0.1); }
+  100% { background-color: transparent; }
+}
+
+.standing-row-highlight {
+  animation: standing-highlight 1.5s ease-out;
+}
+
+/* ==========================================
+   45. Floating Sparkle Particle
+   ========================================== */
+
+@keyframes sparkle-float {
+  0% { transform: translateY(0) scale(0); opacity: 0; }
+  20% { opacity: 1; transform: translateY(-10px) scale(1); }
+  80% { opacity: 0.8; transform: translateY(-40px) scale(0.8); }
+  100% { opacity: 0; transform: translateY(-60px) scale(0); }
+}
+
+.sparkle-particle {
+  animation: sparkle-float 2s ease-out infinite;
+}
+
+/* ==========================================
+   46. Court Line Sweep Animation
+   ========================================== */
+
+@keyframes court-line-sweep {
+  0% { opacity: 0.03; }
+  50% { opacity: 0.08; }
+  100% { opacity: 0.03; }
+}
+
+.court-line-animated {
+  animation: court-line-sweep 3s ease-in-out infinite;
+}
+
+/* ==========================================
+   47. Hover Expand Animation
+   ========================================== */
+
+@keyframes hover-expand-fade {
+  0% { max-height: 0; opacity: 0; }
+  100% { max-height: 60px; opacity: 1; }
+}
+
+.hover-expand-content {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.group:hover .hover-expand-content {
+  max-height: 60px;
+  opacity: 1;
+}
+
+/* ==========================================
+   48. Gold Shimmer on Medal Icons
+   ========================================== */
+
+@keyframes gold-shimmer-medal {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.4) drop-shadow(0 0 6px rgba(245, 158, 11, 0.5)); }
+  100% { filter: brightness(1); }
+}
+
+.gold-medal-shimmer {
+  animation: gold-shimmer-medal 2s ease-in-out infinite;
+}
+
+/* ==========================================
+   49. Stat Icon Hover Bounce
+   ========================================== */
+
+@keyframes stat-icon-bounce {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+  60% { transform: translateY(1px); }
+  100% { transform: translateY(0); }
+}
+
+.stat-icon-hover:hover {
+  animation: stat-icon-bounce 0.4s ease-out;
+}
+
+/* ==========================================
+   50. Tournament Card Hover Lift
+   ========================================== */
+
+.tournament-card-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.tournament-card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.15);
+}
+
+.dark .tournament-card-lift:hover {
+  box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================
+   51. Avatar Stack Overlap
+   ========================================== */
+
+.avatar-stack > *:not(:first-child) {
+  margin-left: -8px;
+}
+
+.avatar-stack > * {
+  border: 2px solid white;
+  position: relative;
+}
+
+.dark .avatar-stack > * {
+  border-color: var(--color-warm-800);
+}
+
+/* ==========================================
+   38. Styling Overhaul - Enhanced Animations
+   ========================================== */
+
+/* Badge flip animation for profile badges */
+@keyframes badge-flip {
+  0% {
+    transform: perspective(400px) rotateY(0deg);
+  }
+  50% {
+    transform: perspective(400px) rotateY(90deg);
+  }
+  100% {
+    transform: perspective(400px) rotateY(0deg);
+  }
+}
+
+.badge-flip {
+  animation: badge-flip 0.6s ease-in-out;
+}
+
+/* Pulse glow for nav active state */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(220, 38, 38, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(220, 38, 38, 0.5), 0 0 32px rgba(245, 158, 11, 0.1);
+  }
+}
+
+.nav-active-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Particle trail effect for tab switches */
+@keyframes particle-trail {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(20px) scale(0);
+    opacity: 0;
+  }
+}
+
+.particle-trail {
+  animation: particle-trail 0.4s ease-out forwards;
+}
+
+/* Confetti burst for start match button */
+@keyframes confetti-burst {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-40px) rotate(360deg) scale(0);
+    opacity: 0;
+  }
+}
+
+.confetti-burst {
+  animation: confetti-burst 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Shimmer slide for locked badges */
+@keyframes shimmer-slide {
+  0% {
+    background-position: 200% 0%;
+  }
+  100% {
+    background-position: -200% 0%;
+  }
+}
+
+.shimmer-slide {
+  animation: shimmer-slide 2s linear infinite;
+}
+
+/* Court lines pattern for profile background */
+.court-lines-pattern {
+  background-image:
+    linear-gradient(0deg, rgba(220, 38, 38, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220, 38, 38, 0.03) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(220, 38, 38, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220, 38, 38, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+}
+
+.dark .court-lines-pattern {
+  background-image:
+    linear-gradient(0deg, rgba(245, 158, 11, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 158, 11, 0.04) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(245, 158, 11, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 158, 11, 0.06) 1px, transparent 1px);
+}
+
+/* Position color indicators for lineup */
+.position-raider-bg {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.08), rgba(220, 38, 38, 0.02));
+  border-left: 3px solid #DC2626;
+}
+
+.position-defender-bg {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.08), rgba(20, 184, 166, 0.02));
+  border-left: 3px solid #14B8A6;
+}
+
+.position-allrounder-bg {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.02));
+  border-left: 3px solid #F59E0B;
+}
+
+/* Timer preview clock animation */
+@keyframes clock-tick {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.clock-tick {
+  animation: clock-tick 60s linear infinite;
+}
+
+/* Formation court layout */
+.formation-court {
+  background:
+    linear-gradient(135deg, rgba(20, 184, 166, 0.05) 0%, transparent 50%),
+    linear-gradient(225deg, rgba(220, 38, 38, 0.05) 0%, transparent 50%);
+  border: 1px solid rgba(220, 38, 38, 0.08);
+  border-radius: 12px;
+}
+
+.dark .formation-court {
+  border-color: rgba(245, 158, 11, 0.12);
+  background:
+    linear-gradient(135deg, rgba(20, 184, 166, 0.08) 0%, transparent 50%),
+    linear-gradient(225deg, rgba(220, 38, 38, 0.08) 0%, transparent 50%);
+}

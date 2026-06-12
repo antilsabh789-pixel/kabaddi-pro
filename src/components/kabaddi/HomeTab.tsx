@@ -39,6 +39,8 @@ import {
   ArrowDown,
   BookOpen,
   Search,
+  MessageCircle,
+  Crosshair,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +74,9 @@ import MatchPredictionScreen from './MatchPredictionScreen';
 import KabaddiRulesScreen from './KabaddiRulesScreen';
 import GlobalSearchScreen from './GlobalSearchScreen';
 import MatchHistoryScreen from './MatchHistoryScreen';
+import TeamChatScreen from './TeamChatScreen';
+import DailyChallengeScreen from './DailyChallengeScreen';
+import MatchTimelineScreen from './MatchTimelineScreen';
 import LiveCommentaryTicker, { toCommentaryMatchInfo, type CommentaryMatchInfo } from './LiveCommentaryTicker';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
@@ -274,18 +279,21 @@ function AnimatedCounter({ target, duration = 1200 }: { target: number; duration
 function NumberTicker({ value }: { value: number }) {
   const prevValue = useRef(value);
   const [animating, setAnimating] = useState(false);
+  const [flash, setFlash] = useState(false);
 
   useEffect(() => {
     if (prevValue.current !== value) {
       prevValue.current = value;
       const t1 = setTimeout(() => setAnimating(true), 0);
       const t2 = setTimeout(() => setAnimating(false), 400);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      const t3 = setTimeout(() => setFlash(true), 0);
+      const t4 = setTimeout(() => setFlash(false), 600);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
     }
   }, [value]);
 
   return (
-    <span className={animating ? 'number-ticker' : ''} key={`${value}-${animating}`}>
+    <span className={`${animating ? 'number-ticker' : ''} ${flash ? 'score-change-flash' : ''}`} key={`${value}-${animating}`}>
       {value}
     </span>
   );
@@ -328,6 +336,49 @@ function ConfettiParticles({ trigger }: { trigger: number }) {
         />
       ))}
     </>
+  );
+}
+
+// ─── Awards Confetti Section (on scroll into view) ─────────────────
+
+function AwardsConfettiSection() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !shown) {
+          setShown(true);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [shown]);
+
+  const confettiColors = ['#DC2626', '#F59E0B', '#14B8A6', '#FBBF24', '#1E293B'];
+
+  return (
+    <div ref={ref} className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      {shown && [...Array(8)].map((_, i) => (
+        <motion.div
+          key={`award-confetti-${i}`}
+          className="absolute w-1.5 h-1.5 rounded-full"
+          style={{
+            left: `${10 + i * 12}%`,
+            top: '40%',
+            backgroundColor: confettiColors[i % confettiColors.length],
+          }}
+          initial={{ y: 0, opacity: 0, scale: 0 }}
+          animate={{ y: [-10, -40, -80], opacity: [0, 1, 0], scale: [0, 1.2, 0.5] }}
+          transition={{ duration: 1.5, delay: i * 0.1, ease: 'easeOut' }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -529,6 +580,9 @@ export default function HomeTab() {
   const [showStreaks, setShowStreaks] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showMatchHistory, setShowMatchHistory] = useState(false);
+  const [showTeamChat, setShowTeamChat] = useState(false);
+  const [showDailyChallenge, setShowDailyChallenge] = useState(false);
+  const [showMatchTimeline, setShowMatchTimeline] = useState(false);
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);
@@ -1104,6 +1158,17 @@ export default function HomeTab() {
           onClose={() => setShowMatchHistory(false)}
         />
       )}
+      {showTeamChat && (
+        <TeamChatScreen onClose={() => setShowTeamChat(false)} />
+      )}
+      {showDailyChallenge && (
+        <DailyChallengeScreen onClose={() => setShowDailyChallenge(false)} />
+      )}
+      {showMatchTimeline && (
+        <MatchTimelineScreen
+          onClose={() => setShowMatchTimeline(false)}
+        />
+      )}
 
       {/* ─── Header ─── */}
       <header className="sticky top-0 z-30 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md header-gradient-border">
@@ -1316,14 +1381,25 @@ export default function HomeTab() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <motion.div
-                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group"
+                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group ripple-container"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const ripple = document.createElement('div');
+                  ripple.className = 'ripple-effect';
+                  ripple.style.left = `${e.clientX - rect.left}px`;
+                  ripple.style.top = `${e.clientY - rect.top}px`;
+                  ripple.style.width = '20px';
+                  ripple.style.height = '20px';
+                  e.currentTarget.appendChild(ripple);
+                  setTimeout(() => ripple.remove(), 600);
+                  if (currentUser?.id) setShowStats(true);
+                }}
               >
                 <div className="absolute inset-0 bg-gradient-to-b from-brand-gold/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="flex items-center justify-center gap-1 relative z-10">
-                  <Swords className="w-3.5 h-3.5 text-brand-gold-light" />
+                  <Swords className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
                 </div>
                 <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={raidPts} />
@@ -1331,14 +1407,25 @@ export default function HomeTab() {
                 <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Raid Pts</div>
               </motion.div>
               <motion.div
-                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer border-x border-white/10 relative overflow-hidden group"
+                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer border-x border-white/10 relative overflow-hidden group ripple-container"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const ripple = document.createElement('div');
+                  ripple.className = 'ripple-effect';
+                  ripple.style.left = `${e.clientX - rect.left}px`;
+                  ripple.style.top = `${e.clientY - rect.top}px`;
+                  ripple.style.width = '20px';
+                  ripple.style.height = '20px';
+                  e.currentTarget.appendChild(ripple);
+                  setTimeout(() => ripple.remove(), 600);
+                  if (currentUser?.id) setShowStats(true);
+                }}
               >
                 <div className="absolute inset-0 bg-gradient-to-b from-brand-teal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="flex items-center justify-center gap-1 relative z-10">
-                  <Target className="w-3.5 h-3.5 text-brand-gold-light" />
+                  <Shield className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
                 </div>
                 <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={tacklePts} />
@@ -1346,14 +1433,25 @@ export default function HomeTab() {
                 <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Tackle Pts</div>
               </motion.div>
               <motion.div
-                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group"
+                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group ripple-container"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const ripple = document.createElement('div');
+                  ripple.className = 'ripple-effect';
+                  ripple.style.left = `${e.clientX - rect.left}px`;
+                  ripple.style.top = `${e.clientY - rect.top}px`;
+                  ripple.style.width = '20px';
+                  ripple.style.height = '20px';
+                  e.currentTarget.appendChild(ripple);
+                  setTimeout(() => ripple.remove(), 600);
+                  if (currentUser?.id) setShowStats(true);
+                }}
               >
                 <div className="absolute inset-0 bg-gradient-to-b from-brand-red/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="flex items-center justify-center gap-1 relative z-10">
-                  <Flame className="w-3.5 h-3.5 text-brand-gold-light" />
+                  <Calendar className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
                 </div>
                 <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={totalMatches} />
@@ -1513,6 +1611,16 @@ export default function HomeTab() {
                           />
                         ))}
                       </div>
+                      {/* Animated court line pattern inside live card */}
+                      <div className="absolute inset-0 overflow-hidden pointer-events-none court-line-animated">
+                        <div className="absolute top-1/2 left-[8%] right-[8%] h-px bg-gradient-to-r from-transparent via-brand-gold/12 to-transparent" />
+                        <div className="absolute top-[30%] left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-brand-red/8 to-transparent" />
+                        <div className="absolute top-[70%] left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-brand-red/8 to-transparent" />
+                        <div className="absolute top-[25%] bottom-[25%] left-1/2 w-px bg-gradient-to-b from-transparent via-brand-gold/10 to-transparent" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-brand-gold/10" />
+                        <div className="absolute top-1/2 left-[20%] -translate-y-1/2 w-6 h-8 border border-brand-red/8 rounded-sm" />
+                        <div className="absolute top-1/2 right-[20%] -translate-y-1/2 w-6 h-8 border border-brand-red/8 rounded-sm" />
+                      </div>
                       <CardContent className="p-4 relative z-10">
                         {/* Confetti on score change */}
                         <ConfettiParticles trigger={match.homeScore + match.awayScore} />
@@ -1578,6 +1686,25 @@ export default function HomeTab() {
                             <span className="text-4xl font-black tabular-nums" style={{ color: match.awayTeam.color || '#1E293B' }}>
                               <NumberTicker value={match.awayScore} />
                             </span>
+                          </div>
+                          {/* Mini team formation visualization */}
+                          <div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none overflow-hidden opacity-20">
+                            <svg className="w-full h-full" viewBox="0 0 200 20" preserveAspectRatio="none">
+                              {/* Home team dots (left side) */}
+                              <circle cx="30" cy="10" r="2.5" fill={match.homeTeam.color || '#DC2626'} />
+                              <circle cx="45" cy="5" r="2" fill={match.homeTeam.color || '#DC2626'} />
+                              <circle cx="45" cy="15" r="2" fill={match.homeTeam.color || '#DC2626'} />
+                              <circle cx="60" cy="8" r="2" fill={match.homeTeam.color || '#DC2626'} />
+                              <circle cx="60" cy="14" r="2" fill={match.homeTeam.color || '#DC2626'} />
+                              {/* Away team dots (right side) */}
+                              <circle cx="170" cy="10" r="2.5" fill={match.awayTeam.color || '#1E293B'} />
+                              <circle cx="155" cy="5" r="2" fill={match.awayTeam.color || '#1E293B'} />
+                              <circle cx="155" cy="15" r="2" fill={match.awayTeam.color || '#1E293B'} />
+                              <circle cx="140" cy="8" r="2" fill={match.awayTeam.color || '#1E293B'} />
+                              <circle cx="140" cy="14" r="2" fill={match.awayTeam.color || '#1E293B'} />
+                              {/* Center line */}
+                              <line x1="100" y1="0" x2="100" y2="20" stroke="rgba(245,158,11,0.3)" strokeWidth="0.5" />
+                            </svg>
                           </div>
                           <div className="flex flex-col items-center gap-1 flex-1">
                             <div
@@ -2031,7 +2158,9 @@ export default function HomeTab() {
       )}
 
       {/* ─── Awards & Honors (Premium for detailed stats) ─── */}
-      <section className="px-4 mt-6">
+      <section className="px-4 mt-6 relative">
+        {/* Confetti particles on scroll into view */}
+        <AwardsConfettiSection />
         <div className="flex items-center justify-between mb-3 section-header-decorated">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
@@ -2085,18 +2214,18 @@ export default function HomeTab() {
                             {motm.userAvatar ? (
                               <img src={motm.userAvatar} alt={motm.userName} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-gold/20 to-brand-gold-dark/20 flex items-center justify-center text-xl font-bold text-brand-gold-dark dark:text-brand-gold">
+                              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-gold/20 to-brand-gold-dark/20 flex items-center justify-center text-xl font-bold text-brand-gold-dark dark:text-brand-gold trophy-rotate">
                                 {motm.userName.charAt(0)}
                               </div>
                             )}
                           </div>
-                          <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md">
+                          <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md gold-medal-shimmer">
                             <Crown className="w-3.5 h-3.5 text-warm-800" />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xl medal-hover">🥇</span>
+                            <span className="text-xl medal-hover gold-medal-shimmer">🥇</span>
                             <Badge className="bg-brand-gold/20 text-brand-gold-dark dark:text-brand-gold text-[10px] font-semibold border-0 px-2 py-0.5">
                               <Trophy className="w-3 h-3 mr-0.5" />
                               Man of the Match
@@ -2149,7 +2278,7 @@ export default function HomeTab() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-base medal-hover">{medal}</span>
+                            <span className="text-base medal-hover gold-medal-shimmer">{medal}</span>
                             <Badge
                               className={`${player.badgeBg} text-[10px] font-semibold border-0 px-2 py-0.5 mb-1`}
                             >
@@ -2271,10 +2400,24 @@ export default function HomeTab() {
 
       {/* ─── Explore ─── */}
       <section className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-3 section-header-decorated">
+        <div className="flex items-center justify-between mb-3 section-header-decorated relative">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Explore</h3>
             <Sparkles className="w-4 h-4 text-brand-gold" />
+          </div>
+          {/* Floating particles behind section header */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[...Array(5)].map((_, i) => (
+              <motion.div
+                key={`explore-particle-${i}`}
+                className="absolute w-1 h-1 rounded-full bg-brand-gold/30 sparkle-particle"
+                style={{
+                  left: `${10 + i * 20}%`,
+                  top: '50%',
+                  animationDelay: `${i * 0.4}s`,
+                }}
+              />
+            ))}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -2282,10 +2425,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.05 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowSocialFeed(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
@@ -2306,10 +2449,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
+            transition={{ delay: 0.1 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowFollow(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
@@ -2330,10 +2473,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.15 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowMatchHistory(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
@@ -2354,10 +2497,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.22 }}
+            transition={{ delay: 0.2 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => {
                 if (currentUser?.id) {
                   setShowStats(true);
@@ -2382,10 +2525,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.22 }}
+            transition={{ delay: 0.25 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-emerald-500/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowRules(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
@@ -2406,10 +2549,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
+            transition={{ delay: 0.3 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-gold/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => {
                 if (recentMatches.length > 0) {
                   setHighlightsMatchId(recentMatches[0].id);
@@ -2440,10 +2583,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.35 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-gold/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowStreaks(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
@@ -2464,10 +2607,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
+            transition={{ delay: 0.4 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowComparison(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
@@ -2488,10 +2631,10 @@ export default function HomeTab() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ delay: 0.45 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowGrounds(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
@@ -2538,9 +2681,55 @@ export default function HomeTab() {
               </div>
             </Card>
           </motion.div>
-        </div>
 
-        {/* Advanced Phase 5: Pro Features - enhanced with shimmer overlay */}
+          {/* Team Chat - navy for communication */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Card
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-navy/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-blue-50/80 to-warm-50 dark:from-blue-900/20 dark:to-warm-800 relative overflow-hidden group"
+              onClick={() => setShowTeamChat(true)}
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-navy to-brand-navy/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-navy/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-navy/30 to-brand-navy/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-navy/20 transition-shadow">
+                  <MessageCircle className="w-4.5 h-4.5 text-brand-navy" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Team Chat</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Message teammates</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Daily Challenges - flame for motivation */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.55 }}
+          >
+            <Card
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-orange-500/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-orange-50/80 to-warm-50 dark:from-orange-900/20 dark:to-warm-800 relative overflow-hidden group"
+              onClick={() => setShowDailyChallenge(true)}
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-500 to-orange-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/30 to-orange-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-orange-500/20 transition-shadow">
+                  <Crosshair className="w-4.5 h-4.5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Daily Challenges</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Earn XP & streaks</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
         <div className="flex items-center gap-2 mt-5 mb-3">
           <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Pro Features</h3>
           <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[9px] border-0 font-bold px-1.5 py-0 flex items-center gap-0.5 relative overflow-hidden">
@@ -2734,7 +2923,7 @@ export default function HomeTab() {
                   return (
                     <motion.div
                       key={match.id}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors cursor-pointer relative"
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors cursor-pointer relative group"
                       onClick={() => handleRecentMatchClick(match)}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -2743,6 +2932,17 @@ export default function HomeTab() {
                       {/* Timeline dot connector */}
                       <div className="absolute left-0 top-0 bottom-0 w-px bg-warm-200 dark:bg-warm-700" />
                       <div className={`w-2.5 h-2.5 rounded-full shrink-0 z-10 ml-0.5 timeline-dot-pulse ${winner ? 'bg-brand-gold' : 'bg-warm-400 dark:bg-warm-500'}`} />
+                      {/* Team color accent bar */}
+                      <div
+                        className="absolute left-0 top-0 bottom-0 w-0.5 opacity-60"
+                        style={{
+                          backgroundColor: winner === match.homeTeam.name
+                            ? match.homeTeam.color || '#DC2626'
+                            : winner === match.awayTeam.name
+                              ? match.awayTeam.color || '#1E293B'
+                              : '#F59E0B',
+                        }}
+                      />
                       <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-brand-red/10 to-brand-red/5">
                         {winner ? (
                           <Trophy className="w-3 h-3 text-brand-gold" />
@@ -2757,6 +2957,12 @@ export default function HomeTab() {
                         <p className="text-[10px] text-warm-500 dark:text-warm-400">
                           {winner ? `${winner} won` : 'Draw'} · {match.homeScore}-{match.awayScore}
                         </p>
+                        {/* Hover expand details */}
+                        <div className="hover-expand-content">
+                          <p className="text-[9px] text-warm-400 dark:text-warm-500 mt-1">
+                            {match.tournament?.name || 'Friendly Match'} · {formatTimeAgo(match.completedAt)}
+                          </p>
+                        </div>
                       </div>
                       <span className="text-[10px] text-warm-400 dark:text-warm-500 shrink-0">
                         {formatTimeAgo(match.completedAt)}

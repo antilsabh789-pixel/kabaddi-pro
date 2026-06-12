@@ -1,0 +1,502 @@
+  2260→            >
+  2261→              <div className="w-10 h-10 rounded-full bg-brand-red/10 flex items-center justify-center">
+  2262→                <ChevronRight className="w-5 h-5 text-brand-red" />
+  2263→              </div>
+  2264→              <span className="text-[10px] font-bold text-brand-red text-center">
+  2265→                View Full Leaderboard
+  2266→              </span>
+  2267→            </motion.button>
+  2268→          </div>
+  2269→        )}
+  2270→      </section>
+  2271→
+  2272→      {/* ─── Explore ─── */}
+  2273→      <section className="px-4 mt-6">
+  2274→        <div className="flex items-center justify-between mb-3 section-header-decorated">
+  2275→          <div className="flex items-center gap-2">
+  2276→            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Explore</h3>
+  2277→            <Sparkles className="w-4 h-4 text-brand-gold" />
+  2278→          </div>
+  2279→        </div>
+  2280→        <div className="grid grid-cols-2 gap-3">
+  2281→          {/* Social Feed - teal for stats/community */}
+  2282→          <motion.div
+  2283→            initial={{ opacity: 0, y: 12 }}
+  2284→            animate={{ opacity: 1, y: 0 }}
+  2285→            transition={{ delay: 0.1 }}
+  2286→          >
+  2287→            <Card
+  2288→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
+  2289→              onClick={() => setShowSocialFeed(true)}
+  2290→            >
+  2291→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+  2292→              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2293→              <div className="flex items-center gap-3 relative z-10">
+  2294→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+  2295→                  <Rss className="w-4.5 h-4.5 text-brand-teal" />
+  2296→                </div>
+  2297→                <div>
+  2298→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Social Feed</p>
+  2299→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Activity updates</p>
+  2300→                </div>
+  2301→              </div>
+  2302→            </Card>
+  2303→          </motion.div>
+  2304→
+  2305→          {/* Follow & Connect - teal for stats/community */}
+  2306→          <motion.div
+  2307→            initial={{ opacity: 0, y: 12 }}
+  2308→            animate={{ opacity: 1, y: 0 }}
+  2309→            transition={{ delay: 0.15 }}
+  2310→          >
+  2311→            <Card
+  2312→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
+  2313→              onClick={() => setShowFollow(true)}
+  2314→            >
+  2315→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+  2316→              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2317→              <div className="flex items-center gap-3 relative z-10">
+  2318→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+  2319→                  <Users className="w-4.5 h-4.5 text-brand-teal" />
+  2320→                </div>
+  2321→                <div>
+  2322→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Follow</p>
+  2323→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Find players</p>
+  2324→                </div>
+  2325→              </div>
+  2326→            </Card>
+  2327→          </motion.div>
+  2328→
+  2329→          {/* Match History - red for live features */}
+  2330→          <motion.div
+  2331→            initial={{ opacity: 0, y: 12 }}
+  2332→            animate={{ opacity: 1, y: 0 }}
+  2333→            transition={{ delay: 0.2 }}
+  2334→          >
+  2335→            <Card
+  2336→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
+  2337→              onClick={() => setShowMatchHistory(true)}
+  2338→            >
+  2339→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
+  2340→              <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2341→              <div className="flex items-center gap-3 relative z-10">
+  2342→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
+  2343→                  <Calendar className="w-4.5 h-4.5 text-brand-red" />
+  2344→                </div>
+  2345→                <div>
+  2346→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Match History</p>
+  2347→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Past matches</p>
+  2348→                </div>
+  2349→              </div>
+  2350→            </Card>
+  2351→          </motion.div>
+  2352→
+  2353→          {/* Advanced Stats - teal for stats */}
+  2354→          <motion.div
+  2355→            initial={{ opacity: 0, y: 12 }}
+  2356→            animate={{ opacity: 1, y: 0 }}
+  2357→            transition={{ delay: 0.22 }}
+  2358→          >
+  2359→            <Card
+  2360→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
+  2361→              onClick={() => {
+  2362→                if (currentUser?.id) {
+  2363→                  setShowStats(true);
+  2364→                }
+  2365→              }}
+  2366→            >
+  2367→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+  2368→              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2369→              <div className="flex items-center gap-3 relative z-10">
+  2370→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+  2371→                  <Activity className="w-4.5 h-4.5 text-brand-teal" />
+  2372→                </div>
+  2373→                <div>
+  2374→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">My Stats</p>
+  2375→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">View your stats</p>
+  2376→                </div>
+  2377→              </div>
+  2378→            </Card>
+  2379→          </motion.div>
+  2380→
+  2381→          {/* Rules & Tutorial - teal for stats */}
+  2382→          <motion.div
+  2383→            initial={{ opacity: 0, y: 12 }}
+  2384→            animate={{ opacity: 1, y: 0 }}
+  2385→            transition={{ delay: 0.22 }}
+  2386→          >
+  2387→            <Card
+  2388→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 relative overflow-hidden group"
+  2389→              onClick={() => setShowRules(true)}
+  2390→            >
+  2391→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+  2392→              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2393→              <div className="flex items-center gap-3 relative z-10">
+  2394→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+  2395→                  <BookOpen className="w-4.5 h-4.5 text-brand-teal" />
+  2396→                </div>
+  2397→                <div>
+  2398→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Rules</p>
+  2399→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Learn the game</p>
+  2400→                </div>
+  2401→              </div>
+  2402→            </Card>
+  2403→          </motion.div>
+  2404→
+  2405→          {/* Match Highlights - gold for premium */}
+  2406→          <motion.div
+  2407→            initial={{ opacity: 0, y: 12 }}
+  2408→            animate={{ opacity: 1, y: 0 }}
+  2409→            transition={{ delay: 0.25 }}
+  2410→          >
+  2411→            <Card
+  2412→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
+  2413→              onClick={() => {
+  2414→                if (recentMatches.length > 0) {
+  2415→                  setHighlightsMatchId(recentMatches[0].id);
+  2416→                  setShowHighlights(true);
+  2417→                } else {
+  2418→                  toast({ title: 'No matches', description: 'Complete a match to see highlights' });
+  2419→                }
+  2420→              }}
+  2421→            >
+  2422→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+  2423→              <div className="absolute inset-0 bg-gradient-to-r from-brand-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2424→              <div className="flex items-center gap-3 relative z-10">
+  2425→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-gold/20 transition-shadow">
+  2426→                  <Sparkles className="w-4.5 h-4.5 text-brand-gold" />
+  2427→                </div>
+  2428→                <div>
+  2429→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Highlights</p>
+  2430→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Key moments</p>
+  2431→                </div>
+  2432→              </div>
+  2433→            </Card>
+  2434→          </motion.div>
+  2435→        </div>
+  2436→
+  2437→        {/* Phase 5: More Actions */}
+  2438→        <div className="grid grid-cols-2 gap-3 mt-3">
+  2439→          {/* Achievements - gold for premium */}
+  2440→          <motion.div
+  2441→            initial={{ opacity: 0, y: 12 }}
+  2442→            animate={{ opacity: 1, y: 0 }}
+  2443→            transition={{ delay: 0.3 }}
+  2444→          >
+  2445→            <Card
+  2446→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
+  2447→              onClick={() => setShowStreaks(true)}
+  2448→            >
+  2449→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+  2450→              <div className="absolute inset-0 bg-gradient-to-r from-brand-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2451→              <div className="flex items-center gap-3 relative z-10">
+  2452→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-gold/20 transition-shadow">
+  2453→                  <Award className="w-4.5 h-4.5 text-brand-gold" />
+  2454→                </div>
+  2455→                <div>
+  2456→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Achievements</p>
+  2457→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Streaks & records</p>
+  2458→                </div>
+  2459→              </div>
+  2460→            </Card>
+  2461→          </motion.div>
+  2462→
+  2463→          {/* Compare Teams - red for live features */}
+  2464→          <motion.div
+  2465→            initial={{ opacity: 0, y: 12 }}
+  2466→            animate={{ opacity: 1, y: 0 }}
+  2467→            transition={{ delay: 0.35 }}
+  2468→          >
+  2469→            <Card
+  2470→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
+  2471→              onClick={() => setShowComparison(true)}
+  2472→            >
+  2473→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
+  2474→              <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2475→              <div className="flex items-center gap-3 relative z-10">
+  2476→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
+  2477→                  <Swords className="w-4.5 h-4.5 text-brand-red" />
+  2478→                </div>
+  2479→                <div>
+  2480→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Compare Teams</p>
+  2481→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Head-to-head</p>
+  2482→                </div>
+  2483→              </div>
+  2484→            </Card>
+  2485→          </motion.div>
+  2486→
+  2487→          {/* Grounds - teal for stats */}
+  2488→          <motion.div
+  2489→            initial={{ opacity: 0, y: 12 }}
+  2490→            animate={{ opacity: 1, y: 0 }}
+  2491→            transition={{ delay: 0.4 }}
+  2492→          >
+  2493→            <Card
+  2494→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
+  2495→              onClick={() => setShowGrounds(true)}
+  2496→            >
+  2497→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+  2498→              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2499→              <div className="flex items-center gap-3 relative z-10">
+  2500→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+  2501→                  <MapPin className="w-4.5 h-4.5 text-brand-teal" />
+  2502→                </div>
+  2503→                <div>
+  2504→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Grounds</p>
+  2505→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Find venues</p>
+  2506→                </div>
+  2507→              </div>
+  2508→            </Card>
+  2509→          </motion.div>
+  2510→
+  2511→          {/* Match Replay - red for live features */}
+  2512→          <motion.div
+  2513→            initial={{ opacity: 0, y: 12 }}
+  2514→            animate={{ opacity: 1, y: 0 }}
+  2515→            transition={{ delay: 0.45 }}
+  2516→          >
+  2517→            <Card
+  2518→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 relative overflow-hidden group"
+  2519→              onClick={() => {
+  2520→                if (recentMatches.length > 0) {
+  2521→                  setReplayMatchId(recentMatches[0].id);
+  2522→                  setShowReplay(true);
+  2523→                } else {
+  2524→                  toast({ title: 'No matches', description: 'Complete a match to replay' });
+  2525→                }
+  2526→              }}
+  2527→            >
+  2528→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
+  2529→              <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+  2530→              <div className="flex items-center gap-3 relative z-10">
+  2531→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
+  2532→                  <Play className="w-4.5 h-4.5 text-brand-red" />
+  2533→                </div>
+  2534→                <div>
+  2535→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Replay</p>
+  2536→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Watch again</p>
+  2537→                </div>
+  2538→              </div>
+  2539→            </Card>
+  2540→          </motion.div>
+  2541→        </div>
+  2542→
+  2543→        {/* Advanced Phase 5: Pro Features - enhanced with shimmer overlay */}
+  2544→        <div className="flex items-center gap-2 mt-5 mb-3">
+  2545→          <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Pro Features</h3>
+  2546→          <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[9px] border-0 font-bold px-1.5 py-0 flex items-center gap-0.5 relative overflow-hidden">
+  2547→            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_2.5s_ease-in-out_infinite]" />
+  2548→            <Crown className="w-2.5 h-2.5" />
+  2549→            PRO
+  2550→          </Badge>
+  2551→        </div>
+  2552→        <div className="grid grid-cols-2 gap-3">
+  2553→          {/* AI Insights - gold/pro */}
+  2554→          <motion.div
+  2555→            initial={{ opacity: 0, y: 12 }}
+  2556→            animate={{ opacity: 1, y: 0 }}
+  2557→            transition={{ delay: 0.5 }}
+  2558→          >
+  2559→            <Card
+  2560→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-purple-50/80 to-warm-50 dark:from-purple-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+  2561→              onClick={() => setShowAIInsights(true)}
+  2562→            >
+  2563→              {/* Shimmer/lock overlay effect */}
+  2564→              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+  2565→              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+  2566→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+  2567→              <div className="flex items-center gap-3 relative z-10">
+  2568→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/30 to-purple-500/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-purple-500/20 transition-shadow shrink-0">
+  2569→                  <Brain className="w-4.5 h-4.5 text-purple-500" />
+  2570→                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
+  2571→                </div>
+  2572→                <div>
+  2573→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">AI Insights</p>
+  2574→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Smart analysis</p>
+  2575→                </div>
+  2576→              </div>
+  2577→            </Card>
+  2578→          </motion.div>
+  2579→
+  2580→          {/* Live Broadcast - red for live */}
+  2581→          <motion.div
+  2582→            initial={{ opacity: 0, y: 12 }}
+  2583→            animate={{ opacity: 1, y: 0 }}
+  2584→            transition={{ delay: 0.55 }}
+  2585→          >
+  2586→            <Card
+  2587→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+  2588→              onClick={() => {
+  2589→                if (liveMatches.length > 0) {
+  2590→                  setBroadcastMatchId(liveMatches[0].id);
+  2591→                  setShowBroadcast(true);
+  2592→                } else {
+  2593→                  toast({ title: 'No live matches', description: 'Start a match to broadcast' });
+  2594→                }
+  2595→              }}
+  2596→            >
+  2597→              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_3.5s_ease-in-out_infinite]" />
+  2598→              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+  2599→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-gold" />
+  2600→              <div className="flex items-center gap-3 relative z-10">
+  2601→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow shrink-0">
+  2602→                  <Radio className="w-4.5 h-4.5 text-brand-red" />
+  2603→                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
+  2604→                </div>
+  2605→                <div>
+  2606→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Broadcast</p>
+  2607→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Watch live</p>
+  2608→                </div>
+  2609→              </div>
+  2610→            </Card>
+  2611→          </motion.div>
+  2612→
+  2613→          {/* Seasons - teal for stats */}
+  2614→          <motion.div
+  2615→            initial={{ opacity: 0, y: 12 }}
+  2616→            animate={{ opacity: 1, y: 0 }}
+  2617→            transition={{ delay: 0.6 }}
+  2618→          >
+  2619→            <Card
+  2620→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+  2621→              onClick={() => setShowSeason(true)}
+  2622→            >
+  2623→              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+  2624→              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+  2625→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-gold" />
+  2626→              <div className="flex items-center gap-3 relative z-10">
+  2627→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow shrink-0">
+  2628→                  <Calendar className="w-4.5 h-4.5 text-brand-teal" />
+  2629→                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
+  2630→                </div>
+  2631→                <div>
+  2632→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Seasons</p>
+  2633→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Track yearly</p>
+  2634→                </div>
+  2635→              </div>
+  2636→            </Card>
+  2637→          </motion.div>
+  2638→
+  2639→          {/* Polls & Predictions - gold for premium */}
+  2640→          <motion.div
+  2641→            initial={{ opacity: 0, y: 12 }}
+  2642→            animate={{ opacity: 1, y: 0 }}
+  2643→            transition={{ delay: 0.65 }}
+  2644→          >
+  2645→            <Card
+  2646→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+  2647→              onClick={() => setShowPredictions(true)}
+  2648→            >
+  2649→              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+  2650→              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+  2651→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+  2652→              <div className="flex items-center gap-3 relative z-10">
+  2653→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold/10 flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-brand-gold/20 transition-shadow shrink-0">
+  2654→                  <Sparkles className="w-4.5 h-4.5 text-brand-gold" />
+  2655→                </div>
+  2656→                <div>
+  2657→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Predictions</p>
+  2658→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Predict & win</p>
+  2659→                </div>
+  2660→              </div>
+  2661→            </Card>
+  2662→          </motion.div>
+  2663→
+  2664→          {/* Data Export - gold for premium */}
+  2665→          <motion.div
+  2666→            initial={{ opacity: 0, y: 12 }}
+  2667→            animate={{ opacity: 1, y: 0 }}
+  2668→            transition={{ delay: 0.7 }}
+  2669→          >
+  2670→            <Card
+  2671→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-slate-50/80 to-warm-50 dark:from-slate-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+  2672→              onClick={() => setShowDataExport(true)}
+  2673→            >
+  2674→              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_4.5s_ease-in-out_infinite]" />
+  2675→              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+  2676→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+  2677→              <div className="flex items-center gap-3 relative z-10">
+  2678→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-navy/30 dark:from-brand-navy-light/30 to-brand-navy/10 dark:to-brand-navy-light/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-brand-navy/20 transition-shadow shrink-0">
+  2679→                  <Download className="w-4.5 h-4.5 text-brand-navy dark:text-brand-navy-light" />
+  2680→                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
+  2681→                </div>
+  2682→                <div>
+  2683→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Export</p>
+  2684→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">CSV download</p>
+  2685→                </div>
+  2686→              </div>
+  2687→            </Card>
+  2688→          </motion.div>
+  2689→
+  2690→          {/* Sponsors - gold for premium */}
+  2691→          <motion.div
+  2692→            initial={{ opacity: 0, y: 12 }}
+  2693→            animate={{ opacity: 1, y: 0 }}
+  2694→            transition={{ delay: 0.75 }}
+  2695→          >
+  2696→            <Card
+  2697→              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+  2698→              onClick={() => setShowSponsors(true)}
+  2699→            >
+  2700→              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_5s_ease-in-out_infinite]" />
+  2701→              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+  2702→              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+  2703→              <div className="flex items-center gap-3 relative z-10">
+  2704→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/30 to-emerald-500/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-emerald-500/20 transition-shadow shrink-0">
+  2705→                  <Briefcase className="w-4.5 h-4.5 text-emerald-500" />
+  2706→                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
+  2707→                </div>
+  2708→                <div>
+  2709→                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Sponsors</p>
+  2710→                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Manage ads</p>
+  2711→                </div>
+  2712→              </div>
+  2713→            </Card>
+  2714→          </motion.div>
+  2715→        </div>
+  2716→      </section>
+  2717→
+  2718→      {/* ─── Recent Activity ─── */}
+  2719→      {!loading && recentMatches.length > 0 && (
+  2720→        <section className="px-4 mt-6">
+  2721→          <div className="flex items-center gap-2 mb-3 section-header-decorated">
+  2722→            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Recent Activity</h3>
+  2723→            <TrendingUp className="w-4 h-4 text-brand-teal" />
+  2724→          </div>
+  2725→          <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
+  2726→            <CardContent className="p-0">
+  2727→              <div className="divide-y divide-warm-200 dark:divide-warm-700">
+  2728→                {recentMatches.slice(0, 4).map((match, idx) => {
+  2729→                  const winner = match.homeScore > match.awayScore
+  2730→                    ? match.homeTeam.name
+  2731→                    : match.awayScore > match.homeScore
+  2732→                      ? match.awayTeam.name
+  2733→                      : null;
+  2734→                  return (
+  2735→                    <motion.div
+  2736→                      key={match.id}
+  2737→                      className="flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors cursor-pointer relative"
+  2738→                      onClick={() => handleRecentMatchClick(match)}
+  2739→                      initial={{ opacity: 0, x: -8 }}
+  2740→                      animate={{ opacity: 1, x: 0 }}
+  2741→                      transition={{ delay: idx * 0.12 }}
+  2742→                    >
+  2743→                      {/* Timeline dot connector */}
+  2744→                      <div className="absolute left-0 top-0 bottom-0 w-px bg-warm-200 dark:bg-warm-700" />
+  2745→                      <div className={`w-2.5 h-2.5 rounded-full shrink-0 z-10 ml-0.5 timeline-dot-pulse ${winner ? 'bg-brand-gold' : 'bg-warm-400 dark:bg-warm-500'}`} />
+  2746→                      <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-brand-red/10 to-brand-red/5">
+  2747→                        {winner ? (
+  2748→                          <Trophy className="w-3 h-3 text-brand-gold" />
+  2749→                        ) : (
+  2750→                          <Swords className="w-3 h-3 text-warm-400" />
+  2751→                        )}
+  2752→                      </div>
+  2753→                      <div className="flex-1 min-w-0">
+  2754→                        <p className="text-xs font-semibold text-warm-800 dark:text-warm-100 truncate">
+  2755→                          {match.homeTeam.name} vs {match.awayTeam.name}
+  2756→                        </p>
+  2757→                        <p className="text-[10px] text-warm-500 dark:text-warm-400">
+  2758→                          {winner ? `${winner} won` : 'Draw'} · {match.homeScore}-{match.awayScore}
+  2759→                        </p>
+
+[showing lines 2260-2759 of 2895; use offset=2760 with limit to continue reading]

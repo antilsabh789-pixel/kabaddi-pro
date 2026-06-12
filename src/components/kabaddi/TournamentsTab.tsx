@@ -104,7 +104,7 @@ function MatchProgressBar({ completed, total }: { completed: number; total: numb
         {/* Animated background shimmer */}
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_3s_infinite]" />
         <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-brand-gold via-brand-gold-light to-brand-gold relative"
+          className="h-full rounded-full bg-gradient-to-r from-brand-gold via-brand-gold-light to-brand-gold relative progress-shimmer"
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -1334,7 +1334,12 @@ export default function TournamentsTab() {
             animate={{ scale: searchFocused ? 1.1 : 1, rotate: searchFocused ? -10 : 0 }}
             transition={{ type: 'spring', stiffness: 300 }}
           >
-            <Search className={`w-4 h-4 transition-colors duration-300 ${searchFocused ? 'text-brand-red' : 'text-warm-400'}`} />
+            <motion.div
+              animate={searchFocused ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+              transition={searchFocused ? { duration: 1, repeat: Infinity, ease: 'easeInOut' } : {}}
+            >
+              <Search className={`w-4 h-4 transition-colors duration-300 ${searchFocused ? 'text-brand-red' : 'text-warm-400'}`} />
+            </motion.div>
           </motion.div>
           <Input
             placeholder="Search by name or code (e.g. TC3001)..."
@@ -1351,7 +1356,7 @@ export default function TournamentsTab() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               onClick={() => setTournamentSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 hover:bg-brand-red/10 hover:text-brand-red transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 hover:bg-brand-red/10 hover:text-brand-red transition-colors clear-btn-spin"
             >
               <X className="w-3 h-3" />
             </motion.button>
@@ -1417,7 +1422,7 @@ export default function TournamentsTab() {
             whileTap={{ scale: 0.95 }}
             className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border ${
               typeFilter === 'all'
-                ? 'bg-gradient-to-r from-warm-800 to-warm-700 dark:from-warm-200 dark:to-warm-300 text-white dark:text-warm-800 shadow-lg shadow-warm-800/10 dark:shadow-warm-200/10 border-transparent'
+                ? 'bg-gradient-to-r from-warm-800 to-warm-700 dark:from-warm-200 dark:to-warm-300 text-white dark:text-warm-800 shadow-lg shadow-warm-800/10 dark:shadow-warm-200/10 border-transparent pill-bounce'
                 : 'bg-warm-50 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
             }`}
           >
@@ -1433,7 +1438,7 @@ export default function TournamentsTab() {
                 whileTap={{ scale: 0.95 }}
                 className={`px-3.5 py-2 rounded-full text-xs font-bold capitalize transition-all duration-300 flex items-center gap-1.5 border ${
                   typeFilter === t
-                    ? `bg-gradient-to-r ${badge.gradient} text-white shadow-lg border-transparent`
+                    ? `bg-gradient-to-r ${badge.gradient} text-white shadow-lg border-transparent pill-bounce`
                     : 'bg-warm-50 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
                 }`}
               >
@@ -1481,11 +1486,23 @@ export default function TournamentsTab() {
 
             <div className="p-4 flex items-center gap-3 relative">
               <motion.div
-                className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold-dark/30 flex items-center justify-center shrink-0 shadow-lg shadow-brand-gold/10"
+                className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold-dark/30 flex items-center justify-center shrink-0 shadow-lg shadow-brand-gold/10 relative"
                 animate={{ rotate: [0, 5, -5, 0] }}
                 transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               >
                 <Crown className="w-6 h-6 text-brand-gold" />
+                {/* Floating sparkle particles */}
+                {[...Array(3)].map((_, si) => (
+                  <motion.div
+                    key={`sparkle-${si}`}
+                    className="absolute w-1 h-1 rounded-full bg-brand-gold/60 sparkle-particle"
+                    style={{
+                      left: `${20 + si * 30}%`,
+                      top: '0%',
+                      animationDelay: `${si * 0.6}s`,
+                    }}
+                  />
+                ))}
               </motion.div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Want to host your own tournament?</p>
@@ -1620,8 +1637,13 @@ export default function TournamentsTab() {
                 transition={{ delay: i * 0.07, duration: 0.35, ease: 'easeOut' }}
                 layout
               >
-                <Card className="overflow-hidden border border-warm-200/80 dark:border-warm-700/80 bg-white dark:bg-warm-800/50 relative group hover:shadow-xl hover:shadow-warm-800/5 dark:hover:shadow-warm-900/20 transition-shadow duration-300">
+                <Card className="overflow-hidden border border-warm-200/80 dark:border-warm-700/80 bg-white dark:bg-warm-800/50 relative group hover:shadow-xl hover:shadow-warm-800/5 dark:hover:shadow-warm-900/20 transition-shadow duration-300 tournament-card-lift">
                   <ShimmerOverlay />
+
+                  {/* Animated border gradient flow around card */}
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none z-0 overflow-hidden">
+                    <div className="absolute inset-0 border-gradient-flow opacity-0 group-hover:opacity-30 transition-opacity duration-500" style={{ WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude', padding: '1.5px', borderRadius: '16px' }} />
+                  </div>
 
                   {/* Gradient Left Border with animated glow */}
                   <motion.div
@@ -1698,6 +1720,24 @@ export default function TournamentsTab() {
                       <div className="flex flex-col items-end gap-2 ml-3">
                         {/* Team Count & Match Count visual indicators */}
                         <div className="flex items-center gap-1.5">
+                          {/* Team avatar stack with overlapping circles */}
+                          <div className="flex avatar-stack">
+                            {tournament.teams.slice(0, 4).map((team) => (
+                              <div
+                                key={team.id}
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-sm shrink-0"
+                                style={{ backgroundColor: team.color }}
+                                title={team.name}
+                              >
+                                {team.shortName?.charAt(0) || team.name.charAt(0)}
+                              </div>
+                            ))}
+                            {tournament.teams.length > 4 && (
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold bg-warm-200 dark:bg-warm-600 text-warm-600 dark:text-warm-300 shadow-sm shrink-0">
+                                +{tournament.teams.length - 4}
+                              </div>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100/80 dark:bg-warm-700/50 px-2 py-1 rounded-lg border border-warm-200/50 dark:border-warm-700/50">
                             <Users className="w-3 h-3 text-brand-teal" />
                             <span className="font-bold">{teamCount}</span>
@@ -1905,7 +1945,14 @@ export default function TournamentsTab() {
                                   {[...tournament.teams].sort((a, b) => b.points - a.points).map((team, idx) => {
                                     const isTopTeam = idx === 0;
                                     return (
-                                      <div key={team.id} className={`grid grid-cols-8 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2.5 text-xs transition-colors hover:bg-warm-50 dark:hover:bg-warm-700/30 ${idx > 0 ? 'border-t border-warm-50 dark:border-warm-700/30' : ''} ${isTopTeam && team.points > 0 ? 'bg-brand-gold/5 dark:bg-brand-gold/5' : ''}`}>
+                                      <motion.div
+                                        key={team.id}
+                                        className={`grid grid-cols-8 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2.5 text-xs transition-colors hover:bg-warm-50 dark:hover:bg-warm-700/30 ${idx > 0 ? 'border-t border-warm-50 dark:border-warm-700/30' : ''} ${isTopTeam && team.points > 0 ? 'bg-brand-gold/5 dark:bg-brand-gold/5' : ''}`}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: idx * 0.05, duration: 0.3 }}
+                                        whileHover={{ backgroundColor: 'rgba(245, 158, 11, 0.05)', x: 2 }}
+                                      >
                                         <span className="col-span-3 flex items-center gap-1.5 truncate">
                                           <span className={`text-[9px] font-bold w-4 text-center ${isTopTeam && team.points > 0 ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'}`}>
                                             {isTopTeam && team.points > 0 ? '🥇' : idx + 1}
@@ -1924,7 +1971,7 @@ export default function TournamentsTab() {
                                             {team.points}
                                           </span>
                                         </span>
-                                      </div>
+                                      </motion.div>
                                     );
                                   })}
                                 </div>

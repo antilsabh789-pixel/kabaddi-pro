@@ -693,17 +693,26 @@ export default function QuickScoreTab() {
 
   return (
     <div className="px-4 py-6 space-y-5">
-      {/* Step Progress Indicator - Enhanced with connected dots and animated line fills */}
+      {/* Step Progress Indicator - Enhanced with gradient progress, pulse, and animated labels */}
       <div className="relative px-2 py-3">
-        {/* Background track line */}
-        <div className="absolute top-[22px] left-6 right-6 h-[3px] bg-warm-200 dark:bg-warm-700 rounded-full" />
-        {/* Animated progress fill */}
+        {/* Background track line with shimmer */}
+        <div className="absolute top-[22px] left-6 right-6 h-[3px] bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-warm-300/50 dark:via-warm-600/30 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+        </div>
+        {/* Animated gradient progress fill */}
         <motion.div
-          className="absolute top-[22px] left-6 h-[3px] bg-gradient-to-r from-brand-red via-brand-red-light to-brand-gold rounded-full"
+          className="absolute top-[22px] left-6 h-[3px] rounded-full overflow-hidden"
+          style={{
+            background: 'linear-gradient(90deg, #DC2626, #F59E0B, #14B8A6, #DC2626)',
+            backgroundSize: '200% 100%',
+          }}
           initial={{ width: 0 }}
-          animate={{ width: `${(step / (STEPS.length - 1)) * (100 - 8)}%` }}
-          transition={{ duration: 0.6, ease: 'easeInOut' }}
-        />
+          animate={{ width: `${(step / (STEPS.length - 1)) * (100 - 8)}%`, backgroundPosition: ['0% 0%', '100% 0%'] }}
+          transition={{ width: { duration: 0.6, ease: 'easeInOut' }, backgroundPosition: { duration: 3, repeat: Infinity, ease: 'linear' } }}
+        >
+          {/* Shine sweep on progress line */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[shimmer_2s_ease-in-out_infinite]" />
+        </motion.div>
         <div className="flex items-start justify-between relative">
           {STEPS.map((label, i) => {
             const StepIcon = STEP_ICONS[i];
@@ -717,7 +726,7 @@ export default function QuickScoreTab() {
                     isCompleted
                       ? 'bg-gradient-to-br from-brand-red to-brand-red-dark text-white shadow-lg shadow-brand-red/40'
                       : isCurrent
-                        ? 'bg-brand-red text-white shadow-xl shadow-brand-red/50'
+                        ? 'bg-gradient-to-br from-brand-red to-brand-gold text-white shadow-xl shadow-brand-red/50'
                         : 'bg-warm-100 dark:bg-warm-800 text-warm-300 dark:text-warm-600'
                   }`}
                   animate={isCurrent ? {
@@ -732,12 +741,28 @@ export default function QuickScoreTab() {
                   initial={{ scale: 0.8, opacity: 0 }}
                   whileInView={{ scale: 1, opacity: 1 }}
                 >
-                  {/* Glow ring for current step */}
+                  {/* Double glow ring for current step */}
                   {isCurrent && (
+                    <>
+                      <motion.div
+                        className="absolute inset-0 rounded-full border-2 border-brand-red/30"
+                        animate={{ scale: [1, 1.5, 1], opacity: [0.6, 0, 0.6] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                      />
+                      <motion.div
+                        className="absolute inset-0 rounded-full border border-brand-gold/20"
+                        animate={{ scale: [1, 1.8, 1], opacity: [0.4, 0, 0.4] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+                      />
+                    </>
+                  )}
+                  {/* Selection ring animation on completed */}
+                  {isCompleted && (
                     <motion.div
-                      className="absolute inset-0 rounded-full border-2 border-brand-red/30"
-                      animate={{ scale: [1, 1.5, 1], opacity: [0.6, 0, 0.6] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                      className="absolute -inset-1 rounded-full border-2 border-brand-gold/40"
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     />
                   )}
                   {isCompleted ? (
@@ -752,13 +777,20 @@ export default function QuickScoreTab() {
                     <StepIcon className={`w-4 h-4 ${isFuture ? 'opacity-40' : ''}`} />
                   )}
                 </motion.div>
-                <span className={`text-[9px] font-bold tracking-wide transition-colors duration-300 ${
-                  isCompleted ? 'text-brand-red' :
-                  isCurrent ? 'text-brand-red' :
-                  'text-warm-300 dark:text-warm-600'
-                }`}>
+                {/* Animated step label with fade transition */}
+                <motion.span
+                  key={`label-${i}-${isCurrent ? 'active' : isCompleted ? 'done' : 'future'}`}
+                  initial={{ y: 4, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.3, delay: i * 0.05 }}
+                  className={`text-[9px] font-bold tracking-wide transition-colors duration-300 ${
+                    isCompleted ? 'text-brand-red' :
+                    isCurrent ? 'gradient-text' :
+                    'text-warm-300 dark:text-warm-600'
+                  }`}
+                >
                   {label}
-                </span>
+                </motion.span>
               </div>
             );
           })}
@@ -788,30 +820,47 @@ export default function QuickScoreTab() {
                   whileHover={{ scale: 1.02 }}
                   className={`relative p-6 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-3 overflow-hidden group ${
                     config.gender === 'male'
-                      ? 'border-blue-500 bg-gradient-to-br from-blue-500/20 via-blue-500/10 to-blue-600/5 shadow-xl shadow-blue-500/30'
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-600/20 via-blue-500/10 to-red-500/5 shadow-xl shadow-blue-500/30'
                       : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-blue-300 hover:shadow-md'
                   }`}
                 >
                   {config.gender === 'male' && (
                     <motion.div
-                      className="absolute inset-0 bg-gradient-to-br from-blue-500/15 via-blue-400/5 to-transparent"
+                      className="absolute inset-0 bg-gradient-to-br from-blue-500/15 via-blue-400/5 to-red-400/5"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.4 }}
                     />
                   )}
+                  {/* Floating kabaddi silhouette behind card */}
+                  <motion.div
+                    className="absolute -bottom-2 -right-2 text-7xl opacity-[0.06] dark:opacity-[0.08] select-none pointer-events-none z-0"
+                    animate={config.gender === 'male' ? { y: [0, -8, 0], rotate: [-2, 2, -2] } : {}}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    🤼
+                  </motion.div>
                   {/* Animated background circles */}
                   {config.gender === 'male' && (
-                    <motion.div
-                      className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-blue-400/10"
-                      animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                    />
+                    <>
+                      <motion.div
+                        className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-blue-400/10"
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                      />
+                      <motion.div
+                        className="absolute -bottom-6 -left-6 w-16 h-16 rounded-full bg-red-400/8"
+                        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+                      />
+                    </>
                   )}
+                  {/* Hover glow effect */}
+                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-blue-500/5 via-transparent to-red-500/5 pointer-events-none" />
                   <motion.div
                     className={`w-20 h-20 rounded-2xl flex items-center justify-center relative z-10 ${
                       config.gender === 'male'
-                        ? 'bg-gradient-to-br from-blue-400 via-blue-500 to-blue-700 shadow-lg shadow-blue-500/40'
+                        ? 'bg-gradient-to-br from-blue-400 via-blue-500 to-red-500 shadow-lg shadow-blue-500/40'
                         : 'bg-blue-50 dark:bg-blue-900/30 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40'
                     }`}
                     animate={config.gender === 'male' ? {
@@ -829,16 +878,25 @@ export default function QuickScoreTab() {
                     Boys
                   </span>
                   {config.gender === 'male' && (
-                    <motion.div
-                      className="absolute top-2.5 right-2.5 z-20"
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                    >
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md">
-                        <Check className="w-3.5 h-3.5 text-white" />
-                      </div>
-                    </motion.div>
+                    <>
+                      {/* Selection ring animation */}
+                      <motion.div
+                        className="absolute inset-0 rounded-2xl border-2 border-blue-400/30"
+                        initial={{ scale: 1.2, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.4, ease: 'easeOut' }}
+                      />
+                      <motion.div
+                        className="absolute top-2.5 right-2.5 z-20"
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-red-500 flex items-center justify-center shadow-md">
+                          <Check className="w-3.5 h-3.5 text-white" />
+                        </div>
+                      </motion.div>
+                    </>
                   )}
                 </motion.button>
                 <motion.button
@@ -847,57 +905,83 @@ export default function QuickScoreTab() {
                   whileHover={{ scale: 1.02 }}
                   className={`relative p-6 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-3 overflow-hidden group ${
                     config.gender === 'female'
-                      ? 'border-red-500 bg-gradient-to-br from-red-500/20 via-red-500/10 to-red-600/5 shadow-xl shadow-red-500/30'
-                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-red-300 hover:shadow-md'
+                      ? 'border-pink-500 bg-gradient-to-br from-pink-500/20 via-purple-500/10 to-pink-600/5 shadow-xl shadow-pink-500/30'
+                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-pink-300 hover:shadow-md'
                   }`}
                 >
                   {config.gender === 'female' && (
                     <motion.div
-                      className="absolute inset-0 bg-gradient-to-br from-red-500/15 via-red-400/5 to-transparent"
+                      className="absolute inset-0 bg-gradient-to-br from-pink-500/15 via-purple-400/5 to-transparent"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.4 }}
                     />
                   )}
+                  {/* Floating kabaddi silhouette behind card */}
+                  <motion.div
+                    className="absolute -bottom-2 -left-2 text-7xl opacity-[0.06] dark:opacity-[0.08] select-none pointer-events-none z-0 scale-x-[-1]"
+                    animate={config.gender === 'female' ? { y: [0, -6, 0], rotate: [2, -2, 2] } : {}}
+                    transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    🤼
+                  </motion.div>
                   {/* Animated background circles */}
                   {config.gender === 'female' && (
-                    <motion.div
-                      className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-red-400/10"
-                      animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                    />
+                    <>
+                      <motion.div
+                        className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-pink-400/10"
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                      />
+                      <motion.div
+                        className="absolute -bottom-6 -left-6 w-16 h-16 rounded-full bg-purple-400/8"
+                        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
+                      />
+                    </>
                   )}
+                  {/* Hover glow effect */}
+                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-pink-500/5 via-transparent to-purple-500/5 pointer-events-none" />
                   <motion.div
                     className={`w-20 h-20 rounded-2xl flex items-center justify-center relative z-10 ${
                       config.gender === 'female'
-                        ? 'bg-gradient-to-br from-red-400 via-red-500 to-red-700 shadow-lg shadow-red-500/40'
-                        : 'bg-red-50 dark:bg-red-900/30 group-hover:bg-red-100 dark:group-hover:bg-red-900/40'
+                        ? 'bg-gradient-to-br from-pink-400 via-purple-500 to-pink-600 shadow-lg shadow-pink-500/40'
+                        : 'bg-pink-50 dark:bg-pink-900/30 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/40'
                     }`}
                     animate={config.gender === 'female' ? {
                       boxShadow: [
-                        '0 4px 14px rgba(239, 68, 68, 0.4)',
-                        '0 4px 20px rgba(239, 68, 68, 0.6)',
-                        '0 4px 14px rgba(239, 68, 68, 0.4)',
+                        '0 4px 14px rgba(236, 72, 153, 0.4)',
+                        '0 4px 20px rgba(236, 72, 153, 0.6)',
+                        '0 4px 14px rgba(236, 72, 153, 0.4)',
                       ],
                     } : {}}
                     transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                   >
                     <span className="text-4xl">♀</span>
                   </motion.div>
-                  <span className={`font-bold text-lg relative z-10 ${config.gender === 'female' ? 'text-red-600 dark:text-red-400' : 'text-warm-600 dark:text-warm-300'}`}>
+                  <span className={`font-bold text-lg relative z-10 ${config.gender === 'female' ? 'text-pink-600 dark:text-pink-400' : 'text-warm-600 dark:text-warm-300'}`}>
                     Girls
                   </span>
                   {config.gender === 'female' && (
-                    <motion.div
-                      className="absolute top-2.5 right-2.5 z-20"
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                    >
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shadow-md">
-                        <Check className="w-3.5 h-3.5 text-white" />
-                      </div>
-                    </motion.div>
+                    <>
+                      {/* Selection ring animation */}
+                      <motion.div
+                        className="absolute inset-0 rounded-2xl border-2 border-pink-400/30"
+                        initial={{ scale: 1.2, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.4, ease: 'easeOut' }}
+                      />
+                      <motion.div
+                        className="absolute top-2.5 right-2.5 z-20"
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-400 to-purple-600 flex items-center justify-center shadow-md">
+                          <Check className="w-3.5 h-3.5 text-white" />
+                        </div>
+                      </motion.div>
+                    </>
                   )}
                 </motion.button>
               </div>
@@ -1233,7 +1317,7 @@ export default function QuickScoreTab() {
                   </div>
                 </div>
 
-                {/* VS Indicator - Enhanced */}
+                {/* VS Indicator - Enhanced with lightning bolt animation */}
                 <div className="flex items-center justify-center py-3">
                   <div className="flex items-center gap-3 w-full">
                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
@@ -1242,10 +1326,17 @@ export default function QuickScoreTab() {
                       animate={{ rotate: [0, 5, -5, 0] }}
                       transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                     >
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-lg">
-                        <Swords className="w-6 h-6 text-warm-500 dark:text-warm-400" />
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-lg relative overflow-hidden">
+                        <Swords className="w-6 h-6 text-warm-500 dark:text-warm-400 relative z-10" />
+                        {/* Lightning bolt flash effect */}
+                        <motion.div
+                          className="absolute inset-0 bg-gradient-to-br from-brand-gold/20 via-transparent to-brand-red/10"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: [0, 0.5, 0, 0.3, 0] }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                        />
                       </div>
-                      {/* Glow effect */}
+                      {/* Animated glow effect with pulse */}
                       <motion.div
                         className="absolute inset-0 rounded-full"
                         animate={{
@@ -1256,6 +1347,21 @@ export default function QuickScoreTab() {
                         }}
                         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                       />
+                      {/* Mini lightning bolt icons */}
+                      <motion.div
+                        className="absolute -top-2 -right-2"
+                        animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.4, 0.8, 0.4] }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                      >
+                        <Zap className="w-3 h-3 text-brand-gold" />
+                      </motion.div>
+                      <motion.div
+                        className="absolute -bottom-2 -left-2"
+                        animate={{ scale: [1.2, 0.8, 1.2], opacity: [0.4, 0.8, 0.4] }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 0.75 }}
+                      >
+                        <Zap className="w-3 h-3 text-brand-red" />
+                      </motion.div>
                     </motion.div>
                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
                   </div>
@@ -1997,7 +2103,7 @@ export default function QuickScoreTab() {
                 </div>
               )}
 
-              {/* Start Match Button - Enhanced with gradient, pulse, and shimmer */}
+              {/* Start Match Button - Enhanced with gradient, pulse, shimmer, and confetti */}
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
@@ -2009,9 +2115,32 @@ export default function QuickScoreTab() {
                   animate={{ scale: [1, 1.05, 1], opacity: [0.3, 0.5, 0.3] }}
                   transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                 />
+                {/* Confetti particles on hover */}
+                <div className="absolute inset-0 pointer-events-none overflow-visible z-20 group">
+                  {[...Array(6)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute w-2 h-2 rounded-full"
+                      style={{
+                        left: `${15 + i * 14}%`,
+                        top: '50%',
+                        backgroundColor: ['#DC2626', '#F59E0B', '#14B8A6', '#EC4899', '#8B5CF6', '#F97316'][i],
+                      }}
+                      initial={{ scale: 0, y: 0, opacity: 0 }}
+                      whileHover={{
+                        scale: [0, 1.5, 0],
+                        y: [-20 - Math.random() * 40, -60 - Math.random() * 40],
+                        x: [(i - 2.5) * 15, (i - 2.5) * 30],
+                        opacity: [0, 1, 0],
+                        rotate: [0, 180 + Math.random() * 180],
+                      }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                    />
+                  ))}
+                </div>
                 <Button
                   onClick={handleStart}
-                  className="relative w-full h-16 bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-red hover:from-brand-red-dark hover:to-brand-red text-white rounded-2xl font-bold text-lg shadow-2xl shadow-brand-red/40 overflow-hidden"
+                  className="relative w-full h-16 bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-red hover:from-brand-red-dark hover:to-brand-red text-white rounded-2xl font-bold text-lg shadow-2xl shadow-brand-red/40 overflow-hidden group"
                 >
                   {/* Animated shimmer */}
                   <motion.div
@@ -2032,7 +2161,16 @@ export default function QuickScoreTab() {
                     >
                       <Play className="w-6 h-6" />
                     </motion.div>
-                    Start Match!
+                    <span className="flex flex-col items-start">
+                      <motion.span
+                        className="text-sm leading-tight"
+                        animate={{ opacity: [0.7, 1, 0.7] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                      >
+                        Ready to Rumble?
+                      </motion.span>
+                      <span className="text-base leading-tight">Start Match!</span>
+                    </span>
                   </span>
                 </Button>
               </motion.div>

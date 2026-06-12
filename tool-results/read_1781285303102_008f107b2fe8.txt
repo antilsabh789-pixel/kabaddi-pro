@@ -1,0 +1,502 @@
+  1200→          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-brand-red/6" />
+  1201→        </div>
+  1202→        {/* Parallax shimmer overlay */}
+  1203→        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+  1204→
+  1205→        <div className="flex items-center justify-between relative z-10">
+  1206→          <div>
+  1207→            <p className="text-warm-500 dark:text-warm-400 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
+  1208→              <span>{getTimeEmoji()}</span>
+  1209→              <span>{getTimeGreeting()}</span>
+  1210→            </p>
+  1211→            <h2 className="text-2xl font-black text-warm-800 dark:text-warm-100 mt-0.5 flex items-center gap-2">
+  1212→              <span className="bg-gradient-to-r from-warm-800 via-brand-red-dark to-warm-800 dark:from-warm-100 dark:via-brand-red-light dark:to-warm-100 bg-clip-text text-transparent">
+  1213→                {currentUser?.name ?? 'Player'}
+  1214→              </span>
+  1215→              {/* Position Badge */}
+  1216→              {currentUser?.role && (
+  1217→                <motion.span
+  1218→                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide shadow-sm"
+  1219→                  initial={{ scale: 0 }}
+  1220→                  animate={{ scale: 1 }}
+  1221→                  transition={{ type: 'spring', damping: 12, stiffness: 280, delay: 0.2 }}
+  1222→                  style={{
+  1223→                    backgroundColor: currentUser.role.toLowerCase() === 'raider' ? 'rgba(220,38,38,0.15)'
+  1224→                      : currentUser.role.toLowerCase() === 'defender' ? 'rgba(30,41,59,0.15)'
+  1225→                      : 'rgba(245,158,11,0.15)',
+  1226→                    color: currentUser.role.toLowerCase() === 'raider' ? '#DC2626'
+  1227→                      : currentUser.role.toLowerCase() === 'defender' ? '#1E293B'
+  1228→                      : '#D97706',
+  1229→                    boxShadow: currentUser.role.toLowerCase() === 'raider' ? '0 2px 8px rgba(220,38,38,0.15)'
+  1230→                      : currentUser.role.toLowerCase() === 'defender' ? '0 2px 8px rgba(30,41,59,0.15)'
+  1231→                      : '0 2px 8px rgba(245,158,11,0.15)',
+  1232→                  }}
+  1233→                >
+  1234→                  {currentUser.role.toLowerCase() === 'raider' && <Swords className="w-2.5 h-2.5" />}
+  1235→                  {currentUser.role.toLowerCase() === 'defender' && <Shield className="w-2.5 h-2.5" />}
+  1236→                  {currentUser.role.toLowerCase() !== 'raider' && currentUser.role.toLowerCase() !== 'defender' && <Zap className="w-2.5 h-2.5" />}
+  1237→                  {currentUser.role}
+  1238→                </motion.span>
+  1239→              )}
+  1240→              {/* Gender icon */}
+  1241→              {currentUser?.gender && (
+  1242→                <span
+  1243→                  className={currentUser.gender.toLowerCase() === 'female' || currentUser.gender.toLowerCase() === 'girls'
+  1244→                    ? 'text-brand-red'
+  1245→                    : 'text-brand-blue dark:text-brand-teal'
+  1246→                  }
+  1247→                >
+  1248→                  {genderIcon}
+  1249→                </span>
+  1250→              )}
+  1251→              {/* Streak/Fire icon for active players */}
+  1252→              {(recentMatches.length > 0 || liveMatches.length > 0) && (
+  1253→                <motion.span
+  1254→                  className="fire-flicker"
+  1255→                  initial={{ scale: 0 }}
+  1256→                  animate={{ scale: 1 }}
+  1257→                  transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.4 }}
+  1258→                >
+  1259→                  <Flame className="w-4 h-4 text-brand-gold" />
+  1260→                </motion.span>
+  1261→              )}
+  1262→            </h2>
+  1263→          </div>
+  1264→          {/* Player Code - enhanced */}
+  1265→          {currentUser?.playerCode && (
+  1266→            <motion.button
+  1267→              onClick={handleCopyPlayerCode}
+  1268→              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-br from-warm-100 to-warm-50 dark:from-warm-800 dark:to-warm-700 border border-warm-200 dark:border-warm-600 hover:border-brand-gold/50 hover:shadow-md hover:shadow-brand-gold/10 transition-all duration-200 active:scale-95 relative overflow-hidden group"
+  1269→              whileTap={{ scale: 0.95 }}
+  1270→            >
+  1271→              <div className="absolute inset-0 bg-gradient-to-r from-brand-gold/0 via-brand-gold/5 to-brand-gold/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+  1272→              <span className="text-[10px] font-mono font-black text-brand-red dark:text-brand-red-light tracking-wider">{currentUser.playerCode}</span>
+  1273→              {copiedCode ? (
+  1274→                <Check className="w-3 h-3 text-emerald-500" />
+  1275→              ) : (
+  1276→                <Copy className="w-3 h-3 text-warm-400 group-hover:text-brand-gold transition-colors" />
+  1277→              )}
+  1278→            </motion.button>
+  1279→          )}
+  1280→        </div>
+  1281→      </motion.div>
+  1282→
+  1283→      {/* ─── Quick Stats Banner ─── */}
+  1284→      <div className="px-4 mt-2">
+  1285→        <motion.div
+  1286→          className="bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-navy rounded-2xl p-5 shadow-xl shadow-brand-red/25 overflow-hidden relative"
+  1287→          initial={{ opacity: 0, y: 12, scale: 0.97 }}
+  1288→          animate={{ opacity: 1, y: 0, scale: 1 }}
+  1289→          transition={{ duration: 0.5, delay: 0.15 }}
+  1290→        >
+  1291→          {/* Decorative elements */}
+  1292→          <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
+  1293→          <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full bg-white/5" />
+  1294→          <div className="absolute top-2 right-20 w-8 h-8 rounded-full bg-white/5" />
+  1295→          {/* Court line pattern decorations */}
+  1296→          <div className="absolute top-0 left-1/4 w-px h-full bg-white/5" />
+  1297→          <div className="absolute top-0 left-1/2 w-px h-full bg-white/5" />
+  1298→          <div className="absolute top-1/2 left-0 right-0 h-px bg-white/5" />
+  1299→          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-white/5" />
+  1300→          {/* Enhanced parallax shimmer overlay */}
+  1301→          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+  1302→          <div className="absolute inset-0 bg-gradient-to-br from-brand-gold/5 via-transparent to-brand-teal/5" />
+  1303→          <div className="relative z-10">
+  1304→            <div className="flex items-center justify-between mb-4">
+  1305→              <div className="flex items-center gap-2">
+  1306→                <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center backdrop-blur-sm border border-white/10">
+  1307→                  <Shield className="w-4 h-4 text-yellow-300" />
+  1308→                </div>
+  1309→                <span className="text-white/80 text-[10px] font-bold uppercase tracking-widest">Your Stats</span>
+  1310→              </div>
+  1311→              {currentUser?.playerCode && (
+  1312→                <div className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm">
+  1313→                  <span className="text-white/90 text-[10px] font-mono font-bold tracking-wider">{currentUser.playerCode}</span>
+  1314→                </div>
+  1315→              )}
+  1316→            </div>
+  1317→            <div className="grid grid-cols-3 gap-3">
+  1318→              <motion.div
+  1319→                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group"
+  1320→                whileHover={{ scale: 1.05 }}
+  1321→                whileTap={{ scale: 0.97 }}
+  1322→                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+  1323→              >
+  1324→                <div className="absolute inset-0 bg-gradient-to-b from-brand-gold/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+  1325→                <div className="flex items-center justify-center gap-1 relative z-10">
+  1326→                  <Swords className="w-3.5 h-3.5 text-brand-gold-light" />
+  1327→                </div>
+  1328→                <div className="text-2xl font-black text-white mt-1 relative z-10">
+  1329→                  <AnimatedCounter target={raidPts} />
+  1330→                </div>
+  1331→                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Raid Pts</div>
+  1332→              </motion.div>
+  1333→              <motion.div
+  1334→                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer border-x border-white/10 relative overflow-hidden group"
+  1335→                whileHover={{ scale: 1.05 }}
+  1336→                whileTap={{ scale: 0.97 }}
+  1337→                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+  1338→              >
+  1339→                <div className="absolute inset-0 bg-gradient-to-b from-brand-teal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+  1340→                <div className="flex items-center justify-center gap-1 relative z-10">
+  1341→                  <Target className="w-3.5 h-3.5 text-brand-gold-light" />
+  1342→                </div>
+  1343→                <div className="text-2xl font-black text-white mt-1 relative z-10">
+  1344→                  <AnimatedCounter target={tacklePts} />
+  1345→                </div>
+  1346→                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Tackle Pts</div>
+  1347→              </motion.div>
+  1348→              <motion.div
+  1349→                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group"
+  1350→                whileHover={{ scale: 1.05 }}
+  1351→                whileTap={{ scale: 0.97 }}
+  1352→                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+  1353→              >
+  1354→                <div className="absolute inset-0 bg-gradient-to-b from-brand-red/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+  1355→                <div className="flex items-center justify-center gap-1 relative z-10">
+  1356→                  <Flame className="w-3.5 h-3.5 text-brand-gold-light" />
+  1357→                </div>
+  1358→                <div className="text-2xl font-black text-white mt-1 relative z-10">
+  1359→                  <AnimatedCounter target={totalMatches} />
+  1360→                </div>
+  1361→                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Matches</div>
+  1362→              </motion.div>
+  1363→            </div>
+  1364→          </div>
+  1365→        </motion.div>
+  1366→      </div>
+  1367→
+  1368→      {/* ─── Error State ─── */}
+  1369→      {error && (
+  1370→        <section className="px-4 mt-4">
+  1371→          <Card className="bg-brand-red/20 border-brand-red/30 py-0 gap-0">
+  1372→            <CardContent className="p-4 flex items-center gap-3">
+  1373→              <Zap className="w-5 h-5 text-brand-red shrink-0" />
+  1374→              <p className="text-warm-700 dark:text-warm-300 text-sm flex-1">{error}</p>
+  1375→              <Button
+  1376→                variant="outline"
+  1377→                size="sm"
+  1378→                onClick={handleRetry}
+  1379→                className="text-brand-red border-brand-red/30 hover:bg-brand-red/20 text-xs"
+  1380→              >
+  1381→                Retry
+  1382→              </Button>
+  1383→            </CardContent>
+  1384→          </Card>
+  1385→        </section>
+  1386→      )}
+  1387→
+  1388→      {/* ─── Live Matches (FREE) ─── */}
+  1389→      <section className="px-4 mt-5">
+  1390→        <div className="flex items-center justify-between mb-3 section-header-decorated">
+  1391→          <div className="flex items-center gap-2">
+  1392→            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
+  1393→              Live Matches
+  1394→            </h3>
+  1395→            <span className="relative flex h-2.5 w-2.5">
+  1396→              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
+  1397→              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
+  1398→            </span>
+  1399→            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] border-0 font-semibold">
+  1400→              FREE
+  1401→            </Badge>
+  1402→          </div>
+  1403→        </div>
+  1404→
+  1405→        {/* Gender Filter Toggles */}
+  1406→        <div className="flex items-center gap-2 mb-3">
+  1407→          <button
+  1408→            onClick={() => setGenderFilter('all')}
+  1409→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1410→              genderFilter === 'all'
+  1411→                ? 'bg-warm-800 dark:bg-warm-100 text-warm-50 dark:text-warm-900 shadow-sm'
+  1412→                : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+  1413→            }`}
+  1414→          >
+  1415→            All
+  1416→          </button>
+  1417→          <button
+  1418→            onClick={() => setGenderFilter('boys')}
+  1419→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1420→              genderFilter === 'boys'
+  1421→                ? 'bg-brand-blue text-white shadow-sm'
+  1422→                : 'bg-brand-blue/10 text-brand-blue dark:text-brand-navy-light hover:bg-brand-blue/20'
+  1423→            }`}
+  1424→          >
+  1425→            ♂ Boys
+  1426→          </button>
+  1427→          <button
+  1428→            onClick={() => setGenderFilter('girls')}
+  1429→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1430→              genderFilter === 'girls'
+  1431→                ? 'bg-brand-red text-white shadow-sm'
+  1432→                : 'bg-brand-red/10 text-brand-red hover:bg-brand-red/20'
+  1433→            }`}
+  1434→          >
+  1435→            ♀ Girls
+  1436→          </button>
+  1437→        </div>
+  1438→
+  1439→        <AnimatePresence mode="wait">
+  1440→          {loading ? (
+  1441→            <motion.div
+  1442→              key="loading"
+  1443→              className="flex flex-col gap-3"
+  1444→              initial={{ opacity: 0 }}
+  1445→              animate={{ opacity: 1 }}
+  1446→              exit={{ opacity: 0 }}
+  1447→            >
+  1448→              <LiveMatchSkeleton />
+  1449→              <LiveMatchSkeleton />
+  1450→            </motion.div>
+  1451→          ) : filteredMatches.length > 0 ? (
+  1452→            <motion.div
+  1453→              key="matches"
+  1454→              className="flex flex-col gap-3"
+  1455→              variants={stagger}
+  1456→              initial="hidden"
+  1457→              animate="show"
+  1458→            >
+  1459→              {filteredMatches.map((match) => (
+  1460→                <motion.div key={match.id} variants={fadeUp}>
+  1461→                  <motion.div
+  1462→                    variants={cardHover}
+  1463→                    initial="rest"
+  1464→                    whileHover="hover"
+  1465→                    whileTap={{ scale: 0.98 }}
+  1466→                  >
+  1467→                    <Card
+  1468→                      className="bg-warm-100 dark:bg-warm-800 cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden relative live-card-glow"
+  1469→                      style={{
+  1470→                        borderColor: 'transparent',
+  1471→                        boxShadow: `0 0 0 1px rgba(220,38,38,0.15), 0 4px 24px -4px ${match.homeTeam.color || '#DC2626'}15, 0 4px 24px -4px ${match.awayTeam.color || '#1E293B'}15`,
+  1472→                      }}
+  1473→                      onClick={() => handleMatchClick(match)}
+  1474→                    >
+  1475→                      {/* Team color gradient border strip at top */}
+  1476→                      <div
+  1477→                        className="h-2 w-full relative"
+  1478→                        style={{
+  1479→                          background: `linear-gradient(90deg, ${match.homeTeam.color || '#DC2626'}, ${match.awayTeam.color || '#1E293B'})`,
+  1480→                        }}
+  1481→                      >
+  1482→                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+  1483→                      </div>
+  1484→                      {/* Subtle background glow matching dominant team color */}
+  1485→                      <div
+  1486→                        className="absolute inset-0 pointer-events-none"
+  1487→                        style={{
+  1488→                          background: `radial-gradient(ellipse at 30% 50%, ${match.homeScore >= match.awayScore ? (match.homeTeam.color || '#DC2626') : (match.awayTeam.color || '#1E293B')}08, transparent 70%)`,
+  1489→                        }}
+  1490→                      />
+  1491→                      {/* Animated background particles */}
+  1492→                      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+  1493→                        {[...Array(4)].map((_, i) => (
+  1494→                          <motion.div
+  1495→                            key={`particle-${match.id}-${i}`}
+  1496→                            className="absolute w-1 h-1 rounded-full"
+  1497→                            style={{
+  1498→                              left: `${20 + i * 20}%`,
+  1499→                              top: '60%',
+  1500→                              backgroundColor: i % 2 === 0 ? 'rgba(220,38,38,0.15)' : 'rgba(245,158,11,0.15)',
+  1501→                            }}
+  1502→                            animate={{
+  1503→                              y: [0, -20, -30],
+  1504→                              opacity: [0.3, 0.5, 0],
+  1505→                              scale: [1, 1.2, 0.8],
+  1506→                            }}
+  1507→                            transition={{
+  1508→                              duration: 2.5,
+  1509→                              repeat: Infinity,
+  1510→                              delay: i * 0.6,
+  1511→                              ease: 'easeOut',
+  1512→                            }}
+  1513→                          />
+  1514→                        ))}
+  1515→                      </div>
+  1516→                      <CardContent className="p-4 relative z-10">
+  1517→                        {/* Confetti on score change */}
+  1518→                        <ConfettiParticles trigger={match.homeScore + match.awayScore} />
+  1519→                        <div className="flex items-center justify-between mb-3">
+  1520→                          <div className="flex items-center gap-2">
+  1521→                            {/* Enhanced pulsing LIVE indicator with ring animation */}
+  1522→                            <Badge
+  1523→                              variant="secondary"
+  1524→                              className="bg-brand-red/20 text-brand-red text-[10px] font-bold border border-brand-red/20 px-2.5 py-1 flex items-center gap-1.5 live-badge-dramatic relative"
+  1525→                            >
+  1526→                              <span className="relative flex h-2.5 w-2.5">
+  1527→                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
+  1528→                                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-brand-red/30 ring-2 ring-brand-red/20" />
+  1529→                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
+  1530→                              </span>
+  1531→                              LIVE
+  1532→                            </Badge>
+  1533→                            {match.gender && (
+  1534→                              <Badge
+  1535→                                variant="secondary"
+  1536→                                className={`text-[10px] font-semibold border-0 px-2 py-0.5 ${
+  1537→                                  match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
+  1538→                                    ? 'bg-brand-red/15 text-brand-red'
+  1539→                                    : 'bg-brand-blue/15 text-brand-blue dark:text-brand-navy-light'
+  1540→                                }`}
+  1541→                              >
+  1542→                                {match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
+  1543→                                  ? '♀ Girls Match'
+  1544→                                  : '♂ Boys Match'}
+  1545→                              </Badge>
+  1546→                            )}
+  1547→                          </div>
+  1548→                          <span className="text-xs text-warm-500 dark:text-warm-400 font-medium bg-warm-200/50 dark:bg-warm-700/50 px-2 py-0.5 rounded-md">
+  1549→                            {halfLabel(match.half)}
+  1550→                          </span>
+  1551→                        </div>
+  1552→                        <div className="flex items-center justify-between">
+  1553→                          <div className="flex flex-col items-center gap-1 flex-1">
+  1554→                            <div
+  1555→                              className="w-12 h-12 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-md relative"
+  1556→                              style={{
+  1557→                                borderColor: match.homeTeam.color || '#DC2626',
+  1558→                                borderWidth: 3,
+  1559→                                boxShadow: `0 2px 12px ${match.homeTeam.color || '#DC2626'}25`,
+  1560→                              }}
+  1561→                            >
+  1562→                              {getTeamShortName(match.homeTeam)}
+  1563→                            </div>
+  1564→                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight font-medium">
+  1565→                              {match.homeTeam.name}
+  1566→                            </span>
+  1567→                          </div>
+  1568→                          <div className="flex items-center gap-2 px-3">
+  1569→                            <span className="text-4xl font-black tabular-nums" style={{ color: match.homeTeam.color || '#DC2626' }}>
+  1570→                              <NumberTicker value={match.homeScore} />
+  1571→                            </span>
+  1572→                            <div className="flex flex-col items-center gap-0.5">
+  1573→                              <span className="text-warm-400 text-[10px] font-bold uppercase tracking-wider">
+  1574→                                vs
+  1575→                              </span>
+  1576→                              <div className="w-1 h-1 rounded-full bg-brand-red animate-pulse" />
+  1577→                            </div>
+  1578→                            <span className="text-4xl font-black tabular-nums" style={{ color: match.awayTeam.color || '#1E293B' }}>
+  1579→                              <NumberTicker value={match.awayScore} />
+  1580→                            </span>
+  1581→                          </div>
+  1582→                          <div className="flex flex-col items-center gap-1 flex-1">
+  1583→                            <div
+  1584→                              className="w-12 h-12 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-md relative"
+  1585→                              style={{
+  1586→                                borderColor: match.awayTeam.color || '#1E293B',
+  1587→                                borderWidth: 3,
+  1588→                                boxShadow: `0 2px 12px ${match.awayTeam.color || '#1E293B'}25`,
+  1589→                              }}
+  1590→                            >
+  1591→                              {getTeamShortName(match.awayTeam)}
+  1592→                            </div>
+  1593→                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight font-medium">
+  1594→                              {match.awayTeam.name}
+  1595→                            </span>
+  1596→                          </div>
+  1597→                        </div>
+  1598→                        {/* Mini Scoreboard Visualization - colored team bars showing score proportion */}
+  1599→                        <div className="mt-3 px-2">
+  1600→                          <div className="flex items-center justify-between mb-1">
+  1601→                            <span className="text-[9px] font-bold text-warm-500 dark:text-warm-400 uppercase">
+  1602→                              {halfLabel(match.half)}
+  1603→                            </span>
+  1604→                            <span className="text-[9px] font-medium text-warm-400 dark:text-warm-500">
+  1605→                              {match.half === 1 ? '1st' : '2nd'} Half
+  1606→                            </span>
+  1607→                          </div>
+  1608→                          {/* Score proportion bar */}
+  1609→                          <div className="h-2.5 w-full rounded-full overflow-hidden flex gap-0.5">
+  1610→                            <motion.div
+  1611→                              className="h-full rounded-l-full relative"
+  1612→                              style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+  1613→                              initial={{ width: '0%' }}
+  1614→                              animate={{
+  1615→                                width: `${((match.homeScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+  1616→                              }}
+  1617→                              transition={{ duration: 0.8, ease: 'easeOut' }}
+  1618→                            >
+  1619→                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+  1620→                            </motion.div>
+  1621→                            <motion.div
+  1622→                              className="h-full rounded-r-full relative"
+  1623→                              style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+  1624→                              initial={{ width: '0%' }}
+  1625→                              animate={{
+  1626→                                width: `${((match.awayScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+  1627→                              }}
+  1628→                              transition={{ duration: 0.8, ease: 'easeOut' }}
+  1629→                            >
+  1630→                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent animate-[shimmer_5s_ease-in-out_infinite]" />
+  1631→                            </motion.div>
+  1632→                          </div>
+  1633→                        </div>
+  1634→                        {match.tournament && (
+  1635→                          <p className="text-[10px] text-warm-500 dark:text-warm-400 text-center mt-2">
+  1636→                            {match.tournament.name}
+  1637→                          </p>
+  1638→                        )}
+  1639→                      </CardContent>
+  1640→                      {/* Live Commentary Ticker */}
+  1641→                      <LiveCommentaryTicker
+  1642→                        mode="compact"
+  1643→                        events={
+  1644→                          activeMatch && activeMatch.id === match.id
+  1645→                            ? activeMatch.events
+  1646→                            : []
+  1647→                        }
+  1648→                        match={
+  1649→                          activeMatch && activeMatch.id === match.id
+  1650→                            ? toCommentaryMatchInfo(activeMatch)
+  1651→                            : {
+  1652→                                homeTeamId: match.homeTeam.id,
+  1653→                                awayTeamId: match.awayTeam.id,
+  1654→                                homeTeam: match.homeTeam.name,
+  1655→                                awayTeam: match.awayTeam.name,
+  1656→                                homeTeamColor: match.homeTeam.color ?? '#DC2626',
+  1657→                                awayTeamColor: match.awayTeam.color ?? '#1E293B',
+  1658→                              }
+  1659→                        }
+  1660→                        onExpand={() => handleMatchClick(match)}
+  1661→                      />
+  1662→                    </Card>
+  1663→                  </motion.div>
+  1664→                </motion.div>
+  1665→              ))}
+  1666→            </motion.div>
+  1667→          ) : (
+  1668→            <motion.div
+  1669→              key="empty"
+  1670→              initial={{ opacity: 0, y: 8 }}
+  1671→              animate={{ opacity: 1, y: 0 }}
+  1672→              exit={{ opacity: 0 }}
+  1673→            >
+  1674→              <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
+  1675→                <CardContent className="flex flex-col items-center justify-center py-10 px-4">
+  1676→                  <div className="relative mb-4">
+  1677→                    <div className="w-16 h-16 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center">
+  1678→                      <Radio className="w-8 h-8 text-warm-400 dark:text-warm-500" />
+  1679→                    </div>
+  1680→                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-warm-300 dark:bg-warm-600 flex items-center justify-center">
+  1681→                      <span className="text-[8px]">💤</span>
+  1682→                    </div>
+  1683→                  </div>
+  1684→                  <p className="text-warm-700 dark:text-warm-200 text-sm font-bold">
+  1685→                    {genderFilter !== 'all'
+  1686→                      ? `No live ${genderFilter} matches right now`
+  1687→                      : 'No Live Matches'}
+  1688→                  </p>
+  1689→                  <p className="text-warm-500 dark:text-warm-400 text-xs mt-1 text-center">
+  1690→                    Matches will appear here when they go live
+  1691→                  </p>
+  1692→                  <Button
+  1693→                    variant="outline"
+  1694→                    size="sm"
+  1695→                    className="mt-4 text-brand-red border-brand-red/30 hover:bg-brand-red/10 text-xs font-semibold"
+  1696→                    onClick={() => {
+  1697→                      // Navigate to quick score via store
+  1698→                      toast({ title: 'Start Scoring', description: 'Go to the Quick Score tab to start a match!' });
+  1699→                    }}
+
+[showing lines 1200-1699 of 2895; use offset=1700 with limit to continue reading]

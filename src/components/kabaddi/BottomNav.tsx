@@ -126,12 +126,18 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
       role="tablist"
       aria-label="Main navigation"
     >
-      {/* Gradient top border */}
-      <div className="h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
+      {/* Gradient top border - enhanced with animated shimmer */}
+      <div className="h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent relative overflow-hidden">
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/40 to-transparent"
+          animate={{ x: ['-100%', '100%'] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+        />
+      </div>
 
-      {/* Frosted glass nav bar */}
-      <div className="glass-effect dark:bg-warm-900/80 border-t border-white/10 dark:border-warm-700/30 shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.1)] dark:shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.4)]">
-        {/* Sliding indicator bar */}
+      {/* Frosted glass nav bar - enhanced with stronger glassmorphism */}
+      <div className="glass-effect dark:bg-warm-900/85 border-t border-white/10 dark:border-warm-700/30 shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.1)] dark:shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        {/* Sliding indicator bar with gradient glow */}
         <div className="max-w-lg mx-auto relative">
           <motion.div
             className="absolute top-0 h-[2px] bg-gradient-to-r from-brand-red to-brand-gold rounded-full"
@@ -141,10 +147,13 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
               left: `${activeTabIndex * 25}%`,
             }}
             transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-          />
+          >
+            {/* Glow under the indicator */}
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-2 bg-brand-red/30 rounded-full blur-sm" />
+          </motion.div>
         </div>
 
-        <div className="max-w-lg mx-auto flex items-center justify-around px-2 pt-2 pb-3 relative">
+        <div className="max-w-lg mx-auto flex items-center justify-around px-2 pt-2 pb-3 relative" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
           {tabs.map((tab, index) => {
             const isActive = activeTab === tab.id;
             const isQuickScore = tab.id === 'quick-score';
@@ -174,7 +183,7 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
 
                 {isQuickScore ? (
                   <>
-                    {/* Quick Score Center Button */}
+                    {/* Quick Score Center Button - Enhanced with animated border */}
                     <motion.div
                       className="relative"
                       whileHover={{ scale: 1.05 }}
@@ -192,22 +201,22 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                         setShowLiveTooltip(false);
                       }}
                     >
-                      {/* Glow effect when live */}
+                      {/* Glow effect when live - enhanced with gradient */}
                       {hasLiveMatch && (
                         <motion.div
                           className="absolute inset-0 rounded-full"
                           animate={{
                             boxShadow: [
-                              '0 0 8px rgba(220,38,38,0.3)',
-                              '0 0 24px rgba(220,38,38,0.6)',
-                              '0 0 8px rgba(220,38,38,0.3)',
+                              '0 0 8px rgba(220,38,38,0.3), 0 0 20px rgba(245,158,11,0.1)',
+                              '0 0 24px rgba(220,38,38,0.6), 0 0 40px rgba(245,158,11,0.2)',
+                              '0 0 8px rgba(220,38,38,0.3), 0 0 20px rgba(245,158,11,0.1)',
                             ],
                           }}
                           transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                         />
                       )}
 
-                      {/* Main button */}
+                      {/* Main button - enhanced with animated border ring */}
                       <div
                         className={`relative flex items-center justify-center w-16 h-16 rounded-full shadow-xl transition-all duration-300 ${
                           isActive
@@ -219,31 +228,43 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                       >
                         <Icon className="w-7 h-7 text-white" strokeWidth={2.5} />
 
-                        {/* Pulsing red dot for live match */}
+                        {/* Animated border ring on active */}
+                        {isActive && (
+                          <motion.div
+                            className="absolute inset-0 rounded-full border-2 border-white/20"
+                            animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                          />
+                        )}
+
+                        {/* Pulsing red dot for live match - enhanced with glow */}
                         {hasLiveMatch && !isActive && (
                           <span className="absolute -top-1 -right-1 flex">
                             <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
-                            <span className="relative inline-flex w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white dark:border-warm-900" />
+                            <span className="relative inline-flex w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white dark:border-warm-900 shadow-lg shadow-red-500/50" />
                           </span>
                         )}
                       </div>
 
-                      {/* Live Score Tooltip */}
+                      {/* Live Score Tooltip - Enhanced with better positioning */}
                       <AnimatePresence>
                         {showLiveTooltip && hasLiveMatch && liveScoreText && (
                           <motion.div
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 4 }}
+                            initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 4, scale: 0.95 }}
                             className="live-score-tooltip"
                           >
-                            🔴 {liveScoreText}
+                            <span className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                              {liveScoreText}
+                            </span>
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </motion.div>
 
-                    {/* Quick Score label */}
+                    {/* Quick Score label - enhanced */}
                     <span
                       className={`text-[10px] font-semibold mt-1.5 transition-colors duration-200 ${
                         isActive
@@ -255,15 +276,24 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                     </span>
                   </>
                 ) : (
-                  /* Regular tab items */
+                  /* Regular tab items - Enhanced with active gradient bg */
                   <>
                     <motion.div
                       className="relative"
                       animate={{ scale: isActive ? 1.1 : 1 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                     >
+                      {/* Active background glow */}
+                      {isActive && (
+                        <motion.div
+                          className="absolute -inset-2 rounded-xl bg-brand-red/8 dark:bg-brand-red/10"
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.3 }}
+                        />
+                      )}
                       <Icon
-                        className={`w-5 h-5 transition-colors duration-200 ${
+                        className={`w-5 h-5 transition-colors duration-200 relative z-10 ${
                           isActive
                             ? 'text-brand-red'
                             : 'text-warm-400 dark:text-warm-500'
@@ -271,12 +301,12 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                         strokeWidth={isActive ? 2.5 : 2}
                       />
 
-                      {/* Notification badge on Home tab */}
+                      {/* Notification badge on Home tab - enhanced with glow */}
                       {tab.id === 'home' && unreadCount > 0 && (
                         <motion.div
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 badge-glow ${
+                          className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-brand-red/30 ${
                             unreadCount > 0 ? 'animate-breathe' : ''
                           }`}
                           aria-label={`${unreadCount} unread notifications`}
@@ -285,11 +315,15 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                         </motion.div>
                       )}
 
-                      {/* Premium crown indicator on Profile tab */}
+                      {/* Premium crown indicator on Profile tab - enhanced */}
                       {isProfile && isPremium && (
-                        <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-brand-gold flex items-center justify-center">
+                        <motion.div
+                          className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-brand-gold flex items-center justify-center shadow-sm shadow-brand-gold/30"
+                          animate={{ y: [0, -1, 0] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                        >
                           <Crown className="w-2 h-2 text-white" />
-                        </div>
+                        </motion.div>
                       )}
 
                       {/* Premium lock indicator on Tournaments tab for free users */}
@@ -311,12 +345,12 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                       {tab.label}
                     </span>
 
-                    {/* Active indicator dot */}
+                    {/* Active indicator dot - enhanced with morphing */}
                     <AnimatePresence>
                       {isActive && (
                         <motion.div
                           layoutId="nav-indicator"
-                          className="w-1 h-1 rounded-full bg-brand-red"
+                          className="w-1 h-1 rounded-full bg-gradient-to-r from-brand-red to-brand-gold"
                           initial={{ scale: 0, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           exit={{ scale: 0, opacity: 0 }}
@@ -330,22 +364,27 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
             );
           })}
 
-          {/* Notification Bell Button */}
+          {/* Notification Bell Button - Enhanced with shake and glow */}
           {onNotificationOpen && (
             <motion.button
-              className="absolute top-1 right-1 flex items-center justify-center w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-200/20 transition-colors"
+              className="absolute top-1 right-1 flex items-center justify-center w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-200/20 transition-colors hover:bg-warm-200 dark:hover:bg-warm-200/30"
               onClick={onNotificationOpen}
               whileTap={{ scale: 0.85 }}
               aria-label={`Notifications${unreadCount > 0 ? ` - ${unreadCount} unread` : ''}`}
             >
-              <Bell className={`w-4 h-4 ${unreadCount > 0 ? 'text-brand-red' : 'text-warm-400 dark:text-warm-500'}`} />
+              <motion.div
+                animate={unreadCount > 0 ? { rotate: [0, -15, 15, -10, 10, 0] } : {}}
+                transition={{ duration: 0.5, repeat: unreadCount > 0 ? 3 : 0, ease: 'easeInOut', repeatDelay: 5 }}
+              >
+                <Bell className={`w-4 h-4 ${unreadCount > 0 ? 'text-brand-red' : 'text-warm-400 dark:text-warm-500'}`} />
+              </motion.div>
 
-              {/* Notification counter badge */}
+              {/* Notification counter badge - enhanced with glow */}
               {unreadCount > 0 && (
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 rounded-full bg-brand-red text-white text-[8px] font-bold flex items-center justify-center px-0.5 badge-glow"
+                  className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 rounded-full bg-brand-red text-white text-[8px] font-bold flex items-center justify-center px-0.5 shadow-md shadow-brand-red/30"
                 >
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </motion.div>

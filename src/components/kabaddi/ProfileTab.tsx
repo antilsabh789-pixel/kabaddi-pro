@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import { useTheme } from 'next-themes';
 import { Card } from '@/components/ui/card';
@@ -37,6 +37,8 @@ import PollsScreen from './PollsScreen';
 import SponsorScreen from './SponsorScreen';
 import PlayerStatsScreen from './PlayerStatsScreen';
 import PlayerProfileCard from './PlayerProfileCard';
+import TeamChatScreen from './TeamChatScreen';
+import DailyChallengeScreen from './DailyChallengeScreen';
 import { t } from '@/lib/i18n';
 
 const POSITIONS = [
@@ -196,6 +198,8 @@ export default function ProfileTab() {
   const [showSponsors, setShowSponsors] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showProfileCard, setShowProfileCard] = useState(false);
+  const [showTeamChat, setShowTeamChat] = useState(false);
+  const [showDailyChallenge, setShowDailyChallenge] = useState(false);
   const { theme, setTheme } = useTheme();
   const darkMode = theme === 'dark';
   const [editForm, setEditForm] = useState({
@@ -577,12 +581,14 @@ export default function ProfileTab() {
         { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', premium: true, onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
         { icon: Activity, label: 'My Stats', desc: 'View your stats', color: 'brand-red', premium: false, onClick: () => setShowStats(true) },
         { icon: Users, label: 'Follow', desc: 'Find & connect', color: 'brand-navy', premium: false, onClick: () => setShowFollow(true) },
+        { icon: MessageCircle, label: 'Team Chat', desc: 'Message teammates', color: 'brand-navy', premium: false, onClick: () => setShowTeamChat(true) },
       ],
     },
     {
       title: 'Achievements',
       items: [
         { icon: Award, label: 'Achievements', desc: 'Unlock badges', color: 'brand-gold', premium: false, onClick: () => setShowAchievements(true) },
+        { icon: Crosshair, label: 'Daily Quests', desc: 'Earn XP & streaks', color: 'orange-500', premium: false, onClick: () => setShowDailyChallenge(true) },
         { icon: Swords, label: 'Challenges', desc: 'Rival teams', color: 'brand-red', premium: false, onClick: () => setShowChallenges(true) },
         { icon: MapPin, label: 'Grounds', desc: 'Find venues', color: 'brand-teal', premium: false, onClick: () => setShowGrounds(true) },
         { icon: Gift, label: 'Refer & Earn', desc: 'Free Premium', color: 'brand-gold', premium: false, onClick: () => setShowReferral(true) },
@@ -698,6 +704,12 @@ export default function ProfileTab() {
       )}
       {showSponsors && (
         <SponsorScreen onClose={() => setShowSponsors(false)} />
+      )}
+      {showTeamChat && (
+        <TeamChatScreen onClose={() => setShowTeamChat(false)} />
+      )}
+      {showDailyChallenge && (
+        <DailyChallengeScreen onClose={() => setShowDailyChallenge(false)} />
       )}
 
       {/* Player Profile Card Overlay */}
@@ -1093,31 +1105,52 @@ export default function ProfileTab() {
           </div>
         </div>
 
-        {/* Avatar overlapping the banner with enhanced animated border ring */}
+        {/* Avatar overlapping the banner with enhanced animated border ring and profile completeness */}
         <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 z-20">
           <div className="relative">
-            {/* Animated rotating border ring */}
+            {/* Animated rotating border ring - enhanced with more colors */}
             <motion.div
               className="absolute -inset-3 rounded-full"
               style={{
-                background: `conic-gradient(from 0deg, #DC2626, #F59E0B, #14B8A6, #DC2626)`,
+                background: `conic-gradient(from 0deg, #DC2626, #F59E0B, #14B8A6, #3B82F6, #8B5CF6, #EC4899, #DC2626)`,
               }}
               animate={{ rotate: 360 }}
-              transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+              transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
             />
             <div className="absolute -inset-[6px] rounded-full bg-white dark:bg-warm-900" />
-            {/* Pulsing outer glow */}
+            {/* Pulsing outer glow - enhanced */}
             <motion.div
               className="absolute -inset-4 rounded-full"
               animate={{
                 boxShadow: [
-                  '0 0 0 0 rgba(220, 38, 38, 0.4), 0 0 0 0 rgba(245, 158, 11, 0.3)',
-                  '0 0 0 12px rgba(220, 38, 38, 0), 0 0 0 6px rgba(245, 158, 11, 0.1)',
-                  '0 0 0 0 rgba(220, 38, 38, 0), 0 0 0 0 rgba(245, 158, 11, 0)',
+                  '0 0 0 0 rgba(220, 38, 38, 0.4), 0 0 0 0 rgba(245, 158, 11, 0.3), 0 0 0 0 rgba(20, 184, 166, 0.2)',
+                  '0 0 0 12px rgba(220, 38, 38, 0), 0 0 0 8px rgba(245, 158, 11, 0.1), 0 0 0 4px rgba(20, 184, 166, 0.05)',
+                  '0 0 0 0 rgba(220, 38, 38, 0), 0 0 0 0 rgba(245, 158, 11, 0), 0 0 0 0 rgba(20, 184, 166, 0)',
                 ],
               }}
               transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
             />
+            {/* Profile completeness ring */}
+            <svg className="absolute -inset-1 w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90 pointer-events-none z-10" viewBox="0 0 140 140">
+              <circle cx="70" cy="70" r="66" fill="none" stroke="rgba(220,38,38,0.1)" strokeWidth="2" />
+              <motion.circle
+                cx="70" cy="70" r="66" fill="none"
+                stroke="url(#completenessGrad)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 66}
+                initial={{ strokeDashoffset: 2 * Math.PI * 66 }}
+                animate={{ strokeDashoffset: 2 * Math.PI * 66 * (1 - playerLevel.progress / 100) }}
+                transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
+              />
+              <defs>
+                <linearGradient id="completenessGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#DC2626" />
+                  <stop offset="50%" stopColor="#F59E0B" />
+                  <stop offset="100%" stopColor="#14B8A6" />
+                </linearGradient>
+              </defs>
+            </svg>
             <div className={`w-32 h-32 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-6xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-2xl relative ${
               profileData.position?.includes('raider') || profileData.position?.includes('both')
                 ? 'position-ring-raider'
@@ -1139,6 +1172,22 @@ export default function ProfileTab() {
                 </span>
               )}
             </div>
+            {/* Animated level badge with bounce */}
+            <motion.div
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-30"
+              initial={{ scale: 0, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15, delay: 0.5 }}
+            >
+              <motion.div
+                className={`px-3 py-1 rounded-full bg-gradient-to-r ${playerLevel.color} text-white text-[10px] font-bold flex items-center gap-1 shadow-lg whitespace-nowrap`}
+                animate={{ y: [0, -3, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+              >
+                <span>{playerLevel.icon}</span>
+                {playerLevel.label}
+              </motion.div>
+            </motion.div>
             <button
               onClick={handleAvatarClick}
               disabled={uploading}
@@ -1503,54 +1552,74 @@ export default function ProfileTab() {
 
         {/* Practice vs Tournament Stats */}
         <div className="grid grid-cols-2 gap-3 mt-3">
-          <Card className="p-3 bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/20 shadow-sm">
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="text-sm">🏋️</span>
-              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Practice</span>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px]">
-                <span className="text-warm-500 dark:text-warm-400">Matches</span>
-                <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.practiceMatches}</span>
+          <motion.div
+            initial={{ opacity: 0, x: -15 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            whileHover={{ scale: 1.02, y: -2 }}
+            className="transition-transform"
+          >
+            <Card className="p-3 bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/20 shadow-sm relative overflow-hidden">
+              {/* Decorative gradient accent */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-sm">🏋️</span>
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Practice</span>
               </div>
-              <div className="flex justify-between text-[11px]">
-                <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
-                <span className="text-orange-500 font-semibold">{profileData.practiceRaidPoints}</span>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-warm-500 dark:text-warm-400">Matches</span>
+                  <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.practiceMatches}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+                  <span className="text-orange-500 font-semibold">{profileData.practiceRaidPoints}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+                  <span className="text-emerald-500 font-semibold">{profileData.practiceTacklePoints}</span>
+                </div>
+                <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+                  <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+                  <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.practiceTotalPoints}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-[11px]">
-                <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
-                <span className="text-emerald-500 font-semibold">{profileData.practiceTacklePoints}</span>
+            </Card>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, x: 15 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+            whileHover={{ scale: 1.02, y: -2 }}
+            className="transition-transform"
+          >
+            <Card className="p-3 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/20 shadow-sm relative overflow-hidden">
+              {/* Decorative gradient accent */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-sm">🏆</span>
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Tournament</span>
               </div>
-              <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
-                <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
-                <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.practiceTotalPoints}</span>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-warm-500 dark:text-warm-400">Matches</span>
+                  <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.tournamentMatches}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+                  <span className="text-orange-500 font-semibold">{profileData.tournamentRaidPoints}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+                  <span className="text-emerald-500 font-semibold">{profileData.tournamentTacklePoints}</span>
+                </div>
+                <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+                  <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+                  <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.tournamentTotalPoints}</span>
+                </div>
               </div>
-            </div>
-          </Card>
-          <Card className="p-3 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/20 shadow-sm">
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="text-sm">🏆</span>
-              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Tournament</span>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px]">
-                <span className="text-warm-500 dark:text-warm-400">Matches</span>
-                <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.tournamentMatches}</span>
-              </div>
-              <div className="flex justify-between text-[11px]">
-                <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
-                <span className="text-orange-500 font-semibold">{profileData.tournamentRaidPoints}</span>
-              </div>
-              <div className="flex justify-between text-[11px]">
-                <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
-                <span className="text-emerald-500 font-semibold">{profileData.tournamentTacklePoints}</span>
-              </div>
-              <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
-                <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
-                <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.tournamentTotalPoints}</span>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </motion.div>
         </div>
       </motion.div>
 
@@ -1909,33 +1978,47 @@ export default function ProfileTab() {
                         initial={{ opacity: 0, scale: 0.8, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ delay: 0.06 * idx, type: 'spring', stiffness: 300 }}
+                        whileHover={{ scale: 1.08, y: -2 }}
+                        className="transition-transform"
                       >
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
-                              className={`relative flex flex-col items-center px-3 py-2.5 rounded-xl border-2 transition-all min-w-[72px] ${
+                              className={`relative flex flex-col items-center px-3 py-2.5 rounded-xl border-2 transition-all min-w-[72px] cursor-default ${
                                 badge.condition
                                   ? 'bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 border-brand-gold/40 shadow-md badge-unlocked-shimmer'
                                   : isLocked
-                                    ? 'bg-warm-100/30 dark:bg-warm-200/20 border-warm-200/60 dark:border-warm-300/50 badge-locked'
+                                    ? 'bg-warm-100/30 dark:bg-warm-200/20 border-warm-200/60 dark:border-warm-300/50 badge-locked relative overflow-hidden'
                                     : 'bg-warm-100 dark:bg-warm-200/50 border-warm-200 dark:border-warm-300 hover:border-brand-gold/30'
                               }`}
                             >
+                              {/* Locked badge shimmer effect */}
+                              {isLocked && (
+                                <motion.div
+                                  className="absolute inset-0 pointer-events-none"
+                                  style={{
+                                    background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)',
+                                    backgroundSize: '200% 100%',
+                                  }}
+                                  animate={{ backgroundPosition: ['200% 0%', '-200% 0%'] }}
+                                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                                />
+                              )}
                               <motion.span
-                                className="text-xl"
+                                className="text-xl relative z-10"
                                 animate={badge.condition ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : {}}
                                 transition={badge.condition ? { duration: 2.5, repeat: Infinity, repeatDelay: 4 } : {}}
                               >
                                 {isLocked ? <Lock className="w-4 h-4 text-warm-400" /> : badge.icon}
                               </motion.span>
-                              <span className={`text-[9px] font-bold mt-1 ${
+                              <span className={`text-[9px] font-bold mt-1 relative z-10 ${
                                 badge.condition ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'
                               }`}>
                                 {badge.label}
                               </span>
                               {/* Progress indicator for partially completed - enhanced */}
                               {!badge.condition && !isLocked && badge.progress > 0 && (
-                                <div className="w-full mt-1">
+                                <div className="w-full mt-1 relative z-10">
                                   <div className="w-full h-1.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
                                     <motion.div
                                       initial={{ width: 0 }}
@@ -1948,7 +2031,7 @@ export default function ProfileTab() {
                                 </div>
                               )}
                               {isLocked && (
-                                <span className="text-[7px] font-bold text-brand-gold/60 mt-0.5 flex items-center gap-0.5">
+                                <span className="text-[7px] font-bold text-brand-gold/60 mt-0.5 flex items-center gap-0.5 relative z-10">
                                   <Crown className="w-2 h-2" /> PRO
                                 </span>
                               )}
@@ -1992,7 +2075,9 @@ export default function ProfileTab() {
             <Gauge className="w-4 h-4 text-brand-red" />
             Performance Radar
           </h3>
-          <Card className="p-4 shadow-sm glass-card">
+          <Card className="p-4 shadow-sm glass-card relative overflow-hidden">
+            {/* Decorative gradient corner accent */}
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-brand-red/5 to-transparent pointer-events-none" />
             <div className="h-60">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="72%">
@@ -2011,7 +2096,7 @@ export default function ProfileTab() {
                     animationBegin={0}
                     animationDuration={800}
                   />
-                  {/* Player's stats - enhanced */}
+                  {/* Player's stats - enhanced with glow */}
                   <Radar
                     name="You"
                     dataKey="player"
@@ -2026,25 +2111,51 @@ export default function ProfileTab() {
                 </RadarChart>
               </ResponsiveContainer>
             </div>
-            {/* Legend - enhanced */}
-            <div className="flex items-center justify-center gap-6 mt-2">
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-brand-red/10">
+            {/* Legend - enhanced with comparison */}
+            <div className="flex items-center justify-center gap-4 mt-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-red/10">
                 <div className="w-3 h-1.5 rounded-full bg-brand-red" />
                 <span className="text-[10px] font-semibold text-brand-red">You</span>
               </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-warm-200/50 dark:bg-warm-300/30">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warm-200/50 dark:bg-warm-300/30">
                 <div className="w-3 h-1.5 rounded-full bg-slate-400 opacity-50" />
                 <span className="text-[10px] font-medium text-warm-500 dark:text-warm-400">Avg Player</span>
               </div>
             </div>
-            {/* Skill highlights */}
+            {/* Skill highlights with pulse on max stat */}
             <div className="grid grid-cols-3 gap-2 mt-3">
-              {radarData.slice(0, 3).map((skill) => (
-                <div key={skill.subject} className="text-center p-1.5 rounded-lg bg-warm-100/50 dark:bg-warm-200/30">
-                  <p className="text-[9px] text-warm-400 uppercase font-semibold">{skill.subject}</p>
-                  <p className="text-sm font-black text-warm-800 dark:text-warm-700">{Math.round(skill.player)}</p>
-                </div>
-              ))}
+              {radarData.slice(0, 3).map((skill) => {
+                const isMax = skill.player === Math.max(...radarData.map(s => s.player));
+                return (
+                  <motion.div
+                    key={skill.subject}
+                    className={`text-center p-1.5 rounded-lg ${
+                      isMax
+                        ? 'bg-brand-red/10 border border-brand-red/20 ring-1 ring-brand-red/10'
+                        : 'bg-warm-100/50 dark:bg-warm-200/30'
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    <p className="text-[9px] text-warm-400 uppercase font-semibold">{skill.subject}</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <p className={`text-sm font-black ${isMax ? 'text-brand-red' : 'text-warm-800 dark:text-warm-700'}`}>{Math.round(skill.player)}</p>
+                      {isMax && (
+                        <motion.span
+                          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                          className="text-[8px]"
+                        >
+                          🔥
+                        </motion.span>
+                      )}
+                    </div>
+                    {/* Comparison vs average */}
+                    {skill.player > skill.avg && (
+                      <span className="text-[7px] text-emerald-500 font-bold">+{Math.round(skill.player - skill.avg)} vs avg</span>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
           </Card>
 
@@ -2205,26 +2316,35 @@ export default function ProfileTab() {
                       onClick={item.onClick}
                       className={`w-full flex items-center gap-3 p-3.5 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate relative ${isPremiumFeature ? 'premium-feature-shimmer' : ''}`}
                     >
-                      {/* Left border accent - enhanced */}
-                      <div className={`w-1.5 h-10 rounded-full shrink-0 transition-all duration-200 group-hover:h-12 ${
-                        item.color === 'brand-teal' ? 'bg-brand-teal' :
-                        item.color === 'brand-gold' ? 'bg-brand-gold' :
-                        item.color === 'brand-red' ? 'bg-brand-red' :
-                        item.color === 'brand-navy' ? 'bg-brand-navy' :
-                        item.color === 'purple-500' ? 'bg-purple-500' :
-                        item.color === 'emerald-500' ? 'bg-emerald-500' :
+                      {/* Left border accent - enhanced with gradient */}
+                      <div className={`w-1.5 h-10 rounded-full shrink-0 transition-all duration-200 group-hover:h-12 group-hover:w-2 ${
+                        item.color === 'brand-teal' ? 'bg-gradient-to-b from-brand-teal to-emerald-600' :
+                        item.color === 'brand-gold' ? 'bg-gradient-to-b from-brand-gold to-amber-600' :
+                        item.color === 'brand-red' ? 'bg-gradient-to-b from-brand-red to-red-700' :
+                        item.color === 'brand-navy' ? 'bg-gradient-to-b from-brand-navy to-slate-700' :
+                        item.color === 'purple-500' ? 'bg-gradient-to-b from-purple-500 to-purple-700' :
+                        item.color === 'emerald-500' ? 'bg-gradient-to-b from-emerald-500 to-emerald-700' :
                         'bg-warm-400'
                       }`} />
-                      {/* Icon with color coding - enhanced */}
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-all duration-200 ${
-                        item.color === 'brand-teal' ? 'bg-brand-teal/10' :
-                        item.color === 'brand-gold' ? 'bg-brand-gold/10' :
-                        item.color === 'brand-red' ? 'bg-brand-red/10' :
-                        item.color === 'brand-navy' ? 'bg-brand-navy/10' :
-                        item.color === 'purple-500' ? 'bg-purple-500/10' :
-                        item.color === 'emerald-500' ? 'bg-emerald-500/10' :
-                        'bg-warm-200/50'
-                      }`}>
+                      {/* Icon with color coding - enhanced with gradient bg and glow */}
+                      <motion.div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-all duration-200 relative ${
+                          item.color === 'brand-teal' ? 'bg-brand-teal/10' :
+                          item.color === 'brand-gold' ? 'bg-brand-gold/10' :
+                          item.color === 'brand-red' ? 'bg-brand-red/10' :
+                          item.color === 'brand-navy' ? 'bg-brand-navy/10' :
+                          item.color === 'purple-500' ? 'bg-purple-500/10' :
+                          item.color === 'emerald-500' ? 'bg-emerald-500/10' :
+                          'bg-warm-200/50'
+                        }`}
+                        whileHover={{
+                          boxShadow: item.color === 'brand-teal' ? '0 0 12px rgba(20, 184, 166, 0.3)' :
+                            item.color === 'brand-gold' ? '0 0 12px rgba(245, 158, 11, 0.3)' :
+                            item.color === 'brand-red' ? '0 0 12px rgba(220, 38, 38, 0.3)' :
+                            item.color === 'brand-navy' ? '0 0 12px rgba(30, 41, 59, 0.3)' :
+                            '0 0 8px rgba(100, 116, 139, 0.2)',
+                        }}
+                      >
                         <IconComp className={`w-4.5 h-4.5 ${
                           item.color === 'brand-teal' ? 'text-brand-teal' :
                           item.color === 'brand-gold' ? 'text-brand-gold' :
@@ -2234,7 +2354,7 @@ export default function ProfileTab() {
                           item.color === 'emerald-500' ? 'text-emerald-500' :
                           'text-warm-500'
                         }`} />
-                      </div>
+                      </motion.div>
                       {/* Label and description */}
                       <div className="flex-1 min-w-0 relative z-10">
                         <div className="flex items-center gap-1.5">
@@ -2426,11 +2546,33 @@ export default function ProfileTab() {
             </div>
           </div>
 
-          {/* Dark Mode Toggle with Sun/Moon Animation - Enhanced */}
+          {/* Dark Mode Toggle with Sun/Moon Animation - Enhanced with animated toggle track */}
           <div className="flex justify-between items-center py-1">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
-                {darkMode ? <Moon className="w-3.5 h-3.5 text-brand-gold" /> : <Sun className="w-3.5 h-3.5 text-warm-400" />}
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-brand-gold/20' : 'bg-warm-100 dark:bg-warm-200/50'}`}>
+                <AnimatePresence mode="wait">
+                  {darkMode ? (
+                    <motion.div
+                      key="moon-icon"
+                      initial={{ rotate: -90, scale: 0, opacity: 0 }}
+                      animate={{ rotate: 0, scale: 1, opacity: 1 }}
+                      exit={{ rotate: 90, scale: 0, opacity: 0 }}
+                      transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
+                    >
+                      <Moon className="w-3.5 h-3.5 text-brand-gold" />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="sun-icon"
+                      initial={{ rotate: 90, scale: 0, opacity: 0 }}
+                      animate={{ rotate: 0, scale: 1, opacity: 1 }}
+                      exit={{ rotate: -90, scale: 0, opacity: 0 }}
+                      transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
+                    >
+                      <Sun className="w-3.5 h-3.5 text-warm-400" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <div>
                 <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Theme</span>
@@ -2439,38 +2581,78 @@ export default function ProfileTab() {
             </div>
             <motion.button
               onClick={toggleDarkMode}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-300 ${
-                darkMode
-                  ? 'bg-warm-700/80 text-brand-gold hover:bg-warm-600 shadow-sm'
-                  : 'bg-warm-100 dark:bg-warm-200 text-warm-600 dark:text-warm-500 hover:bg-warm-200 dark:hover:bg-warm-300'
+              className={`relative flex items-center rounded-full p-1 transition-colors duration-300 ${
+                darkMode ? 'bg-warm-700' : 'bg-warm-200'
               }`}
-              whileTap={{ scale: 0.92 }}
-              whileHover={{ scale: 1.02 }}
+              style={{ width: '52px', height: '28px' }}
+              whileTap={{ scale: 0.95 }}
             >
-              <AnimatePresence mode="wait">
-                {darkMode ? (
+              {/* Animated toggle track background */}
+              <motion.div
+                className="absolute inset-0 rounded-full overflow-hidden"
+                style={{
+                  background: darkMode
+                    ? 'linear-gradient(90deg, #1E293B, #334155)'
+                    : 'linear-gradient(90deg, #E2E8F0, #F1F5F9)',
+                }}
+                transition={{ duration: 0.3 }}
+              />
+              {/* Stars/moon dots in dark mode */}
+              {darkMode && (
+                <>
                   <motion.div
-                    key="moon"
-                    initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
-                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                    exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
-                    transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
-                  >
-                    <Moon className="w-4 h-4" />
-                  </motion.div>
-                ) : (
+                    className="absolute top-1.5 left-2 w-1 h-1 rounded-full bg-white/30"
+                    animate={{ opacity: [0.3, 0.8, 0.3] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  />
                   <motion.div
-                    key="sun"
-                    initial={{ rotate: 90, opacity: 0, scale: 0.5 }}
-                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                    exit={{ rotate: -90, opacity: 0, scale: 0.5 }}
-                    transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
-                  >
-                    <Sun className="w-4 h-4" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <span>{darkMode ? 'Dark' : 'Light'}</span>
+                    className="absolute top-3 left-4 w-0.5 h-0.5 rounded-full bg-white/20"
+                    animate={{ opacity: [0.2, 0.6, 0.2] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+                  />
+                </>
+              )}
+              {/* Sun rays in light mode */}
+              {!darkMode && (
+                <motion.div
+                  className="absolute top-1 right-3 w-1.5 h-1.5 rounded-full bg-amber-400/20"
+                  animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              )}
+              {/* Toggle knob */}
+              <motion.div
+                className="relative z-10 w-5 h-5 rounded-full shadow-md flex items-center justify-center"
+                style={{
+                  backgroundColor: darkMode ? '#1E293B' : '#FFFFFF',
+                }}
+                animate={{ x: darkMode ? 22 : 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              >
+                <AnimatePresence mode="wait">
+                  {darkMode ? (
+                    <motion.div
+                      key="toggle-moon"
+                      initial={{ rotate: -180, scale: 0 }}
+                      animate={{ rotate: 0, scale: 1 }}
+                      exit={{ rotate: 180, scale: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Moon className="w-3 h-3 text-brand-gold" />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="toggle-sun"
+                      initial={{ rotate: 180, scale: 0 }}
+                      animate={{ rotate: 0, scale: 1 }}
+                      exit={{ rotate: -180, scale: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Sun className="w-3 h-3 text-amber-500" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             </motion.button>
           </div>
         </Card>
