@@ -9,6 +9,7 @@ import {
 import { useKabaddiStore, type MatchPlayer, type MatchEvent } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import ShareScorecard from './ShareScorecard';
+import LiveCommentaryTicker, { toCommentaryMatchInfo } from './LiveCommentaryTicker';
 import { matchNotification } from '@/lib/notifications';
 import { triggerFeedback, SoundType, vibrate } from '@/lib/sounds';
 
@@ -1308,6 +1309,13 @@ export default function LiveScoringScreen() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ═══ COMMENTARY PANEL ═══ */}
+      <LiveCommentaryTicker
+        mode="full"
+        events={match.events}
+        match={toCommentaryMatchInfo(match)}
+      />
 
       {/* ═══ BOTTOM CONTROL BAR ═══ */}
       <div className="border-t border-gray-200 bg-white px-3 py-2.5">

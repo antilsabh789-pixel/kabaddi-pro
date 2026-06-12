@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import { useTheme } from 'next-themes';
 import { Card } from '@/components/ui/card';
@@ -35,6 +35,7 @@ import SeasonScreen from './SeasonScreen';
 import PollsScreen from './PollsScreen';
 import SponsorScreen from './SponsorScreen';
 import PlayerStatsScreen from './PlayerStatsScreen';
+import PlayerProfileCard from './PlayerProfileCard';
 import { t } from '@/lib/i18n';
 
 const POSITIONS = [
@@ -57,6 +58,54 @@ interface RecentMatch {
   date: string;
   isPractice: boolean;
   userTeamSide: 'home' | 'away' | 'unknown';
+}
+
+// ─── Animated Value (count-up on first view) ────────────────────
+
+function AnimatedValue({ value, decimals = 0 }: { value: number; decimals?: number }) {
+  const [display, setDisplay] = useState(0);
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    if (hasAnimated) return;
+    if (value === 0) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasAnimated) {
+          setHasAnimated(true);
+          const targetVal = valueRef.current;
+          const duration = 800;
+          const startTime = performance.now();
+
+          function step(currentTime: number) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = eased * targetVal;
+            setDisplay(decimals > 0 ? parseFloat(current.toFixed(decimals)) : Math.round(current));
+            if (progress < 1) {
+              requestAnimationFrame(step);
+            }
+          }
+
+          requestAnimationFrame(step);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [value, decimals, hasAnimated]);
+
+  return <span ref={ref}>{hasAnimated ? (decimals > 0 ? display.toFixed(decimals) : display) : value}</span>;
 }
 
 export default function ProfileTab() {
@@ -82,6 +131,7 @@ export default function ProfileTab() {
   const [showPolls, setShowPolls] = useState(false);
   const [showSponsors, setShowSponsors] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showProfileCard, setShowProfileCard] = useState(false);
   const { theme, setTheme } = useTheme();
   const darkMode = theme === 'dark';
   const [editForm, setEditForm] = useState({
@@ -513,6 +563,38 @@ export default function ProfileTab() {
         <SponsorScreen onClose={() => setShowSponsors(false)} />
       )}
 
+      {/* Player Profile Card Overlay */}
+      <AnimatePresence>
+        {showProfileCard && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowProfileCard(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              className="w-full max-w-sm my-8"
+            >
+              {/* Close button */}
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={() => setShowProfileCard(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <PlayerProfileCard />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Hidden file input for avatar upload */}
       <input
         ref={fileInputRef}
@@ -531,7 +613,7 @@ export default function ProfileTab() {
         className="relative overflow-hidden rounded-2xl shadow-lg"
       >
         {/* Gradient Banner Background */}
-        <div className="relative bg-gradient-to-br from-red-600 via-red-700 to-red-900 dark:from-red-800 dark:via-red-900 dark:to-red-950 pt-8 pb-16 px-6">
+        <div className="relative bg-gradient-to-br from-red-600 via-red-700 to-red-900 dark:from-red-800 dark:via-red-900 dark:to-red-950 pt-8 pb-16 px-6 animated-gradient-bg">
           {/* Decorative Pattern Overlay */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 left-0 w-full h-full" style={{
@@ -542,16 +624,30 @@ export default function ProfileTab() {
             <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full border-4 border-white/20" />
             <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full border-4 border-white/15" />
             <div className="absolute top-4 right-20 w-12 h-12 rounded-full border-2 border-white/10" />
+            {/* Subtle dot pattern */}
+            <div className="absolute inset-0" style={{
+              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)',
+              backgroundSize: '16px 16px',
+            }} />
           </div>
 
-          {/* Edit Profile Button */}
-          <div className="relative z-10 flex justify-end mb-2">
+          {/* Edit Profile Button & Share Profile Button */}
+          <div className="relative z-10 flex justify-end gap-2 mb-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowProfileCard(true)}
+              className="text-white/80 hover:text-white hover:bg-white/10 rounded-full px-3 h-8 text-xs gap-1.5"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              Share
+            </Button>
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-white/80 hover:text-white hover:bg-white/10 rounded-full px-3 h-8 text-xs gap-1.5"
+                  className="text-white/80 hover:text-white hover:bg-white/15 rounded-full px-3 h-8 text-xs gap-1.5 transition-all duration-200 hover:scale-105"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   Edit
@@ -722,7 +818,15 @@ export default function ProfileTab() {
         {/* Avatar overlapping the banner */}
         <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 z-20">
           <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-3xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-xl">
+            <div className={`w-20 h-20 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-3xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-xl ${
+              profileData.position?.includes('raider') || profileData.position?.includes('both')
+                ? 'position-ring-raider'
+                : profileData.position?.includes('corner') || profileData.position?.includes('cover')
+                  ? 'position-ring-defender'
+                  : profileData.position === 'all-rounder'
+                    ? 'position-ring-allrounder'
+                    : ''
+            }`}>
               {currentUser?.avatar ? (
                 <img
                   src={currentUser.avatar}
@@ -812,14 +916,15 @@ export default function ProfileTab() {
             className="w-full relative overflow-hidden rounded-2xl p-[2px] active:scale-[0.98] transition-transform"
           >
             {/* Animated gradient border */}
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 animate-[borderRotate_3s_linear_infinite]" style={{ backgroundSize: '200% 200%' }} />
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 animated-gradient-bg" style={{ backgroundSize: '200% 200%' }} />
             <div className="relative rounded-2xl bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 p-4 overflow-hidden">
               {/* Golden shimmer effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_3s_infinite]" />
-              {/* Sparkle dots */}
-              <div className="absolute top-3 right-8 w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
-              <div className="absolute top-8 right-16 w-1 h-1 rounded-full bg-white/40 animate-pulse" style={{ animationDelay: '0.5s' }} />
-              <div className="absolute bottom-4 right-10 w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse" style={{ animationDelay: '1s' }} />
+              {/* Sparkle particles */}
+              <div className="absolute top-3 right-8 w-2 h-2 rounded-full bg-white/70 sparkle-twinkle" />
+              <div className="absolute top-8 right-16 w-1.5 h-1.5 rounded-full bg-white/50 sparkle-twinkle" style={{ animationDelay: '0.5s' }} />
+              <div className="absolute bottom-4 right-10 w-2 h-2 rounded-full bg-white/60 sparkle-twinkle" style={{ animationDelay: '1s' }} />
+              <div className="absolute top-6 left-12 w-1 h-1 rounded-full bg-white/40 sparkle-twinkle" style={{ animationDelay: '1.5s' }} />
               <div className="relative z-10 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-md">
@@ -876,19 +981,19 @@ export default function ProfileTab() {
         transition={{ delay: 0.1 }}
         className="grid grid-cols-3 gap-3"
       >
-        <Card className="p-3 text-center bg-brand-red/5 dark:bg-brand-red/10 border-brand-red/15 shadow-sm">
+        <Card className="p-3 text-center bg-brand-red/5 dark:bg-brand-red/10 border-brand-red/15 shadow-sm border-l-[3px] border-l-brand-red/40">
           <Zap className="w-5 h-5 text-brand-red mx-auto mb-1" />
-          <div className="text-lg font-bold text-brand-red">{raidPoints}</div>
+          <div className="text-lg font-bold text-brand-red"><AnimatedValue value={raidPoints} /></div>
           <div className="text-[10px] text-warm-600 dark:text-warm-500">Raid Points</div>
         </Card>
-        <Card className="p-3 text-center bg-brand-blue/5 dark:bg-brand-blue/10 border-brand-blue/15 shadow-sm">
+        <Card className="p-3 text-center bg-brand-blue/5 dark:bg-brand-blue/10 border-brand-blue/15 shadow-sm border-l-[3px] border-l-brand-blue/40">
           <Shield className="w-5 h-5 text-brand-blue mx-auto mb-1" />
-          <div className="text-lg font-bold text-brand-blue">{tacklePoints}</div>
+          <div className="text-lg font-bold text-brand-blue"><AnimatedValue value={tacklePoints} /></div>
           <div className="text-[10px] text-warm-600 dark:text-warm-500">Tackle Points</div>
         </Card>
-        <Card className="p-3 text-center bg-brand-gold/5 dark:bg-brand-gold/10 border-brand-gold/15 shadow-sm">
+        <Card className="p-3 text-center bg-brand-gold/5 dark:bg-brand-gold/10 border-brand-gold/15 shadow-sm border-l-[3px] border-l-brand-gold/40">
           <Swords className="w-5 h-5 text-brand-gold mx-auto mb-1" />
-          <div className="text-lg font-bold text-brand-gold">{profileData.overallRating.toFixed(1)}</div>
+          <div className="text-lg font-bold text-brand-gold"><AnimatedValue value={parseFloat(profileData.overallRating.toFixed(1))} decimals={1} /></div>
           <div className="text-[10px] text-warm-600 dark:text-warm-500">Rating</div>
         </Card>
       </motion.div>
@@ -925,7 +1030,7 @@ export default function ProfileTab() {
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(raidSuccessRate, 100)}%` }}
                   transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
-                  className="h-full rounded-full bg-gradient-to-r from-red-400 via-red-500 to-red-600"
+                  className="h-full rounded-full bg-gradient-to-r from-red-400 via-red-500 to-amber-500"
                 />
               </div>
               <p className="text-[10px] text-warm-400 mt-1">{profileData.successfulRaids} of {profileData.totalRaids} raids successful</p>
@@ -947,7 +1052,7 @@ export default function ProfileTab() {
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(tackleSuccessRate, 100)}%` }}
                   transition={{ duration: 1, ease: 'easeOut', delay: 0.4 }}
-                  className="h-full rounded-full bg-gradient-to-r from-slate-400 via-slate-600 to-slate-800"
+                  className="h-full rounded-full bg-gradient-to-r from-slate-400 via-slate-600 to-teal-500"
                 />
               </div>
               <p className="text-[10px] text-warm-400 mt-1">{profileData.successfulTackles} of {profileData.totalTackles} tackles successful</p>
@@ -1044,7 +1149,7 @@ export default function ProfileTab() {
                     className="flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 transition-colors"
                   >
                     {/* Result indicator */}
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${getResultColor(result)}`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${getResultColor(result)} ${idx < 2 ? 'result-pulse' : ''}`}>
                       {result}
                     </div>
                     {/* Match info */}
@@ -1063,9 +1168,10 @@ export default function ProfileTab() {
                     </div>
                     {/* Score */}
                     <div className="text-right shrink-0">
-                      <span className="text-sm font-bold text-warm-800 dark:text-warm-700">
+                      <span className="text-sm font-black text-warm-800 dark:text-warm-700 tabular-nums">
                         {match.homeScore} - {match.awayScore}
                       </span>
+                      <p className="text-[9px] text-warm-400 dark:text-warm-300">{match.date}</p>
                     </div>
                   </motion.div>
                 );
@@ -1255,12 +1361,12 @@ export default function ProfileTab() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.03 * idx }}
                       onClick={item.onClick}
-                      className="w-full flex items-center gap-3 p-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-colors text-left group"
+                      className="w-full flex items-center gap-3 p-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate"
                     >
                       {/* Left border accent */}
                       <div className={`w-1 h-8 rounded-full bg-${item.color} shrink-0`} />
                       {/* Icon */}
-                      <div className={`w-8 h-8 rounded-lg bg-${item.color}/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+                      <div className={`w-8 h-8 rounded-lg bg-${item.color}/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200`}>
                         <IconComp className={`w-4 h-4 text-${item.color}`} />
                       </div>
                       {/* Label and description */}
@@ -1269,7 +1375,7 @@ export default function ProfileTab() {
                         <p className="text-[10px] text-warm-400 dark:text-warm-300">{item.desc}</p>
                       </div>
                       {/* Chevron */}
-                      <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0 chevron-icon" />
                     </motion.button>
                   );
                 })}
@@ -1380,20 +1486,20 @@ export default function ProfileTab() {
             <div className="flex items-center gap-1 bg-warm-100 dark:bg-warm-200 rounded-lg p-0.5">
               <button
                 onClick={() => setLanguage('en')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300 ${
                   language === 'en'
-                    ? 'bg-brand-teal text-white shadow-sm'
-                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600'
+                    ? 'bg-brand-teal text-white shadow-sm scale-105'
+                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600 hover:bg-warm-200/50'
                 }`}
               >
                 English
               </button>
               <button
                 onClick={() => setLanguage('hi')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300 ${
                   language === 'hi'
-                    ? 'bg-brand-teal text-white shadow-sm'
-                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600'
+                    ? 'bg-brand-teal text-white shadow-sm scale-105'
+                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600 hover:bg-warm-200/50'
                 }`}
               >
                 हिंदी
@@ -1409,23 +1515,20 @@ export default function ProfileTab() {
             </div>
             <button
               onClick={toggleDarkMode}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
                 darkMode
                   ? 'bg-warm-700 text-brand-gold hover:bg-warm-600'
                   : 'bg-warm-100 dark:bg-warm-200 text-warm-600 dark:text-warm-500 hover:bg-warm-200 dark:hover:bg-warm-300'
               }`}
             >
-              {darkMode ? (
-                <>
+              <span className="sun-moon-transition">
+                {darkMode ? (
                   <Moon className="w-3.5 h-3.5" />
-                  Dark
-                </>
-              ) : (
-                <>
+                ) : (
                   <Sun className="w-3.5 h-3.5" />
-                  Light
-                </>
-              )}
+                )}
+              </span>
+              <span>{darkMode ? 'Dark' : 'Light'}</span>
             </button>
           </div>
         </Card>

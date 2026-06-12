@@ -234,6 +234,7 @@ export async function GET(request: NextRequest) {
     const matchId = searchParams.get('id') || '';
     const userId = searchParams.get('userId') || '';
     const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
 
     // Single match detail
     if (matchId) {
@@ -277,9 +278,11 @@ export async function GET(request: NextRequest) {
     const matches = await db.match.findMany({
       where,
       take: limit,
+      skip: offset,
       include: {
         homeTeam: true,
         awayTeam: true,
+        tournament: { select: { id: true, name: true } },
         events: { orderBy: { timestamp: 'desc' }, take: 10 },
         scorers: { include: { user: true } },
       },

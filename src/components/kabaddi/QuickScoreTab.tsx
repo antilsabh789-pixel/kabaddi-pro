@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, X, Search, UserPlus, Database, Check, Clock, Users, Swords, Play, GripVertical, Shield, Zap } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, Plus, X, Search, UserPlus, Database, Check, Clock, Users, Swords, Play, GripVertical, Shield, Zap,
+  AlertTriangle, Sparkles, Eye, Info,
+} from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,8 +45,203 @@ interface DbPlayer {
     position: string | null;
     jerseyNumber: number | null;
     overallRating: number;
+    totalPoints?: number;
+    raidPoints?: number;
+    tacklePoints?: number;
+    totalRaids?: number;
+    successfulRaids?: number;
   } | null;
 }
+
+// ─── Position Balance Config ────────────────────────────────────
+
+const POSITION_BALANCE: Record<number, { raiders: number; defenders: number; allRounders: number }> = {
+  5: { raiders: 1, defenders: 3, allRounders: 1 },
+  6: { raiders: 2, defenders: 3, allRounders: 1 },
+  7: { raiders: 2, defenders: 3, allRounders: 2 },
+  8: { raiders: 2, defenders: 4, allRounders: 2 },
+  9: { raiders: 3, defenders: 4, allRounders: 2 },
+  10: { raiders: 3, defenders: 5, allRounders: 2 },
+  11: { raiders: 3, defenders: 5, allRounders: 3 },
+  12: { raiders: 4, defenders: 5, allRounders: 3 },
+};
+
+function getPositionCategory(position: string | null): 'raider' | 'defender' | 'all-rounder' | 'unknown' {
+  if (!position) return 'unknown';
+  const p = position.toLowerCase();
+  if (p.includes('raider')) return 'raider';
+  if (p.includes('defend') || p.includes('corner') || p.includes('cover')) return 'defender';
+  if (p.includes('all')) return 'all-rounder';
+  return 'unknown';
+}
+
+// ─── Lineup Validation Component ────────────────────────────────
+
+function LineupValidation({ lineup, playersPerSide, teamName }: {
+  lineup: MatchPlayer[];
+  playersPerSide: number;
+  teamName: string;
+}) {
+  const warnings: { message: string; severity: 'error' | 'warning' | 'info' }[] = [];
+
+  if (lineup.length === 0) {
+    warnings.push({ message: 'No players added', severity: 'error' });
+  } else if (lineup.length < playersPerSide) {
+    warnings.push({
+      message: `${lineup.length}/${playersPerSide} players — need ${playersPerSide - lineup.length} more`,
+      severity: 'warning',
+    });
+  } else if (lineup.length > playersPerSide) {
+    warnings.push({
+      message: `${lineup.length} players — ${lineup.length - playersPerSide} extra`,
+      severity: 'info',
+    });
+  }
+
+  // Position balance check (only if we have position data from DB)
+  const balance = POSITION_BALANCE[playersPerSide];
+  // Note: position data might not be available for quick-added players
+  // We check this based on the allPlayers data which is in parent scope
+
+  if (warnings.length === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-1.5"
+    >
+      {warnings.map((w, i) => (
+        <div
+          key={i}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
+            w.severity === 'error'
+              ? 'bg-brand-red/10 text-brand-red dark:bg-brand-red/15'
+              : w.severity === 'warning'
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 dark:bg-amber-500/15'
+                : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 dark:bg-blue-500/15'
+          }`}
+        >
+          <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${w.severity === 'info' ? 'hidden' : ''}`} />
+          <Info className={`w-3.5 h-3.5 shrink-0 ${w.severity !== 'info' ? 'hidden' : ''}`} />
+          <span>{teamName}: {w.message}</span>
+        </div>
+      ))}
+    </motion.div>
+  );
+}
+
+// ─── Player Stats Tooltip ───────────────────────────────────────
+
+function PlayerStatsTooltip({ player, allPlayers }: { player: DbPlayer; allPlayers: DbPlayer[] }) {
+  const dbPlayer = allPlayers.find(p => p.id === player.id);
+  const profile = dbPlayer?.profile;
+
+  if (!profile || !profile.totalPoints) return null;
+
+  const raidSuccessRate = profile.totalRaids && profile.totalRaids > 0
+    ? Math.round(((profile.successfulRaids || 0) / profile.totalRaids) * 100)
+    : 0;
+
+  return (
+    <div className="absolute z-30 bottom-full left-0 mb-1 p-2 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-600 rounded-lg shadow-lg text-[10px] min-w-[140px]">
+      <div className="space-y-1">
+        <div className="flex justify-between">
+          <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+          <span className="font-bold text-brand-navy dark:text-brand-navy-light">{profile.totalPoints}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+          <span className="font-bold text-brand-red">{profile.raidPoints || 0}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+          <span className="font-bold text-brand-teal">{profile.tacklePoints || 0}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-warm-500 dark:text-warm-400">Raid Success</span>
+          <span className="font-bold text-brand-gold">{raidSuccessRate}%</span>
+        </div>
+      </div>
+      {/* Tooltip arrow */}
+      <div className="absolute -bottom-1 left-4 w-2 h-2 bg-white dark:bg-warm-800 border-r border-b border-warm-200 dark:border-warm-600 rotate-45" />
+    </div>
+  );
+}
+
+// ─── Formation Visualization ────────────────────────────────────
+
+function FormationVisualization({ lineup, teamColor, teamName, side }: {
+  lineup: MatchPlayer[];
+  teamColor: string;
+  teamName: string;
+  side: 'left' | 'right';
+}) {
+  const maxDisplay = Math.min(lineup.length, 7);
+  const displayPlayers = lineup.slice(0, maxDisplay);
+
+  return (
+    <div className="flex-1 relative">
+      {/* Team header */}
+      <div className="text-center mb-2">
+        <div
+          className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center text-white font-black text-sm shadow-md"
+          style={{ backgroundColor: teamColor }}
+        >
+          {teamName.charAt(0).toUpperCase()}
+        </div>
+        <p className="text-[10px] font-bold text-warm-600 dark:text-warm-300 mt-1 truncate max-w-[80px] mx-auto">
+          {teamName}
+        </p>
+      </div>
+
+      {/* Formation layout */}
+      <div className="relative bg-warm-100/40 dark:bg-warm-700/20 rounded-xl p-2 min-h-[90px]">
+        {/* Court half line */}
+        <div className={`absolute top-1/2 left-0 right-0 h-px bg-warm-200 dark:bg-warm-600 ${
+          side === 'left' ? 'bg-gradient-to-r from-transparent to-warm-200 dark:to-warm-600' : 'bg-gradient-to-l from-transparent to-warm-200 dark:to-warm-600'
+        }`} />
+
+        {/* Players in formation */}
+        <div className="grid grid-cols-3 gap-1 place-items-center">
+          {displayPlayers.map((player, i) => {
+            // Simple formation: top row = defenders, middle = all-rounders, bottom = raiders
+            return (
+              <motion.div
+                key={player.id}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: i * 0.05, type: 'spring', stiffness: 300, damping: 20 }}
+                className="flex flex-col items-center"
+              >
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[8px] font-bold shadow-sm"
+                  style={{ backgroundColor: teamColor }}
+                >
+                  {player.jerseyNumber || i + 1}
+                </div>
+                <span className="text-[7px] text-warm-400 dark:text-warm-500 mt-0.5 truncate max-w-[32px]">
+                  {player.name.split(' ')[0]}
+                </span>
+              </motion.div>
+            );
+          })}
+          {/* Empty slots */}
+          {Array.from({ length: Math.max(0, 7 - displayPlayers.length) }).map((_, i) => (
+            <div key={`empty-${i}`} className="flex flex-col items-center">
+              <div className="w-7 h-7 rounded-full border-2 border-dashed border-warm-200 dark:border-warm-600 flex items-center justify-center">
+                <span className="text-[8px] text-warm-300 dark:text-warm-600">?</span>
+              </div>
+              <span className="text-[7px] text-warm-300 dark:text-warm-600 mt-0.5">Empty</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────
 
 export default function QuickScoreTab() {
   const { initiateToss, currentUser } = useKabaddiStore();
@@ -72,6 +270,8 @@ export default function QuickScoreTab() {
   const [showHomeSuggestions, setShowHomeSuggestions] = useState(false);
   const [showAwaySuggestions, setShowAwaySuggestions] = useState(false);
   const teamInputRef = useRef<HTMLDivElement>(null);
+  const [suggestingLineup, setSuggestingLineup] = useState(false);
+  const [hoveredPlayer, setHoveredPlayer] = useState<string | null>(null);
 
   // Close team/player suggestions when clicking outside
   useEffect(() => {
@@ -82,6 +282,7 @@ export default function QuickScoreTab() {
       }
       if (playerInputRef.current && !playerInputRef.current.contains(e.target as Node)) {
         setShowSuggestions(false);
+        setHoveredPlayer(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -113,14 +314,14 @@ export default function QuickScoreTab() {
         if (res.ok) {
           const data = await res.json();
           const teams: UserTeam[] = (data.teams || [])
-            .filter((team: any) =>
-              team.members?.some((m: any) => m.userId === currentUser.id)
+            .filter((team: Record<string, unknown>) =>
+              (team.members as Array<Record<string, unknown>>)?.some((m) => m.userId === currentUser.id)
             )
-            .map((team: any) => ({
-              id: team.id,
-              name: team.name,
-              shortName: team.shortName,
-              color: team.color,
+            .map((team: Record<string, unknown>) => ({
+              id: team.id as string,
+              name: team.name as string,
+              shortName: team.shortName as string | null,
+              color: team.color as string | null,
             }));
           setUserTeams(teams);
         }
@@ -332,6 +533,139 @@ export default function QuickScoreTab() {
     setShowSuggestions(false);
   };
 
+  // ─── Smart Lineup Suggestion ────────────────────────────────────
+
+  const handleSuggestLineup = useCallback(() => {
+    setSuggestingLineup(true);
+
+    const targetCount = config.playersPerSide;
+    const balance = POSITION_BALANCE[targetCount] || POSITION_BALANCE[7];
+    const lineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
+    const otherLineup = activeLineupTeam === 'home' ? config.awayLineup : config.homeLineup;
+    const alreadyAdded = new Set([...lineup, ...otherLineup].map(p => p.id));
+
+    // Categorize available players by position
+    const available = allPlayers.filter(p => !alreadyAdded.has(p.id));
+    const raiders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'raider');
+    const defenders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'defender');
+    const allRounders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'all-rounder');
+    const unknowns = available.filter(p => getPositionCategory(p.profile?.position || null) === 'unknown');
+
+    // Sort each category by overall rating descending
+    const sortByRating = (arr: DbPlayer[]) => [...arr].sort((a, b) =>
+      (b.profile?.overallRating || 0) - (a.profile?.overallRating || 0)
+    );
+
+    const sortedRaiders = sortByRating(raiders);
+    const sortedDefenders = sortByRating(defenders);
+    const sortedAllRounders = sortByRating(allRounders);
+    const sortedUnknowns = sortByRating(unknowns);
+
+    const suggested: MatchPlayer[] = [];
+
+    // Pick from each category based on balance
+    const pickFrom = (pool: DbPlayer[], count: number) => {
+      const picked = pool.slice(0, count);
+      picked.forEach(p => {
+        suggested.push({
+          id: p.id,
+          name: p.name || 'Unknown',
+          jerseyNumber: p.profile?.jerseyNumber || suggested.length + 1,
+          playerCode: p.playerCode || undefined,
+          team: activeLineupTeam,
+        });
+      });
+      return picked.length;
+    };
+
+    let needRaiders = balance.raiders;
+    let needDefenders = balance.defenders;
+    let needAllRounders = balance.allRounders;
+
+    // First pick from known positions
+    const pickedRaiders = pickFrom(sortedRaiders, needRaiders);
+    needRaiders -= pickedRaiders;
+    const pickedDefenders = pickFrom(sortedDefenders, needDefenders);
+    needDefenders -= pickedDefenders;
+    const pickedAllRounders = pickFrom(sortedAllRounders, needAllRounders);
+    needAllRounders -= pickedAllRounders;
+
+    // Fill remaining slots with unknowns
+    const remaining = needRaiders + needDefenders + needAllRounders;
+    if (remaining > 0) {
+      pickFrom(sortedUnknowns, remaining);
+    }
+
+    // If still not enough, just add from the remaining sorted by rating
+    if (suggested.length < targetCount) {
+      const allRemaining = [...sortedRaiders.slice(pickedRaiders), ...sortedDefenders.slice(pickedDefenders), ...sortedAllRounders.slice(pickedAllRounders), ...sortedUnknowns.slice(remaining)]
+        .filter(p => !suggested.some(s => s.id === p.id) && !alreadyAdded.has(p.id));
+      const sortedRemaining = sortByRating(allRemaining);
+      pickFrom(sortedRemaining, targetCount - suggested.length);
+    }
+
+    // Apply the suggestion (merge with existing)
+    const mergedLineup = [...lineup, ...suggested].slice(0, targetCount);
+
+    setTimeout(() => {
+      setConfig({
+        ...config,
+        [activeLineupTeam === 'home' ? 'homeLineup' : 'awayLineup']: mergedLineup,
+      });
+      setSuggestingLineup(false);
+    }, 600);
+  }, [activeLineupTeam, config, allPlayers]);
+
+  // ─── Lineup validation summary ──────────────────────────────────
+
+  const lineupWarnings = useMemo(() => {
+    const warnings: { team: 'home' | 'away'; message: string; severity: 'error' | 'warning' | 'info' }[] = [];
+
+    const validateTeam = (lineup: MatchPlayer[], team: 'home' | 'away', teamName: string) => {
+      if (lineup.length === 0) {
+        warnings.push({ team, message: `${teamName}: No players added`, severity: 'error' });
+        return;
+      }
+      if (lineup.length < config.playersPerSide) {
+        warnings.push({
+          team,
+          message: `${teamName}: ${lineup.length}/${config.playersPerSide} players`,
+          severity: 'warning',
+        });
+      }
+
+      // Position balance
+      const positions = lineup.map(p => {
+        const dbP = allPlayers.find(ap => ap.id === p.id);
+        return getPositionCategory(dbP?.profile?.position || null);
+      });
+
+      const balance = POSITION_BALANCE[config.playersPerSide];
+      const raiderCount = positions.filter(p => p === 'raider').length;
+      const defenderCount = positions.filter(p => p === 'defender').length;
+
+      if (balance && raiderCount < balance.raiders && lineup.length >= config.playersPerSide) {
+        warnings.push({
+          team,
+          message: `${teamName}: Only ${raiderCount} raider(s) — recommended ${balance.raiders}`,
+          severity: 'info',
+        });
+      }
+      if (balance && defenderCount < balance.defenders && lineup.length >= config.playersPerSide) {
+        warnings.push({
+          team,
+          message: `${teamName}: Only ${defenderCount} defender(s) — recommended ${balance.defenders}`,
+          severity: 'info',
+        });
+      }
+    };
+
+    validateTeam(config.homeLineup, 'home', config.homeTeam || 'Team A');
+    validateTeam(config.awayLineup, 'away', config.awayTeam || 'Team B');
+
+    return warnings;
+  }, [config.homeLineup, config.awayLineup, config.playersPerSide, config.homeTeam, config.awayTeam, allPlayers]);
+
   const teamColors = [
     '#DC2626', '#1E293B', '#14B8A6', '#475569', '#9333EA',
     '#F97316', '#06B6D4', '#EC4899', '#84CC16', '#6366F1',
@@ -345,6 +679,16 @@ export default function QuickScoreTab() {
     if (p.includes('defend') || p.includes('corner') || p.includes('cover')) return <Shield className="w-3 h-3" />;
     if (p.includes('all')) return <Swords className="w-3 h-3" />;
     return null;
+  };
+
+  // ─── Position color for lineup display ──────────────────────────
+  const getPositionColor = (position: string | null) => {
+    if (!position) return 'bg-warm-400 dark:bg-warm-500';
+    const p = position.toLowerCase();
+    if (p.includes('raider')) return 'bg-brand-red';
+    if (p.includes('defend') || p.includes('corner') || p.includes('cover')) return 'bg-brand-teal';
+    if (p.includes('all')) return 'bg-brand-gold';
+    return 'bg-warm-400 dark:bg-warm-500';
   };
 
   return (
@@ -612,6 +956,20 @@ export default function QuickScoreTab() {
                   <span>7 (Standard)</span>
                   <span>12</span>
                 </div>
+
+                {/* Recommended formation hint */}
+                {POSITION_BALANCE[config.playersPerSide] && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-3 flex items-center gap-2 px-3 py-2 bg-brand-navy/5 dark:bg-brand-navy/10 rounded-lg"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-brand-navy dark:text-brand-navy-light shrink-0" />
+                    <span className="text-[10px] text-warm-600 dark:text-warm-300">
+                      Recommended: {POSITION_BALANCE[config.playersPerSide].raiders} Raiders · {POSITION_BALANCE[config.playersPerSide].defenders} Defenders · {POSITION_BALANCE[config.playersPerSide].allRounders} All-rounders
+                    </span>
+                  </motion.div>
+                )}
               </motion.div>
             </div>
           )}
@@ -623,152 +981,169 @@ export default function QuickScoreTab() {
                 <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Name and customize both teams</p>
               </div>
 
-              {/* Home Team */}
-              <div className="space-y-3">
-                <label className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: config.homeTeamColor }} />
-                  Team A
-                </label>
-                <div className="relative">
-                  <Input
-                    placeholder="Enter team name"
-                    value={config.homeTeam}
-                    onChange={(e) => {
-                      setConfig({ ...config, homeTeam: e.target.value });
-                      setShowHomeSuggestions(true);
-                    }}
-                    onFocus={() => setShowHomeSuggestions(true)}
-                    className="h-12 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-medium pl-4"
-                    style={{ borderColor: config.homeTeamColor, borderWidth: '2px' }}
-                  />
-                  {config.homeTeam && (
+              {/* Enhanced VS Section with gradient backgrounds */}
+              <div className="relative">
+                {/* Home Team */}
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: config.homeTeamColor }} />
+                    Team A
+                  </label>
+                  <div className="relative">
                     <div
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs"
-                      style={{ backgroundColor: config.homeTeamColor }}
+                      className="rounded-xl overflow-hidden"
+                      style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}15, transparent)` }}
                     >
-                      {config.homeTeam.charAt(0).toUpperCase()}
+                      <Input
+                        placeholder="Enter team name"
+                        value={config.homeTeam}
+                        onChange={(e) => {
+                          setConfig({ ...config, homeTeam: e.target.value });
+                          setShowHomeSuggestions(true);
+                        }}
+                        onFocus={() => setShowHomeSuggestions(true)}
+                        className="h-12 bg-white/80 dark:bg-warm-800/80 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-medium pl-4"
+                        style={{ borderColor: config.homeTeamColor, borderWidth: '2px' }}
+                      />
                     </div>
-                  )}
-                  {/* Team Suggestions Dropdown */}
-                  {showHomeSuggestions && homeTeamSuggestions.length > 0 && (
-                    <div className="absolute z-20 top-14 left-0 right-0 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
-                      <div className="px-3 py-1.5 text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider border-b border-warm-100 dark:border-warm-700">
-                        Your Teams
+                    {config.homeTeam && (
+                      <div
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs"
+                        style={{ backgroundColor: config.homeTeamColor }}
+                      >
+                        {config.homeTeam.charAt(0).toUpperCase()}
                       </div>
-                      {homeTeamSuggestions.map((team) => (
-                        <button
-                          key={team.id}
-                          onClick={() => selectHomeTeamSuggestion(team)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors"
-                        >
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                            style={{ backgroundColor: team.color || '#DC2626' }}
+                    )}
+                    {/* Team Suggestions Dropdown */}
+                    {showHomeSuggestions && homeTeamSuggestions.length > 0 && (
+                      <div className="absolute z-20 top-14 left-0 right-0 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
+                        <div className="px-3 py-1.5 text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider border-b border-warm-100 dark:border-warm-700">
+                          Your Teams
+                        </div>
+                        {homeTeamSuggestions.map((team) => (
+                          <button
+                            key={team.id}
+                            onClick={() => selectHomeTeamSuggestion(team)}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors"
                           >
-                            {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="text-sm text-warm-800 dark:text-warm-200 font-medium">{team.name}</span>
-                          {team.shortName && (
-                            <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono ml-auto">{team.shortName}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                              style={{ backgroundColor: team.color || '#DC2626' }}
+                            >
+                              {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm text-warm-800 dark:text-warm-200 font-medium">{team.name}</span>
+                            {team.shortName && (
+                              <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono ml-auto">{team.shortName}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {teamColors.map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setConfig({ ...config, homeTeamColor: color })}
+                        className={`w-8 h-8 rounded-full transition-all duration-200 ${
+                          config.homeTeamColor === color ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-900 scale-110' : 'hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  {teamColors.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setConfig({ ...config, homeTeamColor: color })}
-                      className={`w-8 h-8 rounded-full transition-all duration-200 ${
-                        config.homeTeamColor === color ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-900 scale-110' : 'hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
 
-              {/* VS Indicator */}
-              <div className="flex items-center justify-center py-2">
-                <div className="flex items-center gap-3 w-full">
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
-                  <motion.div
-                    className="w-10 h-10 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600"
-                    animate={{ rotate: [0, 5, -5, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                  >
-                    <Swords className="w-4 h-4 text-warm-500 dark:text-warm-400" />
-                  </motion.div>
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+                {/* VS Indicator - Enhanced */}
+                <div className="flex items-center justify-center py-3">
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+                    <motion.div
+                      className="relative"
+                      animate={{ rotate: [0, 5, -5, 0] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                    >
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-md">
+                        <Swords className="w-5 h-5 text-warm-500 dark:text-warm-400" />
+                      </div>
+                      {/* Glow effect */}
+                      <div className="absolute inset-0 rounded-full bg-brand-red/10 animate-pulse" />
+                    </motion.div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+                  </div>
                 </div>
-              </div>
 
-              {/* Away Team */}
-              <div className="space-y-3">
-                <label className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: config.awayTeamColor }} />
-                  Team B
-                </label>
-                <div className="relative">
-                  <Input
-                    placeholder="Enter team name"
-                    value={config.awayTeam}
-                    onChange={(e) => {
-                      setConfig({ ...config, awayTeam: e.target.value });
-                      setShowAwaySuggestions(true);
-                    }}
-                    onFocus={() => setShowAwaySuggestions(true)}
-                    className="h-12 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-medium pl-4"
-                    style={{ borderColor: config.awayTeamColor, borderWidth: '2px' }}
-                  />
-                  {config.awayTeam && (
+                {/* Away Team */}
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: config.awayTeamColor }} />
+                    Team B
+                  </label>
+                  <div className="relative">
                     <div
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs"
-                      style={{ backgroundColor: config.awayTeamColor }}
+                      className="rounded-xl overflow-hidden"
+                      style={{ background: `linear-gradient(135deg, ${config.awayTeamColor}15, transparent)` }}
                     >
-                      {config.awayTeam.charAt(0).toUpperCase()}
+                      <Input
+                        placeholder="Enter team name"
+                        value={config.awayTeam}
+                        onChange={(e) => {
+                          setConfig({ ...config, awayTeam: e.target.value });
+                          setShowAwaySuggestions(true);
+                        }}
+                        onFocus={() => setShowAwaySuggestions(true)}
+                        className="h-12 bg-white/80 dark:bg-warm-800/80 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-medium pl-4"
+                        style={{ borderColor: config.awayTeamColor, borderWidth: '2px' }}
+                      />
                     </div>
-                  )}
-                  {/* Team Suggestions Dropdown */}
-                  {showAwaySuggestions && awayTeamSuggestions.length > 0 && (
-                    <div className="absolute z-20 top-14 left-0 right-0 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
-                      <div className="px-3 py-1.5 text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider border-b border-warm-100 dark:border-warm-700">
-                        Your Teams
+                    {config.awayTeam && (
+                      <div
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs"
+                        style={{ backgroundColor: config.awayTeamColor }}
+                      >
+                        {config.awayTeam.charAt(0).toUpperCase()}
                       </div>
-                      {awayTeamSuggestions.map((team) => (
-                        <button
-                          key={team.id}
-                          onClick={() => selectAwayTeamSuggestion(team)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors"
-                        >
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                            style={{ backgroundColor: team.color || '#1E293B' }}
+                    )}
+                    {/* Team Suggestions Dropdown */}
+                    {showAwaySuggestions && awayTeamSuggestions.length > 0 && (
+                      <div className="absolute z-20 top-14 left-0 right-0 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
+                        <div className="px-3 py-1.5 text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider border-b border-warm-100 dark:border-warm-700">
+                          Your Teams
+                        </div>
+                        {awayTeamSuggestions.map((team) => (
+                          <button
+                            key={team.id}
+                            onClick={() => selectAwayTeamSuggestion(team)}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors"
                           >
-                            {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="text-sm text-warm-800 dark:text-warm-200 font-medium">{team.name}</span>
-                          {team.shortName && (
-                            <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono ml-auto">{team.shortName}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {teamColors.map((color) => (
-                    <button
-                      key={`away-${color}`}
-                      onClick={() => setConfig({ ...config, awayTeamColor: color })}
-                      className={`w-8 h-8 rounded-full transition-all duration-200 ${
-                        config.awayTeamColor === color ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-900 scale-110' : 'hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                              style={{ backgroundColor: team.color || '#1E293B' }}
+                            >
+                              {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm text-warm-800 dark:text-warm-200 font-medium">{team.name}</span>
+                            {team.shortName && (
+                              <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono ml-auto">{team.shortName}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {teamColors.map((color) => (
+                      <button
+                        key={`away-${color}`}
+                        onClick={() => setConfig({ ...config, awayTeamColor: color })}
+                        className={`w-8 h-8 rounded-full transition-all duration-200 ${
+                          config.awayTeamColor === color ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-900 scale-110' : 'hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -806,6 +1181,67 @@ export default function QuickScoreTab() {
                   {config.awayTeam || 'Team B'} ({config.awayLineup.length})
                 </button>
               </div>
+
+              {/* Smart Lineup Suggestion Button */}
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <Button
+                  onClick={handleSuggestLineup}
+                  disabled={suggestingLineup || allPlayers.length === 0}
+                  variant="outline"
+                  className="w-full border-brand-gold/40 dark:border-brand-gold/30 text-brand-gold-dark dark:text-brand-gold hover:bg-brand-gold/5 dark:hover:bg-brand-gold/10 h-10"
+                >
+                  {suggestingLineup ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      </motion.div>
+                      Suggesting...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Suggest Lineup
+                      <Badge className="ml-2 bg-brand-gold/15 text-brand-gold-dark dark:text-brand-gold text-[8px] font-bold border-0 px-1.5">
+                        AI
+                      </Badge>
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+
+              {/* Lineup Validation */}
+              {lineupWarnings.length > 0 && (
+                <div className="space-y-1.5">
+                  {lineupWarnings.map((w, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
+                        w.severity === 'error'
+                          ? 'bg-brand-red/10 text-brand-red dark:bg-brand-red/15'
+                          : w.severity === 'warning'
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 dark:bg-amber-500/15'
+                            : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 dark:bg-blue-500/15'
+                      }`}
+                    >
+                      {w.severity === 'info' ? (
+                        <Info className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      <span>{w.message}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
 
               {/* Unified Search Input with Suggestions */}
               <div className="space-y-2" ref={playerInputRef}>
@@ -859,7 +1295,7 @@ export default function QuickScoreTab() {
                   )}
                 </div>
 
-                {/* Suggestions Dropdown */}
+                {/* Suggestions Dropdown with Player Quick Stats */}
                 {showSuggestions && (
                   <div className="bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-warm-100 dark:divide-warm-700">
                     {/* Searching indicator */}
@@ -874,57 +1310,86 @@ export default function QuickScoreTab() {
                     {searchResults.length > 0 ? (
                       searchResults.map((p) => {
                         const alreadyAdded = [...config.homeLineup, ...config.awayLineup].some(lp => lp.id === p.id);
+                        const isHovered = hoveredPlayer === p.id;
+                        const hasStats = p.profile?.totalPoints && p.profile.totalPoints > 0;
+
                         return (
-                          <button
+                          <div
                             key={p.id}
-                            onClick={() => !alreadyAdded && addDbPlayer(p)}
-                            disabled={alreadyAdded}
-                            className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
-                              alreadyAdded
-                                ? 'opacity-50 cursor-not-allowed bg-warm-50 dark:bg-warm-800/50'
-                                : 'hover:bg-warm-50 dark:hover:bg-warm-700/50 active:bg-warm-100 dark:active:bg-warm-700'
-                            }`}
+                            className="relative"
+                            onMouseEnter={() => setHoveredPlayer(p.id)}
+                            onMouseLeave={() => setHoveredPlayer(null)}
                           >
-                            <div className="w-10 h-10 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-600 dark:text-warm-300 overflow-hidden shrink-0 relative">
-                              {p.avatar ? (
-                                <img src={p.avatar} alt={p.name || ''} className="w-full h-full object-cover" />
-                              ) : (
-                                (p.name || '?').charAt(0).toUpperCase()
-                              )}
-                              {p.profile?.position && (
-                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-brand-teal/20 flex items-center justify-center text-brand-teal">
-                                  {getPositionIcon(p.profile.position)}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-warm-800 dark:text-warm-200 truncate">
-                                {highlightMatch(p.name || 'Unknown', playerSearch)}
-                              </p>
-                              <div className="flex items-center gap-2">
-                                {p.playerCode && (
-                                  <span className="text-[10px] font-mono font-semibold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded">
-                                    {highlightMatch(p.playerCode, playerSearch)}
-                                  </span>
-                                )}
-                                {p.phone && (
-                                  <span className="text-[10px] text-warm-400 dark:text-warm-500">{p.phone}</span>
+                            <button
+                              onClick={() => !alreadyAdded && addDbPlayer(p)}
+                              disabled={alreadyAdded}
+                              className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
+                                alreadyAdded
+                                  ? 'opacity-50 cursor-not-allowed bg-warm-50 dark:bg-warm-800/50'
+                                  : 'hover:bg-warm-50 dark:hover:bg-warm-700/50 active:bg-warm-100 dark:active:bg-warm-700'
+                              }`}
+                            >
+                              <div className="w-10 h-10 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-600 dark:text-warm-300 overflow-hidden shrink-0 relative">
+                                {p.avatar ? (
+                                  <img src={p.avatar} alt={p.name || ''} className="w-full h-full object-cover" />
+                                ) : (
+                                  (p.name || '?').charAt(0).toUpperCase()
                                 )}
                                 {p.profile?.position && (
-                                  <span className="text-[10px] text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded capitalize">
-                                    {p.profile.position}
-                                  </span>
+                                  <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ${getPositionColor(p.profile.position)} flex items-center justify-center text-white`}>
+                                    {getPositionIcon(p.profile.position)}
+                                  </div>
                                 )}
                               </div>
-                            </div>
-                            {alreadyAdded ? (
-                              <Badge className="bg-brand-green/10 text-brand-green text-[9px] border-0">Added</Badge>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-brand-teal/10 flex items-center justify-center">
-                                <Plus className="w-4 h-4 text-brand-teal" />
+
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-warm-800 dark:text-warm-200 truncate">
+                                  {highlightMatch(p.name || 'Unknown', playerSearch)}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  {p.playerCode && (
+                                    <span className="text-[10px] font-mono font-semibold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded">
+                                      {highlightMatch(p.playerCode, playerSearch)}
+                                    </span>
+                                  )}
+                                  {p.phone && (
+                                    <span className="text-[10px] text-warm-400 dark:text-warm-500">{p.phone}</span>
+                                  )}
+                                  {p.profile?.position && (
+                                    <span className="text-[10px] text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded capitalize">
+                                      {p.profile.position}
+                                    </span>
+                                  )}
+                                </div>
+                                {/* Quick Stats Inline */}
+                                {hasStats && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[9px] font-semibold text-brand-navy dark:text-brand-navy-light">
+                                      ⭐ {p.profile.totalPoints}pts
+                                    </span>
+                                    <span className="text-[9px] text-brand-red">
+                                      ⚡ {p.profile.raidPoints || 0}R
+                                    </span>
+                                    <span className="text-[9px] text-brand-teal">
+                                      🎯 {p.profile.tacklePoints || 0}T
+                                    </span>
+                                  </div>
+                                )}
                               </div>
+                              {alreadyAdded ? (
+                                <Badge className="bg-brand-green/10 text-brand-green text-[9px] border-0">Added</Badge>
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-brand-teal/10 flex items-center justify-center">
+                                  <Plus className="w-4 h-4 text-brand-teal" />
+                                </div>
+                              )}
+                            </button>
+
+                            {/* Player Stats Tooltip on hover */}
+                            {isHovered && hasStats && !alreadyAdded && (
+                              <PlayerStatsTooltip player={p} allPlayers={allPlayers} />
                             )}
-                          </button>
+                          </div>
                         );
                       })
                     ) : !isSearching && playerSearch.trim() ? (
@@ -969,7 +1434,7 @@ export default function QuickScoreTab() {
                 )}
               </div>
 
-              {/* Player Cards */}
+              {/* Player Cards - Enhanced with position indicators */}
               <div className="space-y-2 min-h-[60px]">
                 {(activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup).length === 0 ? (
                   <div className="w-full text-center py-10">
@@ -977,45 +1442,75 @@ export default function QuickScoreTab() {
                       <UserPlus className="w-5 h-5 text-warm-300 dark:text-warm-600" />
                     </div>
                     <p className="text-warm-400 dark:text-warm-500 text-sm font-medium">No players added yet</p>
-                    <p className="text-warm-300 dark:text-warm-600 text-xs mt-0.5">Search or type a name above to add</p>
+                    <p className="text-warm-300 dark:text-warm-600 text-xs mt-0.5">Search, type a name, or use &quot;Suggest Lineup&quot;</p>
                   </div>
                 ) : (
-                  (activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup).map((player, idx) => (
-                    <motion.div
-                      key={player.id}
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="flex items-center gap-3 bg-white dark:bg-warm-800/70 border border-warm-200 dark:border-warm-700 rounded-xl p-3 shadow-sm"
-                    >
-                      <div className="text-warm-300 dark:text-warm-600">
-                        <GripVertical className="w-4 h-4" />
-                      </div>
-                      <span
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                        style={{
-                          backgroundColor:
-                            activeLineupTeam === 'home' ? config.homeTeamColor : config.awayTeamColor,
-                        }}
+                  (activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup).map((player, idx) => {
+                    const dbP = allPlayers.find(ap => ap.id === player.id);
+                    const position = dbP?.profile?.position || null;
+                    const positionCategory = getPositionCategory(position);
+                    const hasStats = dbP?.profile?.totalPoints && (dbP.profile.totalPoints || 0) > 0;
+
+                    return (
+                      <motion.div
+                        key={player.id}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="flex items-center gap-3 bg-white dark:bg-warm-800/70 border border-warm-200 dark:border-warm-700 rounded-xl p-3 shadow-sm"
                       >
-                        {player.jerseyNumber}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium text-warm-800 dark:text-warm-200">{player.name}</span>
-                        {player.playerCode && (
-                          <span className="text-[9px] font-mono text-brand-teal bg-brand-teal/10 px-1 rounded ml-1.5">
-                            {player.playerCode}
+                        <div className="text-warm-300 dark:text-warm-600">
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+                        <div className="relative">
+                          <span
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                            style={{
+                              backgroundColor:
+                                activeLineupTeam === 'home' ? config.homeTeamColor : config.awayTeamColor,
+                            }}
+                          >
+                            {player.jerseyNumber}
                           </span>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-warm-400 dark:text-warm-500 font-medium">#{idx + 1}</span>
-                      <button
-                        onClick={() => removePlayer(activeLineupTeam, player.id)}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-warm-400 hover:text-brand-red hover:bg-brand-red/10 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </motion.div>
-                  ))
+                          {/* Position dot */}
+                          {position && (
+                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${getPositionColor(position)} border-2 border-white dark:border-warm-800`} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-warm-800 dark:text-warm-200">{player.name}</span>
+                            {position && (
+                              <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                positionCategory === 'raider' ? 'bg-brand-red/10 text-brand-red' :
+                                positionCategory === 'defender' ? 'bg-brand-teal/10 text-brand-teal' :
+                                positionCategory === 'all-rounder' ? 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold' :
+                                'bg-warm-100 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+                              } capitalize`}>
+                                {position}
+                              </span>
+                            )}
+                          </div>
+                          {hasStats && (
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[9px] text-warm-400 dark:text-warm-500">
+                                ⭐ {dbP!.profile!.totalPoints}pts
+                              </span>
+                              <span className="text-[9px] text-warm-400 dark:text-warm-500">
+                                ⚡ {dbP!.profile!.raidPoints || 0}R
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-warm-400 dark:text-warm-500 font-medium">#{idx + 1}</span>
+                        <button
+                          onClick={() => removePlayer(activeLineupTeam, player.id)}
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-warm-400 hover:text-brand-red hover:bg-brand-red/10 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </motion.div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1028,7 +1523,7 @@ export default function QuickScoreTab() {
                 <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Review your match setup before starting</p>
               </div>
 
-              {/* Match Preview Card */}
+              {/* Match Preview Card - Enhanced */}
               <div className="bg-white dark:bg-warm-800/50 rounded-2xl border border-warm-200 dark:border-warm-700 overflow-hidden shadow-sm">
                 {/* Gender Badge Header */}
                 <div className={`py-2 px-4 text-center ${
@@ -1045,49 +1540,67 @@ export default function QuickScoreTab() {
                   </span>
                 </div>
 
-                {/* Teams Face Off */}
+                {/* Teams Face Off - Enhanced with gradient backgrounds */}
                 <div className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="text-center flex-1">
-                      <motion.div
-                        className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white font-black text-xl shadow-lg"
-                        style={{ backgroundColor: config.homeTeamColor }}
-                        initial={{ x: -20, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: 0.1 }}
+                      {/* Team gradient background */}
+                      <div
+                        className="rounded-2xl p-3 relative overflow-hidden"
+                        style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}20, transparent)` }}
                       >
-                        {config.homeTeam.charAt(0).toUpperCase()}
-                      </motion.div>
-                      <motion.div
-                        className="font-bold text-warm-800 dark:text-warm-100 mt-2 text-sm"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                      >
-                        {config.homeTeam}
-                      </motion.div>
-                      <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5">{config.homeLineup.length} players</div>
-                      {/* Lineup Summary */}
-                      <div className="flex flex-wrap gap-1 mt-2 justify-center">
-                        {config.homeLineup.slice(0, 5).map((p) => (
-                          <span
-                            key={p.id}
-                            className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 font-medium"
-                          >
-                            #{p.jerseyNumber} {p.name.split(' ')[0]}
-                          </span>
-                        ))}
-                        {config.homeLineup.length > 5 && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-500">
-                            +{config.homeLineup.length - 5}
-                          </span>
-                        )}
+                        <motion.div
+                          className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white font-black text-xl shadow-lg relative"
+                          style={{ backgroundColor: config.homeTeamColor }}
+                          initial={{ x: -20, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          {config.homeTeam.charAt(0).toUpperCase()}
+                        </motion.div>
+                        <motion.div
+                          className="font-bold text-warm-800 dark:text-warm-100 mt-2 text-sm"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.2 }}
+                        >
+                          {config.homeTeam}
+                        </motion.div>
+                        <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5">{config.homeLineup.length} players</div>
+                        {/* Lineup Summary with position badges */}
+                        <div className="flex flex-wrap gap-1 mt-2 justify-center">
+                          {config.homeLineup.slice(0, 5).map((p) => {
+                            const dbP = allPlayers.find(ap => ap.id === p.id);
+                            const position = dbP?.profile?.position;
+                            return (
+                              <span
+                                key={p.id}
+                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                                  position
+                                    ? getPositionCategory(position) === 'raider'
+                                      ? 'bg-brand-red/10 text-brand-red'
+                                      : getPositionCategory(position) === 'defender'
+                                        ? 'bg-brand-teal/10 text-brand-teal'
+                                        : 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold'
+                                    : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                                }`}
+                              >
+                                #{p.jerseyNumber} {p.name.split(' ')[0]}
+                              </span>
+                            );
+                          })}
+                          {config.homeLineup.length > 5 && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-500">
+                              +{config.homeLineup.length - 5}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-center px-3">
+                    <div className="flex flex-col items-center px-2">
                       <motion.div
-                        className="w-12 h-12 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600"
+                        className="w-12 h-12 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-md"
                         animate={{ scale: [1, 1.1, 1] }}
                         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                       >
@@ -1096,41 +1609,86 @@ export default function QuickScoreTab() {
                     </div>
 
                     <div className="text-center flex-1">
-                      <motion.div
-                        className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white font-black text-xl shadow-lg"
-                        style={{ backgroundColor: config.awayTeamColor }}
-                        initial={{ x: 20, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: 0.1 }}
+                      {/* Team gradient background */}
+                      <div
+                        className="rounded-2xl p-3 relative overflow-hidden"
+                        style={{ background: `linear-gradient(135deg, ${config.awayTeamColor}20, transparent)` }}
                       >
-                        {config.awayTeam.charAt(0).toUpperCase()}
-                      </motion.div>
-                      <motion.div
-                        className="font-bold text-warm-800 dark:text-warm-100 mt-2 text-sm"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                      >
-                        {config.awayTeam}
-                      </motion.div>
-                      <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5">{config.awayLineup.length} players</div>
-                      {/* Lineup Summary */}
-                      <div className="flex flex-wrap gap-1 mt-2 justify-center">
-                        {config.awayLineup.slice(0, 5).map((p) => (
-                          <span
-                            key={p.id}
-                            className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 font-medium"
-                          >
-                            #{p.jerseyNumber} {p.name.split(' ')[0]}
-                          </span>
-                        ))}
-                        {config.awayLineup.length > 5 && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-500">
-                            +{config.awayLineup.length - 5}
-                          </span>
-                        )}
+                        <motion.div
+                          className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white font-black text-xl shadow-lg relative"
+                          style={{ backgroundColor: config.awayTeamColor }}
+                          initial={{ x: 20, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          {config.awayTeam.charAt(0).toUpperCase()}
+                        </motion.div>
+                        <motion.div
+                          className="font-bold text-warm-800 dark:text-warm-100 mt-2 text-sm"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.2 }}
+                        >
+                          {config.awayTeam}
+                        </motion.div>
+                        <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5">{config.awayLineup.length} players</div>
+                        {/* Lineup Summary with position badges */}
+                        <div className="flex flex-wrap gap-1 mt-2 justify-center">
+                          {config.awayLineup.slice(0, 5).map((p) => {
+                            const dbP = allPlayers.find(ap => ap.id === p.id);
+                            const position = dbP?.profile?.position;
+                            return (
+                              <span
+                                key={p.id}
+                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                                  position
+                                    ? getPositionCategory(position) === 'raider'
+                                      ? 'bg-brand-red/10 text-brand-red'
+                                      : getPositionCategory(position) === 'defender'
+                                        ? 'bg-brand-teal/10 text-brand-teal'
+                                        : 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold'
+                                    : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                                }`}
+                              >
+                                #{p.jerseyNumber} {p.name.split(' ')[0]}
+                              </span>
+                            );
+                          })}
+                          {config.awayLineup.length > 5 && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-500">
+                              +{config.awayLineup.length - 5}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Formation Visualization */}
+                <div className="border-t border-warm-200 dark:border-warm-700 px-4 py-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Eye className="w-3.5 h-3.5 text-warm-500 dark:text-warm-400" />
+                    <span className="text-[10px] font-bold text-warm-600 dark:text-warm-300 uppercase tracking-wider">Team Formations</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FormationVisualization
+                      lineup={config.homeLineup}
+                      teamColor={config.homeTeamColor}
+                      teamName={config.homeTeam}
+                      side="left"
+                    />
+                    <div className="flex flex-col items-center justify-center pt-6 shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center">
+                        <Swords className="w-3.5 h-3.5 text-warm-400 dark:text-warm-500" />
+                      </div>
+                    </div>
+                    <FormationVisualization
+                      lineup={config.awayLineup}
+                      teamColor={config.awayTeamColor}
+                      teamName={config.awayTeam}
+                      side="right"
+                    />
                   </div>
                 </div>
 
@@ -1154,8 +1712,36 @@ export default function QuickScoreTab() {
                       {config.gender === 'male' ? '♂ Boys' : '♀ Girls'}
                     </span>
                   </div>
+                  {/* Position Balance Summary */}
+                  {POSITION_BALANCE[config.playersPerSide] && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-warm-500 dark:text-warm-400">Balance</span>
+                      <span className="text-warm-700 dark:text-warm-300 font-medium text-xs">
+                        {POSITION_BALANCE[config.playersPerSide].raiders}R · {POSITION_BALANCE[config.playersPerSide].defenders}D · {POSITION_BALANCE[config.playersPerSide].allRounders}AR
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Final validation warnings */}
+              {lineupWarnings.filter(w => w.severity !== 'info').length > 0 && (
+                <div className="space-y-1.5">
+                  {lineupWarnings.filter(w => w.severity !== 'info').map((w, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
+                        w.severity === 'error'
+                          ? 'bg-brand-red/10 text-brand-red dark:bg-brand-red/15'
+                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 dark:bg-amber-500/15'
+                      }`}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{w.message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Start Match Button */}
               <motion.div

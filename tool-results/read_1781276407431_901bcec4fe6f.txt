@@ -1,0 +1,964 @@
+     1→'use client';
+     2→
+     3→import { useState, useRef, useEffect, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Zap, Shield, Swords, Share2, Download, Link2, X,
+     7→  Maximize2, RotateCcw, Trophy, Target, Flame,
+     8→  TrendingUp, Award, ChevronRight,
+     9→} from 'lucide-react';
+    10→import { useKabaddiStore, type CurrentUser } from '@/lib/store';
+    11→import { Button } from '@/components/ui/button';
+    12→import { Badge } from '@/components/ui/badge';
+    13→import { useToast } from '@/hooks/use-toast';
+    14→import { toPng } from 'html-to-image';
+    15→
+    16→// ─── Types ───────────────────────────────────────────────────────────
+    17→
+    18→export interface PlayerProfileData {
+    19→  totalRaids: number;
+    20→  successfulRaids: number;
+    21→  totalTackles: number;
+    22→  successfulTackles: number;
+    23→  bonusPoints: number;
+    24→  superTackles: number;
+    25→  overallRating: number;
+    26→  position: string | null;
+    27→  jerseyNumber: number | null;
+    28→  playerCode: string | null;
+    29→  totalMatches: number;
+    30→  totalPoints: number;
+    31→  raidPoints: number;
+    32→  tacklePoints: number;
+    33→  tournamentMatches: number;
+    34→  tournamentRaidPoints: number;
+    35→  tournamentTacklePoints: number;
+    36→  tournamentTotalPoints: number;
+    37→  practiceMatches: number;
+    38→  practiceRaidPoints: number;
+    39→  practiceTacklePoints: number;
+    40→  practiceTotalPoints: number;
+    41→  // Team info
+    42→  teamNames?: string[];
+    43→  // Season highlights
+    44→  playerOfMonth?: number;
+    45→  playerOfYear?: number;
+    46→}
+    47→
+    48→interface PlayerProfileCardProps {
+    49→  player?: CurrentUser;
+    50→  profile?: PlayerProfileData;
+    51→  compact?: boolean;
+    52→}
+    53→
+    54→// ─── Position Helpers ────────────────────────────────────────────────
+    55→
+    56→function getPositionType(position: string | null): 'raider' | 'defender' | 'all-rounder' {
+    57→  if (!position) return 'all-rounder';
+    58→  const p = position.toLowerCase();
+    59→  if (p.includes('raider')) return 'raider';
+    60→  if (p.includes('corner') || p.includes('cover') || p.includes('defend')) return 'defender';
+    61→  return 'all-rounder';
+    62→}
+    63→
+    64→function getPositionIcon(position: string | null) {
+    65→  const type = getPositionType(position);
+    66→  switch (type) {
+    67→    case 'raider': return Zap;
+    68→    case 'defender': return Shield;
+    69→    case 'all-rounder': return Swords;
+    70→  }
+    71→}
+    72→
+    73→function getPositionColor(position: string | null) {
+    74→  const type = getPositionType(position);
+    75→  switch (type) {
+    76→    case 'raider': return { ring: 'ring-red-500', bg: 'bg-red-500', text: 'text-red-500', gradient: 'from-red-500 to-orange-500', border: 'border-red-500/30' };
+    77→    case 'defender': return { ring: 'ring-blue-500', bg: 'bg-blue-500', text: 'text-blue-500', gradient: 'from-blue-500 to-cyan-500', border: 'border-blue-500/30' };
+    78→    case 'all-rounder': return { ring: 'ring-amber-500', bg: 'bg-amber-500', text: 'text-amber-500', gradient: 'from-amber-500 to-yellow-400', border: 'border-amber-500/30' };
+    79→  }
+    80→}
+    81→
+    82→function getPositionLabel(position: string | null): string {
+    83→  if (!position) return 'All-Rounder';
+    84→  const map: Record<string, string> = {
+    85→    'left-raider': 'Left Raider',
+    86→    'right-raider': 'Right Raider',
+    87→    'both-raider': 'Both Raider',
+    88→    'left-corner': 'Left Corner',
+    89→    'right-corner': 'Right Corner',
+    90→    'left-cover': 'Left Cover',
+    91→    'right-cover': 'Right Cover',
+    92→    'all-rounder': 'All-Rounder',
+    93→  };
+    94→  return map[position] || position;
+    95→}
+    96→
+    97→// ─── Animated Counter ────────────────────────────────────────────────
+    98→
+    99→function AnimatedCounter({ value, duration = 1200 }: { value: number; duration?: number }) {
+   100→  const [display, setDisplay] = useState(0);
+   101→
+   102→  useEffect(() => {
+   103→    let start = 0;
+   104→    const end = value;
+   105→    if (end === 0) { setDisplay(0); return; }
+   106→    const increment = end / (duration / 16);
+   107→    const timer = setInterval(() => {
+   108→      start += increment;
+   109→      if (start >= end) {
+   110→        setDisplay(end);
+   111→        clearInterval(timer);
+   112→      } else {
+   113→        setDisplay(Math.floor(start));
+   114→      }
+   115→    }, 16);
+   116→    return () => clearInterval(timer);
+   117→  }, [value, duration]);
+   118→
+   119→  return <>{display}</>;
+   120→}
+   121→
+   122→// ─── Circular Rating Indicator ───────────────────────────────────────
+   123→
+   124→function CircularRating({ rating, size = 48 }: { rating: number; size?: number }) {
+   125→  const radius = (size - 8) / 2;
+   126→  const circumference = 2 * Math.PI * radius;
+   127→  const progress = Math.min(rating / 10, 1);
+   128→  const offset = circumference - progress * circumference;
+   129→
+   130→  const getColor = (r: number) => {
+   131→    if (r >= 8) return '#22c55e';
+   132→    if (r >= 6) return '#eab308';
+   133→    if (r >= 4) return '#f97316';
+   134→    return '#ef4444';
+   135→  };
+   136→
+   137→  return (
+   138→    <div className="relative" style={{ width: size, height: size }}>
+   139→      <svg width={size} height={size} className="-rotate-90">
+   140→        <circle
+   141→          cx={size / 2}
+   142→          cy={size / 2}
+   143→          r={radius}
+   144→          stroke="rgba(255,255,255,0.15)"
+   145→          strokeWidth="4"
+   146→          fill="none"
+   147→        />
+   148→        <circle
+   149→          cx={size / 2}
+   150→          cy={size / 2}
+   151→          r={radius}
+   152→          stroke={getColor(rating)}
+   153→          strokeWidth="4"
+   154→          fill="none"
+   155→          strokeLinecap="round"
+   156→          strokeDasharray={circumference}
+   157→          strokeDashoffset={offset}
+   158→          className="transition-all duration-1000 ease-out"
+   159→        />
+   160→      </svg>
+   161→      <div className="absolute inset-0 flex items-center justify-center">
+   162→        <span className="text-xs font-black text-white">{rating.toFixed(1)}</span>
+   163→      </div>
+   164→    </div>
+   165→  );
+   166→}
+   167→
+   168→// ─── Main Component ──────────────────────────────────────────────────
+   169→
+   170→export default function PlayerProfileCard({ player: playerProp, profile: profileProp, compact = false }: PlayerProfileCardProps) {
+   171→  const storeUser = useKabaddiStore((s) => s.currentUser);
+   172→  const { toast } = useToast();
+   173→
+   174→  const player = playerProp || storeUser;
+   175→  const [flipped, setFlipped] = useState(false);
+   176→  const [fullscreen, setFullscreen] = useState(false);
+   177→  const [showShareMenu, setShowShareMenu] = useState(false);
+   178→  const [profile, setProfile] = useState<PlayerProfileData | null>(profileProp || null);
+   179→  const cardRef = useRef<HTMLDivElement>(null);
+   180→  const frontRef = useRef<HTMLDivElement>(null);
+   181→
+   182→  // Fetch profile if not provided
+   183→  useEffect(() => {
+   184→    if (profileProp) {
+   185→      setProfile(profileProp);
+   186→      return;
+   187→    }
+   188→    if (!player?.id) return;
+   189→    let cancelled = false;
+   190→    fetch(`/api/players/${player.id}`)
+   191→      .then(res => res.ok ? res.json() : null)
+   192→      .then(data => {
+   193→        if (cancelled || !data) return;
+   194→        const p = data.profile;
+   195→        setProfile({
+   196→          totalRaids: p?.totalRaids || 0,
+   197→          successfulRaids: p?.successfulRaids || 0,
+   198→          totalTackles: p?.totalTackles || 0,
+   199→          successfulTackles: p?.successfulTackles || 0,
+   200→          bonusPoints: p?.bonusPoints || 0,
+   201→          superTackles: p?.superTackles || 0,
+   202→          overallRating: p?.overallRating || 0,
+   203→          position: p?.position || null,
+   204→          jerseyNumber: p?.jerseyNumber || null,
+   205→          playerCode: data.player?.playerCode || null,
+   206→          totalMatches: p?.totalMatches || 0,
+   207→          totalPoints: p?.totalPoints || 0,
+   208→          raidPoints: p?.raidPoints || (p?.successfulRaids || 0) + (p?.bonusPoints || 0),
+   209→          tacklePoints: p?.tacklePoints || p?.successfulTackles || 0,
+   210→          tournamentMatches: p?.tournamentMatches || 0,
+   211→          tournamentRaidPoints: p?.tournamentRaidPoints || 0,
+   212→          tournamentTacklePoints: p?.tournamentTacklePoints || 0,
+   213→          tournamentTotalPoints: p?.tournamentTotalPoints || 0,
+   214→          practiceMatches: p?.practiceMatches || 0,
+   215→          practiceRaidPoints: p?.practiceRaidPoints || 0,
+   216→          practiceTacklePoints: p?.practiceTacklePoints || 0,
+   217→          practiceTotalPoints: p?.practiceTotalPoints || 0,
+   218→          playerOfMonth: p?.playerOfMonth || 0,
+   219→          playerOfYear: p?.playerOfYear || 0,
+   220→        });
+   221→      })
+   222→      .catch(() => {});
+   223→    return () => { cancelled = true; };
+   224→  }, [player?.id, profileProp]);
+   225→
+   226→  const position = profile?.position || null;
+   227→  const posColor = getPositionColor(position);
+   228→  const PosIcon = getPositionIcon(position);
+   229→  const totalPoints = profile?.totalPoints || (profile?.raidPoints || 0) + (profile?.tacklePoints || 0);
+   230→  const raidPoints = profile?.raidPoints || 0;
+   231→  const tacklePoints = profile?.tacklePoints || 0;
+   232→  const matches = profile?.totalMatches || (profile?.tournamentMatches || 0) + (profile?.practiceMatches || 0);
+   233→
+   234→  // ─── Share Functionality ─────────────────────────────────────────
+   235→
+   236→  const captureCard = useCallback(async () => {
+   237→    if (!frontRef.current) return null;
+   238→    try {
+   239→      const dataUrl = await toPng(frontRef.current, {
+   240→        quality: 0.95,
+   241→        pixelRatio: 2,
+   242→        backgroundColor: '#1a1a2e',
+   243→      });
+   244→      return dataUrl;
+   245→    } catch (err) {
+   246→      console.error('Failed to capture card:', err);
+   247→      return null;
+   248→    }
+   249→  }, []);
+   250→
+   251→  const handleShareImage = useCallback(async () => {
+   252→    const dataUrl = await captureCard();
+   253→    if (!dataUrl) {
+   254→      toast({ title: 'Failed to capture card', variant: 'destructive' });
+   255→      return;
+   256→    }
+   257→
+   258→    try {
+   259→      const response = await fetch(dataUrl);
+   260→      const blob = await response.blob();
+   261→      const file = new File([blob], `kabaddi-pro-${player?.name || 'player'}.png`, { type: 'image/png' });
+   262→
+   263→      if (navigator.share && navigator.canShare({ files: [file] })) {
+   264→        await navigator.share({
+   265→          title: 'Kabaddi Pro Player Card',
+   266→          text: `Check out ${player?.name || 'this player'} on Kabaddi Pro!`,
+   267→          files: [file],
+   268→        });
+   269→        toast({ title: 'Shared successfully!' });
+   270→      } else {
+   271→        // Fallback: download
+   272→        const link = document.createElement('a');
+   273→        link.download = `kabaddi-pro-${player?.name || 'player'}.png`;
+   274→        link.href = dataUrl;
+   275→        link.click();
+   276→        toast({ title: 'Card downloaded!' });
+   277→      }
+   278→    } catch {
+   279→      const link = document.createElement('a');
+   280→      link.download = `kabaddi-pro-${player?.name || 'player'}.png`;
+   281→      link.href = dataUrl;
+   282→      link.click();
+   283→      toast({ title: 'Card downloaded!' });
+   284→    }
+   285→    setShowShareMenu(false);
+   286→  }, [captureCard, player?.name, toast]);
+   287→
+   288→  const handleCopyLink = useCallback(() => {
+   289→    const code = profile?.playerCode || player?.playerCode;
+   290→    const url = code ? `${window.location.origin}?player=${code}` : window.location.href;
+   291→    navigator.clipboard.writeText(url).then(() => {
+   292→      toast({ title: 'Link copied to clipboard!' });
+   293→    }).catch(() => {
+   294→      toast({ title: 'Failed to copy link', variant: 'destructive' });
+   295→    });
+   296→    setShowShareMenu(false);
+   297→  }, [profile?.playerCode, player?.playerCode, toast]);
+   298→
+   299→  const handleWebShare = useCallback(async () => {
+   300→    if (!navigator.share) {
+   301→      handleCopyLink();
+   302→      return;
+   303→    }
+   304→    try {
+   305→      await navigator.share({
+   306→        title: 'Kabaddi Pro Player',
+   307→        text: `Check out ${player?.name || 'this player'} on Kabaddi Pro!`,
+   308→        url: profile?.playerCode ? `${window.location.origin}?player=${profile.playerCode}` : window.location.href,
+   309→      });
+   310→      toast({ title: 'Shared successfully!' });
+   311→    } catch {
+   312→      // User cancelled or share failed
+   313→    }
+   314→    setShowShareMenu(false);
+   315→  }, [player?.name, profile?.playerCode, handleCopyLink, toast]);
+   316→
+   317→  // ─── Performance bars data ───────────────────────────────────────
+   318→
+   319→  const maxStatValue = Math.max(raidPoints, tacklePoints, profile?.bonusPoints || 0, profile?.superTackles || 0, 1);
+   320→  const performanceBars = [
+   321→    { label: 'Raid Points', value: raidPoints, color: 'from-red-500 to-orange-500', icon: Zap },
+   322→    { label: 'Tackle Points', value: tacklePoints, color: 'from-blue-500 to-cyan-500', icon: Shield },
+   323→    { label: 'Bonus Points', value: profile?.bonusPoints || 0, color: 'from-teal-500 to-emerald-500', icon: Target },
+   324→    { label: 'Super Tackles', value: profile?.superTackles || 0, color: 'from-purple-500 to-pink-500', icon: Flame },
+   325→  ];
+   326→
+   327→  const raidSuccessRate = (profile?.totalRaids || 0) > 0
+   328→    ? ((profile?.successfulRaids || 0) / profile.totalRaids) * 100
+   329→    : 0;
+   330→  const tackleSuccessRate = (profile?.totalTackles || 0) > 0
+   331→    ? ((profile?.successfulTackles || 0) / profile.totalTackles) * 100
+   332→    : 0;
+   333→
+   334→  // ─── Card Front ──────────────────────────────────────────────────
+   335→
+   336→  const cardFront = (
+   337→    <div
+   338→      ref={frontRef}
+   339→      className="relative w-full overflow-hidden rounded-2xl shadow-2xl"
+   340→      style={{
+   341→        background: `linear-gradient(135deg, #8B0000 0%, #B22222 30%, #D4A017 70%, #B8860B 100%)`,
+   342→        minHeight: compact ? 340 : 420,
+   343→      }}
+   344→    >
+   345→      {/* Decorative background elements */}
+   346→      <div className="absolute inset-0 overflow-hidden">
+   347→        {/* Diagonal stripes */}
+   348→        <div className="absolute inset-0 opacity-[0.06]" style={{
+   349→          backgroundImage: `repeating-linear-gradient(
+   350→            45deg, transparent, transparent 20px, rgba(255,255,255,0.3) 20px, rgba(255,255,255,0.3) 21px
+   351→          )`,
+   352→        }} />
+   353→        {/* Large circle */}
+   354→        <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full border-[3px] border-white/10" />
+   355→        <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full border-[3px] border-white/8" />
+   356→        {/* Sparkle dots */}
+   357→        <div className="absolute top-6 right-12 w-2 h-2 rounded-full bg-white/30 animate-pulse" />
+   358→        <div className="absolute top-20 right-6 w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" style={{ animationDelay: '0.7s' }} />
+   359→        <div className="absolute bottom-32 left-8 w-1 h-1 rounded-full bg-white/25 animate-pulse" style={{ animationDelay: '1.4s' }} />
+   360→        {/* Jersey number watermark */}
+   361→        {profile?.jerseyNumber && (
+   362→          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[120px] font-black text-white/[0.06] leading-none select-none pointer-events-none">
+   363→            {profile.jerseyNumber}
+   364→          </div>
+   365→        )}
+   366→      </div>
+   367→
+   368→      {/* Rating circle - top right */}
+   369→      <div className="absolute top-3 right-3 z-10">
+   370→        <CircularRating rating={profile?.overallRating || 0} size={compact ? 40 : 48} />
+   371→      </div>
+   372→
+   373→      {/* Content */}
+   374→      <div className={`relative z-10 flex flex-col items-center ${compact ? 'pt-8 pb-6 px-5' : 'pt-10 pb-8 px-6'}`}>
+   375→        {/* Avatar with ring */}
+   376→        <div className={`relative ${compact ? 'mb-4' : 'mb-5'}`}>
+   377→          <div className={`${compact ? 'w-20 h-20' : 'w-28 h-28'} rounded-full ring-4 ${posColor.ring} ring-offset-2 ring-offset-transparent bg-warm-200 flex items-center justify-center overflow-hidden shadow-xl`}>
+   378→            {player?.avatar ? (
+   379→              <img
+   380→                src={player.avatar}
+   381→                alt={player.name || 'Player'}
+   382→                className="w-full h-full object-cover"
+   383→              />
+   384→            ) : (
+   385→              <span className={`${compact ? 'text-3xl' : 'text-4xl'}`}>
+   386→                {player?.gender === 'female' ? '👩' : '👨'}
+   387→              </span>
+   388→            )}
+   389→          </div>
+   390→          {/* Position badge on avatar */}
+   391→          <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 ${posColor.bg} rounded-full px-2.5 py-0.5 flex items-center gap-1 shadow-lg`}>
+   392→            <PosIcon className="w-3 h-3 text-white" />
+   393→            <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+   394→              {getPositionType(position).substring(0, 3)}
+   395→            </span>
+   396→          </div>
+   397→        </div>
+   398→
+   399→        {/* Player Name with gradient text */}
+   400→        <h2 className={`${compact ? 'text-lg' : 'text-2xl'} font-black text-center leading-tight`}>
+   401→          <span className="bg-gradient-to-r from-white via-yellow-100 to-white bg-clip-text text-transparent drop-shadow-lg">
+   402→            {player?.name || 'Player'}
+   403→          </span>
+   404→          {/* Gender icon */}
+   405→          {player?.gender === 'male' && <span className="ml-1.5 text-blue-300 text-lg">♂</span>}
+   406→          {player?.gender === 'female' && <span className="ml-1.5 text-pink-300 text-lg">♀</span>}
+   407→        </h2>
+   408→
+   409→        {/* Player Code badge */}
+   410→        {(profile?.playerCode || player?.playerCode) && (
+   411→          <div className="mt-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
+   412→            <span className="text-xs font-mono font-bold text-white/90 tracking-wider">
+   413→              {profile?.playerCode || player?.playerCode}
+   414→            </span>
+   415→          </div>
+   416→        )}
+   417→
+   418→        {/* Position & Jersey Badges */}
+   419→        <div className="flex items-center gap-2 mt-2.5">
+   420→          {position && (
+   421→            <Badge className={`${posColor.bg} text-white border-0 text-[10px] font-bold gap-1 px-2 py-0.5`}>
+   422→              <PosIcon className="w-3 h-3" />
+   423→              {getPositionLabel(position)}
+   424→            </Badge>
+   425→          )}
+   426→          {profile?.jerseyNumber && (
+   427→            <Badge className="bg-white/15 backdrop-blur-sm text-white border border-white/20 text-[10px] font-bold px-2 py-0.5">
+   428→              #{profile.jerseyNumber}
+   429→            </Badge>
+   430→          )}
+   431→          {player?.isPremium && (
+   432→            <Badge className="bg-amber-500/80 text-white border-0 text-[10px] font-bold px-2 py-0.5">
+   433→              PRO
+   434→            </Badge>
+   435→          )}
+   436→        </div>
+   437→
+   438→        {/* Team Names */}
+   439→        {profile?.teamNames && profile.teamNames.length > 0 && (
+   440→          <div className="mt-2 text-white/60 text-[11px] text-center">
+   441→            {profile.teamNames.join(' • ')}
+   442→          </div>
+   443→        )}
+   444→
+   445→        {/* Stats Row */}
+   446→        <div className={`mt-5 grid grid-cols-4 gap-2 w-full ${compact ? '' : 'max-w-[300px]'}`}>
+   447→          {[
+   448→            { label: 'Total Pts', value: totalPoints, icon: Trophy, color: 'text-amber-300' },
+   449→            { label: 'Raid Pts', value: raidPoints, icon: Zap, color: 'text-red-300' },
+   450→            { label: 'Tackle Pts', value: tacklePoints, icon: Shield, color: 'text-cyan-300' },
+   451→            { label: 'Matches', value: matches, icon: Target, color: 'text-emerald-300' },
+   452→          ].map((stat) => {
+   453→            const IconComp = stat.icon;
+   454→            return (
+   455→              <div key={stat.label} className="text-center bg-white/10 backdrop-blur-sm rounded-xl p-2 border border-white/10">
+   456→                <IconComp className={`w-3.5 h-3.5 mx-auto mb-1 ${stat.color}`} />
+   457→                <div className="text-base font-black text-white">
+   458→                  <AnimatedCounter value={stat.value} />
+   459→                </div>
+   460→                <div className="text-[8px] text-white/60 uppercase tracking-wider font-medium">{stat.label}</div>
+   461→              </div>
+   462→            );
+   463→          })}
+   464→        </div>
+   465→      </div>
+   466→
+   467→      {/* Bottom brand strip */}
+   468→      <div className="relative z-10 bg-black/20 px-4 py-2 flex items-center justify-between">
+   469→        <div className="flex items-center gap-1.5">
+   470→          <div className="w-5 h-5 rounded-md bg-gradient-to-br from-red-500 to-amber-500 flex items-center justify-center">
+   471→            <span className="text-[8px] font-black text-white">K</span>
+   472→          </div>
+   473→          <span className="text-[10px] font-bold text-white/60 tracking-wider">KABADDI PRO</span>
+   474→        </div>
+   475→        <span className="text-[9px] text-white/40">{new Date().getFullYear()}</span>
+   476→      </div>
+   477→    </div>
+   478→  );
+   479→
+   480→  // ─── Card Back ──────────────────────────────────────────────────
+   481→
+   482→  const cardBack = (
+   483→    <div
+   484→      className="relative w-full overflow-hidden rounded-2xl shadow-2xl"
+   485→      style={{
+   486→        background: `linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)`,
+   487→        minHeight: compact ? 340 : 420,
+   488→      }}
+   489→    >
+   490→      {/* Decorative */}
+   491→      <div className="absolute inset-0 overflow-hidden opacity-10">
+   492→        <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full border-2 border-white/20" />
+   493→        <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full border-2 border-white/15" />
+   494→      </div>
+   495→
+   496→      <div className={`relative z-10 ${compact ? 'pt-6 pb-5 px-4' : 'pt-8 pb-6 px-5'}`}>
+   497→        {/* Header */}
+   498→        <div className="flex items-center gap-3 mb-4">
+   499→          <div className={`w-10 h-10 rounded-full ring-2 ${posColor.ring} bg-warm-200 flex items-center justify-center overflow-hidden`}>
+   500→            {player?.avatar ? (
+   501→              <img src={player.avatar} alt={player.name || ''} className="w-full h-full object-cover" />
+   502→            ) : (
+   503→              <span className="text-lg">{player?.gender === 'female' ? '👩' : '👨'}</span>
+   504→            )}
+   505→          </div>
+   506→          <div>
+   507→            <h3 className="text-base font-bold text-white">{player?.name || 'Player'}</h3>
+   508→            <p className="text-[10px] text-white/50">{profile?.playerCode || player?.playerCode} • {getPositionLabel(position)}</p>
+   509→          </div>
+   510→        </div>
+   511→
+   512→        {/* Performance Chart */}
+   513→        <div className="mb-4">
+   514→          <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-2.5">Performance Breakdown</h4>
+   515→          <div className="space-y-2.5">
+   516→            {performanceBars.map((bar) => {
+   517→              const BarIcon = bar.icon;
+   518→              const widthPct = maxStatValue > 0 ? (bar.value / maxStatValue) * 100 : 0;
+   519→              return (
+   520→                <div key={bar.label}>
+   521→                  <div className="flex items-center justify-between mb-1">
+   522→                    <div className="flex items-center gap-1.5">
+   523→                      <BarIcon className="w-3 h-3 text-white/60" />
+   524→                      <span className="text-[10px] text-white/70 font-medium">{bar.label}</span>
+   525→                    </div>
+   526→                    <span className="text-[11px] font-bold text-white">{bar.value}</span>
+   527→                  </div>
+   528→                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+   529→                    <motion.div
+   530→                      initial={{ width: 0 }}
+   531→                      animate={{ width: `${widthPct}%` }}
+   532→                      transition={{ duration: 0.8, ease: 'easeOut' }}
+   533→                      className={`h-full rounded-full bg-gradient-to-r ${bar.color}`}
+   534→                    />
+   535→                  </div>
+   536→                </div>
+   537→              );
+   538→            })}
+   539→          </div>
+   540→        </div>
+   541→
+   542→        {/* Success Rates */}
+   543→        <div className="grid grid-cols-2 gap-2.5 mb-4">
+   544→          <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+   545→            <div className="flex items-center gap-1.5 mb-1">
+   546→              <Zap className="w-3 h-3 text-red-400" />
+   547→              <span className="text-[10px] text-white/50 font-medium">Raid Success</span>
+   548→            </div>
+   549→            <span className="text-lg font-black text-white">{raidSuccessRate.toFixed(0)}%</span>
+   550→            <div className="w-full h-1.5 bg-white/10 rounded-full mt-1.5 overflow-hidden">
+   551→              <motion.div
+   552→                initial={{ width: 0 }}
+   553→                animate={{ width: `${Math.min(raidSuccessRate, 100)}%` }}
+   554→                transition={{ duration: 1, ease: 'easeOut' }}
+   555→                className="h-full rounded-full bg-gradient-to-r from-red-400 to-orange-400"
+   556→              />
+   557→            </div>
+   558→          </div>
+   559→          <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+   560→            <div className="flex items-center gap-1.5 mb-1">
+   561→              <Shield className="w-3 h-3 text-blue-400" />
+   562→              <span className="text-[10px] text-white/50 font-medium">Tackle Success</span>
+   563→            </div>
+   564→            <span className="text-lg font-black text-white">{tackleSuccessRate.toFixed(0)}%</span>
+   565→            <div className="w-full h-1.5 bg-white/10 rounded-full mt-1.5 overflow-hidden">
+   566→              <motion.div
+   567→                initial={{ width: 0 }}
+   568→                animate={{ width: `${Math.min(tackleSuccessRate, 100)}%` }}
+   569→                transition={{ duration: 1, ease: 'easeOut' }}
+   570→                className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-400"
+   571→              />
+   572→            </div>
+   573→          </div>
+   574→        </div>
+   575→
+   576→        {/* Season Highlights */}
+   577→        <div>
+   578→          <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-2">Season Highlights</h4>
+   579→          <div className="grid grid-cols-3 gap-2">
+   580→            <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
+   581→              <Trophy className="w-3.5 h-3.5 text-amber-400 mx-auto mb-1" />
+   582→              <p className="text-sm font-bold text-white">{(profile?.tournamentMatches || 0) + (profile?.practiceMatches || 0)}</p>
+   583→              <p className="text-[8px] text-white/40">Matches</p>
+   584→            </div>
+   585→            <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
+   586→              <TrendingUp className="w-3.5 h-3.5 text-emerald-400 mx-auto mb-1" />
+   587→              <p className="text-sm font-bold text-white">{totalPoints}</p>
+   588→              <p className="text-[8px] text-white/40">Total Pts</p>
+   589→            </div>
+   590→            <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
+   591→              <Award className="w-3.5 h-3.5 text-purple-400 mx-auto mb-1" />
+   592→              <p className="text-sm font-bold text-white">{profile?.playerOfMonth || 0}</p>
+   593→              <p className="text-[8px] text-white/40">POTM</p>
+   594→            </div>
+   595→          </div>
+   596→        </div>
+   597→
+   598→        {/* Flip prompt */}
+   599→        <div className="mt-4 text-center">
+   600→          <p className="text-[9px] text-white/30 flex items-center justify-center gap-1">
+   601→            <RotateCcw className="w-2.5 h-2.5" />
+   602→            Tap to flip back
+   603→          </p>
+   604→        </div>
+   605→      </div>
+   606→
+   607→      {/* Bottom brand strip */}
+   608→      <div className="absolute bottom-0 left-0 right-0 bg-black/20 px-4 py-2 flex items-center justify-between">
+   609→        <div className="flex items-center gap-1.5">
+   610→          <div className="w-5 h-5 rounded-md bg-gradient-to-br from-red-500 to-amber-500 flex items-center justify-center">
+   611→            <span className="text-[8px] font-black text-white">K</span>
+   612→          </div>
+   613→          <span className="text-[10px] font-bold text-white/60 tracking-wider">KABADDI PRO</span>
+   614→        </div>
+   615→        <span className="text-[9px] text-white/40">{new Date().getFullYear()}</span>
+   616→      </div>
+   617→    </div>
+   618→  );
+   619→
+   620→  // ─── Fullscreen View ────────────────────────────────────────────
+   621→
+   622→  const fullscreenView = (
+   623→    <AnimatePresence>
+   624→      {fullscreen && (
+   625→        <motion.div
+   626→          initial={{ opacity: 0 }}
+   627→          animate={{ opacity: 1 }}
+   628→          exit={{ opacity: 0 }}
+   629→          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4"
+   630→          onClick={(e) => { if (e.target === e.currentTarget) setFullscreen(false); }}
+   631→        >
+   632→          <motion.div
+   633→            initial={{ scale: 0.8, y: 50 }}
+   634→            animate={{ scale: 1, y: 0 }}
+   635→            exit={{ scale: 0.8, y: 50 }}
+   636→            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+   637→            className="w-full max-w-md my-8"
+   638→          >
+   639→            {/* Close button */}
+   640→            <div className="flex justify-end mb-3">
+   641→              <button
+   642→                onClick={() => setFullscreen(false)}
+   643→                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+   644→              >
+   645→                <X className="w-4 h-4" />
+   646→              </button>
+   647→            </div>
+   648→
+   649→            {/* Full-screen profile */}
+   650→            <div className="rounded-2xl overflow-hidden shadow-2xl" style={{
+   651→              background: 'linear-gradient(135deg, #8B0000 0%, #B22222 30%, #D4A017 70%, #B8860B 100%)',
+   652→            }}>
+   653→              {/* Decorative */}
+   654→              <div className="absolute inset-0 overflow-hidden opacity-[0.06] pointer-events-none">
+   655→                <div style={{
+   656→                  backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255,255,255,0.3) 20px, rgba(255,255,255,0.3) 21px)`,
+   657→                  width: '100%', height: '100%',
+   658→                }} />
+   659→              </div>
+   660→
+   661→              <div className="relative z-10 pt-10 pb-8 px-6">
+   662→                {/* Rating circle */}
+   663→                <div className="absolute top-4 right-4">
+   664→                  <CircularRating rating={profile?.overallRating || 0} size={56} />
+   665→                </div>
+   666→
+   667→                {/* Avatar */}
+   668→                <div className="flex flex-col items-center mb-6">
+   669→                  <div className={`w-32 h-32 rounded-full ring-4 ${posColor.ring} ring-offset-2 ring-offset-transparent bg-warm-200 flex items-center justify-center overflow-hidden shadow-xl mb-3`}>
+   670→                    {player?.avatar ? (
+   671→                      <img src={player.avatar} alt={player.name || ''} className="w-full h-full object-cover" />
+   672→                    ) : (
+   673→                      <span className="text-5xl">{player?.gender === 'female' ? '👩' : '👨'}</span>
+   674→                    )}
+   675→                  </div>
+   676→                  <div className={`${posColor.bg} rounded-full px-4 py-1 flex items-center gap-1.5 shadow-lg -mt-5`}>
+   677→                    <PosIcon className="w-4 h-4 text-white" />
+   678→                    <span className="text-xs font-bold text-white uppercase tracking-wide">
+   679→                      {getPositionLabel(position)}
+   680→                    </span>
+   681→                  </div>
+   682→                </div>
+   683→
+   684→                {/* Name */}
+   685→                <h2 className="text-3xl font-black text-center mb-1">
+   686→                  <span className="bg-gradient-to-r from-white via-yellow-100 to-white bg-clip-text text-transparent">
+   687→                    {player?.name || 'Player'}
+   688→                  </span>
+   689→                  {player?.gender === 'male' && <span className="ml-2 text-blue-300">♂</span>}
+   690→                  {player?.gender === 'female' && <span className="ml-2 text-pink-300">♀</span>}
+   691→                </h2>
+   692→
+   693→                {/* Code & Badges */}
+   694→                <div className="flex items-center justify-center gap-2 mt-2">
+   695→                  {(profile?.playerCode || player?.playerCode) && (
+   696→                    <div className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20">
+   697→                      <span className="text-sm font-mono font-bold text-white/90">{profile?.playerCode || player?.playerCode}</span>
+   698→                    </div>
+   699→                  )}
+   700→                  {profile?.jerseyNumber && (
+   701→                    <Badge className="bg-white/15 text-white border border-white/20 font-bold">#{profile.jerseyNumber}</Badge>
+   702→                  )}
+   703→                  {player?.isPremium && (
+   704→                    <Badge className="bg-amber-500/80 text-white border-0 font-bold">PRO</Badge>
+   705→                  )}
+   706→                </div>
+   707→
+   708→                {/* Stats Grid */}
+   709→                <div className="grid grid-cols-4 gap-3 mt-6">
+   710→                  {[
+   711→                    { label: 'Total Pts', value: totalPoints, icon: Trophy, color: 'text-amber-300' },
+   712→                    { label: 'Raid Pts', value: raidPoints, icon: Zap, color: 'text-red-300' },
+   713→                    { label: 'Tackle Pts', value: tacklePoints, icon: Shield, color: 'text-cyan-300' },
+   714→                    { label: 'Matches', value: matches, icon: Target, color: 'text-emerald-300' },
+   715→                  ].map((stat) => {
+   716→                    const IconComp = stat.icon;
+   717→                    return (
+   718→                      <div key={stat.label} className="text-center bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
+   719→                        <IconComp className={`w-4 h-4 mx-auto mb-1.5 ${stat.color}`} />
+   720→                        <div className="text-xl font-black text-white">
+   721→                          <AnimatedCounter value={stat.value} />
+   722→                        </div>
+   723→                        <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium mt-0.5">{stat.label}</div>
+   724→                      </div>
+   725→                    );
+   726→                  })}
+   727→                </div>
+   728→
+   729→                {/* Detailed Performance */}
+   730→                <div className="mt-6 bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+   731→                  <h4 className="text-xs font-bold text-white/60 uppercase tracking-wider mb-3">Performance Breakdown</h4>
+   732→                  <div className="space-y-3">
+   733→                    {performanceBars.map((bar) => {
+   734→                      const BarIcon = bar.icon;
+   735→                      const widthPct = maxStatValue > 0 ? (bar.value / maxStatValue) * 100 : 0;
+   736→                      return (
+   737→                        <div key={bar.label}>
+   738→                          <div className="flex items-center justify-between mb-1">
+   739→                            <div className="flex items-center gap-1.5">
+   740→                              <BarIcon className="w-3.5 h-3.5 text-white/60" />
+   741→                              <span className="text-xs text-white/70 font-medium">{bar.label}</span>
+   742→                            </div>
+   743→                            <span className="text-sm font-bold text-white">{bar.value}</span>
+   744→                          </div>
+   745→                          <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden">
+   746→                            <motion.div
+   747→                              initial={{ width: 0 }}
+   748→                              animate={{ width: `${widthPct}%` }}
+   749→                              transition={{ duration: 0.8, ease: 'easeOut' }}
+   750→                              className={`h-full rounded-full bg-gradient-to-r ${bar.color}`}
+   751→                            />
+   752→                          </div>
+   753→                        </div>
+   754→                      );
+   755→                    })}
+   756→                  </div>
+   757→                </div>
+   758→
+   759→                {/* Success Rates Row */}
+   760→                <div className="grid grid-cols-2 gap-3 mt-4">
+   761→                  <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+   762→                    <div className="flex items-center gap-1.5 mb-1.5">
+   763→                      <Zap className="w-3.5 h-3.5 text-red-400" />
+   764→                      <span className="text-[11px] text-white/50 font-medium">Raid Success</span>
+   765→                    </div>
+   766→                    <span className="text-xl font-black text-white">{raidSuccessRate.toFixed(0)}%</span>
+   767→                    <div className="w-full h-2 bg-white/10 rounded-full mt-2 overflow-hidden">
+   768→                      <motion.div
+   769→                        initial={{ width: 0 }}
+   770→                        animate={{ width: `${Math.min(raidSuccessRate, 100)}%` }}
+   771→                        transition={{ duration: 1, ease: 'easeOut' }}
+   772→                        className="h-full rounded-full bg-gradient-to-r from-red-400 to-orange-400"
+   773→                      />
+   774→                    </div>
+   775→                  </div>
+   776→                  <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+   777→                    <div className="flex items-center gap-1.5 mb-1.5">
+   778→                      <Shield className="w-3.5 h-3.5 text-blue-400" />
+   779→                      <span className="text-[11px] text-white/50 font-medium">Tackle Success</span>
+   780→                    </div>
+   781→                    <span className="text-xl font-black text-white">{tackleSuccessRate.toFixed(0)}%</span>
+   782→                    <div className="w-full h-2 bg-white/10 rounded-full mt-2 overflow-hidden">
+   783→                      <motion.div
+   784→                        initial={{ width: 0 }}
+   785→                        animate={{ width: `${Math.min(tackleSuccessRate, 100)}%` }}
+   786→                        transition={{ duration: 1, ease: 'easeOut' }}
+   787→                        className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-400"
+   788→                      />
+   789→                    </div>
+   790→                  </div>
+   791→                </div>
+   792→
+   793→                {/* Season Highlights */}
+   794→                <div className="mt-4 bg-white/5 rounded-xl p-3 border border-white/10">
+   795→                  <h4 className="text-[11px] font-bold text-white/50 uppercase tracking-wider mb-2.5">Season Highlights</h4>
+   796→                  <div className="grid grid-cols-4 gap-2">
+   797→                    <div className="text-center">
+   798→                      <Trophy className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+   799→                      <p className="text-base font-bold text-white">{(profile?.tournamentMatches || 0) + (profile?.practiceMatches || 0)}</p>
+   800→                      <p className="text-[8px] text-white/40">Matches</p>
+   801→                    </div>
+   802→                    <div className="text-center">
+   803→                      <TrendingUp className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
+   804→                      <p className="text-base font-bold text-white">{totalPoints}</p>
+   805→                      <p className="text-[8px] text-white/40">Total Pts</p>
+   806→                    </div>
+   807→                    <div className="text-center">
+   808→                      <Award className="w-4 h-4 text-purple-400 mx-auto mb-1" />
+   809→                      <p className="text-base font-bold text-white">{profile?.playerOfMonth || 0}</p>
+   810→                      <p className="text-[8px] text-white/40">POTM</p>
+   811→                    </div>
+   812→                    <div className="text-center">
+   813→                      <Flame className="w-4 h-4 text-orange-400 mx-auto mb-1" />
+   814→                      <p className="text-base font-bold text-white">{profile?.superTackles || 0}</p>
+   815→                      <p className="text-[8px] text-white/40">S.Tackles</p>
+   816→                    </div>
+   817→                  </div>
+   818→                </div>
+   819→
+   820→                {/* Match History Summary */}
+   821→                <div className="mt-4 bg-white/5 rounded-xl p-3 border border-white/10">
+   822→                  <h4 className="text-[11px] font-bold text-white/50 uppercase tracking-wider mb-2">Match Summary</h4>
+   823→                  <div className="grid grid-cols-2 gap-2">
+   824→                    <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+   825→                      <span className="text-sm">🏋️</span>
+   826→                      <div>
+   827→                        <p className="text-xs font-bold text-white">{profile?.practiceMatches || 0}</p>
+   828→                        <p className="text-[8px] text-white/40">Practice</p>
+   829→                      </div>
+   830→                    </div>
+   831→                    <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+   832→                      <span className="text-sm">🏆</span>
+   833→                      <div>
+   834→                        <p className="text-xs font-bold text-white">{profile?.tournamentMatches || 0}</p>
+   835→                        <p className="text-[8px] text-white/40">Tournament</p>
+   836→                      </div>
+   837→                    </div>
+   838→                  </div>
+   839→                </div>
+   840→              </div>
+   841→
+   842→              {/* Brand strip */}
+   843→              <div className="bg-black/20 px-4 py-2 flex items-center justify-between">
+   844→                <div className="flex items-center gap-1.5">
+   845→                  <div className="w-5 h-5 rounded-md bg-gradient-to-br from-red-500 to-amber-500 flex items-center justify-center">
+   846→                    <span className="text-[8px] font-black text-white">K</span>
+   847→                  </div>
+   848→                  <span className="text-[10px] font-bold text-white/60 tracking-wider">KABADDI PRO</span>
+   849→                </div>
+   850→                <span className="text-[9px] text-white/40">{new Date().getFullYear()}</span>
+   851→              </div>
+   852→            </div>
+   853→          </motion.div>
+   854→        </motion.div>
+   855→      )}
+   856→    </AnimatePresence>
+   857→  );
+   858→
+   859→  // ─── Render ─────────────────────────────────────────────────────
+   860→
+   861→  return (
+   862→    <>
+   863→      {/* Card with flip animation */}
+   864→      <div className="relative" ref={cardRef}>
+   865→        {/* Action buttons */}
+   866→        <div className="flex items-center justify-between mb-2">
+   867→          <div className="flex items-center gap-1.5">
+   868→            <button
+   869→              onClick={() => setFlipped(!flipped)}
+   870→              className="flex items-center gap-1 text-[10px] font-semibold text-white/60 hover:text-white/90 transition-colors bg-white/10 rounded-lg px-2.5 py-1.5"
+   871→            >
+   872→              <RotateCcw className="w-3 h-3" />
+   873→              Flip
+   874→            </button>
+   875→            <button
+   876→              onClick={() => setFullscreen(true)}
+   877→              className="flex items-center gap-1 text-[10px] font-semibold text-white/60 hover:text-white/90 transition-colors bg-white/10 rounded-lg px-2.5 py-1.5"
+   878→            >
+   879→              <Maximize2 className="w-3 h-3" />
+   880→              Expand
+   881→            </button>
+   882→          </div>
+   883→          <div className="relative">
+   884→            <button
+   885→              onClick={() => setShowShareMenu(!showShareMenu)}
+   886→              className="flex items-center gap-1 text-[10px] font-semibold text-white/60 hover:text-white/90 transition-colors bg-white/10 rounded-lg px-2.5 py-1.5"
+   887→            >
+   888→              <Share2 className="w-3 h-3" />
+   889→              Share
+   890→            </button>
+   891→
+   892→            {/* Share dropdown */}
+   893→            <AnimatePresence>
+   894→              {showShareMenu && (
+   895→                <motion.div
+   896→                  initial={{ opacity: 0, scale: 0.9, y: -5 }}
+   897→                  animate={{ opacity: 1, scale: 1, y: 0 }}
+   898→                  exit={{ opacity: 0, scale: 0.9, y: -5 }}
+   899→                  transition={{ duration: 0.15 }}
+   900→                  className="absolute right-0 top-full mt-1.5 bg-warm-100 dark:bg-warm-200 rounded-xl shadow-xl border border-warm-300 dark:border-warm-300 overflow-hidden z-20 min-w-[160px]"
+   901→                >
+   902→                  <button
+   903→                    onClick={handleShareImage}
+   904→                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-warm-200 dark:hover:bg-warm-300 transition-colors text-left"
+   905→                  >
+   906→                    <Download className="w-4 h-4 text-brand-red" />
+   907→                    <span className="text-xs font-medium text-warm-800 dark:text-warm-700">Download Card</span>
+   908→                  </button>
+   909→                  <button
+   910→                    onClick={handleCopyLink}
+   911→                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-warm-200 dark:hover:bg-warm-300 transition-colors text-left"
+   912→                  >
+   913→                    <Link2 className="w-4 h-4 text-brand-teal" />
+   914→                    <span className="text-xs font-medium text-warm-800 dark:text-warm-700">Copy Link</span>
+   915→                  </button>
+   916→                  {typeof navigator !== 'undefined' && navigator.share && (
+   917→                    <button
+   918→                      onClick={handleWebShare}
+   919→                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-warm-200 dark:hover:bg-warm-300 transition-colors text-left"
+   920→                    >
+   921→                      <Share2 className="w-4 h-4 text-brand-gold" />
+   922→                      <span className="text-xs font-medium text-warm-800 dark:text-warm-700">Share via...</span>
+   923→                    </button>
+   924→                  )}
+   925→                </motion.div>
+   926→              )}
+   927→            </AnimatePresence>
+   928→          </div>
+   929→        </div>
+   930→
+   931→        {/* 3D Flip Container */}
+   932→        <div
+   933→          className="relative w-full cursor-pointer"
+   934→          style={{ perspective: '1200px' }}
+   935→          onClick={() => setFlipped(!flipped)}
+   936→        >
+   937→          <div
+   938→            className="relative w-full transition-transform duration-700 ease-in-out"
+   939→            style={{
+   940→              transformStyle: 'preserve-3d',
+   941→              transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+   942→            }}
+   943→          >
+   944→            {/* Front */}
+   945→            <div style={{ backfaceVisibility: 'hidden' }}>
+   946→              {cardFront}
+   947→            </div>
+   948→            {/* Back */}
+   949→            <div
+   950→              className="absolute inset-0"
+   951→              style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+   952→            >
+   953→              {cardBack}
+   954→            </div>
+   955→          </div>
+   956→        </div>
+   957→      </div>
+   958→
+   959→      {/* Fullscreen overlay */}
+   960→      {fullscreenView}
+   961→    </>
+   962→  );
+   963→}
+   964→
