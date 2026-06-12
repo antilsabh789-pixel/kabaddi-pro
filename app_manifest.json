@@ -1,0 +1,19 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "html": "<html><head><meta name=\"color-scheme\" content=\"light dark\"></head><body><pre style=\"word-wrap: break-word; white-space: pre-wrap;\">{\n  \"name\": \"Kabaddi Pro\",\n  \"short_name\": \"KabaddiPro\",\n  \"description\": \"The ultimate kabaddi scoring & tournament management app. Score matches, track stats, manage tournaments, and more!\",\n  \"start_url\": \"/\",\n  \"display\": \"standalone\",\n  \"background_color\": \"#FFFFFF\",\n  \"theme_color\": \"#DC2626\",\n  \"orientation\": \"portrait\",\n  \"scope\": \"/\",\n  \"icons\": [\n    {\n      \"src\": \"/app-icon.png\",\n      \"sizes\": \"512x512\",\n      \"type\": \"image/png\",\n      \"purpose\": \"any maskable\"\n    },\n    {\n      \"src\": \"/favicon.png\",\n      \"sizes\": \"32x32\",\n      \"type\": \"image/png\"\n    }\n  ],\n  \"categories\": [\"sports\", \"entertainment\"],\n  \"shortcuts\": [\n    {\n      \"name\": \"Quick Score\",\n      \"short_name\": \"Score\",\n      \"description\": \"Start scoring a match\",\n      \"url\": \"/?tab=quick-score\"\n    },\n    {\n      \"name\": \"Tournaments\",\n      \"short_name\": \"Tourneys\",\n      \"description\": \"View tournaments\",\n      \"url\": \"/?tab=tournaments\"\n    }\n  ]\n}\n</pre></body></html>",
+    "publishedTime": "Fri, 12 Jun 2026 12:39:53 GMT",
+    "title": "",
+    "url": "https://kabaddi-app-cyan.vercel.app/manifest.json",
+    "usage": {
+      "tokens": 315
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 315
+    }
+  },
+  "status": 20000
+}
