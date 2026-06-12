@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,19 +8,471 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  phone          String   @unique
+  playerCode     String?  @unique // unique code for easy lookup (e.g. "KP1001")
+  email          String?  @unique
+  name           String?
+  password       String   // hashed password
+  role           String   @default("player") // player, coach
+  avatar         String?
+  isPremium      Boolean  @default(false) // premium subscription status
+  isAdmin        Boolean  @default(false) // admin can see earnings dashboard
+  gender         String?  // boy, girl
+  weight         String?  // e.g., "65kg", "70kg"
+  practiceGround String?  // practice ground / academy name
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  teams        TeamMember[]
+  matches      MatchScorer[]
+  profile      PlayerProfile?
+  tournaments  Tournament[]
+  payments     Payment[]
+  followers         Follow[]      @relation("UserFollowers")
+  following         Follow[]      @relation("UserFollowing")
+  notifications     Notification[] @relation("NotificationRecipient")
+  sentNotifications Notification[] @relation("NotificationSender")
+  activities        Activity[]
+  userAchievements  UserAchievement[]
+  sentChallenges    Challenge[]   @relation("ChallengeSender")
+  receivedChallenges Challenge[]  @relation("ChallengeReceiver")
+  referralsMade     Referral[]    @relation("ReferralReferrer")
+  referralsUsed     Referral[]    @relation("ReferralReferred")
+  pollVotes         PollVote[]
+  aiInsights        AIInsight[]
 }
 
-model Post {
+model PlayerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  jerseyNumber    Int?
+  weightCategory  String?  // e.g., "Below 65kg", "65-75kg", "75-85kg", "Above 85kg"
+  position        String?  // raider, defender, all-rounder
+  overallRating   Float    @default(0)
+
+  // Overall stats (combined practice + tournament)
+  totalRaids      Int      @default(0)
+  successfulRaids Int      @default(0)
+  totalTackles    Int      @default(0)
+  successfulTackles Int    @default(0)
+  bonusPoints     Int      @default(0)
+  superTackles    Int      @default(0)
+  totalMatches    Int      @default(0)
+  totalPoints     Int      @default(0)
+  raidPoints      Int      @default(0)
+  tacklePoints    Int      @default(0)
+
+  // Tournament-specific stats (leaderboard uses these)
+  tournamentMatches          Int @default(0)
+  tournamentTotalRaids       Int @default(0)
+  tournamentSuccessfulRaids  Int @default(0)
+  tournamentTotalTackles     Int @default(0)
+  tournamentSuccessfulTackles Int @default(0)
+  tournamentRaidPoints       Int @default(0)
+  tournamentTacklePoints     Int @default(0)
+  tournamentBonusPoints      Int @default(0)
+  tournamentSuperTackles     Int @default(0)
+  tournamentTotalPoints      Int @default(0)
+
+  // Practice-specific stats
+  practiceMatches          Int @default(0)
+  practiceTotalRaids       Int @default(0)
+  practiceSuccessfulRaids  Int @default(0)
+  practiceTotalTackles     Int @default(0)
+  practiceSuccessfulTackles Int @default(0)
+  practiceRaidPoints       Int @default(0)
+  practiceTacklePoints     Int @default(0)
+  practiceBonusPoints      Int @default(0)
+  practiceSuperTackles     Int @default(0)
+  practiceTotalPoints      Int @default(0)
+
+  playerOfMonth   Int      @default(0)
+  playerOfYear    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Team {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  name      String
+  shortName String?
+  teamCode  String?  @unique  // unique code for easy lookup (e.g. "KT2001")
+  logo      String?
+  color     String?  // hex color
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  members        TeamMember[]
+  homeMatches    Match[]     @relation("HomeTeam")
+  awayMatches    Match[]     @relation("AwayTeam")
+  tournamentEntries TournamentEntry[]
+  challengesFrom  Challenge[] @relation("ChallengeFromTeam")
+  challengesTo    Challenge[] @relation("ChallengeToTeam")
+  seasonTeams     SeasonTeam[]
+  pollOptions     PollOption[]
+  sponsors        Sponsor[]
+}
+
+model TeamMember {
+  id       String @id @default(cuid())
+  teamId   String
+  userId   String
+  isCaptain Boolean @default(false)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+}
+
+model Tournament {
+  id             String   @id @default(cuid())
+  name           String
+  tournamentCode String?  @unique  // unique code for easy lookup (e.g. "TC3001")
+  type           String   @default("knockout") // knockout, league, hybrid
+  status         String   @default("upcoming") // upcoming, ongoing, completed
+  gender         String?  // boys, girls
+  startDate      DateTime?
+  endDate        DateTime?
+  venue          String?
+  organizerId    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizer User? @relation(fields: [organizerId], references: [id], onDelete: SetNull)
+  entries   TournamentEntry[]
+  matches   Match[]
+}
+
+model TournamentEntry {
+  id           String @id @default(cuid())
+  tournamentId String
+  teamId       String
+  played       Int    @default(0)
+  won          Int    @default(0)
+  lost         Int    @default(0)
+  drawn        Int    @default(0)
+  scoreDiff    Int    @default(0)
+  points       Int    @default(0)
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamId])
+}
+
+model Match {
+  id              String   @id @default(cuid())
+  tournamentId    String?
+  homeTeamId      String
+  awayTeamId      String
+  homeScore       Int      @default(0)
+  awayScore       Int      @default(0)
+  half            Int      @default(1)
+  halfDuration    Int      @default(20) // minutes per half (configurable: 5, 10, 15, 20, 25, 30)
+  playersPerSide  Int      @default(7)  // how many players per side (configurable: 1-12)
+  status          String   @default("upcoming") // upcoming, live, completed
+  isPractice      Boolean  @default(false)
+  gender          String?  // boys, girls
+  venue           String?
+  groundId        String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tournament Tournament? @relation(fields: [tournamentId], references: [id])
+  homeTeam   Team        @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam   Team        @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  ground     Ground?     @relation(fields: [groundId], references: [id])
+  motmUserId String?  // Man of the Match user ID
+  scorers    MatchScorer[]
+  events     MatchEvent[]
+  seasonMatches SeasonMatch[]
+  aiInsights AIInsight[]
+}
+
+model MatchScorer {
+  id      String @id @default(cuid())
+  matchId String
+  userId  String
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, userId])
+}
+
+model MatchEvent {
+  id         String   @id @default(cuid())
+  matchId    String
+  teamId     String
+  playerId   String?
+  eventType  String   // raid_point, bonus_point, tackle, all_out, empty_raid, card, substitution, timeout
+  value      Int      @default(0) // points value
+  details    String?  // JSON string for extra data
+  half       Int      @default(1)
+  timestamp  DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  userId            String
+  razorpayOrderId   String   @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+  plan              String   // monthly, yearly, lifetime
+  amount            Int      // amount in paise (e.g., 14900 = ₹149)
+  currency          String   @default("INR")
+  status            String   @default("created") // created, paid, failed, refunded
+  method            String?  // upi, card, netbanking, wallet, etc.
+  email             String?
+  phone             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String   // the user who is following
+  followingId String   // the user being followed
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String   // the user receiving the notification
+  fromUserId String   // the user who triggered it
+  type       String   // match_start, match_result, follow, achievement, premium, general, commentary
+  title      String
+  message    String
+  isRead     Boolean  @default(false)
+  matchId    String?
+  createdAt  DateTime @default(now())
+
+  user     User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  fromUser User  @relation("NotificationSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  userId      String   // user who performed the activity
+  type        String   // match_completed, tournament_joined, achievement_unlocked, player_milestone
+  title       String
+  description String
+  matchId     String?
+  tournamentId String?
+  metadata    String?  // JSON string for extra data
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Phase 5 Models ─────────────────────────────────────────────
+
+model Achievement {
+  id          String   @id @default(cuid())
+  key         String   @unique  // e.g. "first_raid", "50_raids", "super_tackle_master"
+  name        String   // display name
+  description String   // what this achievement is about
+  icon        String   // emoji or icon name
+  category    String   // raid, defense, allround, social, milestone
+  tier        String   @default("bronze") // bronze, silver, gold, platinum
+  threshold   Int      @default(0) // stat value needed to unlock
+  createdAt   DateTime @default(now())
+
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+}
+
+model Challenge {
+  id           String   @id @default(cuid())
+  fromTeamId   String
+  toTeamId     String
+  fromUserId   String   // who sent the challenge
+  toUserId     String?  // who received (team captain, nullable)
+  message      String?  // optional taunt/message
+  status       String   @default("pending") // pending, accepted, declined, completed, expired
+  matchId      String?  // if accepted, link to the match
+  createdAt    DateTime @default(now())
+  respondedAt  DateTime?
+  expiresAt    DateTime?
+
+  fromTeam Team @relation("ChallengeFromTeam", fields: [fromTeamId], references: [id])
+  toTeam   Team @relation("ChallengeToTeam", fields: [toTeamId], references: [id])
+  fromUser User @relation("ChallengeSender", fields: [fromUserId], references: [id])
+  toUser   User? @relation("ChallengeReceiver", fields: [toUserId], references: [id])
+}
+
+model Ground {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  city        String?
+  state       String?
+  lat         Float?
+  lng         Float?
+  surface     String?  // mat, mud, grass, synthetic
+  amenities   String?  // JSON: changing_room, lights, seating, parking, etc.
+  addedBy     String?  // userId who added
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  matches Match[]
+}
+
+model Referral {
+  id           String   @id @default(cuid())
+  referrerId   String   // user who shared the referral
+  referredId   String?  // user who signed up using the referral
+  referralCode String   @unique // unique code for the referrer
+  status       String   @default("pending") // pending, signed_up, rewarded
+  premiumDays  Int      @default(7) // how many premium days the referrer earns
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+
+  referrer User  @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred User? @relation("ReferralReferred", fields: [referredId], references: [id], onDelete: SetNull)
+}
+
+// ─── Advanced Phase 5 Models ─────────────────────────────────────
+
+model Season {
+  id          String   @id @default(cuid())
+  name        String   @unique  // e.g. "Season 2025", "Monsoon Cup 2025"
+  year        Int      // 2024, 2025, etc.
+  startDate   DateTime
+  endDate     DateTime?
+  status      String   @default("upcoming") // upcoming, active, completed
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seasonTeams   SeasonTeam[]
+  seasonMatches SeasonMatch[]
+  polls         Poll[]
+  sponsors      Sponsor[]
+}
+
+model SeasonTeam {
+  id       String @id @default(cuid())
+  seasonId String
+  teamId   String
+  wins     Int    @default(0)
+  losses   Int    @default(0)
+  draws    Int    @default(0)
+  points   Int    @default(0)
+  rank     Int?
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, teamId])
+}
+
+model SeasonMatch {
+  id        String @id @default(cuid())
+  seasonId  String
+  matchId   String
+  matchDay  Int    @default(1) // week/day number within season
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, matchId])
+}
+
+model Poll {
+  id           String   @id @default(cuid())
+  seasonId     String?
+  matchId      String?  // optional: link to specific match
+  question     String   // e.g. "Who will win?"
+  type         String   @default("prediction") // prediction, poll, rating
+  status       String   @default("active") // active, closed, resolved
+  endsAt       DateTime?
+  createdAt    DateTime @default(now())
+
+  season  Season?  @relation(fields: [seasonId], references: [id])
+  options PollOption[]
+  votes   PollVote[]
+}
+
+model PollOption {
+  id     String @id @default(cuid())
+  pollId String
+  label  String // e.g. "Team A", "Team B", "Draw"
+  icon   String?  // emoji
+  teamId String?  // optional link to team
+
+  poll  Poll  @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  team  Team? @relation(fields: [teamId], references: [id])
+  votes PollVote[]
+}
+
+model PollVote {
+  id         String   @id @default(cuid())
+  pollId     String
+  optionId   String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId]) // one vote per user per poll
+}
+
+model Sponsor {
+  id          String   @id @default(cuid())
+  seasonId    String?
+  teamId      String?  // optional: sponsor for a specific team
+  name        String
+  logo        String?  // URL to sponsor logo
+  website     String?
+  tier        String   @default("bronze") // bronze, silver, gold, platinum
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  season Season? @relation(fields: [seasonId], references: [id])
+  team   Team?   @relation(fields: [teamId], references: [id])
+}
+
+model AIInsight {
+  id          String   @id @default(cuid())
+  userId      String?  // null = global insight, non-null = user-specific
+  matchId     String?  // optional match context
+  type        String   // prediction, form_analysis, recommendation, milestone_alert
+  title       String
+  content     String   // the insight text
+  confidence  Float    @default(0) // 0.0 - 1.0 for predictions
+  metadata    String?  // JSON for extra data
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match? @relation(fields: [matchId], references: [id])
 }

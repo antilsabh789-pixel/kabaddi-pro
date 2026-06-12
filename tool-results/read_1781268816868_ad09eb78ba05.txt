@@ -1,0 +1,1724 @@
+     1→'use client';
+     2→
+     3→import { useEffect, useState, useCallback } from 'react';
+     4→import { motion } from 'framer-motion';
+     5→import {
+     6→  Trophy,
+     7→  Bell,
+     8→  Shield,
+     9→  Star,
+    10→  Zap,
+    11→  Calendar,
+    12→  Swords,
+    13→  Crown,
+    14→  Lock,
+    15→  BarChart3,
+    16→  Award,
+    17→  Share2,
+    18→  Clock,
+    19→  ChevronRight,
+    20→  BellOff,
+    21→  Users,
+    22→  Rss,
+    23→  Sparkles,
+    24→  Activity,
+    25→  MapPin,
+    26→  Gift,
+    27→  Play,
+    28→  Brain,
+    29→  Radio,
+    30→  Download,
+    31→  Vote,
+    32→  Briefcase,
+    33→} from 'lucide-react';
+    34→import { Card, CardContent } from '@/components/ui/card';
+    35→import { Badge } from '@/components/ui/badge';
+    36→import { Button } from '@/components/ui/button';
+    37→import { useKabaddiStore } from '@/lib/store';
+    38→import { useToast } from '@/hooks/use-toast';
+    39→import PremiumUpgradeScreen from './PremiumUpgradeScreen';
+    40→import LeaderboardScreen from './LeaderboardScreen';
+    41→import MatchAwardsScreen from './MatchAwardsScreen';
+    42→import NotificationPanel from './NotificationPanel';
+    43→import ShareScorecard from './ShareScorecard';
+    44→import MatchDetailsScreen from './MatchDetailsScreen';
+    45→import FollowScreen from './FollowScreen';
+    46→import SocialFeedScreen from './SocialFeedScreen';
+    47→import MatchHighlightsScreen from './MatchHighlightsScreen';
+    48→import AdvancedStatsScreen from './AdvancedStatsScreen';
+    49→import AchievementsScreen from './AchievementsScreen';
+    50→import ChallengeScreen from './ChallengeScreen';
+    51→import GroundsScreen from './GroundsScreen';
+    52→import MatchReplayScreen from './MatchReplayScreen';
+    53→import AIInsightsScreen from './AIInsightsScreen';
+    54→import BroadcastScreen from './BroadcastScreen';
+    55→import DataExportScreen from './DataExportScreen';
+    56→import SeasonScreen from './SeasonScreen';
+    57→import PollsScreen from './PollsScreen';
+    58→import SponsorScreen from './SponsorScreen';
+    59→import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
+    60→
+    61→// ─── Types ──────────────────────────────────────────────────────────
+    62→
+    63→interface TeamBasic {
+    64→  id: string;
+    65→  name: string;
+    66→  shortName: string | null;
+    67→  color: string | null;
+    68→  logo?: string | null;
+    69→}
+    70→
+    71→interface LiveMatch {
+    72→  id: string;
+    73→  homeScore: number;
+    74→  awayScore: number;
+    75→  half: number;
+    76→  status: string;
+    77→  gender?: string | null;
+    78→  homeTeam: TeamBasic;
+    79→  awayTeam: TeamBasic;
+    80→  tournament: { id: string; name: string } | null;
+    81→}
+    82→
+    83→interface CompletedMatch {
+    84→  id: string;
+    85→  homeScore: number;
+    86→  awayScore: number;
+    87→  half: number;
+    88→  status: string;
+    89→  gender?: string | null;
+    90→  homeTeam: {
+    91→    id: string;
+    92→    name: string;
+    93→    shortName: string | null;
+    94→    color: string | null;
+    95→  };
+    96→  awayTeam: {
+    97→    id: string;
+    98→    name: string;
+    99→    shortName: string | null;
+   100→    color: string | null;
+   101→  };
+   102→  tournament: { id: string; name: string } | null;
+   103→  startedAt: string | null;
+   104→  completedAt: string | null;
+   105→}
+   106→
+   107→interface UpcomingMatch {
+   108→  id: string;
+   109→  homeScore: number;
+   110→  awayScore: number;
+   111→  half: number;
+   112→  status: string;
+   113→  gender?: string | null;
+   114→  homeTeam: {
+   115→    id: string;
+   116→    name: string;
+   117→    shortName: string | null;
+   118→    color: string | null;
+   119→  };
+   120→  awayTeam: {
+   121→    id: string;
+   122→    name: string;
+   123→    shortName: string | null;
+   124→    color: string | null;
+   125→  };
+   126→  tournament: { id: string; name: string } | null;
+   127→  startedAt: string | null;
+   128→  completedAt: string | null;
+   129→}
+   130→
+   131→interface MotmAward {
+   132→  matchId: string;
+   133→  userId: string;
+   134→  userName: string;
+   135→  userAvatar: string | null;
+   136→  points: number;
+   137→  matchInfo: string;
+   138→  tournamentName: string | null;
+   139→  completedAt: string | null;
+   140→}
+   141→
+   142→interface AwardPlayer {
+   143→  title: string;
+   144→  name: string;
+   145→  team: string;
+   146→  stat: string;
+   147→  statLabel: string;
+   148→  icon: typeof Star;
+   149→  gradient: string;
+   150→  borderAccent: string;
+   151→  iconColor: string;
+   152→  badgeBg: string;
+   153→  playerId?: string;
+   154→}
+   155→
+   156→interface StatsData {
+   157→  stats: {
+   158→    totalMatches: number;
+   159→    totalPlayers: number;
+   160→    totalTournaments: number;
+   161→    totalTeams: number;
+   162→    liveMatchCount: number;
+   163→    completedMatchCount: number;
+   164→    upcomingMatchCount: number;
+   165→  };
+   166→  liveMatches: LiveMatch[];
+   167→  recentMatches: CompletedMatch[];
+   168→  upcomingMatches: UpcomingMatch[];
+   169→  topRaiders: {
+   170→    id: string;
+   171→    userId: string;
+   172→    totalRaids: number;
+   173→    successfulRaids: number;
+   174→    bonusPoints: number;
+   175→    user: { id: string; name: string; avatar: string | null };
+   176→  }[];
+   177→  topDefenders: {
+   178→    id: string;
+   179→    userId: string;
+   180→    totalTackles: number;
+   181→    successfulTackles: number;
+   182→    superTackles: number;
+   183→    user: { id: string; name: string; avatar: string | null };
+   184→  }[];
+   185→  recentMotmAwards: MotmAward[];
+   186→}
+   187→
+   188→// ─── Animation Variants ────────────────────────────────────────────
+   189→
+   190→const cardHover = {
+   191→  rest: { scale: 1 },
+   192→  hover: { scale: 1.02, transition: { duration: 0.2 } },
+   193→};
+   194→
+   195→const stagger = {
+   196→  hidden: { opacity: 0 },
+   197→  show: {
+   198→    opacity: 1,
+   199→    transition: { staggerChildren: 0.08 },
+   200→  },
+   201→};
+   202→
+   203→const fadeUp = {
+   204→  hidden: { opacity: 0, y: 16 },
+   205→  show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+   206→};
+   207→
+   208→// ─── Skeleton Components ───────────────────────────────────────────
+   209→
+   210→function LiveMatchSkeleton() {
+   211→  return (
+   212→    <Card className="bg-warm-100 border-warm-300 py-0 gap-0 overflow-hidden">
+   213→      <CardContent className="p-4">
+   214→        <div className="flex items-center justify-between mb-3">
+   215→          <div className="h-5 w-14 rounded-full bg-warm-200 animate-pulse" />
+   216→          <div className="h-4 w-16 rounded bg-warm-200 animate-pulse" />
+   217→        </div>
+   218→        <div className="flex items-center justify-between">
+   219→          <div className="flex flex-col items-center gap-1 flex-1">
+   220→            <div className="w-10 h-10 rounded-full bg-warm-200 animate-pulse" />
+   221→            <div className="h-3 w-16 rounded bg-warm-200 animate-pulse" />
+   222→          </div>
+   223→          <div className="flex items-center gap-3 px-4">
+   224→            <div className="h-7 w-7 rounded bg-warm-200 animate-pulse" />
+   225→            <div className="h-4 w-4 rounded bg-warm-200 animate-pulse" />
+   226→            <div className="h-7 w-7 rounded bg-warm-200 animate-pulse" />
+   227→          </div>
+   228→          <div className="flex flex-col items-center gap-1 flex-1">
+   229→            <div className="w-10 h-10 rounded-full bg-warm-200 animate-pulse" />
+   230→            <div className="h-3 w-16 rounded bg-warm-200 animate-pulse" />
+   231→          </div>
+   232→        </div>
+   233→      </CardContent>
+   234→    </Card>
+   235→  );
+   236→}
+   237→
+   238→function AwardSkeleton() {
+   239→  return (
+   240→    <Card className="bg-warm-100 border-warm-300 border py-0 gap-0 overflow-hidden">
+   241→      <CardContent className="p-4">
+   242→        <div className="flex items-center gap-3">
+   243→          <div className="w-14 h-14 rounded-full bg-warm-200 animate-pulse shrink-0" />
+   244→          <div className="flex-1 space-y-2">
+   245→            <div className="h-4 w-24 rounded bg-warm-200 animate-pulse" />
+   246→            <div className="h-3 w-20 rounded bg-warm-200 animate-pulse" />
+   247→          </div>
+   248→          <div className="space-y-2">
+   249→            <div className="h-5 w-10 rounded bg-warm-200 animate-pulse" />
+   250→            <div className="h-3 w-14 rounded bg-warm-200 animate-pulse" />
+   251→          </div>
+   252→        </div>
+   253→      </CardContent>
+   254→    </Card>
+   255→  );
+   256→}
+   257→
+   258→// ─── Component ─────────────────────────────────────────────────────
+   259→
+   260→type GenderFilter = 'all' | 'boys' | 'girls';
+   261→
+   262→export default function HomeTab() {
+   263→  const currentUser = useKabaddiStore((s) => s.currentUser);
+   264→  const fetchHomeData = useKabaddiStore((s) => s.fetchHomeData);
+   265→  const homeData = useKabaddiStore((s) => s.homeData);
+   266→  const addNotification = useKabaddiStore((s) => s.addNotification);
+   267→  const notifications = useKabaddiStore((s) => s.notifications);
+   268→  const { toast } = useToast();
+   269→
+   270→  const isPremium = currentUser?.isPremium || false;
+   271→  const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
+   272→  const [recentMatches, setRecentMatches] = useState<CompletedMatch[]>([]);
+   273→  const [upcomingMatches, setUpcomingMatches] = useState<UpcomingMatch[]>([]);
+   274→  const [awardPlayers, setAwardPlayers] = useState<AwardPlayer[]>([]);
+   275→  const [motmAwards, setMotmAwards] = useState<MotmAward[]>([]);
+   276→  const [loading, setLoading] = useState(true);
+   277→  const [error, setError] = useState<string | null>(null);
+   278→  const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
+   279→  const [showUpgrade, setShowUpgrade] = useState(false);
+   280→  const [upgradeFeature, setUpgradeFeature] = useState('Player Stats');
+   281→  const [showLeaderboard, setShowLeaderboard] = useState(false);
+   282→  const [showAwards, setShowAwards] = useState(false);
+   283→  const [showNotifications, setShowNotifications] = useState(false);
+   284→  const [showShareScorecard, setShowShareScorecard] = useState(false);
+   285→  const [shareMatchData, setShareMatchData] = useState<CompletedMatch | null>(null);
+   286→  const [showMatchDetails, setShowMatchDetails] = useState(false);
+   287→  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+   288→  const [showFollow, setShowFollow] = useState(false);
+   289→  const [showSocialFeed, setShowSocialFeed] = useState(false);
+   290→  const [showHighlights, setShowHighlights] = useState(false);
+   291→  const [highlightsMatchId, setHighlightsMatchId] = useState<string | null>(null);
+   292→  const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+   293→  const [statsUserId, setStatsUserId] = useState<string | null>(null);
+   294→  const [showAchievements, setShowAchievements] = useState(false);
+   295→  const [showChallenges, setShowChallenges] = useState(false);
+   296→  const [showGrounds, setShowGrounds] = useState(false);
+   297→  const [showReplay, setShowReplay] = useState(false);
+   298→  const [replayMatchId, setReplayMatchId] = useState<string | null>(null);
+   299→  const [showAIInsights, setShowAIInsights] = useState(false);
+   300→  const [showBroadcast, setShowBroadcast] = useState(false);
+   301→  const [broadcastMatchId, setBroadcastMatchId] = useState<string | null>(null);
+   302→  const [showDataExport, setShowDataExport] = useState(false);
+   303→  const [showSeason, setShowSeason] = useState(false);
+   304→  const [showPolls, setShowPolls] = useState(false);
+   305→  const [showSponsors, setShowSponsors] = useState(false);
+   306→
+   307→  const unreadNotificationCount = notifications.filter((n) => !n.read).length;
+   308→
+   309→  const buildAwardPlayers = useCallback(
+   310→    (topRaiders: StatsData['topRaiders'], topDefenders: StatsData['topDefenders']): AwardPlayer[] => {
+   311→      const awards: AwardPlayer[] = [];
+   312→
+   313→      if (topRaiders.length > 0) {
+   314→        const raider = topRaiders[0];
+   315→        const raidPoints = raider.successfulRaids + raider.bonusPoints;
+   316→        awards.push({
+   317→          title: 'Top Raider',
+   318→          name: raider.user.name,
+   319→          team: `${raidPoints} Raid Points`,
+   320→          stat: raidPoints.toString(),
+   321→          statLabel: 'raid points',
+   322→          icon: Swords,
+   323→          gradient: 'from-brand-gold/20 to-brand-gold-dark/10',
+   324→          borderAccent: 'border-brand-gold/30',
+   325→          iconColor: 'text-brand-gold',
+   326→          badgeBg: 'bg-brand-gold/20 text-brand-gold-dark',
+   327→          playerId: raider.userId,
+   328→        });
+   329→      }
+   330→
+   331→      if (topDefenders.length > 0) {
+   332→        const defender = topDefenders[0];
+   333→        awards.push({
+   334→          title: 'Top Defender',
+   335→          name: defender.user.name,
+   336→          team: `${defender.successfulTackles} Tackle Points`,
+   337→          stat: defender.successfulTackles.toString(),
+   338→          statLabel: 'tackle points',
+   339→          icon: Shield,
+   340→          gradient: 'from-brand-red/20 to-brand-red-dark/10',
+   341→          borderAccent: 'border-brand-red/30',
+   342→          iconColor: 'text-brand-red',
+   343→          badgeBg: 'bg-brand-red/20 text-brand-red-light',
+   344→          playerId: defender.userId,
+   345→        });
+   346→      }
+   347→
+   348→      return awards;
+   349→    },
+   350→    []
+   351→  );
+   352→
+   353→  useEffect(() => {
+   354→    let cancelled = false;
+   355→
+   356→    async function loadHomeData() {
+   357→      setLoading(true);
+   358→      setError(null);
+   359→
+   360→      try {
+   361→        // Use the store's fetchHomeData which caches the result
+   362→        let data: StatsData | null = homeData as StatsData | null;
+   363→
+   364→        if (!data) {
+   365→          data = (await fetchHomeData()) as StatsData | null;
+   366→        }
+   367→
+   368→        if (cancelled || !data) return;
+   369→
+   370→        // Live matches from stats API
+   371→        const matches: LiveMatch[] = Array.isArray(data.liveMatches)
+   372→          ? data.liveMatches
+   373→          : [];
+   374→        setLiveMatches(matches);
+   375→
+   376→        // Recent completed matches
+   377→        const recent: CompletedMatch[] = Array.isArray(data.recentMatches)
+   378→          ? data.recentMatches
+   379→          : [];
+   380→        setRecentMatches(recent);
+   381→
+   382→        // Upcoming matches
+   383→        const upcoming: UpcomingMatch[] = Array.isArray(data.upcomingMatches)
+   384→          ? data.upcomingMatches
+   385→          : [];
+   386→        setUpcomingMatches(upcoming);
+   387→
+   388→        // Awards from top raiders/defenders
+   389→        const topRaiders = Array.isArray(data.topRaiders) ? data.topRaiders : [];
+   390→        const topDefenders = Array.isArray(data.topDefenders)
+   391→          ? data.topDefenders
+   392→          : [];
+   393→        setAwardPlayers(buildAwardPlayers(topRaiders, topDefenders));
+   394→
+   395→        // MOTM awards
+   396→        const motm = Array.isArray(data.recentMotmAwards) ? data.recentMotmAwards : [];
+   397→        setMotmAwards(motm);
+   398→      } catch (err) {
+   399→        console.error('Failed to load home data:', err);
+   400→        setError('Failed to load data. Pull down to retry.');
+   401→      } finally {
+   402→        if (!cancelled) setLoading(false);
+   403→      }
+   404→    }
+   405→
+   406→    loadHomeData();
+   407→
+   408→    return () => {
+   409→      cancelled = true;
+   410→    };
+   411→  }, [fetchHomeData, homeData, buildAwardPlayers]);
+   412→
+   413→  // Welcome back notification (once per session)
+   414→  useEffect(() => {
+   415→    if (currentUser?.name && notifications.length === 0) {
+   416→      addNotification(welcomeBackNotification(currentUser.name));
+   417→    }
+   418→  }, [currentUser?.name]);
+   419→
+   420→  const handleMatchClick = (match: LiveMatch) => {
+   421→    toast({
+   422→      title: `${match.homeTeam.name} vs ${match.awayTeam.name}`,
+   423→      description: `Score: ${match.homeScore} - ${match.awayScore} | ${match.half === 1 ? '1st' : '2nd'} Half`,
+   424→    });
+   425→  };
+   426→
+   427→  const handleRecentMatchClick = (match: CompletedMatch) => {
+   428→    setSelectedMatchId(match.id);
+   429→    setShowMatchDetails(true);
+   430→  };
+   431→
+   432→  const handleShareClick = (match: CompletedMatch) => {
+   433→    setShareMatchData(match);
+   434→    setShowShareScorecard(true);
+   435→  };
+   436→
+   437→  const handleAwardClick = (player: AwardPlayer) => {
+   438→    if (!isPremium) {
+   439→      setUpgradeFeature('Player Stats');
+   440→      setShowUpgrade(true);
+   441→      return;
+   442→    }
+   443→    toast({
+   444→      title: `${player.name}`,
+   445→      description: `${player.title} — ${player.stat} ${player.statLabel}`,
+   446→    });
+   447→  };
+   448→
+   449→  const handleRetry = () => {
+   450→    useKabaddiStore.setState({ homeData: null });
+   451→    setLoading(true);
+   452→    setError(null);
+   453→    fetchHomeData()
+   454→      .then((data) => {
+   455→        if (data) {
+   456→          const matches: LiveMatch[] = Array.isArray(data.liveMatches)
+   457→            ? data.liveMatches
+   458→            : [];
+   459→          setLiveMatches(matches);
+   460→          const recent: CompletedMatch[] = Array.isArray(data.recentMatches)
+   461→            ? data.recentMatches
+   462→            : [];
+   463→          setRecentMatches(recent);
+   464→          const upcoming: UpcomingMatch[] = Array.isArray(data.upcomingMatches)
+   465→            ? data.upcomingMatches
+   466→            : [];
+   467→          setUpcomingMatches(upcoming);
+   468→          const topRaiders = Array.isArray(data.topRaiders) ? data.topRaiders : [];
+   469→          const topDefenders = Array.isArray(data.topDefenders)
+   470→            ? data.topDefenders
+   471→            : [];
+   472→          setAwardPlayers(buildAwardPlayers(topRaiders, topDefenders));
+   473→          const motm = Array.isArray(data.recentMotmAwards) ? data.recentMotmAwards : [];
+   474→          setMotmAwards(motm);
+   475→        }
+   476→      })
+   477→      .catch(() => setError('Failed to load data. Pull down to retry.'))
+   478→      .finally(() => setLoading(false));
+   479→  };
+   480→
+   481→  const getTeamShortName = (team: TeamBasic | CompletedMatch['homeTeam'] | UpcomingMatch['homeTeam']): string => {
+   482→    if ('shortName' in team && team.shortName) return team.shortName;
+   483→    return team.name
+   484→      .split(' ')
+   485→      .map((w) => w[0])
+   486→      .join('')
+   487→      .toUpperCase()
+   488→      .slice(0, 3);
+   489→  };
+   490→
+   491→  const halfLabel = (half: number): string => {
+   492→    return half === 1 ? '1st Half' : '2nd Half';
+   493→  };
+   494→
+   495→  const formatTimeAgo = (dateStr: string | null) => {
+   496→    if (!dateStr) return '';
+   497→    const date = new Date(dateStr);
+   498→    const now = new Date();
+   499→    const diffMs = now.getTime() - date.getTime();
+   500→    const diffMins = Math.floor(diffMs / 60000);
+   501→    if (diffMins < 60) return `${diffMins}m ago`;
+   502→    const diffHours = Math.floor(diffMins / 60);
+   503→    if (diffHours < 24) return `${diffHours}h ago`;
+   504→    const diffDays = Math.floor(diffHours / 24);
+   505→    if (diffDays === 1) return 'Yesterday';
+   506→    if (diffDays < 7) return `${diffDays}d ago`;
+   507→    return date.toLocaleDateString();
+   508→  };
+   509→
+   510→  const formatDate = (dateStr: string | null) => {
+   511→    if (!dateStr) return 'TBD';
+   512→    return new Date(dateStr).toLocaleDateString('en-IN', {
+   513→      day: 'numeric',
+   514→      month: 'short',
+   515→      hour: '2-digit',
+   516→      minute: '2-digit',
+   517→    });
+   518→  };
+   519→
+   520→  // Filter live matches by gender
+   521→  const filteredMatches = liveMatches.filter((match) => {
+   522→    if (genderFilter === 'all') return true;
+   523→    if (genderFilter === 'boys') return match.gender?.toLowerCase() === 'male' || match.gender?.toLowerCase() === 'boys';
+   524→    if (genderFilter === 'girls') return match.gender?.toLowerCase() === 'female' || match.gender?.toLowerCase() === 'girls';
+   525→    return true;
+   526→  });
+   527→
+   528→  // Gender icon for greeting
+   529→  const genderIcon = currentUser?.gender?.toLowerCase() === 'female' || currentUser?.gender?.toLowerCase() === 'girls'
+   530→    ? '♀'
+   531→    : '♂';
+   532→
+   533→  return (
+   534→    <div className="min-h-screen bg-warm-50 pb-6">
+   535→      {/* Overlays */}
+   536→      {showUpgrade && (
+   537→        <PremiumUpgradeScreen
+   538→          onClose={() => setShowUpgrade(false)}
+   539→          feature={upgradeFeature}
+   540→        />
+   541→      )}
+   542→      {showLeaderboard && (
+   543→        <LeaderboardScreen onClose={() => setShowLeaderboard(false)} />
+   544→      )}
+   545→      {showAwards && (
+   546→        <MatchAwardsScreen onClose={() => setShowAwards(false)} />
+   547→      )}
+   548→      {showNotifications && (
+   549→        <NotificationPanel onClose={() => setShowNotifications(false)} />
+   550→      )}
+   551→      {showShareScorecard && shareMatchData && (
+   552→        <ShareScorecard
+   553→          onClose={() => {
+   554→            setShowShareScorecard(false);
+   555→            setShareMatchData(null);
+   556→          }}
+   557→          matchData={{
+   558→            homeTeam: shareMatchData.homeTeam.name,
+   559→            awayTeam: shareMatchData.awayTeam.name,
+   560→            homeScore: shareMatchData.homeScore,
+   561→            awayScore: shareMatchData.awayScore,
+   562→            homeTeamColor: shareMatchData.homeTeam.color || '#DC2626',
+   563→            awayTeamColor: shareMatchData.awayTeam.color || '#1E293B',
+   564→            tournament: shareMatchData.tournament?.name,
+   565→            date: shareMatchData.completedAt,
+   566→            gender: shareMatchData.gender,
+   567→          }}
+   568→        />
+   569→      )}
+   570→      {showMatchDetails && selectedMatchId && (
+   571→        <MatchDetailsScreen
+   572→          matchId={selectedMatchId}
+   573→          onClose={() => {
+   574→            setShowMatchDetails(false);
+   575→            setSelectedMatchId(null);
+   576→          }}
+   577→        />
+   578→      )}
+   579→      {showFollow && (
+   580→        <FollowScreen onClose={() => setShowFollow(false)} />
+   581→      )}
+   582→      {showSocialFeed && (
+   583→        <SocialFeedScreen onClose={() => setShowSocialFeed(false)} />
+   584→      )}
+   585→      {showHighlights && highlightsMatchId && (
+   586→        <MatchHighlightsScreen
+   587→          matchId={highlightsMatchId}
+   588→          onClose={() => {
+   589→            setShowHighlights(false);
+   590→            setHighlightsMatchId(null);
+   591→          }}
+   592→        />
+   593→      )}
+   594→      {showAdvancedStats && statsUserId && (
+   595→        <AdvancedStatsScreen
+   596→          userId={statsUserId}
+   597→          onClose={() => {
+   598→            setShowAdvancedStats(false);
+   599→            setStatsUserId(null);
+   600→          }}
+   601→        />
+   602→      )}
+   603→      {showAchievements && (
+   604→        <AchievementsScreen onClose={() => setShowAchievements(false)} />
+   605→      )}
+   606→      {showChallenges && (
+   607→        <ChallengeScreen onClose={() => setShowChallenges(false)} />
+   608→      )}
+   609→      {showGrounds && (
+   610→        <GroundsScreen onClose={() => setShowGrounds(false)} />
+   611→      )}
+   612→      {showReplay && replayMatchId && (
+   613→        <MatchReplayScreen
+   614→          matchId={replayMatchId}
+   615→          onClose={() => {
+   616→            setShowReplay(false);
+   617→            setReplayMatchId(null);
+   618→          }}
+   619→        />
+   620→      )}
+   621→      {showAIInsights && (
+   622→        <AIInsightsScreen onClose={() => setShowAIInsights(false)} />
+   623→      )}
+   624→      {showBroadcast && broadcastMatchId && (
+   625→        <BroadcastScreen
+   626→          matchId={broadcastMatchId}
+   627→          onClose={() => {
+   628→            setShowBroadcast(false);
+   629→            setBroadcastMatchId(null);
+   630→          }}
+   631→        />
+   632→      )}
+   633→      {showDataExport && (
+   634→        <DataExportScreen onClose={() => setShowDataExport(false)} />
+   635→      )}
+   636→      {showSeason && (
+   637→        <SeasonScreen onClose={() => setShowSeason(false)} />
+   638→      )}
+   639→      {showPolls && (
+   640→        <PollsScreen onClose={() => setShowPolls(false)} />
+   641→      )}
+   642→      {showSponsors && (
+   643→        <SponsorScreen onClose={() => setShowSponsors(false)} />
+   644→      )}
+   645→
+   646→      {/* ─── Header ─── */}
+   647→      <header className="sticky top-0 z-30 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
+   648→        <div className="px-4 py-3 flex items-center justify-between">
+   649→          <div className="flex items-center gap-2">
+   650→            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
+   651→              <Trophy className="w-4 h-4 text-white" />
+   652→            </div>
+   653→            <h1 className="text-base font-black tracking-wider text-warm-800">
+   654→              KABADDI <span className="text-brand-red">PRO</span>
+   655→            </h1>
+   656→            {isPremium && (
+   657→              <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[9px] border-0 font-bold px-1.5 py-0">
+   658→                <Crown className="w-2.5 h-2.5 mr-0.5" />
+   659→                PRO
+   660→              </Badge>
+   661→            )}
+   662→          </div>
+   663→          <div className="flex items-center gap-2">
+   664→            {!isPremium && (
+   665→              <button
+   666→                onClick={() => {
+   667→                  setUpgradeFeature('Premium Features');
+   668→                  setShowUpgrade(true);
+   669→                }}
+   670→                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white text-[10px] font-bold shadow-sm shadow-brand-gold/20 active:scale-95 transition-transform"
+   671→              >
+   672→                <Crown className="w-3 h-3" />
+   673→                PRO
+   674→              </button>
+   675→            )}
+   676→            <button
+   677→              onClick={() => setShowNotifications(true)}
+   678→              className="relative p-2 rounded-full hover:bg-warm-100 transition-colors"
+   679→            >
+   680→              {unreadNotificationCount > 0 ? (
+   681→                <Bell className="w-5 h-5 text-warm-700" />
+   682→              ) : (
+   683→                <BellOff className="w-5 h-5 text-warm-400" />
+   684→              )}
+   685→              {unreadNotificationCount > 0 && (
+   686→                <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold px-1">
+   687→                  {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+   688→                </span>
+   689→              )}
+   690→            </button>
+   691→          </div>
+   692→        </div>
+   693→      </header>
+   694→
+   695→      {/* ─── Greeting ─── */}
+   696→      <div className="px-4 pt-4 pb-2">
+   697→        <p className="text-warm-600 text-sm">Hello,</p>
+   698→        <h2 className="text-xl font-bold text-warm-800">
+   699→          {currentUser?.name ?? 'Player'}{' '}
+   700→          <span className="text-base align-middle">
+   701→            {currentUser?.gender && (
+   702→              <span className={currentUser.gender.toLowerCase() === 'female' || currentUser.gender.toLowerCase() === 'girls'
+   703→                ? 'text-brand-red'
+   704→                : 'text-brand-blue'
+   705→              }>
+   706→                {genderIcon}
+   707→              </span>
+   708→            )}
+   709→          </span>{' '}
+   710→          👋
+   711→        </h2>
+   712→      </div>
+   713→
+   714→      {/* ─── Error State ─── */}
+   715→      {error && (
+   716→        <section className="px-4 mt-4">
+   717→          <Card className="bg-brand-red/20 border-brand-red/30 py-0 gap-0">
+   718→            <CardContent className="p-4 flex items-center gap-3">
+   719→              <Zap className="w-5 h-5 text-brand-red shrink-0" />
+   720→              <p className="text-warm-700 text-sm flex-1">{error}</p>
+   721→              <Button
+   722→                variant="outline"
+   723→                size="sm"
+   724→                onClick={handleRetry}
+   725→                className="text-brand-red border-brand-red/30 hover:bg-brand-red/20 text-xs"
+   726→              >
+   727→                Retry
+   728→              </Button>
+   729→            </CardContent>
+   730→          </Card>
+   731→        </section>
+   732→      )}
+   733→
+   734→      {/* ─── Live Matches (FREE) ─── */}
+   735→      <section className="px-4 mt-4">
+   736→        <div className="flex items-center justify-between mb-3">
+   737→          <div className="flex items-center gap-2">
+   738→            <h3 className="text-base font-bold text-warm-800">
+   739→              Live Matches
+   740→            </h3>
+   741→            <span className="relative flex h-2.5 w-2.5">
+   742→              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
+   743→              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
+   744→            </span>
+   745→            <Badge className="bg-emerald-500/10 text-emerald-600 text-[9px] border-0 font-semibold">
+   746→              FREE
+   747→            </Badge>
+   748→          </div>
+   749→        </div>
+   750→
+   751→        {/* Gender Filter Toggles */}
+   752→        <div className="flex items-center gap-2 mb-3">
+   753→          <button
+   754→            onClick={() => setGenderFilter('all')}
+   755→            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+   756→              genderFilter === 'all'
+   757→                ? 'bg-warm-800 text-warm-50'
+   758→                : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
+   759→            }`}
+   760→          >
+   761→            All
+   762→          </button>
+   763→          <button
+   764→            onClick={() => setGenderFilter('boys')}
+   765→            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+   766→              genderFilter === 'boys'
+   767→                ? 'bg-brand-blue text-white'
+   768→                : 'bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20'
+   769→            }`}
+   770→          >
+   771→            ♂ Boys
+   772→          </button>
+   773→          <button
+   774→            onClick={() => setGenderFilter('girls')}
+   775→            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+   776→              genderFilter === 'girls'
+   777→                ? 'bg-brand-red text-white'
+   778→                : 'bg-brand-red/10 text-brand-red hover:bg-brand-red/20'
+   779→            }`}
+   780→          >
+   781→            ♀ Girls
+   782→          </button>
+   783→        </div>
+   784→
+   785→        {loading ? (
+   786→          <div className="flex flex-col gap-3">
+   787→            <LiveMatchSkeleton />
+   788→            <LiveMatchSkeleton />
+   789→          </div>
+   790→        ) : filteredMatches.length > 0 ? (
+   791→          <motion.div
+   792→            className="flex flex-col gap-3"
+   793→            variants={stagger}
+   794→            initial="hidden"
+   795→            animate="show"
+   796→          >
+   797→            {filteredMatches.map((match) => (
+   798→              <motion.div key={match.id} variants={fadeUp}>
+   799→                <motion.div
+   800→                  variants={cardHover}
+   801→                  initial="rest"
+   802→                  whileHover="hover"
+   803→                  whileTap={{ scale: 0.98 }}
+   804→                >
+   805→                  <Card
+   806→                    className="bg-warm-100 border-warm-300 cursor-pointer hover:border-warm-200 transition-colors py-0 gap-0 overflow-hidden"
+   807→                    onClick={() => handleMatchClick(match)}
+   808→                  >
+   809→                    <CardContent className="p-4">
+   810→                      <div className="flex items-center justify-between mb-3">
+   811→                        <div className="flex items-center gap-2">
+   812→                          <Badge
+   813→                            variant="secondary"
+   814→                            className="bg-brand-red/20 text-brand-red text-[10px] font-semibold border-0 px-2 py-0.5"
+   815→                          >
+   816→                            ● LIVE
+   817→                          </Badge>
+   818→                          {match.gender && (
+   819→                            <Badge
+   820→                              variant="secondary"
+   821→                              className={`text-[10px] font-semibold border-0 px-2 py-0.5 ${
+   822→                                match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
+   823→                                  ? 'bg-brand-red/15 text-brand-red'
+   824→                                  : 'bg-brand-blue/15 text-brand-blue'
+   825→                              }`}
+   826→                            >
+   827→                              {match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
+   828→                                ? '♀ Girls Match'
+   829→                                : '♂ Boys Match'}
+   830→                            </Badge>
+   831→                          )}
+   832→                        </div>
+   833→                        <span className="text-xs text-warm-500 font-medium">
+   834→                          {halfLabel(match.half)}
+   835→                        </span>
+   836→                      </div>
+   837→                      <div className="flex items-center justify-between">
+   838→                        <div className="flex flex-col items-center gap-1 flex-1">
+   839→                          <div
+   840→                            className="w-10 h-10 rounded-full bg-warm-50 flex items-center justify-center text-xs font-bold text-warm-800"
+   841→                            style={{
+   842→                              borderColor: match.homeTeam.color || '#DC2626',
+   843→                              borderWidth: 2,
+   844→                            }}
+   845→                          >
+   846→                            {getTeamShortName(match.homeTeam)}
+   847→                          </div>
+   848→                          <span className="text-xs text-warm-600 text-center leading-tight">
+   849→                            {match.homeTeam.name}
+   850→                          </span>
+   851→                        </div>
+   852→                        <div className="flex items-center gap-3 px-4">
+   853→                          <span className="text-2xl font-black text-warm-800">
+   854→                            {match.homeScore}
+   855→                          </span>
+   856→                          <span className="text-warm-500 text-sm font-medium">
+   857→                            vs
+   858→                          </span>
+   859→                          <span className="text-2xl font-black text-warm-800">
+   860→                            {match.awayScore}
+   861→                          </span>
+   862→                        </div>
+   863→                        <div className="flex flex-col items-center gap-1 flex-1">
+   864→                          <div
+   865→                            className="w-10 h-10 rounded-full bg-warm-50 flex items-center justify-center text-xs font-bold text-warm-800"
+   866→                            style={{
+   867→                              borderColor: match.awayTeam.color || '#DC2626',
+   868→                              borderWidth: 2,
+   869→                            }}
+   870→                          >
+   871→                            {getTeamShortName(match.awayTeam)}
+   872→                          </div>
+   873→                          <span className="text-xs text-warm-600 text-center leading-tight">
+   874→                            {match.awayTeam.name}
+   875→                          </span>
+   876→                        </div>
+   877→                      </div>
+   878→                      {match.tournament && (
+   879→                        <p className="text-[10px] text-warm-500 text-center mt-2">
+   880→                          {match.tournament.name}
+   881→                        </p>
+   882→                      )}
+   883→                    </CardContent>
+   884→                  </Card>
+   885→                </motion.div>
+   886→              </motion.div>
+   887→            ))}
+   888→          </motion.div>
+   889→        ) : (
+   890→          <Card className="bg-warm-100 border-warm-300 py-0 gap-0">
+   891→            <CardContent className="flex flex-col items-center justify-center py-10">
+   892→              <Calendar className="w-10 h-10 text-warm-500 mb-3" />
+   893→              <p className="text-warm-600 text-sm font-medium">
+   894→                {genderFilter !== 'all'
+   895→                  ? `No live ${genderFilter} matches right now`
+   896→                  : 'No live matches right now'}
+   897→              </p>
+   898→              <p className="text-warm-500 text-xs mt-1">
+   899→                Check back later for upcoming matches
+   900→              </p>
+   901→            </CardContent>
+   902→          </Card>
+   903→        )}
+   904→      </section>
+   905→
+   906→      {/* ─── Recent Results ─── */}
+   907→      {!loading && recentMatches.length > 0 && (
+   908→        <section className="px-4 mt-6">
+   909→          <div className="flex items-center justify-between mb-3">
+   910→            <h3 className="text-base font-bold text-warm-800">Recent Results</h3>
+   911→          </div>
+   912→          <motion.div
+   913→            className="flex flex-col gap-3"
+   914→            variants={stagger}
+   915→            initial="hidden"
+   916→            animate="show"
+   917→          >
+   918→            {recentMatches.slice(0, 5).map((match) => {
+   919→              const isHomeWin = match.homeScore > match.awayScore;
+   920→              const isDraw = match.homeScore === match.awayScore;
+   921→              return (
+   922→                <motion.div key={match.id} variants={fadeUp}>
+   923→                  <Card
+   924→                    className="bg-warm-100 border-warm-300 cursor-pointer hover:border-warm-200 transition-colors py-0 gap-0 overflow-hidden"
+   925→                    onClick={() => handleRecentMatchClick(match)}
+   926→                  >
+   927→                    <CardContent className="p-4">
+   928→                      <div className="flex items-center justify-between mb-2">
+   929→                        <Badge className="bg-warm-200 text-warm-600 text-[10px] font-semibold border-0 px-2 py-0.5">
+   930→                          ✓ COMPLETED
+   931→                        </Badge>
+   932→                        <span className="text-[10px] text-warm-400">
+   933→                          {formatTimeAgo(match.completedAt)}
+   934→                        </span>
+   935→                      </div>
+   936→                      <div className="flex items-center justify-between">
+   937→                        <div className="flex items-center gap-2 flex-1 min-w-0">
+   938→                          <div
+   939→                            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+   940→                            style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+   941→                          >
+   942→                            {getTeamShortName(match.homeTeam)}
+   943→                          </div>
+   944→                          <span className={`text-sm font-semibold truncate ${isHomeWin && !isDraw ? 'text-warm-800' : 'text-warm-500'}`}>
+   945→                            {match.homeTeam.name}
+   946→                          </span>
+   947→                        </div>
+   948→                        <div className="flex items-center gap-2 px-3">
+   949→                          <span className={`text-lg font-black ${isHomeWin && !isDraw ? 'text-warm-800' : 'text-warm-500'}`}>
+   950→                            {match.homeScore}
+   951→                          </span>
+   952→                          <span className="text-warm-400 text-xs">-</span>
+   953→                          <span className={`text-lg font-black ${!isHomeWin && !isDraw ? 'text-warm-800' : 'text-warm-500'}`}>
+   954→                            {match.awayScore}
+   955→                          </span>
+   956→                        </div>
+   957→                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+   958→                          <span className={`text-sm font-semibold truncate ${!isHomeWin && !isDraw ? 'text-warm-800' : 'text-warm-500'}`}>
+   959→                            {match.awayTeam.name}
+   960→                          </span>
+   961→                          <div
+   962→                            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+   963→                            style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+   964→                          >
+   965→                            {getTeamShortName(match.awayTeam)}
+   966→                          </div>
+   967→                        </div>
+   968→                      </div>
+   969→                      {match.tournament && (
+   970→                        <p className="text-[10px] text-warm-400 text-center mt-2">
+   971→                          {match.tournament.name}
+   972→                        </p>
+   973→                      )}
+   974→                      {/* Share button */}
+   975→                      <div className="flex justify-end mt-2">
+   976→                        <button
+   977→                          onClick={(e) => {
+   978→                            e.stopPropagation();
+   979→                            handleShareClick(match);
+   980→                          }}
+   981→                          className="p-1.5 rounded-lg hover:bg-warm-200 transition-colors text-warm-400 hover:text-brand-teal"
+   982→                        >
+   983→                          <Share2 className="w-3.5 h-3.5" />
+   984→                        </button>
+   985→                      </div>
+   986→                    </CardContent>
+   987→                  </Card>
+   988→                </motion.div>
+   989→              );
+   990→            })}
+   991→          </motion.div>
+   992→        </section>
+   993→      )}
+   994→
+   995→      {/* ─── Upcoming Matches ─── */}
+   996→      {!loading && upcomingMatches.length > 0 && (
+   997→        <section className="px-4 mt-6">
+   998→          <div className="flex items-center justify-between mb-3">
+   999→            <h3 className="text-base font-bold text-warm-800">Upcoming Matches</h3>
+  1000→            <Clock className="w-4 h-4 text-warm-400" />
+  1001→          </div>
+  1002→          <motion.div
+  1003→            className="flex flex-col gap-3"
+  1004→            variants={stagger}
+  1005→            initial="hidden"
+  1006→            animate="show"
+  1007→          >
+  1008→            {upcomingMatches.slice(0, 5).map((match) => (
+  1009→              <motion.div key={match.id} variants={fadeUp}>
+  1010→                <Card className="bg-warm-100 border-warm-300 py-0 gap-0 overflow-hidden">
+  1011→                  <CardContent className="p-4">
+  1012→                    <div className="flex items-center justify-between mb-2">
+  1013→                      <Badge className="bg-brand-teal/10 text-brand-teal text-[10px] font-semibold border-0 px-2 py-0.5">
+  1014→                        📅 UPCOMING
+  1015→                      </Badge>
+  1016→                      <span className="text-[10px] text-warm-400">
+  1017→                        {formatDate(match.startedAt)}
+  1018→                      </span>
+  1019→                    </div>
+  1020→                    <div className="flex items-center justify-between">
+  1021→                      <div className="flex items-center gap-2 flex-1 min-w-0">
+  1022→                        <div
+  1023→                          className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+  1024→                          style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+  1025→                        >
+  1026→                          {getTeamShortName(match.homeTeam)}
+  1027→                        </div>
+  1028→                        <span className="text-sm font-semibold text-warm-700 truncate">
+  1029→                          {match.homeTeam.name}
+  1030→                        </span>
+  1031→                      </div>
+  1032→                      <span className="text-warm-400 text-xs font-medium px-2">vs</span>
+  1033→                      <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+  1034→                        <span className="text-sm font-semibold text-warm-700 truncate">
+  1035→                          {match.awayTeam.name}
+  1036→                        </span>
+  1037→                        <div
+  1038→                          className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+  1039→                          style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+  1040→                        >
+  1041→                          {getTeamShortName(match.awayTeam)}
+  1042→                        </div>
+  1043→                      </div>
+  1044→                    </div>
+  1045→                    {match.tournament && (
+  1046→                      <p className="text-[10px] text-warm-400 text-center mt-2">
+  1047→                        {match.tournament.name}
+  1048→                      </p>
+  1049→                    )}
+  1050→                    <div className="flex justify-end mt-2">
+  1051→                      <Button
+  1052→                        variant="ghost"
+  1053→                        size="sm"
+  1054→                        className="h-7 text-[11px] text-brand-teal hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
+  1055→                        onClick={() => {
+  1056→                          addNotification({
+  1057→                            type: 'general',
+  1058→                            title: 'Reminder Set',
+  1059→                            description: `${match.homeTeam.name} vs ${match.awayTeam.name} - ${formatDate(match.startedAt)}`,
+  1060→                          });
+  1061→                          toast({
+  1062→                            title: 'Reminder Set',
+  1063→                            description: `You'll be notified before ${match.homeTeam.name} vs ${match.awayTeam.name}`,
+  1064→                          });
+  1065→                        }}
+  1066→                      >
+  1067→                        <Bell className="w-3 h-3 mr-1" />
+  1068→                        Set Reminder
+  1069→                      </Button>
+  1070→                    </div>
+  1071→                  </CardContent>
+  1072→                </Card>
+  1073→              </motion.div>
+  1074→            ))}
+  1075→          </motion.div>
+  1076→        </section>
+  1077→      )}
+  1078→
+  1079→      {/* ─── Awards & Honors (Premium for detailed stats) ─── */}
+  1080→      <section className="px-4 mt-6">
+  1081→        <div className="flex items-center justify-between mb-3">
+  1082→          <div className="flex items-center gap-2">
+  1083→            <h3 className="text-base font-bold text-warm-800">
+  1084→              Awards & Honors
+  1085→            </h3>
+  1086→            <Zap className="w-4 h-4 text-brand-gold" />
+  1087→          </div>
+  1088→          {!isPremium && (
+  1089→            <button
+  1090→              onClick={() => {
+  1091→                setUpgradeFeature('Player Stats');
+  1092→                setShowUpgrade(true);
+  1093→              }}
+  1094→              className="flex items-center gap-1 text-[10px] font-bold text-brand-gold"
+  1095→            >
+  1096→              <Lock className="w-3 h-3" />
+  1097→              Full Stats
+  1098→            </button>
+  1099→          )}
+  1100→        </div>
+  1101→
+  1102→        {loading ? (
+  1103→          <div className="flex flex-col gap-3">
+  1104→            <AwardSkeleton />
+  1105→            <AwardSkeleton />
+  1106→          </div>
+  1107→        ) : (awardPlayers.length > 0 || motmAwards.length > 0) ? (
+  1108→          <div className="flex flex-col gap-3">
+  1109→            {/* MOTM Award Card */}
+  1110→            {motmAwards.length > 0 && (() => {
+  1111→              const motm = motmAwards[0];
+  1112→              return (
+  1113→                <motion.div
+  1114→                  initial={{ opacity: 0, y: 16 }}
+  1115→                  animate={{ opacity: 1, y: 0 }}
+  1116→                  transition={{ delay: 0.1 }}
+  1117→                  whileHover={{ scale: 1.015 }}
+  1118→                >
+  1119→                  <Card
+  1120→                    className="bg-gradient-to-r from-brand-gold/15 to-brand-gold-dark/5 border-brand-gold/30 border py-0 gap-0 overflow-hidden cursor-pointer"
+  1121→                    onClick={() => setShowAwards(true)}
+  1122→                  >
+  1123→                    <CardContent className="p-4">
+  1124→                      <div className="flex items-center gap-3">
+  1125→                        <div className="relative shrink-0">
+  1126→                          <div className="w-14 h-14 rounded-full bg-warm-100 border-2 border-brand-gold/40 flex items-center justify-center overflow-hidden">
+  1127→                            {motm.userAvatar ? (
+  1128→                              <img src={motm.userAvatar} alt={motm.userName} className="w-full h-full object-cover" />
+  1129→                            ) : (
+  1130→                              <div className="w-12 h-12 rounded-full bg-warm-200 flex items-center justify-center text-lg font-bold text-warm-600">
+  1131→                                {motm.userName.charAt(0)}
+  1132→                              </div>
+  1133→                            )}
+  1134→                          </div>
+  1135→                          <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-brand-gold flex items-center justify-center">
+  1136→                            <Crown className="w-3 h-3 text-warm-800" />
+  1137→                          </div>
+  1138→                        </div>
+  1139→                        <div className="flex-1 min-w-0">
+  1140→                          <Badge className="bg-brand-gold/20 text-brand-gold-dark text-[10px] font-semibold border-0 px-2 py-0.5 mb-1">
+  1141→                            <Trophy className="w-2.5 h-2.5 mr-0.5" />
+  1142→                            Man of the Match
+  1143→                          </Badge>
+  1144→                          <p className="text-warm-800 font-bold text-sm truncate">
+  1145→                            {motm.userName}
+  1146→                          </p>
+  1147→                          <p className="text-warm-600 text-xs">
+  1148→                            {motm.points} points · {motm.matchInfo}
+  1149→                          </p>
+  1150→                        </div>
+  1151→                        <ChevronRight className="w-4 h-4 text-warm-400" />
+  1152→                      </div>
+  1153→                    </CardContent>
+  1154→                  </Card>
+  1155→                </motion.div>
+  1156→              );
+  1157→            })()}
+  1158→
+  1159→            {/* Existing Awards (Top Raider, Top Defender) */}
+  1160→            {awardPlayers.map((player, idx) => {
+  1161→              const Icon = player.icon;
+  1162→              return (
+  1163→                <motion.div
+  1164→                  key={player.title}
+  1165→                  initial={{ opacity: 0, y: 16 }}
+  1166→                  animate={{ opacity: 1, y: 0 }}
+  1167→                  transition={{ delay: 0.2 + idx * 0.12 }}
+  1168→                  whileHover={{ scale: 1.015 }}
+  1169→                >
+  1170→                  <Card
+  1171→                    className={`bg-gradient-to-r ${player.gradient} ${player.borderAccent} border py-0 gap-0 overflow-hidden relative cursor-pointer`}
+  1172→                    onClick={() => handleAwardClick(player)}
+  1173→                  >
+  1174→                    <CardContent className="p-4">
+  1175→                      <div className="flex items-center gap-3">
+  1176→                        <div className="relative shrink-0">
+  1177→                          <div className="w-14 h-14 rounded-full bg-warm-100 border-2 border-brand-gold/30 flex items-center justify-center">
+  1178→                            <div className="w-12 h-12 rounded-full bg-warm-200 flex items-center justify-center text-lg font-bold text-warm-600">
+  1179→                              {player.name.charAt(0)}
+  1180→                            </div>
+  1181→                          </div>
+  1182→                          <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-brand-gold flex items-center justify-center">
+  1183→                            <Icon className="w-3 h-3 text-warm-800" />
+  1184→                          </div>
+  1185→                        </div>
+  1186→                        <div className="flex-1 min-w-0">
+  1187→                          <div className="flex items-center gap-2">
+  1188→                            <Badge
+  1189→                              className={`${player.badgeBg} text-[10px] font-semibold border-0 px-2 py-0.5 mb-1`}
+  1190→                            >
+  1191→                              {player.title}
+  1192→                            </Badge>
+  1193→                            {!isPremium && (
+  1194→                              <Badge className="bg-brand-gold/20 text-brand-gold text-[8px] border-0 px-1 py-0 mb-1">
+  1195→                                <Lock className="w-2 h-2 mr-0.5" />
+  1196→                                PRO
+  1197→                              </Badge>
+  1198→                            )}
+  1199→                          </div>
+  1200→                          <p className="text-warm-800 font-bold text-sm truncate">
+  1201→                            {player.name}
+  1202→                          </p>
+  1203→                          <p className="text-warm-600 text-xs">
+  1204→                            {player.team}
+  1205→                          </p>
+  1206→                        </div>
+  1207→                        <div className="text-right shrink-0">
+  1208→                          <p className="text-brand-gold font-black text-base leading-none">
+  1209→                            {player.stat}
+  1210→                          </p>
+  1211→                          <p className="text-warm-500 text-[10px] mt-0.5">
+  1212→                            {player.statLabel}
+  1213→                          </p>
+  1214→                          {!isPremium && (
+  1215→                            <p className="text-brand-gold text-[9px] mt-1 font-semibold flex items-center justify-end gap-0.5">
+  1216→                              <BarChart3 className="w-2.5 h-2.5" />
+  1217→                              Tap for stats
+  1218→                            </p>
+  1219→                          )}
+  1220→                        </div>
+  1221→                      </div>
+  1222→                    </CardContent>
+  1223→                  </Card>
+  1224→                </motion.div>
+  1225→              );
+  1226→            })}
+  1227→          </div>
+  1228→        ) : (
+  1229→          <Card className="bg-warm-100 border-warm-300 py-0 gap-0">
+  1230→            <CardContent className="flex flex-col items-center justify-center py-10">
+  1231→              <Award className="w-10 h-10 text-warm-500 mb-3" />
+  1232→              <p className="text-warm-600 text-sm font-medium">
+  1233→                No awards yet
+  1234→              </p>
+  1235→              <p className="text-warm-500 text-xs mt-1">
+  1236→                Play matches to see top performers here
+  1237→              </p>
+  1238→            </CardContent>
+  1239→          </Card>
+  1240→        )}
+  1241→      </section>
+  1242→
+  1243→      {/* ─── Leaderboard Preview ─── */}
+  1244→      <section className="px-4 mt-6">
+  1245→        <div className="flex items-center justify-between mb-3">
+  1246→          <div className="flex items-center gap-2">
+  1247→            <h3 className="text-base font-bold text-warm-800">Leaderboard</h3>
+  1248→            <BarChart3 className="w-4 h-4 text-brand-teal" />
+  1249→          </div>
+  1250→          <button
+  1251→            onClick={() => setShowLeaderboard(true)}
+  1252→            className="flex items-center gap-1 text-[11px] font-bold text-brand-red"
+  1253→          >
+  1254→            View Full
+  1255→            <ChevronRight className="w-3 h-3" />
+  1256→          </button>
+  1257→        </div>
+  1258→
+  1259→        {loading ? (
+  1260→          <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+  1261→            {[1, 2, 3].map((i) => (
+  1262→              <div key={i} className="w-28 h-32 rounded-xl bg-warm-100 animate-pulse shrink-0" />
+  1263→            ))}
+  1264→          </div>
+  1265→        ) : (
+  1266→          <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+  1267→            {/* Top 3 Leaderboard Preview Cards */}
+  1268→            {[1, 2, 3].map((rank) => (
+  1269→              <LeaderboardPreviewCard
+  1270→                key={rank}
+  1271→                rank={rank}
+  1272→                category="raiders"
+  1273→              />
+  1274→            ))}
+  1275→            {/* "See More" Card */}
+  1276→            <motion.button
+  1277→              onClick={() => setShowLeaderboard(true)}
+  1278→              className="w-28 shrink-0 rounded-xl bg-gradient-to-br from-brand-red/10 to-brand-red/5 border border-brand-red/20 flex flex-col items-center justify-center gap-2 p-3"
+  1279→              whileHover={{ scale: 1.03 }}
+  1280→              whileTap={{ scale: 0.97 }}
+  1281→            >
+  1282→              <div className="w-10 h-10 rounded-full bg-brand-red/10 flex items-center justify-center">
+  1283→                <ChevronRight className="w-5 h-5 text-brand-red" />
+  1284→              </div>
+  1285→              <span className="text-[10px] font-bold text-brand-red text-center">
+  1286→                View Full Leaderboard
+  1287→              </span>
+  1288→            </motion.button>
+  1289→          </div>
+  1290→        )}
+  1291→      </section>
+  1292→
+  1293→      {/* ─── Phase 3: Quick Actions ─── */}
+  1294→      <section className="px-4 mt-6">
+  1295→        <div className="flex items-center justify-between mb-3">
+  1296→          <h3 className="text-base font-bold text-warm-800">Explore</h3>
+  1297→          <Sparkles className="w-4 h-4 text-brand-gold" />
+  1298→        </div>
+  1299→        <div className="grid grid-cols-2 gap-3">
+  1300→          {/* Social Feed */}
+  1301→          <motion.div
+  1302→            initial={{ opacity: 0, y: 12 }}
+  1303→            animate={{ opacity: 1, y: 0 }}
+  1304→            transition={{ delay: 0.1 }}
+  1305→          >
+  1306→            <Card
+  1307→              className="p-3 cursor-pointer hover:border-brand-teal/30 transition-colors active:scale-[0.98]"
+  1308→              onClick={() => setShowSocialFeed(true)}
+  1309→            >
+  1310→              <div className="flex items-center gap-2">
+  1311→                <div className="w-9 h-9 rounded-lg bg-brand-teal/10 flex items-center justify-center">
+  1312→                  <Rss className="w-4.5 h-4.5 text-brand-teal" />
+  1313→                </div>
+  1314→                <div>
+  1315→                  <p className="text-xs font-semibold text-warm-800">Social Feed</p>
+  1316→                  <p className="text-[10px] text-warm-500">Activity updates</p>
+  1317→                </div>
+  1318→              </div>
+  1319→            </Card>
+  1320→          </motion.div>
+  1321→
+  1322→          {/* Follow & Connect */}
+  1323→          <motion.div
+  1324→            initial={{ opacity: 0, y: 12 }}
+  1325→            animate={{ opacity: 1, y: 0 }}
+  1326→            transition={{ delay: 0.15 }}
+  1327→          >
+  1328→            <Card
+  1329→              className="p-3 cursor-pointer hover:border-brand-navy/30 transition-colors active:scale-[0.98]"
+  1330→              onClick={() => setShowFollow(true)}
+  1331→            >
+  1332→              <div className="flex items-center gap-2">
+  1333→                <div className="w-9 h-9 rounded-lg bg-brand-navy/10 flex items-center justify-center">
+  1334→                  <Users className="w-4.5 h-4.5 text-brand-navy" />
+  1335→                </div>
+  1336→                <div>
+  1337→                  <p className="text-xs font-semibold text-warm-800">Follow</p>
+  1338→                  <p className="text-[10px] text-warm-500">Find players</p>
+  1339→                </div>
+  1340→              </div>
+  1341→            </Card>
+  1342→          </motion.div>
+  1343→
+  1344→          {/* Advanced Stats */}
+  1345→          <motion.div
+  1346→            initial={{ opacity: 0, y: 12 }}
+  1347→            animate={{ opacity: 1, y: 0 }}
+  1348→            transition={{ delay: 0.2 }}
+  1349→          >
+  1350→            <Card
+  1351→              className="p-3 cursor-pointer hover:border-brand-red/30 transition-colors active:scale-[0.98]"
+  1352→              onClick={() => {
+  1353→                if (currentUser?.id) {
+  1354→                  setStatsUserId(currentUser.id);
+  1355→                  setShowAdvancedStats(true);
+  1356→                }
+  1357→              }}
+  1358→            >
+  1359→              <div className="flex items-center gap-2">
+  1360→                <div className="w-9 h-9 rounded-lg bg-brand-red/10 flex items-center justify-center">
+  1361→                  <Activity className="w-4.5 h-4.5 text-brand-red" />
+  1362→                </div>
+  1363→                <div>
+  1364→                  <p className="text-xs font-semibold text-warm-800">My Stats</p>
+  1365→                  <p className="text-[10px] text-warm-500">{isPremium ? 'Analytics' : 'PRO only'}</p>
+  1366→                </div>
+  1367→              </div>
+  1368→            </Card>
+  1369→          </motion.div>
+  1370→
+  1371→          {/* Match Highlights */}
+  1372→          <motion.div
+  1373→            initial={{ opacity: 0, y: 12 }}
+  1374→            animate={{ opacity: 1, y: 0 }}
+  1375→            transition={{ delay: 0.25 }}
+  1376→          >
+  1377→            <Card
+  1378→              className="p-3 cursor-pointer hover:border-brand-gold/30 transition-colors active:scale-[0.98]"
+  1379→              onClick={() => {
+  1380→                if (recentMatches.length > 0) {
+  1381→                  setHighlightsMatchId(recentMatches[0].id);
+  1382→                  setShowHighlights(true);
+  1383→                } else {
+  1384→                  toast({ title: 'No matches', description: 'Complete a match to see highlights' });
+  1385→                }
+  1386→              }}
+  1387→            >
+  1388→              <div className="flex items-center gap-2">
+  1389→                <div className="w-9 h-9 rounded-lg bg-brand-gold/10 flex items-center justify-center">
+  1390→                  <Sparkles className="w-4.5 h-4.5 text-brand-gold" />
+  1391→                </div>
+  1392→                <div>
+  1393→                  <p className="text-xs font-semibold text-warm-800">Highlights</p>
+  1394→                  <p className="text-[10px] text-warm-500">Key moments</p>
+  1395→                </div>
+  1396→              </div>
+  1397→            </Card>
+  1398→          </motion.div>
+  1399→        </div>
+  1400→
+  1401→        {/* Phase 5: More Actions */}
+  1402→        <div className="grid grid-cols-2 gap-3 mt-3">
+  1403→          {/* Achievements */}
+  1404→          <motion.div
+  1405→            initial={{ opacity: 0, y: 12 }}
+  1406→            animate={{ opacity: 1, y: 0 }}
+  1407→            transition={{ delay: 0.3 }}
+  1408→          >
+  1409→            <Card
+  1410→              className="p-3 cursor-pointer hover:border-brand-gold/30 transition-colors active:scale-[0.98]"
+  1411→              onClick={() => setShowAchievements(true)}
+  1412→            >
+  1413→              <div className="flex items-center gap-2">
+  1414→                <div className="w-9 h-9 rounded-lg bg-brand-gold/10 flex items-center justify-center">
+  1415→                  <Award className="w-4.5 h-4.5 text-brand-gold" />
+  1416→                </div>
+  1417→                <div>
+  1418→                  <p className="text-xs font-semibold text-warm-800">Achievements</p>
+  1419→                  <p className="text-[10px] text-warm-500">Unlock badges</p>
+  1420→                </div>
+  1421→              </div>
+  1422→            </Card>
+  1423→          </motion.div>
+  1424→
+  1425→          {/* Challenges */}
+  1426→          <motion.div
+  1427→            initial={{ opacity: 0, y: 12 }}
+  1428→            animate={{ opacity: 1, y: 0 }}
+  1429→            transition={{ delay: 0.35 }}
+  1430→          >
+  1431→            <Card
+  1432→              className="p-3 cursor-pointer hover:border-brand-red/30 transition-colors active:scale-[0.98]"
+  1433→              onClick={() => setShowChallenges(true)}
+  1434→            >
+  1435→              <div className="flex items-center gap-2">
+  1436→                <div className="w-9 h-9 rounded-lg bg-brand-red/10 flex items-center justify-center">
+  1437→                  <Swords className="w-4.5 h-4.5 text-brand-red" />
+  1438→                </div>
+  1439→                <div>
+  1440→                  <p className="text-xs font-semibold text-warm-800">Challenges</p>
+  1441→                  <p className="text-[10px] text-warm-500">Challenge teams</p>
+  1442→                </div>
+  1443→              </div>
+  1444→            </Card>
+  1445→          </motion.div>
+  1446→
+  1447→          {/* Grounds */}
+  1448→          <motion.div
+  1449→            initial={{ opacity: 0, y: 12 }}
+  1450→            animate={{ opacity: 1, y: 0 }}
+  1451→            transition={{ delay: 0.4 }}
+  1452→          >
+  1453→            <Card
+  1454→              className="p-3 cursor-pointer hover:border-brand-teal/30 transition-colors active:scale-[0.98]"
+  1455→              onClick={() => setShowGrounds(true)}
+  1456→            >
+  1457→              <div className="flex items-center gap-2">
+  1458→                <div className="w-9 h-9 rounded-lg bg-brand-teal/10 flex items-center justify-center">
+  1459→                  <MapPin className="w-4.5 h-4.5 text-brand-teal" />
+  1460→                </div>
+  1461→                <div>
+  1462→                  <p className="text-xs font-semibold text-warm-800">Grounds</p>
+  1463→                  <p className="text-[10px] text-warm-500">Find venues</p>
+  1464→                </div>
+  1465→              </div>
+  1466→            </Card>
+  1467→          </motion.div>
+  1468→
+  1469→          {/* Match Replay */}
+  1470→          <motion.div
+  1471→            initial={{ opacity: 0, y: 12 }}
+  1472→            animate={{ opacity: 1, y: 0 }}
+  1473→            transition={{ delay: 0.45 }}
+  1474→          >
+  1475→            <Card
+  1476→              className="p-3 cursor-pointer hover:border-brand-navy/30 transition-colors active:scale-[0.98]"
+  1477→              onClick={() => {
+  1478→                if (recentMatches.length > 0) {
+  1479→                  setReplayMatchId(recentMatches[0].id);
+  1480→                  setShowReplay(true);
+  1481→                } else {
+  1482→                  toast({ title: 'No matches', description: 'Complete a match to replay' });
+  1483→                }
+  1484→              }}
+  1485→            >
+  1486→              <div className="flex items-center gap-2">
+  1487→                <div className="w-9 h-9 rounded-lg bg-brand-navy/10 flex items-center justify-center">
+  1488→                  <Play className="w-4.5 h-4.5 text-brand-navy" />
+  1489→                </div>
+  1490→                <div>
+  1491→                  <p className="text-xs font-semibold text-warm-800">Replay</p>
+  1492→                  <p className="text-[10px] text-warm-500">Watch again</p>
+  1493→                </div>
+  1494→              </div>
+  1495→            </Card>
+  1496→          </motion.div>
+  1497→        </div>
+  1498→
+  1499→        {/* Advanced Phase 5: Pro Features */}
+  1500→        <div className="flex items-center gap-2 mt-5 mb-3">
+  1501→          <h3 className="text-sm font-bold text-warm-800">Pro Features</h3>
+  1502→          <Crown className="w-3.5 h-3.5 text-brand-gold" />
+  1503→        </div>
+  1504→        <div className="grid grid-cols-2 gap-3">
+  1505→          {/* AI Insights */}
+  1506→          <motion.div
+  1507→            initial={{ opacity: 0, y: 12 }}
+  1508→            animate={{ opacity: 1, y: 0 }}
+  1509→            transition={{ delay: 0.5 }}
+  1510→          >
+  1511→            <Card
+  1512→              className="p-3 cursor-pointer hover:border-purple-400/30 transition-colors active:scale-[0.98]"
+  1513→              onClick={() => setShowAIInsights(true)}
+  1514→            >
+  1515→              <div className="flex items-center gap-2">
+  1516→                <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
+  1517→                  <Brain className="w-4.5 h-4.5 text-purple-500" />
+  1518→                </div>
+  1519→                <div>
+  1520→                  <p className="text-xs font-semibold text-warm-800">AI Insights</p>
+  1521→                  <p className="text-[10px] text-warm-500">Smart analysis</p>
+  1522→                </div>
+  1523→              </div>
+  1524→            </Card>
+  1525→          </motion.div>
+  1526→
+  1527→          {/* Live Broadcast */}
+  1528→          <motion.div
+  1529→            initial={{ opacity: 0, y: 12 }}
+  1530→            animate={{ opacity: 1, y: 0 }}
+  1531→            transition={{ delay: 0.55 }}
+  1532→          >
+  1533→            <Card
+  1534→              className="p-3 cursor-pointer hover:border-brand-red/30 transition-colors active:scale-[0.98]"
+  1535→              onClick={() => {
+  1536→                if (liveMatches.length > 0) {
+  1537→                  setBroadcastMatchId(liveMatches[0].id);
+  1538→                  setShowBroadcast(true);
+  1539→                } else {
+  1540→                  toast({ title: 'No live matches', description: 'Start a match to broadcast' });
+  1541→                }
+  1542→              }}
+  1543→            >
+  1544→              <div className="flex items-center gap-2">
+  1545→                <div className="w-9 h-9 rounded-lg bg-brand-red/10 flex items-center justify-center">
+  1546→                  <Radio className="w-4.5 h-4.5 text-brand-red" />
+  1547→                </div>
+  1548→                <div>
+  1549→                  <p className="text-xs font-semibold text-warm-800">Broadcast</p>
+  1550→                  <p className="text-[10px] text-warm-500">Watch live</p>
+  1551→                </div>
+  1552→              </div>
+  1553→            </Card>
+  1554→          </motion.div>
+  1555→
+  1556→          {/* Seasons */}
+  1557→          <motion.div
+  1558→            initial={{ opacity: 0, y: 12 }}
+  1559→            animate={{ opacity: 1, y: 0 }}
+  1560→            transition={{ delay: 0.6 }}
+  1561→          >
+  1562→            <Card
+  1563→              className="p-3 cursor-pointer hover:border-brand-teal/30 transition-colors active:scale-[0.98]"
+  1564→              onClick={() => setShowSeason(true)}
+  1565→            >
+  1566→              <div className="flex items-center gap-2">
+  1567→                <div className="w-9 h-9 rounded-lg bg-brand-teal/10 flex items-center justify-center">
+  1568→                  <Calendar className="w-4.5 h-4.5 text-brand-teal" />
+  1569→                </div>
+  1570→                <div>
+  1571→                  <p className="text-xs font-semibold text-warm-800">Seasons</p>
+  1572→                  <p className="text-[10px] text-warm-500">Track yearly</p>
+  1573→                </div>
+  1574→              </div>
+  1575→            </Card>
+  1576→          </motion.div>
+  1577→
+  1578→          {/* Polls & Predictions */}
+  1579→          <motion.div
+  1580→            initial={{ opacity: 0, y: 12 }}
+  1581→            animate={{ opacity: 1, y: 0 }}
+  1582→            transition={{ delay: 0.65 }}
+  1583→          >
+  1584→            <Card
+  1585→              className="p-3 cursor-pointer hover:border-brand-gold/30 transition-colors active:scale-[0.98]"
+  1586→              onClick={() => setShowPolls(true)}
+  1587→            >
+  1588→              <div className="flex items-center gap-2">
+  1589→                <div className="w-9 h-9 rounded-lg bg-brand-gold/10 flex items-center justify-center">
+  1590→                  <Vote className="w-4.5 h-4.5 text-brand-gold" />
+  1591→                </div>
+  1592→                <div>
+  1593→                  <p className="text-xs font-semibold text-warm-800">Predictions</p>
+  1594→                  <p className="text-[10px] text-warm-500">Vote & predict</p>
+  1595→                </div>
+  1596→              </div>
+  1597→            </Card>
+  1598→          </motion.div>
+  1599→
+  1600→          {/* Data Export */}
+  1601→          <motion.div
+  1602→            initial={{ opacity: 0, y: 12 }}
+  1603→            animate={{ opacity: 1, y: 0 }}
+  1604→            transition={{ delay: 0.7 }}
+  1605→          >
+  1606→            <Card
+  1607→              className="p-3 cursor-pointer hover:border-brand-navy/30 transition-colors active:scale-[0.98]"
+  1608→              onClick={() => setShowDataExport(true)}
+  1609→            >
+  1610→              <div className="flex items-center gap-2">
+  1611→                <div className="w-9 h-9 rounded-lg bg-brand-navy/10 flex items-center justify-center">
+  1612→                  <Download className="w-4.5 h-4.5 text-brand-navy" />
+  1613→                </div>
+  1614→                <div>
+  1615→                  <p className="text-xs font-semibold text-warm-800">Export</p>
+  1616→                  <p className="text-[10px] text-warm-500">CSV download</p>
+  1617→                </div>
+  1618→              </div>
+  1619→            </Card>
+  1620→          </motion.div>
+  1621→
+  1622→          {/* Sponsors */}
+  1623→          <motion.div
+  1624→            initial={{ opacity: 0, y: 12 }}
+  1625→            animate={{ opacity: 1, y: 0 }}
+  1626→            transition={{ delay: 0.75 }}
+  1627→          >
+  1628→            <Card
+  1629→              className="p-3 cursor-pointer hover:border-emerald-400/30 transition-colors active:scale-[0.98]"
+  1630→              onClick={() => setShowSponsors(true)}
+  1631→            >
+  1632→              <div className="flex items-center gap-2">
+  1633→                <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+  1634→                  <Briefcase className="w-4.5 h-4.5 text-emerald-500" />
+  1635→                </div>
+  1636→                <div>
+  1637→                  <p className="text-xs font-semibold text-warm-800">Sponsors</p>
+  1638→                  <p className="text-[10px] text-warm-500">Manage ads</p>
+  1639→                </div>
+  1640→              </div>
+  1641→            </Card>
+  1642→          </motion.div>
+  1643→        </div>
+  1644→      </section>
+  1645→    </div>
+  1646→  );
+  1647→}
+  1648→
+  1649→// ─── Leaderboard Preview Card (mini) ───────────────────────────────
+  1650→
+  1651→function LeaderboardPreviewCard({ rank, category }: { rank: number; category: string }) {
+  1652→  const [player, setPlayer] = useState<{
+  1653→    name: string;
+  1654→    avatar: string | null;
+  1655→    stat: number;
+  1656→    statLabel: string;
+  1657→    teamNames: string[];
+  1658→  } | null>(null);
+  1659→
+  1660→  useEffect(() => {
+  1661→    async function fetchPreview() {
+  1662→      try {
+  1663→        const res = await fetch(`/api/leaderboard?category=${category}&limit=3`);
+  1664→        if (!res.ok) return;
+  1665→        const data = await res.json();
+  1666→        const entry = data.leaderboard?.[rank - 1];
+  1667→        if (entry) {
+  1668→          setPlayer({
+  1669→            name: entry.name,
+  1670→            avatar: entry.avatar,
+  1671→            stat: entry.stat,
+  1672→            statLabel: entry.statLabel,
+  1673→            teamNames: entry.teamNames,
+  1674→          });
+  1675→        }
+  1676→      } catch {
+  1677→        // silently fail
+  1678→      }
+  1679→    }
+  1680→    fetchPreview();
+  1681→  }, [rank, category]);
+  1682→
+  1683→  const rankStyle = rank === 1
+  1684→    ? { bg: 'from-yellow-400/20 to-yellow-600/10', border: 'border-yellow-500/40', medal: '🥇' }
+  1685→    : rank === 2
+  1686→      ? { bg: 'from-slate-300/20 to-slate-400/10', border: 'border-slate-400/40', medal: '🥈' }
+  1687→      : { bg: 'from-amber-600/20 to-amber-700/10', border: 'border-amber-600/40', medal: '🥉' };
+  1688→
+  1689→  if (!player) {
+  1690→    return (
+  1691→      <div className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankStyle.bg} ${rankStyle.border} border p-3 flex flex-col items-center gap-2`}>
+  1692→        <div className="w-10 h-10 rounded-full bg-warm-200 animate-pulse" />
+  1693→        <div className="h-3 w-14 rounded bg-warm-200 animate-pulse" />
+  1694→        <div className="h-3 w-10 rounded bg-warm-200 animate-pulse" />
+  1695→      </div>
+  1696→    );
+  1697→  }
+  1698→
+  1699→  return (
+  1700→    <motion.div
+  1701→      className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankStyle.bg} ${rankStyle.border} border p-3 flex flex-col items-center gap-1`}
+  1702→      initial={{ opacity: 0, scale: 0.9 }}
+  1703→      animate={{ opacity: 1, scale: 1 }}
+  1704→      transition={{ delay: rank * 0.1 }}
+  1705→    >
+  1706→      <span className="text-lg">{rankStyle.medal}</span>
+  1707→      <div className="w-10 h-10 rounded-full bg-warm-100 border border-warm-200 flex items-center justify-center overflow-hidden">
+  1708→        {player.avatar ? (
+  1709→          <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
+  1710→        ) : (
+  1711→          <span className="text-sm font-bold text-warm-500">
+  1712→            {player.name.charAt(0).toUpperCase()}
+  1713→          </span>
+  1714→        )}
+  1715→      </div>
+  1716→      <p className="text-[11px] font-bold text-warm-800 text-center truncate w-full">
+  1717→        {player.name}
+  1718→      </p>
+  1719→      <p className="text-brand-gold font-black text-sm">{player.stat}</p>
+  1720→      <p className="text-[8px] text-warm-400 text-center">{player.statLabel}</p>
+  1721→    </motion.div>
+  1722→  );
+  1723→}
+  1724→
