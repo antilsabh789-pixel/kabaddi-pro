@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const userWhere: Record<string, unknown> = {};
     if (gender && gender !== 'all') userWhere.gender = gender;
 
-    // Count stats
+    // ── Count stats ──────────────────────────────────────────────
     const totalPlayers = await db.user.count({ where: userWhere });
     const totalTeams = await db.team.count();
     const totalTournaments = await db.tournament.count({
@@ -20,7 +20,43 @@ export async function GET(request: NextRequest) {
     const completedMatchCount = await db.match.count({ where: { status: 'completed' } });
     const upcomingMatchCount = await db.match.count({ where: { status: 'upcoming' } });
 
-    // Live matches with full team details + tournament
+    // ── Aggregate player stats ───────────────────────────────────
+    const aggregateStats = await db.playerProfile.aggregate({
+      _sum: {
+        raidPoints: true,
+        tacklePoints: true,
+        bonusPoints: true,
+        totalPoints: true,
+        totalRaids: true,
+        successfulRaids: true,
+        totalTackles: true,
+        successfulTackles: true,
+        superTackles: true,
+      },
+      where: userWhere.gender ? { user: userWhere } : undefined,
+    });
+
+    const totalRaidPoints = aggregateStats._sum.raidPoints ?? 0;
+    const totalTacklePoints = aggregateStats._sum.tacklePoints ?? 0;
+    const totalBonusPoints = aggregateStats._sum.bonusPoints ?? 0;
+    const grandTotalPoints = aggregateStats._sum.totalPoints ?? 0;
+    const grandTotalRaids = aggregateStats._sum.totalRaids ?? 0;
+    const grandSuccessfulRaids = aggregateStats._sum.successfulRaids ?? 0;
+    const grandTotalTackles = aggregateStats._sum.totalTackles ?? 0;
+    const grandSuccessfulTackles = aggregateStats._sum.successfulTackles ?? 0;
+    const grandSuperTackles = aggregateStats._sum.superTackles ?? 0;
+
+    // Raid success rate
+    const raidSuccessRate = grandTotalRaids > 0
+      ? Math.round((grandSuccessfulRaids / grandTotalRaids) * 100)
+      : 0;
+
+    // Tackle success rate
+    const tackleSuccessRate = grandTotalTackles > 0
+      ? Math.round((grandSuccessfulTackles / grandTotalTackles) * 100)
+      : 0;
+
+    // ── Live matches with full team details + tournament ─────────
     const liveMatchesRaw = await db.match.findMany({
       where: { status: 'live' },
       include: {
@@ -56,7 +92,7 @@ export async function GET(request: NextRequest) {
       tournament: m.tournament,
     }));
 
-    // Recent completed matches (last 10)
+    // ── Recent completed matches (last 10) ───────────────────────
     const recentMatchesRaw = await db.match.findMany({
       where: { status: 'completed' },
       include: {
@@ -92,7 +128,7 @@ export async function GET(request: NextRequest) {
       completedAt: m.completedAt,
     }));
 
-    // Upcoming matches (next 10)
+    // ── Upcoming matches (next 10) ───────────────────────────────
     const upcomingMatchesRaw = await db.match.findMany({
       where: { status: 'upcoming' },
       include: {
@@ -128,7 +164,7 @@ export async function GET(request: NextRequest) {
       completedAt: m.completedAt,
     }));
 
-    // Top Raiders - with user details for awards display
+    // ── Top Raiders ──────────────────────────────────────────────
     const topRaidersRaw = await db.playerProfile.findMany({
       where: { user: userWhere },
       orderBy: { successfulRaids: 'desc' },
@@ -142,14 +178,16 @@ export async function GET(request: NextRequest) {
       totalRaids: p.totalRaids,
       successfulRaids: p.successfulRaids,
       bonusPoints: p.bonusPoints,
+      raidPoints: p.raidPoints,
       user: {
         id: p.user.id,
         name: p.user.name || 'Unknown',
         avatar: p.user.avatar,
+        playerCode: p.user.playerCode,
       },
     }));
 
-    // Top Defenders - with user details for awards display
+    // ── Top Defenders ────────────────────────────────────────────
     const topDefendersRaw = await db.playerProfile.findMany({
       where: { user: userWhere },
       orderBy: { successfulTackles: 'desc' },
@@ -163,14 +201,40 @@ export async function GET(request: NextRequest) {
       totalTackles: p.totalTackles,
       successfulTackles: p.successfulTackles,
       superTackles: p.superTackles,
+      tacklePoints: p.tacklePoints,
       user: {
         id: p.user.id,
         name: p.user.name || 'Unknown',
         avatar: p.user.avatar,
+        playerCode: p.user.playerCode,
       },
     }));
 
-    // Recent MOTM awards
+    // ── Top Scorers (overall) ────────────────────────────────────
+    const topScorersRaw = await db.playerProfile.findMany({
+      where: { user: userWhere },
+      orderBy: { totalPoints: 'desc' },
+      take: 5,
+      include: { user: true },
+    });
+
+    const topScorers = topScorersRaw.map((p) => ({
+      id: p.id,
+      userId: p.userId,
+      totalPoints: p.totalPoints,
+      raidPoints: p.raidPoints,
+      tacklePoints: p.tacklePoints,
+      bonusPoints: p.bonusPoints,
+      totalMatches: p.totalMatches,
+      user: {
+        id: p.user.id,
+        name: p.user.name || 'Unknown',
+        avatar: p.user.avatar,
+        playerCode: p.user.playerCode,
+      },
+    }));
+
+    // ── Recent MOTM awards ───────────────────────────────────────
     const motmMatches = await db.match.findMany({
       where: {
         status: 'completed',
@@ -193,7 +257,6 @@ export async function GET(request: NextRequest) {
             where: { id: m.motmUserId! },
             select: { id: true, name: true, avatar: true },
           });
-          // Count points for MOTM from match events
           const events = await db.matchEvent.findMany({
             where: { matchId: m.id, playerId: m.motmUserId! },
           });
@@ -211,6 +274,17 @@ export async function GET(request: NextRequest) {
         })
     );
 
+    // ── Position breakdown ────────────────────────────────────────
+    const raiderCount = await db.playerProfile.count({
+      where: { position: 'raider', user: userWhere },
+    });
+    const defenderCount = await db.playerProfile.count({
+      where: { position: 'defender', user: userWhere },
+    });
+    const allRounderCount = await db.playerProfile.count({
+      where: { position: 'all-rounder', user: userWhere },
+    });
+
     return NextResponse.json({
       stats: {
         totalMatches,
@@ -220,16 +294,65 @@ export async function GET(request: NextRequest) {
         liveMatchCount,
         completedMatchCount,
         upcomingMatchCount,
+        // Aggregate stats
+        totalRaidPoints,
+        totalTacklePoints,
+        totalBonusPoints,
+        grandTotalPoints,
+        raidSuccessRate,
+        tackleSuccessRate,
+        grandTotalRaids,
+        grandSuccessfulRaids,
+        grandTotalTackles,
+        grandSuccessfulTackles,
+        grandSuperTackles,
+        // Position breakdown
+        raiderCount,
+        defenderCount,
+        allRounderCount,
       },
       liveMatches,
       recentMatches,
       upcomingMatches,
       topRaiders,
       topDefenders,
+      topScorers,
       recentMotmAwards,
     });
   } catch (error) {
     console.error('Stats fetch error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    // Return a valid empty-state response instead of error
+    return NextResponse.json({
+      stats: {
+        totalMatches: 0,
+        totalPlayers: 0,
+        totalTournaments: 0,
+        totalTeams: 0,
+        liveMatchCount: 0,
+        completedMatchCount: 0,
+        upcomingMatchCount: 0,
+        totalRaidPoints: 0,
+        totalTacklePoints: 0,
+        totalBonusPoints: 0,
+        grandTotalPoints: 0,
+        raidSuccessRate: 0,
+        tackleSuccessRate: 0,
+        grandTotalRaids: 0,
+        grandSuccessfulRaids: 0,
+        grandTotalTackles: 0,
+        grandSuccessfulTackles: 0,
+        grandSuperTackles: 0,
+        raiderCount: 0,
+        defenderCount: 0,
+        allRounderCount: 0,
+      },
+      liveMatches: [],
+      recentMatches: [],
+      upcomingMatches: [],
+      topRaiders: [],
+      topDefenders: [],
+      topScorers: [],
+      recentMotmAwards: [],
+    });
   }
 }

@@ -233,7 +233,7 @@ export default function LiveScoringScreen() {
     return () => {
       if (raidTimerRef.current) clearInterval(raidTimerRef.current);
     };
-  }, [raidTimer !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [raidTimer !== null]);
 
   // ═══ RAID TIMER HAPTIC COUNTDOWN ═══
   // Vibrate at key raid timer thresholds to warn scorer
@@ -288,7 +288,7 @@ export default function LiveScoringScreen() {
     return () => {
       if (raidGapRef.current) clearInterval(raidGapRef.current);
     };
-  }, [raidGapTimer !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [raidGapTimer !== null]);
 
   // Calculate MOTM
   const calculateMotm = useCallback(() => {
@@ -532,8 +532,8 @@ export default function LiveScoringScreen() {
     setRaidGapTimer(RAID_GAP_TIMEOUT);
   };
 
-  // Keep ref in sync with latest processRaidResult - called after early return so we assign directly
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // Keep ref in sync with latest processRaidResult
+  // eslint-disable-next-line react-hooks/refs -- ref must be updated during render to stay in sync before the useEffect that reads it fires
   processRaidResultRef.current = processRaidResult;
 
   const cancelRaid = () => {

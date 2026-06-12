@@ -35,24 +35,65 @@ export default function Home() {
   // Show branded loading screen while hydrating from localStorage
   if (!hydrated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-700 to-red-900 flex flex-col items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-20 h-20 rounded-2xl bg-white shadow-2xl shadow-black/30 flex items-center justify-center overflow-hidden border-3 border-white/50">
-            <Image
-              src="/app-icon.png"
-              alt="Kabaddi Pro"
-              width={72}
-              height={72}
-              className="rounded-xl"
-              priority
+      <div
+        className="min-h-screen bg-gradient-to-br from-red-700 via-red-800 to-red-950 flex flex-col items-center justify-center relative overflow-hidden"
+      >
+        {/* Subtle geometric pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,0.1) 35px, rgba(255,255,255,0.1) 36px)`,
+          }}
+        />
+
+        <div className="flex flex-col items-center gap-5 relative z-10">
+          {/* Logo with pulse animation */}
+          <div className="relative">
+            <div className="w-24 h-24 rounded-2xl bg-white shadow-2xl shadow-black/40 flex items-center justify-center overflow-hidden border-3 border-white/60">
+              <Image
+                src="/app-icon.png"
+                alt="Kabaddi Pro"
+                width={80}
+                height={80}
+                className="rounded-xl"
+                priority
+              />
+            </div>
+            {/* Animated glow ring */}
+            <div
+              className="absolute inset-[-6px] rounded-[1.75rem] border-2 border-brand-gold/30"
+              style={{ animation: 'pulse-glow 2s ease-in-out infinite' }}
             />
           </div>
-          <div className="flex gap-1.5 mt-2">
+
+          {/* App name */}
+          <div className="text-center">
+            <h1 className="text-2xl font-black text-white tracking-[0.15em]">
+              KABADDI
+              <span className="text-brand-gold"> PRO</span>
+            </h1>
+          </div>
+
+          {/* Loading indicator bar */}
+          <div className="w-28 h-1 bg-white/15 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light"
+              style={{
+                animation: 'load-progress 1.5s ease-in-out infinite',
+              }}
+            />
+          </div>
+
+          {/* Animated dots */}
+          <div className="flex gap-2 mt-1">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse"
-                style={{ animationDelay: `${i * 0.15}s` }}
+                className="w-1.5 h-1.5 rounded-full bg-brand-gold"
+                style={{
+                  animation: 'pulse 1s ease-in-out infinite',
+                  animationDelay: `${i * 0.2}s`,
+                }}
               />
             ))}
           </div>
