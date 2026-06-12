@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -13,6 +13,9 @@ import {
   TrendingUp,
   Sparkles,
   ArrowLeft,
+  Swords,
+  Zap,
+  BarChart3,
 } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -24,6 +27,8 @@ interface PlayerResult {
   avatar: string | null;
   position: string | null;
   teamNames: string[];
+  raidPoints?: number;
+  tacklePoints?: number;
 }
 
 interface TeamResult {
@@ -32,6 +37,7 @@ interface TeamResult {
   shortName: string | null;
   color: string | null;
   teamCode: string | null;
+  memberCount?: number;
 }
 
 interface TournamentResult {
@@ -42,13 +48,34 @@ interface TournamentResult {
   tournamentCode: string | null;
 }
 
+interface MatchResult {
+  id: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeTeamColor: string | null;
+  awayTeamColor: string | null;
+  homeTeamShort: string | null;
+  awayTeamShort: string | null;
+  homeScore: number;
+  awayScore: number;
+  status: string;
+  date: string | null;
+}
+
 interface SearchResults {
   players: PlayerResult[];
   teams: TeamResult[];
   tournaments: TournamentResult[];
+  matches: MatchResult[];
 }
 
-type FilterType = 'all' | 'players' | 'teams' | 'tournaments';
+type FilterType = 'all' | 'players' | 'teams' | 'tournaments' | 'matches';
+
+interface TrendingItem {
+  label: string;
+  type: 'player' | 'team' | 'tournament';
+  icon: typeof TrendingUp;
+}
 
 interface GlobalSearchScreenProps {
   onClose: () => void;
@@ -73,20 +100,130 @@ function useDebounce<T>(value: T, delay: number): T {
 // ─── Constants ──────────────────────────────────────────────────────
 
 const RECENT_SEARCHES_KEY = 'kabaddi-recent-searches';
-const MAX_RECENT = 8;
+const MAX_RECENT = 5;
 const FILTER_OPTIONS: { key: FilterType; label: string; icon: typeof Search }[] = [
   { key: 'all', label: 'All', icon: Search },
   { key: 'players', label: 'Players', icon: Users },
   { key: 'teams', label: 'Teams', icon: Shield },
   { key: 'tournaments', label: 'Tournaments', icon: Trophy },
+  { key: 'matches', label: 'Matches', icon: Swords },
 ];
 
-const SEARCH_SUGGESTIONS = [
-  'Top Raiders',
-  'Pro Kabaddi',
-  'Tournament',
-  'Defender',
+const TRENDING_ITEMS: TrendingItem[] = [
+  { label: 'Top Raiders', type: 'player', icon: Zap },
+  { label: 'Pro Kabaddi', type: 'tournament', icon: Trophy },
+  { label: 'Bengaluru Bulls', type: 'team', icon: Shield },
+  { label: 'Defender', type: 'player', icon: BarChart3 },
+  { label: 'Live Matches', type: 'tournament', icon: Swords },
 ];
+
+// ─── Skeleton Components ────────────────────────────────────────────
+
+function PlayerSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-2.5 rounded-xl animate-pulse">
+      <div className="w-10 h-10 rounded-full bg-warm-200 dark:bg-warm-700" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 w-28 rounded bg-warm-200 dark:bg-warm-700" />
+        <div className="h-2.5 w-20 rounded bg-warm-200 dark:bg-warm-700" />
+      </div>
+      <div className="w-4 h-4 rounded bg-warm-200 dark:bg-warm-700" />
+    </div>
+  );
+}
+
+function TeamSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-2.5 rounded-xl animate-pulse">
+      <div className="w-10 h-10 rounded-xl bg-warm-200 dark:bg-warm-700" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 w-24 rounded bg-warm-200 dark:bg-warm-700" />
+        <div className="h-2.5 w-16 rounded bg-warm-200 dark:bg-warm-700" />
+      </div>
+      <div className="w-4 h-4 rounded bg-warm-200 dark:bg-warm-700" />
+    </div>
+  );
+}
+
+function TournamentSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-2.5 rounded-xl animate-pulse">
+      <div className="w-10 h-10 rounded-xl bg-warm-200 dark:bg-warm-700" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 w-32 rounded bg-warm-200 dark:bg-warm-700" />
+        <div className="h-2.5 w-20 rounded bg-warm-200 dark:bg-warm-700" />
+      </div>
+      <div className="w-4 h-4 rounded bg-warm-200 dark:bg-warm-700" />
+    </div>
+  );
+}
+
+function MatchSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-2.5 rounded-xl animate-pulse">
+      <div className="w-10 h-10 rounded-xl bg-warm-200 dark:bg-warm-700" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 w-36 rounded bg-warm-200 dark:bg-warm-700" />
+        <div className="h-2.5 w-24 rounded bg-warm-200 dark:bg-warm-700" />
+      </div>
+    </div>
+  );
+}
+
+function SearchSkeletons({ filter }: { filter: FilterType }) {
+  return (
+    <div className="space-y-4">
+      {(filter === 'all' || filter === 'players') && (
+        <div>
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="w-6 h-6 rounded-md bg-warm-200 dark:bg-warm-700 animate-pulse" />
+            <div className="h-3 w-14 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+          </div>
+          <div className="space-y-1.5">
+            <PlayerSkeleton />
+            <PlayerSkeleton />
+          </div>
+        </div>
+      )}
+      {(filter === 'all' || filter === 'teams') && (
+        <div>
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="w-6 h-6 rounded-md bg-warm-200 dark:bg-warm-700 animate-pulse" />
+            <div className="h-3 w-12 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+          </div>
+          <div className="space-y-1.5">
+            <TeamSkeleton />
+            <TeamSkeleton />
+          </div>
+        </div>
+      )}
+      {(filter === 'all' || filter === 'tournaments') && (
+        <div>
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="w-6 h-6 rounded-md bg-warm-200 dark:bg-warm-700 animate-pulse" />
+            <div className="h-3 w-20 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+          </div>
+          <div className="space-y-1.5">
+            <TournamentSkeleton />
+            <TournamentSkeleton />
+          </div>
+        </div>
+      )}
+      {(filter === 'all' || filter === 'matches') && (
+        <div>
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="w-6 h-6 rounded-md bg-warm-200 dark:bg-warm-700 animate-pulse" />
+            <div className="h-3 w-16 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+          </div>
+          <div className="space-y-1.5">
+            <MatchSkeleton />
+            <MatchSkeleton />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Component ──────────────────────────────────────────────────────
 
@@ -101,6 +238,7 @@ export default function GlobalSearchScreen({
   const [results, setResults] = useState<SearchResults | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounce(query, 300);
@@ -121,6 +259,7 @@ export default function GlobalSearchScreen({
   useEffect(() => {
     const timer = setTimeout(() => {
       inputRef.current?.focus();
+      setIsFocused(true);
     }, 100);
     return () => clearTimeout(timer);
   }, []);
@@ -139,12 +278,18 @@ export default function GlobalSearchScreen({
       const res = await fetch(`/api/search?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setResults(data);
+        // Add matches array if not present
+        setResults({
+          players: data.players || [],
+          teams: data.teams || [],
+          tournaments: data.tournaments || [],
+          matches: data.matches || [],
+        });
       } else {
-        setResults({ players: [], teams: [], tournaments: [] });
+        setResults({ players: [], teams: [], tournaments: [], matches: [] });
       }
     } catch {
-      setResults({ players: [], teams: [], tournaments: [] });
+      setResults({ players: [], teams: [], tournaments: [], matches: [] });
     } finally {
       setIsSearching(false);
     }
@@ -198,13 +343,17 @@ export default function GlobalSearchScreen({
     }
   };
 
-  // Total results count
-  const totalResults = results
-    ? results.players.length + results.teams.length + results.tournaments.length
-    : 0;
+  // Total results count per category
+  const counts = useMemo(() => ({
+    all: results ? results.players.length + results.teams.length + results.tournaments.length + results.matches.length : 0,
+    players: results?.players.length || 0,
+    teams: results?.teams.length || 0,
+    tournaments: results?.tournaments.length || 0,
+    matches: results?.matches.length || 0,
+  }), [results]);
 
   const hasQuery = query.trim().length > 0;
-  const hasResults = totalResults > 0;
+  const hasResults = counts.all > 0;
 
   // Position label helper
   function getPositionLabel(pos: string | null): string {
@@ -214,6 +363,17 @@ export default function GlobalSearchScreen({
       case 'defender': return 'Defender';
       case 'all-rounder': return 'All-Rounder';
       default: return pos;
+    }
+  }
+
+  // Position color helper
+  function getPositionColor(pos: string | null): string {
+    if (!pos) return 'text-warm-500 dark:text-warm-400';
+    switch (pos.toLowerCase()) {
+      case 'raider': return 'text-brand-red dark:text-brand-red-light';
+      case 'defender': return 'text-brand-teal dark:text-brand-teal-light';
+      case 'all-rounder': return 'text-brand-gold dark:text-brand-gold-light';
+      default: return 'text-warm-500 dark:text-warm-400';
     }
   }
 
@@ -238,6 +398,20 @@ export default function GlobalSearchScreen({
       case 'league': return 'League';
       case 'hybrid': return 'Hybrid';
       default: return type;
+    }
+  }
+
+  // Match status label
+  function getMatchStatusLabel(status: string): { label: string; color: string } {
+    switch (status) {
+      case 'live':
+        return { label: 'LIVE', color: 'text-red-500 bg-red-500/10 border-red-500/20' };
+      case 'completed':
+        return { label: 'FT', color: 'text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-800 border-warm-200 dark:border-warm-700' };
+      case 'upcoming':
+        return { label: 'Upcoming', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' };
+      default:
+        return { label: status, color: 'text-warm-500 bg-warm-100 border-warm-200' };
     }
   }
 
@@ -274,18 +448,26 @@ export default function GlobalSearchScreen({
                 </button>
 
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-warm-400 dark:text-warm-500" />
+                  <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${
+                    isFocused ? 'text-brand-red dark:text-brand-red-light' : 'text-warm-400 dark:text-warm-500'
+                  }`} />
                   <input
                     ref={inputRef}
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleSubmit();
                       if (e.key === 'Escape') onClose();
                     }}
                     placeholder="Search players, teams, tournaments..."
-                    className="input-search w-full pl-10 pr-10 py-2.5 rounded-xl bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700 text-foreground placeholder:text-warm-400 dark:placeholder:text-warm-500 focus:outline-none focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/40 dark:focus:ring-brand-red-light/40 dark:focus:border-brand-red-light/40 text-sm font-medium transition-all"
+                    className={`input-search w-full pl-10 pr-10 py-3 rounded-2xl bg-warm-100 dark:bg-warm-800 border text-foreground placeholder:text-warm-400 dark:placeholder:text-warm-500 focus:outline-none focus:ring-2 text-sm font-medium transition-all ${
+                      isFocused
+                        ? 'border-brand-red/40 ring-brand-red/30 dark:border-brand-red-light/40 dark:ring-brand-red-light/30 shadow-lg shadow-brand-red/5'
+                        : 'border-warm-200 dark:border-warm-700'
+                    }`}
                   />
                   {query && (
                     <button
@@ -304,11 +486,12 @@ export default function GlobalSearchScreen({
               </div>
             </div>
 
-            {/* Category Filters */}
+            {/* Category Filter Pills */}
             <div className="px-4 pb-3 flex gap-2 overflow-x-auto custom-scrollbar">
               {FILTER_OPTIONS.map((opt) => {
                 const Icon = opt.icon;
                 const isActive = activeFilter === opt.key;
+                const count = counts[opt.key];
                 return (
                   <button
                     key={opt.key}
@@ -321,6 +504,15 @@ export default function GlobalSearchScreen({
                   >
                     <Icon className="w-3.5 h-3.5" />
                     {opt.label}
+                    {hasQuery && count > 0 && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+                      }`}>
+                        {count}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -332,9 +524,9 @@ export default function GlobalSearchScreen({
 
           {/* Search Content */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-3">
-            {/* No query state - show recent searches */}
+            {/* No query state - show recent searches & trending */}
             {!hasQuery && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {/* Recent Searches */}
                 {recentSearches.length > 0 && (
                   <div>
@@ -350,58 +542,74 @@ export default function GlobalSearchScreen({
                         Clear All
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {recentSearches.map((term) => (
-                        <div
+                    <div className="space-y-1">
+                      {recentSearches.map((term, idx) => (
+                        <motion.button
                           key={term}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700 group hover:border-brand-red/30 dark:hover:border-brand-red-light/30 transition-colors cursor-pointer"
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
                           onClick={() => {
                             setQuery(term);
                             saveRecentSearch(term);
                           }}
                         >
-                          <span className="text-xs font-medium text-warm-700 dark:text-warm-200">{term}</span>
+                          <Clock className="w-4 h-4 text-warm-400 dark:text-warm-500 shrink-0" />
+                          <span className="text-sm font-medium text-warm-700 dark:text-warm-200 flex-1">{term}</span>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               removeRecentSearch(term);
                             }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-full hover:bg-warm-200 dark:hover:bg-warm-700"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-warm-200 dark:hover:bg-warm-700 shrink-0"
                             aria-label={`Remove ${term}`}
                           >
                             <X className="w-3 h-3 text-warm-400" />
                           </button>
-                        </div>
+                        </motion.button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Quick Suggestions */}
+                {/* Trending Searches */}
                 <div>
                   <h3 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Try Searching
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    Trending
                   </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {SEARCH_SUGGESTIONS.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => {
-                          setQuery(suggestion);
-                          saveRecentSearch(suggestion);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-red/5 dark:bg-brand-red-light/10 border border-brand-red/15 dark:border-brand-red-light/20 hover:bg-brand-red/10 dark:hover:bg-brand-red-light/15 transition-colors"
-                      >
-                        <TrendingUp className="w-3 h-3 text-brand-red dark:text-brand-red-light" />
-                        <span className="text-xs font-medium text-brand-red dark:text-brand-red-light">{suggestion}</span>
-                      </button>
-                    ))}
+                  <div className="space-y-1">
+                    {TRENDING_ITEMS.map((item, idx) => {
+                      const Icon = item.icon;
+                      return (
+                        <motion.button
+                          key={item.label}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.05 + idx * 0.05 }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-warm-100 dark:hover:bg-warm-800 border border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
+                          onClick={() => {
+                            setQuery(item.label);
+                            saveRecentSearch(item.label);
+                          }}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-brand-red/10 dark:bg-brand-red-light/10 flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4 text-brand-red dark:text-brand-red-light" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-semibold text-warm-800 dark:text-warm-100">{item.label}</span>
+                            <span className="text-[10px] text-warm-400 dark:text-warm-500 ml-2 capitalize">{item.type}</span>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 group-hover:text-warm-500 dark:group-hover:text-warm-400 transition-colors shrink-0" />
+                        </motion.button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 {/* Empty illustration area */}
-                <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex flex-col items-center justify-center py-8 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-warm-100 dark:bg-warm-800 flex items-center justify-center mb-4">
                     <Search className="w-7 h-7 text-warm-300 dark:text-warm-600" />
                   </div>
@@ -409,22 +617,15 @@ export default function GlobalSearchScreen({
                     Search Kabaddi Pro
                   </p>
                   <p className="text-xs text-warm-400 dark:text-warm-500 mt-1 max-w-[220px]">
-                    Find players, teams, and tournaments across the platform
+                    Try searching for a player or team
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Loading state */}
+            {/* Loading state with skeletons */}
             {hasQuery && isSearching && (
-              <div className="flex flex-col items-center justify-center py-16">
-                <motion.div
-                  className="w-8 h-8 border-2 border-brand-red border-t-transparent rounded-full"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                />
-                <p className="text-xs text-warm-400 dark:text-warm-500 mt-3">Searching...</p>
-              </div>
+              <SearchSkeletons filter={activeFilter} />
             )}
 
             {/* Results */}
@@ -440,28 +641,13 @@ export default function GlobalSearchScreen({
                       No results found
                     </p>
                     <p className="text-xs text-warm-400 dark:text-warm-500 mt-1 max-w-[240px]">
-                      Try a different search term or browse by category
+                      Try searching for a player or team
                     </p>
-                    <div className="flex flex-wrap gap-2 mt-4 justify-center">
-                      {SEARCH_SUGGESTIONS.map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          onClick={() => {
-                            setQuery(suggestion);
-                            saveRecentSearch(suggestion);
-                          }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700 text-xs font-medium text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors"
-                        >
-                          <TrendingUp className="w-3 h-3" />
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 )}
 
                 {/* Players section */}
-                {results.players.length > 0 && (
+                {(activeFilter === 'all' || activeFilter === 'players') && results.players.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2.5">
                       <div className="w-6 h-6 rounded-md bg-brand-teal/10 dark:bg-brand-teal-light/15 flex items-center justify-center">
@@ -478,7 +664,7 @@ export default function GlobalSearchScreen({
                       {results.players.map((player, idx) => (
                         <motion.button
                           key={player.id}
-                          className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
+                          className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border-l-3 border-brand-teal border-t border-r border-b border-transparent hover:border-warm-200 dark:hover:border-warm-700 hover:border-l-brand-teal transition-all text-left group"
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: idx * 0.03 }}
@@ -514,7 +700,7 @@ export default function GlobalSearchScreen({
                               )}
                             </div>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-[10px] font-medium text-brand-teal dark:text-brand-teal-light">
+                              <span className={`text-[10px] font-semibold ${getPositionColor(player.position)}`}>
                                 {getPositionLabel(player.position)}
                               </span>
                               {player.teamNames.length > 0 && (
@@ -526,6 +712,21 @@ export default function GlobalSearchScreen({
                                 </>
                               )}
                             </div>
+                            {/* Stats row */}
+                            {(player.raidPoints !== undefined || player.tacklePoints !== undefined) && (
+                              <div className="flex items-center gap-2 mt-1">
+                                {player.raidPoints !== undefined && (
+                                  <span className="text-[9px] font-bold text-brand-red dark:text-brand-red-light bg-brand-red/5 dark:bg-brand-red-light/5 px-1.5 py-0.5 rounded">
+                                    {player.raidPoints} raid pts
+                                  </span>
+                                )}
+                                {player.tacklePoints !== undefined && (
+                                  <span className="text-[9px] font-bold text-brand-teal dark:text-brand-teal-light bg-brand-teal/5 dark:bg-brand-teal-light/5 px-1.5 py-0.5 rounded">
+                                    {player.tacklePoints} tackle pts
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Chevron */}
@@ -537,7 +738,7 @@ export default function GlobalSearchScreen({
                 )}
 
                 {/* Teams section */}
-                {results.teams.length > 0 && (
+                {(activeFilter === 'all' || activeFilter === 'teams') && results.teams.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2.5">
                       <div className="w-6 h-6 rounded-md bg-brand-red/10 dark:bg-brand-red-light/15 flex items-center justify-center">
@@ -554,7 +755,8 @@ export default function GlobalSearchScreen({
                       {results.teams.map((team, idx) => (
                         <motion.button
                           key={team.id}
-                          className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
+                          className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border-l-3 border-t border-r border-b border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
+                          style={{ borderLeftColor: team.color || '#EF4444' }}
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: idx * 0.03 }}
@@ -568,7 +770,7 @@ export default function GlobalSearchScreen({
                         >
                           {/* Team color indicator */}
                           <div
-                            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-warm-200 dark:border-warm-700"
+                            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-warm-200 dark:border-warm-700 shadow-sm"
                             style={{ backgroundColor: team.color || '#64748B' }}
                           >
                             <span className="text-xs font-black text-white drop-shadow-sm">
@@ -588,11 +790,21 @@ export default function GlobalSearchScreen({
                                 </span>
                               )}
                             </div>
-                            {team.teamCode && (
-                              <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono">
-                                {team.teamCode}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {team.teamCode && (
+                                <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono">
+                                  {team.teamCode}
+                                </span>
+                              )}
+                              {team.memberCount !== undefined && (
+                                <>
+                                  <span className="text-warm-300 dark:text-warm-600">·</span>
+                                  <span className="text-[10px] text-warm-500 dark:text-warm-400">
+                                    {team.memberCount} members
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
 
                           {/* Chevron */}
@@ -604,7 +816,7 @@ export default function GlobalSearchScreen({
                 )}
 
                 {/* Tournaments section */}
-                {results.tournaments.length > 0 && (
+                {(activeFilter === 'all' || activeFilter === 'tournaments') && results.tournaments.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2.5">
                       <div className="w-6 h-6 rounded-md bg-brand-gold/10 dark:bg-brand-gold-light/15 flex items-center justify-center">
@@ -623,7 +835,7 @@ export default function GlobalSearchScreen({
                         return (
                           <motion.button
                             key={tournament.id}
-                            className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
+                            className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border-l-3 border-brand-gold border-t border-r border-b border-transparent hover:border-warm-200 dark:hover:border-warm-700 hover:border-l-brand-gold transition-all text-left group"
                             initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.03 }}
@@ -648,7 +860,7 @@ export default function GlobalSearchScreen({
                                 </span>
                               </div>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusStyle.bg} ${statusStyle.text}`}>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${statusStyle.bg} ${statusStyle.text}`}>
                                   {statusStyle.label}
                                 </span>
                                 <span className="text-[10px] text-warm-400 dark:text-warm-500">
@@ -667,7 +879,84 @@ export default function GlobalSearchScreen({
 
                             {/* Chevron */}
                             <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 group-hover:text-warm-500 dark:group-hover:text-warm-400 transition-colors shrink-0" />
-                        </motion.button>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Matches section */}
+                {(activeFilter === 'all' || activeFilter === 'matches') && results.matches.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <div className="w-6 h-6 rounded-md bg-purple-500/10 dark:bg-purple-400/15 flex items-center justify-center">
+                        <Swords className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
+                      </div>
+                      <h3 className="text-xs font-bold text-warm-700 dark:text-warm-200 uppercase tracking-wider">
+                        Matches
+                      </h3>
+                      <span className="text-[10px] font-semibold text-warm-400 dark:text-warm-500 bg-warm-100 dark:bg-warm-800 px-1.5 py-0.5 rounded-full">
+                        {results.matches.length}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {results.matches.map((match, idx) => {
+                        const statusInfo = getMatchStatusLabel(match.status);
+                        return (
+                          <motion.button
+                            key={match.id}
+                            className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border-l-3 border-purple-500 border-t border-r border-b border-transparent hover:border-warm-200 dark:hover:border-warm-700 hover:border-l-purple-500 transition-all text-left group"
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.03 }}
+                            onClick={() => {
+                              saveRecentSearch(query.trim());
+                              onClose();
+                            }}
+                          >
+                            {/* Match icon */}
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <div
+                                className="w-5 h-8 rounded-l-md"
+                                style={{ backgroundColor: match.homeTeamColor || '#64748B' }}
+                              />
+                              <div
+                                className="w-5 h-8 rounded-r-md"
+                                style={{ backgroundColor: match.awayTeamColor || '#64748B' }}
+                              />
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
+                                  {match.homeTeamShort || match.homeTeamName} vs {match.awayTeamShort || match.awayTeamName}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {match.status === 'completed' && (
+                                  <span className="text-[10px] font-bold text-warm-700 dark:text-warm-200">
+                                    {match.homeScore} - {match.awayScore}
+                                  </span>
+                                )}
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${statusInfo.color}`}>
+                                  {statusInfo.label}
+                                </span>
+                                {match.date && (
+                                  <>
+                                    <span className="text-warm-300 dark:text-warm-600">·</span>
+                                    <span className="text-[10px] text-warm-400 dark:text-warm-500">
+                                      {match.date}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Chevron */}
+                            <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 group-hover:text-warm-500 dark:group-hover:text-warm-400 transition-colors shrink-0" />
+                          </motion.button>
                         );
                       })}
                     </div>

@@ -1,0 +1,932 @@
+   200→        method: 'POST',
+   201→        headers: { 'Content-Type': 'application/json' },
+   202→        body: JSON.stringify({
+   203→          phone: `${countryCode}${phone}`,
+   204→          name: name.trim(),
+   205→          password,
+   206→          role: selectedRoles.values().next().value ?? 'player',
+   207→          action: isSignUp ? 'register' : 'login',
+   208→          gender: gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : undefined,
+   209→          weight: weight ? `${weight}kg` : undefined,
+   210→          practiceGround: practiceGround || undefined,
+   211→          position: position || undefined,
+   212→        }),
+   213→      });
+   214→
+   215→      const data = await res.json();
+   216→
+   217→      if (!res.ok) {
+   218→        setError(data.error || 'Authentication failed');
+   219→        return;
+   220→      }
+   221→
+   222→      const user = data.user;
+   223→      // Set user state directly
+   224→      login({
+   225→        id: user.id,
+   226→        phone: user.phone,
+   227→        playerCode: user.playerCode || undefined,
+   228→        name: user.name || name.trim(),
+   229→        role: user.role || 'player',
+   230→        avatar: user.avatar || '',
+   231→        isPremium: user.isPremium || false,
+   232→        isAdmin: user.isAdmin || false,
+   233→        gender: user.gender || (gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : undefined),
+   234→        weight: user.weight || (weight ? `${weight}kg` : undefined),
+   235→        practiceGround: user.practiceGround || practiceGround || undefined,
+   236→      });
+   237→
+   238→      if (isSignUp) {
+   239→        // New user — go to details page first, then role selection
+   240→        goNext('details');
+   241→      } else {
+   242→        // Returning user — go straight in
+   243→        setOnboarded(true);
+   244→      }
+   245→    } catch (err) {
+   246→      setError('Something went wrong. Please try again.');
+   247→      console.error('Auth failed:', err);
+   248→    } finally {
+   249→      setIsSubmitting(false);
+   250→    }
+   251→  }, [phone, name, password, confirmPassword, isSignUp, selectedRoles, countryCode, login, setOnboarded, goNext, gender, weight, practiceGround]);
+   252→
+   253→  const handleDetailsContinue = useCallback(() => {
+   254→    setError('');
+   255→    if (!gender) {
+   256→      setError('Please select your gender');
+   257→      return;
+   258→    }
+   259→
+   260→    // Update user details via API
+   261→    const currentUser = useKabaddiStore.getState().currentUser;
+   262→    if (currentUser?.id) {
+   263→      fetch('/api/auth', {
+   264→        method: 'POST',
+   265→        headers: { 'Content-Type': 'application/json' },
+   266→        body: JSON.stringify({
+   267→          userId: currentUser.id,
+   268→          action: 'update-details',
+   269→          gender: gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender,
+   270→          weight: weight ? `${weight}kg` : undefined,
+   271→          practiceGround: practiceGround || undefined,
+   272→        }),
+   273→      }).catch(() => {});
+   274→
+   275→      // Update position on player profile
+   276→      if (position) {
+   277→        fetch(`/api/players/${currentUser.id}`, {
+   278→          method: 'PUT',
+   279→          headers: { 'Content-Type': 'application/json' },
+   280→          body: JSON.stringify({ position }),
+   281→        }).catch(() => {});
+   282→      }
+   283→    }
+   284→
+   285→    // Update local state
+   286→    useKabaddiStore.getState().updateUser({
+   287→      gender: gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender,
+   288→      weight: weight ? `${weight}kg` : undefined,
+   289→      practiceGround: practiceGround || undefined,
+   290→    });
+   291→
+   292→    goNext('role');
+   293→  }, [gender, weight, practiceGround, position, goNext]);
+   294→
+   295→  const handleGetStarted = useCallback(async () => {
+   296→    setIsSubmitting(true);
+   297→    try {
+   298→      // Update user role via API
+   299→      const currentUser = useKabaddiStore.getState().currentUser;
+   300→      if (currentUser?.id) {
+   301→        const roleValue = Array.from(selectedRoles).join(',') || 'player';
+   302→        await fetch('/api/auth', {
+   303→          method: 'POST',
+   304→          headers: { 'Content-Type': 'application/json' },
+   305→          body: JSON.stringify({
+   306→            userId: currentUser.id,
+   307→            action: 'update-details',
+   308→            role: roleValue,
+   309→          }),
+   310→        });
+   311→
+   312→        // Update local state
+   313→        useKabaddiStore.getState().updateUser({ role: roleValue });
+   314→      }
+   315→      setOnboarded(true);
+   316→    } finally {
+   317→      setIsSubmitting(false);
+   318→    }
+   319→  }, [setOnboarded, selectedRoles]);
+   320→
+   321→  const stageIndex: Record<Stage, number> = { auth: 0, details: 1, role: 2 };
+   322→
+   323→  // Gender-based accent color
+   324→  const genderAccent = gender === 'boy' ? '#1E293B' : gender === 'girl' ? '#DC2626' : '';
+   325→
+   326→  return (
+   327→    <div className="min-h-screen bg-gradient-to-br from-warm-50 via-white to-warm-100 dark:from-brand-navy-dark dark:via-brand-navy-dark dark:to-brand-navy flex flex-col items-center justify-center px-4 relative overflow-hidden">
+   328→      {/* ── Animated Background ── */}
+   329→      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+   330→        {/* Rich gradient blobs */}
+   331→        <div className="absolute -top-40 -right-40 w-96 h-96 bg-brand-red/8 dark:bg-brand-red/5 rounded-full blur-3xl" />
+   332→        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-brand-red-dark/8 dark:bg-brand-red-dark/5 rounded-full blur-3xl" />
+   333→        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-brand-red/12 dark:bg-brand-red/6 rounded-full blur-3xl" />
+   334→        <div className="absolute bottom-1/4 right-0 w-64 h-64 bg-brand-gold/8 dark:bg-brand-gold/5 rounded-full blur-3xl" />
+   335→        <div className="absolute top-10 left-10 w-48 h-48 bg-brand-teal/6 dark:bg-brand-teal/4 rounded-full blur-3xl" />
+   336→
+   337→        {/* Kabaddi court pattern */}
+   338→        <CourtPattern />
+   339→
+   340→        {/* Floating particles */}
+   341→        <FloatingParticles />
+   342→
+   343→        {/* Slow-spinning decorative ring */}
+   344→        <div
+   345→          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full border border-brand-red/5 dark:border-brand-red/3"
+   346→          style={{ animation: 'spin-slow 60s linear infinite' }}
+   347→        />
+   348→        <div
+   349→          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] rounded-full border border-brand-gold/5 dark:border-brand-gold/3"
+   350→          style={{ animation: 'spin-slow 45s linear infinite reverse' }}
+   351→        />
+   352→      </div>
+   353→
+   354→      {/* ── Enhanced Logo Section ── */}
+   355→      <motion.div
+   356→        className="flex flex-col items-center mb-8 relative z-10"
+   357→        initial={{ opacity: 0, y: -20 }}
+   358→        animate={{ opacity: 1, y: 0 }}
+   359→        transition={{ duration: 0.6, ease: 'easeOut' }}
+   360→      >
+   361→        {/* Pulsing glow ring around logo */}
+   362→        <div className="relative mb-4">
+   363→          {/* Outer pulsing glow */}
+   364→          <div className="absolute -inset-3 rounded-2xl bg-brand-red/20 dark:bg-brand-red/10 blur-lg pulse-glow" />
+   365→          {/* Spinning border ring */}
+   366→          <div
+   367→            className="absolute -inset-1.5 rounded-2xl border-2 border-brand-red/30 dark:border-brand-red/20"
+   368→            style={{ animation: 'spin-slow 20s linear infinite' }}
+   369→          />
+   370→          {/* Logo icon */}
+   371→          <motion.div
+   372→            whileHover={{ scale: 1.08, rotate: 5 }}
+   373→            whileTap={{ scale: 0.95 }}
+   374→            className="w-18 h-18 rounded-2xl bg-gradient-to-br from-brand-red via-brand-red-dark to-brand-red flex items-center justify-center shadow-xl shadow-brand-red/40 cursor-pointer relative z-10"
+   375→            style={{ width: 72, height: 72 }}
+   376→          >
+   377→            <Trophy className="w-9 h-9 text-white drop-shadow-lg" />
+   378→          </motion.div>
+   379→        </div>
+   380→
+   381→        {/* KABADDI PRO with gradient text */}
+   382→        <h1 className="text-3xl font-black tracking-wider">
+   383→          <span className="gradient-text">KABADDI</span>{' '}
+   384→          <span className="gradient-text">PRO</span>
+   385→        </h1>
+   386→
+   387→        {/* Tagline with fade-in */}
+   388→        <motion.p
+   389→          initial={{ opacity: 0, y: 8 }}
+   390→          animate={{ opacity: 1, y: 0 }}
+   391→          transition={{ delay: 0.4, duration: 0.5 }}
+   392→          className="text-warm-500 dark:text-warm-400 text-xs tracking-widest mt-1.5 font-medium uppercase"
+   393→        >
+   394→          Live Scoring &amp; Tournaments
+   395→        </motion.p>
+   396→      </motion.div>
+   397→
+   398→      {/* ── Stage content ── */}
+   399→      <div className="w-full max-w-sm relative z-10">
+   400→        <AnimatePresence mode="wait" custom={direction}>
+   401→
+   402→          {/* ═══════════════════════════════════════════
+   403→              Stage 1: Login / Sign Up
+   404→              ═══════════════════════════════════════════ */}
+   405→          {stage === 'auth' && (
+   406→            <motion.div
+   407→              key="auth"
+   408→              custom={direction}
+   409→              variants={slideVariants}
+   410→              initial="enter"
+   411→              animate="center"
+   412→              exit="exit"
+   413→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+   414→              className="glass-effect rounded-2xl border border-white/40 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+   415→            >
+   416→              {/* Progress dots at top */}
+   417→              <div className="flex justify-center gap-2 mb-5">
+   418→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+   419→                  <motion.div
+   420→                    key={s}
+   421→                    className="h-1.5 rounded-full transition-all duration-500"
+   422→                    animate={{
+   423→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+   424→                      backgroundColor:
+   425→                        stageIndex[stage] === idx
+   426→                          ? '#DC2626'
+   427→                          : stageIndex[stage] > idx
+   428→                            ? '#B91C1C'
+   429→                            : '#CBD5E1',
+   430→                    }}
+   431→                  />
+   432→                ))}
+   433→              </div>
+   434→
+   435→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1 text-center">
+   436→                {isSignUp ? 'Create Account' : 'Welcome Back!'}
+   437→              </h2>
+   438→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+   439→                {isSignUp
+   440→                  ? 'Sign up to get started with Kabaddi Pro'
+   441→                  : 'Login to your Kabaddi Pro account'}
+   442→              </p>
+   443→
+   444→              {/* Phone Input */}
+   445→              <div className="w-full flex gap-2 mb-3">
+   446→                <div className="flex items-center justify-center h-12 px-3 rounded-xl glass-effect border border-warm-300/50 dark:border-warm-600/40 text-warm-800 dark:text-warm-200 font-semibold text-sm shrink-0">
+   447→                  <Phone className="w-3.5 h-3.5 mr-1.5 text-brand-red" />
+   448→                  {countryCode}
+   449→                </div>
+   450→                <motion.div className="flex-1 relative" whileFocus={{ scale: 1.01 }}>
+   451→                  <Input
+   452→                    type="tel"
+   453→                    inputMode="numeric"
+   454→                    maxLength={10}
+   455→                    placeholder="Enter 10-digit number"
+   456→                    value={phone}
+   457→                    onChange={(e) => {
+   458→                      const val = e.target.value.replace(/\D/g, '');
+   459→                      setPhone(val);
+   460→                      if (error) setError('');
+   461→                    }}
+   462→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+   463→                  />
+   464→                </motion.div>
+   465→              </div>
+   466→
+   467→              {/* Name Input (Sign Up only) */}
+   468→              <AnimatePresence>
+   469→                {isSignUp && (
+   470→                  <motion.div
+   471→                    initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+   472→                    animate={{ opacity: 1, height: 'auto', marginBottom: 12 }}
+   473→                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+   474→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+   475→                    className="w-full overflow-hidden"
+   476→                  >
+   477→                    <div className="relative">
+   478→                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 dark:text-brand-red-light/60 pointer-events-none" />
+   479→                      <Input
+   480→                        type="text"
+   481→                        placeholder="Enter your name"
+   482→                        value={name}
+   483→                        onChange={(e) => {
+   484→                          setName(e.target.value);
+   485→                          if (error) setError('');
+   486→                        }}
+   487→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+   488→                      />
+   489→                    </div>
+   490→                  </motion.div>
+   491→                )}
+   492→              </AnimatePresence>
+   493→
+   494→              {/* Password Input */}
+   495→              <div className="w-full relative mb-3">
+   496→                <div className="relative">
+   497→                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 dark:text-brand-red-light/60 pointer-events-none" />
+   498→                  <Input
+   499→                    type={showPassword ? 'text' : 'password'}
+   500→                    placeholder={isSignUp ? 'Create a password' : 'Enter password'}
+   501→                    value={password}
+   502→                    onChange={(e) => {
+   503→                      setPassword(e.target.value);
+   504→                      if (error) setError('');
+   505→                    }}
+   506→                    onKeyDown={(e) => {
+   507→                      if (e.key === 'Enter') handleAuth();
+   508→                    }}
+   509→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+   510→                  />
+   511→                  <motion.button
+   512→                    type="button"
+   513→                    whileHover={{ scale: 1.1 }}
+   514→                    whileTap={{ scale: 0.9 }}
+   515→                    onClick={() => setShowPassword(!showPassword)}
+   516→                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-warm-400 hover:text-brand-red dark:text-warm-500 dark:hover:text-brand-red-light transition-colors"
+   517→                  >
+   518→                    {showPassword ? (
+   519→                      <EyeOff className="w-4 h-4" />
+   520→                    ) : (
+   521→                      <Eye className="w-4 h-4" />
+   522→                    )}
+   523→                  </motion.button>
+   524→                </div>
+   525→                {isSignUp && password && password.length < 6 && (
+   526→                  <motion.p
+   527→                    initial={{ opacity: 0, x: -8 }}
+   528→                    animate={{ opacity: 1, x: 0 }}
+   529→                    className="text-xs text-warm-400 dark:text-warm-500 mt-1.5 ml-1"
+   530→                  >
+   531→                    Password must be at least 6 characters
+   532→                  </motion.p>
+   533→                )}
+   534→              </div>
+   535→
+   536→              {/* Confirm Password (Sign Up only) */}
+   537→              <AnimatePresence>
+   538→                {isSignUp && (
+   539→                  <motion.div
+   540→                    initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+   541→                    animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
+   542→                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+   543→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+   544→                    className="w-full overflow-hidden"
+   545→                  >
+   546→                    <div className="relative">
+   547→                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 dark:text-brand-red-light/60 pointer-events-none" />
+   548→                      <Input
+   549→                        type={showConfirmPassword ? 'text' : 'password'}
+   550→                        placeholder="Confirm password"
+   551→                        value={confirmPassword}
+   552→                        onChange={(e) => {
+   553→                          setConfirmPassword(e.target.value);
+   554→                          if (error) setError('');
+   555→                        }}
+   556→                        onKeyDown={(e) => {
+   557→                          if (e.key === 'Enter') handleAuth();
+   558→                        }}
+   559→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+   560→                      />
+   561→                      <motion.button
+   562→                        type="button"
+   563→                        whileHover={{ scale: 1.1 }}
+   564→                        whileTap={{ scale: 0.9 }}
+   565→                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+   566→                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-warm-400 hover:text-brand-red dark:text-warm-500 dark:hover:text-brand-red-light transition-colors"
+   567→                      >
+   568→                        {showConfirmPassword ? (
+   569→                          <EyeOff className="w-4 h-4" />
+   570→                        ) : (
+   571→                          <Eye className="w-4 h-4" />
+   572→                        )}
+   573→                      </motion.button>
+   574→                    </div>
+   575→                    {confirmPassword && password !== confirmPassword && (
+   576→                      <motion.p
+   577→                        initial={{ opacity: 0, x: -8 }}
+   578→                        animate={{ opacity: 1, x: 0 }}
+   579→                        className="text-xs text-red-500 mt-1.5 ml-1"
+   580→                      >
+   581→                        Passwords do not match
+   582→                      </motion.p>
+   583→                    )}
+   584→                  </motion.div>
+   585→                )}
+   586→              </AnimatePresence>
+   587→
+   588→              {/* Error Message */}
+   589→              <AnimatePresence>
+   590→                {error && (
+   591→                  <motion.p
+   592→                    initial={{ opacity: 0, y: -8, height: 0 }}
+   593→                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+   594→                    exit={{ opacity: 0, y: -8, height: 0 }}
+   595→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+   596→                    className="text-brand-red dark:text-brand-red-light text-sm mb-3 text-center w-full flex items-center justify-center gap-1.5"
+   597→                  >
+   598→                    <CircleDot className="w-3.5 h-3.5 shrink-0" />
+   599→                    {error}
+   600→                  </motion.p>
+   601→                )}
+   602→              </AnimatePresence>
+   603→
+   604→              {/* Submit Button */}
+   605→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+   606→                <Button
+   607→                  onClick={handleAuth}
+   608→                  disabled={
+   609→                    isSubmitting ||
+   610→                    phone.length !== 10 ||
+   611→                    password.length < 6 ||
+   612→                    (isSignUp && (!confirmPassword || password !== confirmPassword))
+   613→                  }
+   614→                  className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold text-base rounded-xl disabled:opacity-40 shadow-lg shadow-brand-red/25 hover:shadow-xl hover:shadow-brand-red/30 transition-all"
+   615→                >
+   616→                  {isSubmitting ? (
+   617→                    <div className="flex items-center gap-2">
+   618→                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   619→                      Please wait...
+   620→                    </div>
+   621→                  ) : isSignUp ? (
+   622→                    <>
+   623→                      Create Account
+   624→                      <ChevronRight className="w-4 h-4 ml-1" />
+   625→                    </>
+   626→                  ) : (
+   627→                    <>
+   628→                      Login
+   629→                      <ChevronRight className="w-4 h-4 ml-1" />
+   630→                    </>
+   631→                  )}
+   632→                </Button>
+   633→              </motion.div>
+   634→
+   635→              {/* Toggle Login/Signup */}
+   636→              <motion.button
+   637→                whileHover={{ scale: 1.02 }}
+   638→                whileTap={{ scale: 0.98 }}
+   639→                className="text-brand-red hover:text-brand-red-light dark:text-brand-red-light dark:hover:text-brand-red text-sm font-medium mt-4 transition-colors w-full text-center"
+   640→                onClick={() => {
+   641→                  setIsSignUp(!isSignUp);
+   642→                  setError('');
+   643→                  setConfirmPassword('');
+   644→                }}
+   645→              >
+   646→                {isSignUp
+   647→                  ? 'Already have an account? Login'
+   648→                  : "Don't have an account? Sign Up"}
+   649→              </motion.button>
+   650→            </motion.div>
+   651→          )}
+   652→
+   653→          {/* ═══════════════════════════════════════════
+   654→              Stage 2: Details (Gender, Weight, Practice Ground)
+   655→              ═══════════════════════════════════════════ */}
+   656→          {stage === 'details' && (
+   657→            <motion.div
+   658→              key="details"
+   659→              custom={direction}
+   660→              variants={slideVariants}
+   661→              initial="enter"
+   662→              animate="center"
+   663→              exit="exit"
+   664→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+   665→              className="glass-effect rounded-2xl border border-white/40 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+   666→            >
+   667→              {/* Progress dots at top */}
+   668→              <div className="flex justify-center gap-2 mb-5">
+   669→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+   670→                  <motion.div
+   671→                    key={s}
+   672→                    className="h-1.5 rounded-full"
+   673→                    animate={{
+   674→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+   675→                      backgroundColor:
+   676→                        stageIndex[stage] === idx
+   677→                          ? '#DC2626'
+   678→                          : stageIndex[stage] > idx
+   679→                            ? '#B91C1C'
+   680→                            : '#CBD5E1',
+   681→                    }}
+   682→                    transition={{ duration: 0.5 }}
+   683→                  />
+   684→                ))}
+   685→              </div>
+   686→
+   687→              <motion.button
+   688→                whileHover={{ x: -3 }}
+   689→                whileTap={{ scale: 0.95 }}
+   690→                onClick={goBack}
+   691→                className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
+   692→              >
+   693→                <ArrowLeft className="w-4 h-4 mr-1" />
+   694→                Back
+   695→              </motion.button>
+   696→
+   697→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">Tell us about yourself</h2>
+   698→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+   699→                Help us personalize your experience
+   700→              </p>
+   701→
+   702→              {/* Gender Selection - Enhanced with gradient backgrounds and larger icons */}
+   703→              <div className="w-full mb-5">
+   704→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-3 block">
+   705→                  Gender <span className="text-brand-red">*</span>
+   706→                </label>
+   707→                <div className="grid grid-cols-2 gap-3">
+   708→                  {/* Boy Card */}
+   709→                  <motion.button
+   710→                    type="button"
+   711→                    whileHover={{ scale: 1.03, y: -2 }}
+   712→                    whileTap={{ scale: 0.97 }}
+   713→                    onClick={() => {
+   714→                      setGender('boy');
+   715→                      if (error) setError('');
+   716→                    }}
+   717→                    className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
+   718→                      gender === 'boy'
+   719→                        ? 'border-brand-blue bg-gradient-to-br from-brand-blue to-brand-blue-dark shadow-lg shadow-brand-blue/25'
+   720→                        : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-blue/40 hover:shadow-md'
+   721→                    }`}
+   722→                  >
+   723→                    {/* Background decoration when selected */}
+   724→                    {gender === 'boy' && (
+   725→                      <motion.div
+   726→                        initial={{ scale: 0, opacity: 0 }}
+   727→                        animate={{ scale: 2, opacity: 0.1 }}
+   728→                        className="absolute w-20 h-20 rounded-full bg-white"
+   729→                      />
+   730→                    )}
+   731→                    <span
+   732→                      className={`text-4xl leading-none relative z-10 ${
+   733→                        gender === 'boy' ? 'text-white drop-shadow-lg' : 'text-brand-blue'
+   734→                      }`}
+   735→                    >
+   736→                      ♂
+   737→                    </span>
+   738→                    <span
+   739→                      className={`text-sm font-bold relative z-10 ${
+   740→                        gender === 'boy' ? 'text-white' : 'text-warm-700 dark:text-warm-300'
+   741→                      }`}
+   742→                    >
+   743→                      Boy
+   744→                    </span>
+   745→                    {gender === 'boy' && (
+   746→                      <motion.div
+   747→                        initial={{ scale: 0 }}
+   748→                        animate={{ scale: 1 }}
+   749→                        className="absolute top-2 right-2 z-10"
+   750→                      >
+   751→                        <Zap className="w-4 h-4 text-white/60" />
+   752→                      </motion.div>
+   753→                    )}
+   754→                  </motion.button>
+   755→
+   756→                  {/* Girl Card */}
+   757→                  <motion.button
+   758→                    type="button"
+   759→                    whileHover={{ scale: 1.03, y: -2 }}
+   760→                    whileTap={{ scale: 0.97 }}
+   761→                    onClick={() => {
+   762→                      setGender('girl');
+   763→                      if (error) setError('');
+   764→                    }}
+   765→                    className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
+   766→                      gender === 'girl'
+   767→                        ? 'border-brand-red bg-gradient-to-br from-brand-red to-brand-red-dark shadow-lg shadow-brand-red/25'
+   768→                        : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-red/40 hover:shadow-md'
+   769→                    }`}
+   770→                  >
+   771→                    {gender === 'girl' && (
+   772→                      <motion.div
+   773→                        initial={{ scale: 0, opacity: 0 }}
+   774→                        animate={{ scale: 2, opacity: 0.1 }}
+   775→                        className="absolute w-20 h-20 rounded-full bg-white"
+   776→                      />
+   777→                    )}
+   778→                    <span
+   779→                      className={`text-4xl leading-none relative z-10 ${
+   780→                        gender === 'girl' ? 'text-white drop-shadow-lg' : 'text-brand-red'
+   781→                      }`}
+   782→                    >
+   783→                      ♀
+   784→                    </span>
+   785→                    <span
+   786→                      className={`text-sm font-bold relative z-10 ${
+   787→                        gender === 'girl' ? 'text-white' : 'text-warm-700 dark:text-warm-300'
+   788→                      }`}
+   789→                    >
+   790→                      Girl
+   791→                    </span>
+   792→                    {gender === 'girl' && (
+   793→                      <motion.div
+   794→                        initial={{ scale: 0 }}
+   795→                        animate={{ scale: 1 }}
+   796→                        className="absolute top-2 right-2 z-10"
+   797→                      >
+   798→                        <Zap className="w-4 h-4 text-white/60" />
+   799→                      </motion.div>
+   800→                    )}
+   801→                  </motion.button>
+   802→                </div>
+   803→              </div>
+   804→
+   805→              {/* Weight Input - Enhanced */}
+   806→              <div className="w-full mb-3">
+   807→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+   808→                  Weight
+   809→                </label>
+   810→                <div className="relative">
+   811→                  <Weight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+   812→                  <Input
+   813→                    type="number"
+   814→                    inputMode="numeric"
+   815→                    placeholder="Enter weight"
+   816→                    value={weight}
+   817→                    onChange={(e) => {
+   818→                      setWeight(e.target.value);
+   819→                    }}
+   820→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/60 transition-all"
+   821→                  />
+   822→                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 dark:text-warm-500 text-sm font-medium pointer-events-none">
+   823→                    kg
+   824→                  </span>
+   825→                </div>
+   826→              </div>
+   827→
+   828→              {/* Practice Ground Input - Enhanced */}
+   829→              <div className="w-full mb-4">
+   830→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+   831→                  Practice Ground
+   832→                </label>
+   833→                <div className="relative">
+   834→                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+   835→                  <Input
+   836→                    type="text"
+   837→                    placeholder="Enter practice ground / academy"
+   838→                    value={practiceGround}
+   839→                    onChange={(e) => {
+   840→                      setPracticeGround(e.target.value);
+   841→                    }}
+   842→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/60 transition-all"
+   843→                  />
+   844→                </div>
+   845→              </div>
+   846→
+   847→              {/* Position Selection - Enhanced */}
+   848→              <div className="w-full mb-4">
+   849→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+   850→                  Position
+   851→                </label>
+   852→                <div className="grid grid-cols-2 gap-2">
+   853→                  {[
+   854→                    { id: 'left-raider', label: 'Left Raider', icon: '⬅️', meaning: 'Attacks from left' },
+   855→                    { id: 'right-raider', label: 'Right Raider', icon: '➡️', meaning: 'Attacks from right' },
+   856→                    { id: 'both-raider', label: 'Both Raider', icon: '↔️', meaning: 'Raids both sides' },
+   857→                    { id: 'left-corner', label: 'Left Corner', icon: '🛡️', meaning: 'Defends left corner' },
+   858→                    { id: 'right-corner', label: 'Right Corner', icon: '🛡️', meaning: 'Defends right corner' },
+   859→                    { id: 'left-cover', label: 'Left Cover', icon: '🧱', meaning: 'Cover defender left' },
+   860→                    { id: 'right-cover', label: 'Right Cover', icon: '🧱', meaning: 'Cover defender right' },
+   861→                    { id: 'all-rounder', label: 'All-Rounder', icon: '⭐', meaning: 'Raid & defense' },
+   862→                  ].map((pos) => (
+   863→                    <motion.button
+   864→                      key={pos.id}
+   865→                      type="button"
+   866→                      whileHover={{ scale: 1.03 }}
+   867→                      whileTap={{ scale: 0.97 }}
+   868→                      onClick={() => setPosition(position === pos.id ? '' : pos.id)}
+   869→                      className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+   870→                        position === pos.id
+   871→                          ? 'border-brand-teal bg-brand-teal/10 dark:bg-brand-teal/15 shadow-sm shadow-brand-teal/20'
+   872→                          : 'border-warm-300/60 dark:border-warm-600/40 bg-white/40 dark:bg-white/3 hover:border-warm-200 hover:shadow-sm'
+   873→                      }`}
+   874→                    >
+   875→                      <div className="flex items-center gap-1">
+   876→                        <span className="text-sm">{pos.icon}</span>
+   877→                        <span className={`text-xs font-semibold ${position === pos.id ? 'text-brand-teal dark:text-brand-teal-light' : 'text-warm-700 dark:text-warm-300'}`}>
+   878→                          {pos.label}
+   879→                        </span>
+   880→                      </div>
+   881→                      <p className="text-[8px] text-warm-400 dark:text-warm-500 mt-0.5 ml-5">{pos.meaning}</p>
+   882→                    </motion.button>
+   883→                  ))}
+   884→                </div>
+   885→              </div>
+   886→
+   887→              {/* Gender-themed accent bar */}
+   888→              {gender && (
+   889→                <motion.div
+   890→                  initial={{ scaleX: 0 }}
+   891→                  animate={{ scaleX: 1 }}
+   892→                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+   893→                  className="w-full h-1 rounded-full mb-4 origin-left"
+   894→                  style={{ backgroundColor: genderAccent }}
+   895→                />
+   896→              )}
+   897→
+   898→              {/* Error Message */}
+   899→              <AnimatePresence>
+   900→                {error && (
+   901→                  <motion.p
+   902→                    initial={{ opacity: 0, y: -8, height: 0 }}
+   903→                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+   904→                    exit={{ opacity: 0, y: -8, height: 0 }}
+   905→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+   906→                    className="text-brand-red dark:text-brand-red-light text-sm mb-3 text-center w-full flex items-center justify-center gap-1.5"
+   907→                  >
+   908→                    <CircleDot className="w-3.5 h-3.5 shrink-0" />
+   909→                    {error}
+   910→                  </motion.p>
+   911→                )}
+   912→              </AnimatePresence>
+   913→
+   914→              {/* Continue Button */}
+   915→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+   916→                <Button
+   917→                  onClick={handleDetailsContinue}
+   918→                  disabled={!gender}
+   919→                  className={`w-full h-12 font-semibold text-base rounded-xl disabled:opacity-40 text-white transition-all shadow-lg ${
+   920→                    gender === 'boy'
+   921→                      ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue shadow-brand-blue/25'
+   922→                      : gender === 'girl'
+   923→                        ? 'bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red shadow-brand-red/25'
+   924→                        : 'bg-gradient-to-r from-brand-red-dark to-brand-red hover:from-brand-red hover:to-brand-red-light shadow-brand-red/25'
+   925→                  }`}
+   926→                >
+   927→                  Continue
+   928→                  <ChevronRight className="w-4 h-4 ml-1" />
+   929→                </Button>
+   930→              </motion.div>
+   931→            </motion.div>
+   932→          )}
+   933→
+   934→          {/* ═══════════════════════════════════════════
+   935→              Stage 3: Role Selection
+   936→              ═══════════════════════════════════════════ */}
+   937→          {stage === 'role' && (
+   938→            <motion.div
+   939→              key="role"
+   940→              custom={direction}
+   941→              variants={slideVariants}
+   942→              initial="enter"
+   943→              animate="center"
+   944→              exit="exit"
+   945→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+   946→              className="glass-effect rounded-2xl border border-white/40 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+   947→            >
+   948→              {/* Progress dots at top */}
+   949→              <div className="flex justify-center gap-2 mb-5">
+   950→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+   951→                  <motion.div
+   952→                    key={s}
+   953→                    className="h-1.5 rounded-full"
+   954→                    animate={{
+   955→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+   956→                      backgroundColor:
+   957→                        stageIndex[stage] === idx
+   958→                          ? '#DC2626'
+   959→                          : stageIndex[stage] > idx
+   960→                            ? '#B91C1C'
+   961→                            : '#CBD5E1',
+   962→                    }}
+   963→                    transition={{ duration: 0.5 }}
+   964→                  />
+   965→                ))}
+   966→              </div>
+   967→
+   968→              <motion.button
+   969→                whileHover={{ x: -3 }}
+   970→                whileTap={{ scale: 0.95 }}
+   971→                onClick={goBack}
+   972→                className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
+   973→              >
+   974→                <ArrowLeft className="w-4 h-4 mr-1" />
+   975→                Back
+   976→              </motion.button>
+   977→
+   978→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">
+   979→                What&apos;s your role?
+   980→              </h2>
+   981→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+   982→                Select one or more roles that apply to you
+   983→              </p>
+   984→
+   985→              {/* Subtle kabaddi-themed background illustration */}
+   986→              <div className="absolute inset-0 pointer-events-none opacity-[0.02] dark:opacity-[0.03] overflow-hidden rounded-2xl">
+   987→                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border-4 border-brand-red" />
+   988→                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-red" />
+   989→              </div>
+   990→
+   991→              <div className="w-full flex flex-col gap-4 mb-6 relative z-10">
+   992→                {roles.map((role, idx) => {
+   993→                  const isSelected = selectedRoles.has(role.id);
+   994→                  const Icon = role.icon;
+   995→                  return (
+   996→                    <motion.button
+   997→                      key={role.id}
+   998→                      initial={{ opacity: 0, y: 20 }}
+   999→                      animate={{ opacity: 1, y: 0 }}
+  1000→                      transition={{ delay: idx * 0.15, type: 'spring', stiffness: 300, damping: 25 }}
+  1001→                      whileHover={{ scale: 1.02, y: -2 }}
+  1002→                      whileTap={{ scale: 0.98 }}
+  1003→                      onClick={() => toggleRole(role.id)}
+  1004→                      className={`w-full relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left overflow-hidden ${
+  1005→                        isSelected
+  1006→                          ? `bg-gradient-to-r ${role.color} ${role.borderColor} shadow-lg ${role.glowColor}`
+  1007→                          : 'bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 hover:border-warm-200 hover:shadow-md'
+  1008→                      }`}
+  1009→                    >
+  1010→                      {/* Animated gradient border on hover (unselected) */}
+  1011→                      {!isSelected && (
+  1012→                        <div className="absolute inset-0 rounded-2xl opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-brand-red/5 via-brand-gold/5 to-brand-red/5 pointer-events-none" />
+  1013→                      )}
+  1014→
+  1015→                      {/* Shimmer effect on selected */}
+  1016→                      {isSelected && (
+  1017→                        <div className="absolute inset-0 card-shine">
+  1018→                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ animation: 'shimmer 3s ease-in-out infinite' }} />
+  1019→                        </div>
+  1020→                      )}
+  1021→
+  1022→                      {/* Icon with animation */}
+  1023→                      <div
+  1024→                        className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 relative z-10 ${
+  1025→                          isSelected
+  1026→                            ? 'bg-white/20'
+  1027→                            : 'bg-warm-200/60 dark:bg-warm-600/20'
+  1028→                        }`}
+  1029→                      >
+  1030→                        <Icon
+  1031→                          className={`w-7 h-7 ${isSelected ? role.animClass : ''} ${
+  1032→                            isSelected ? 'text-white' : 'text-warm-500 dark:text-warm-400'
+  1033→                          }`}
+  1034→                        />
+  1035→                      </div>
+  1036→                      <div className="flex-1 min-w-0 relative z-10">
+  1037→                        <div
+  1038→                          className={`font-bold text-base ${
+  1039→                            isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'
+  1040→                          }`}
+  1041→                        >
+  1042→                          {role.title}
+  1043→                        </div>
+  1044→                        <div
+  1045→                          className={`text-xs mt-0.5 ${
+  1046→                            isSelected ? 'text-white/70' : 'text-warm-500 dark:text-warm-400'
+  1047→                          }`}
+  1048→                        >
+  1049→                          {role.description}
+  1050→                        </div>
+  1051→                      </div>
+  1052→                      {/* Selection indicator */}
+  1053→                      <div
+  1054→                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all relative z-10 ${
+  1055→                          isSelected
+  1056→                            ? 'border-white bg-white'
+  1057→                            : 'border-warm-300 dark:border-warm-500'
+  1058→                        }`}
+  1059→                      >
+  1060→                        {isSelected && (
+  1061→                          <motion.div
+  1062→                            initial={{ scale: 0 }}
+  1063→                            animate={{ scale: 1 }}
+  1064→                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+  1065→                            className="w-3 h-3 rounded-full bg-warm-50"
+  1066→                          />
+  1067→                        )}
+  1068→                      </div>
+  1069→                    </motion.button>
+  1070→                  );
+  1071→                })}
+  1072→              </div>
+  1073→
+  1074→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+  1075→                <Button
+  1076→                  onClick={handleGetStarted}
+  1077→                  disabled={isSubmitting || selectedRoles.size === 0}
+  1078→                  className={`w-full h-12 font-semibold text-base rounded-xl disabled:opacity-40 text-white transition-all shadow-lg ${
+  1079→                    gender === 'boy'
+  1080→                      ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue shadow-brand-blue/25'
+  1081→                      : gender === 'girl'
+  1082→                        ? 'bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red shadow-brand-red/25'
+  1083→                        : 'bg-gradient-to-r from-brand-red-dark to-brand-red hover:from-brand-red hover:to-brand-red-light shadow-brand-red/25'
+  1084→                  }`}
+  1085→                >
+  1086→                  {isSubmitting ? (
+  1087→                    <div className="flex items-center gap-2">
+  1088→                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+  1089→                      Setting up...
+  1090→                    </div>
+  1091→                  ) : (
+  1092→                    <>
+  1093→                      Get Started
+  1094→                      <ChevronRight className="w-4 h-4 ml-1" />
+  1095→                    </>
+  1096→                  )}
+  1097→                </Button>
+  1098→              </motion.div>
+  1099→            </motion.div>
+  1100→          )}
+  1101→        </AnimatePresence>
+  1102→      </div>
+  1103→
+  1104→      {/* ── Bottom Progress dots (outside card) ── */}
+  1105→      <div className="flex gap-2 mt-8 relative z-10">
+  1106→        {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+  1107→          <motion.div
+  1108→            key={s}
+  1109→            className="h-1.5 rounded-full"
+  1110→            animate={{
+  1111→              width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+  1112→              backgroundColor:
+  1113→                stageIndex[stage] === idx
+  1114→                  ? '#DC2626'
+  1115→                  : stageIndex[stage] > idx
+  1116→                    ? '#B91C1C'
+  1117→                    : undefined,
+  1118→            }}
+  1119→            transition={{ duration: 0.5 }}
+  1120→            style={{
+  1121→              backgroundColor: stageIndex[stage] <= idx ? undefined : undefined,
+  1122→            }}
+  1123→            // Fallback for uncompleted steps
+  1124→            {...(stageIndex[stage] < idx ? { style: { backgroundColor: '#CBD5E1' } } : {})}
+  1125→          />
+  1126→        ))}
+  1127→      </div>
+  1128→    </div>
+  1129→  );
+  1130→}
+  1131→

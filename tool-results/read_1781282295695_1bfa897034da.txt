@@ -1,0 +1,684 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useRef, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Search,
+     7→  X,
+     8→  Users,
+     9→  Trophy,
+    10→  Shield,
+    11→  Clock,
+    12→  ChevronRight,
+    13→  TrendingUp,
+    14→  Sparkles,
+    15→  ArrowLeft,
+    16→} from 'lucide-react';
+    17→
+    18→// ─── Types ──────────────────────────────────────────────────────────
+    19→
+    20→interface PlayerResult {
+    21→  id: string;
+    22→  name: string | null;
+    23→  playerCode: string | null;
+    24→  avatar: string | null;
+    25→  position: string | null;
+    26→  teamNames: string[];
+    27→}
+    28→
+    29→interface TeamResult {
+    30→  id: string;
+    31→  name: string;
+    32→  shortName: string | null;
+    33→  color: string | null;
+    34→  teamCode: string | null;
+    35→}
+    36→
+    37→interface TournamentResult {
+    38→  id: string;
+    39→  name: string;
+    40→  type: string;
+    41→  status: string;
+    42→  tournamentCode: string | null;
+    43→}
+    44→
+    45→interface SearchResults {
+    46→  players: PlayerResult[];
+    47→  teams: TeamResult[];
+    48→  tournaments: TournamentResult[];
+    49→}
+    50→
+    51→type FilterType = 'all' | 'players' | 'teams' | 'tournaments';
+    52→
+    53→interface GlobalSearchScreenProps {
+    54→  onClose: () => void;
+    55→  onNavigatePlayer?: (playerId: string) => void;
+    56→  onNavigateTeam?: (teamId: string) => void;
+    57→  onNavigateTournament?: (tournamentId: string) => void;
+    58→}
+    59→
+    60→// ─── Debounce hook ──────────────────────────────────────────────────
+    61→
+    62→function useDebounce<T>(value: T, delay: number): T {
+    63→  const [debouncedValue, setDebouncedValue] = useState(value);
+    64→
+    65→  useEffect(() => {
+    66→    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    67→    return () => clearTimeout(timer);
+    68→  }, [value, delay]);
+    69→
+    70→  return debouncedValue;
+    71→}
+    72→
+    73→// ─── Constants ──────────────────────────────────────────────────────
+    74→
+    75→const RECENT_SEARCHES_KEY = 'kabaddi-recent-searches';
+    76→const MAX_RECENT = 8;
+    77→const FILTER_OPTIONS: { key: FilterType; label: string; icon: typeof Search }[] = [
+    78→  { key: 'all', label: 'All', icon: Search },
+    79→  { key: 'players', label: 'Players', icon: Users },
+    80→  { key: 'teams', label: 'Teams', icon: Shield },
+    81→  { key: 'tournaments', label: 'Tournaments', icon: Trophy },
+    82→];
+    83→
+    84→const SEARCH_SUGGESTIONS = [
+    85→  'Top Raiders',
+    86→  'Pro Kabaddi',
+    87→  'Tournament',
+    88→  'Defender',
+    89→];
+    90→
+    91→// ─── Component ──────────────────────────────────────────────────────
+    92→
+    93→export default function GlobalSearchScreen({
+    94→  onClose,
+    95→  onNavigatePlayer,
+    96→  onNavigateTeam,
+    97→  onNavigateTournament,
+    98→}: GlobalSearchScreenProps) {
+    99→  const [query, setQuery] = useState('');
+   100→  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+   101→  const [results, setResults] = useState<SearchResults | null>(null);
+   102→  const [isSearching, setIsSearching] = useState(false);
+   103→  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+   104→  const inputRef = useRef<HTMLInputElement>(null);
+   105→
+   106→  const debouncedQuery = useDebounce(query, 300);
+   107→
+   108→  // Load recent searches from localStorage
+   109→  useEffect(() => {
+   110→    try {
+   111→      const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+   112→      if (stored) {
+   113→        setRecentSearches(JSON.parse(stored));
+   114→      }
+   115→    } catch {
+   116→      // ignore
+   117→    }
+   118→  }, []);
+   119→
+   120→  // Auto-focus input on mount
+   121→  useEffect(() => {
+   122→    const timer = setTimeout(() => {
+   123→      inputRef.current?.focus();
+   124→    }, 100);
+   125→    return () => clearTimeout(timer);
+   126→  }, []);
+   127→
+   128→  // Perform search when debounced query changes
+   129→  const performSearch = useCallback(async (q: string, type: FilterType) => {
+   130→    if (!q.trim()) {
+   131→      setResults(null);
+   132→      setIsSearching(false);
+   133→      return;
+   134→    }
+   135→
+   136→    setIsSearching(true);
+   137→    try {
+   138→      const params = new URLSearchParams({ q: q.trim(), type });
+   139→      const res = await fetch(`/api/search?${params.toString()}`);
+   140→      if (res.ok) {
+   141→        const data = await res.json();
+   142→        setResults(data);
+   143→      } else {
+   144→        setResults({ players: [], teams: [], tournaments: [] });
+   145→      }
+   146→    } catch {
+   147→      setResults({ players: [], teams: [], tournaments: [] });
+   148→    } finally {
+   149→      setIsSearching(false);
+   150→    }
+   151→  }, []);
+   152→
+   153→  useEffect(() => {
+   154→    performSearch(debouncedQuery, activeFilter);
+   155→  }, [debouncedQuery, activeFilter, performSearch]);
+   156→
+   157→  // Save recent search
+   158→  const saveRecentSearch = useCallback((term: string) => {
+   159→    if (!term.trim()) return;
+   160→    try {
+   161→      const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+   162→      const existing: string[] = stored ? JSON.parse(stored) : [];
+   163→      const updated = [term.trim(), ...existing.filter((s) => s !== term.trim())].slice(0, MAX_RECENT);
+   164→      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+   165→      setRecentSearches(updated);
+   166→    } catch {
+   167→      // ignore
+   168→    }
+   169→  }, []);
+   170→
+   171→  // Remove a single recent search
+   172→  const removeRecentSearch = useCallback((term: string) => {
+   173→    try {
+   174→      const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+   175→      const existing: string[] = stored ? JSON.parse(stored) : [];
+   176→      const updated = existing.filter((s) => s !== term);
+   177→      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+   178→      setRecentSearches(updated);
+   179→    } catch {
+   180→      // ignore
+   181→    }
+   182→  }, []);
+   183→
+   184→  // Clear all recent searches
+   185→  const clearRecentSearches = useCallback(() => {
+   186→    try {
+   187→      localStorage.removeItem(RECENT_SEARCHES_KEY);
+   188→      setRecentSearches([]);
+   189→    } catch {
+   190→      // ignore
+   191→    }
+   192→  }, []);
+   193→
+   194→  // Handle submitting a search (enter key)
+   195→  const handleSubmit = () => {
+   196→    if (query.trim()) {
+   197→      saveRecentSearch(query.trim());
+   198→    }
+   199→  };
+   200→
+   201→  // Total results count
+   202→  const totalResults = results
+   203→    ? results.players.length + results.teams.length + results.tournaments.length
+   204→    : 0;
+   205→
+   206→  const hasQuery = query.trim().length > 0;
+   207→  const hasResults = totalResults > 0;
+   208→
+   209→  // Position label helper
+   210→  function getPositionLabel(pos: string | null): string {
+   211→    if (!pos) return 'Player';
+   212→    switch (pos.toLowerCase()) {
+   213→      case 'raider': return 'Raider';
+   214→      case 'defender': return 'Defender';
+   215→      case 'all-rounder': return 'All-Rounder';
+   216→      default: return pos;
+   217→    }
+   218→  }
+   219→
+   220→  // Status badge color for tournaments
+   221→  function getStatusStyle(status: string): { bg: string; text: string; label: string } {
+   222→    switch (status) {
+   223→      case 'ongoing':
+   224→        return { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400', label: 'Live' };
+   225→      case 'completed':
+   226→        return { bg: 'bg-warm-100 dark:bg-warm-800', text: 'text-warm-600 dark:text-warm-300', label: 'Completed' };
+   227→      case 'upcoming':
+   228→        return { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', label: 'Upcoming' };
+   229→      default:
+   230→        return { bg: 'bg-warm-100 dark:bg-warm-800', text: 'text-warm-600 dark:text-warm-300', label: status };
+   231→    }
+   232→  }
+   233→
+   234→  // Tournament type label
+   235→  function getTypeLabel(type: string): string {
+   236→    switch (type) {
+   237→      case 'knockout': return 'Knockout';
+   238→      case 'league': return 'League';
+   239→      case 'hybrid': return 'Hybrid';
+   240→      default: return type;
+   241→    }
+   242→  }
+   243→
+   244→  return (
+   245→    <AnimatePresence>
+   246→      <motion.div
+   247→        className="fixed inset-0 z-50 flex flex-col"
+   248→        initial={{ opacity: 0 }}
+   249→        animate={{ opacity: 1 }}
+   250→        exit={{ opacity: 0 }}
+   251→        transition={{ duration: 0.2 }}
+   252→      >
+   253→        {/* Backdrop */}
+   254→        <div className="overlay-backdrop absolute inset-0" onClick={onClose} />
+   255→
+   256→        {/* Search content */}
+   257→        <motion.div
+   258→          className="relative z-10 flex flex-col bg-warm-50 dark:bg-warm-900 h-full max-h-screen"
+   259→          initial={{ y: -40, opacity: 0 }}
+   260→          animate={{ y: 0, opacity: 1 }}
+   261→          exit={{ y: -40, opacity: 0 }}
+   262→          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+   263→        >
+   264→          {/* Search Header */}
+   265→          <div className="slide-in-top">
+   266→            <div className="px-4 pt-4 pb-3">
+   267→              <div className="flex items-center gap-3">
+   268→                <button
+   269→                  onClick={onClose}
+   270→                  className="p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors shrink-0"
+   271→                  aria-label="Close search"
+   272→                >
+   273→                  <ArrowLeft className="w-5 h-5 text-warm-700 dark:text-warm-200" />
+   274→                </button>
+   275→
+   276→                <div className="flex-1 relative">
+   277→                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-warm-400 dark:text-warm-500" />
+   278→                  <input
+   279→                    ref={inputRef}
+   280→                    type="text"
+   281→                    value={query}
+   282→                    onChange={(e) => setQuery(e.target.value)}
+   283→                    onKeyDown={(e) => {
+   284→                      if (e.key === 'Enter') handleSubmit();
+   285→                      if (e.key === 'Escape') onClose();
+   286→                    }}
+   287→                    placeholder="Search players, teams, tournaments..."
+   288→                    className="input-search w-full pl-10 pr-10 py-2.5 rounded-xl bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700 text-foreground placeholder:text-warm-400 dark:placeholder:text-warm-500 focus:outline-none focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/40 dark:focus:ring-brand-red-light/40 dark:focus:border-brand-red-light/40 text-sm font-medium transition-all"
+   289→                  />
+   290→                  {query && (
+   291→                    <button
+   292→                      onClick={() => {
+   293→                        setQuery('');
+   294→                        setResults(null);
+   295→                        inputRef.current?.focus();
+   296→                      }}
+   297→                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors"
+   298→                      aria-label="Clear search"
+   299→                    >
+   300→                      <X className="w-4 h-4 text-warm-500 dark:text-warm-400" />
+   301→                    </button>
+   302→                  )}
+   303→                </div>
+   304→              </div>
+   305→            </div>
+   306→
+   307→            {/* Category Filters */}
+   308→            <div className="px-4 pb-3 flex gap-2 overflow-x-auto custom-scrollbar">
+   309→              {FILTER_OPTIONS.map((opt) => {
+   310→                const Icon = opt.icon;
+   311→                const isActive = activeFilter === opt.key;
+   312→                return (
+   313→                  <button
+   314→                    key={opt.key}
+   315→                    onClick={() => setActiveFilter(opt.key)}
+   316→                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+   317→                      isActive
+   318→                        ? 'bg-brand-red text-white shadow-md shadow-brand-red/25'
+   319→                        : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700'
+   320→                    }`}
+   321→                  >
+   322→                    <Icon className="w-3.5 h-3.5" />
+   323→                    {opt.label}
+   324→                  </button>
+   325→                );
+   326→              })}
+   327→            </div>
+   328→
+   329→            {/* Gradient divider */}
+   330→            <div className="h-px bg-gradient-to-r from-transparent via-brand-red/30 dark:via-brand-red-light/30 to-transparent" />
+   331→          </div>
+   332→
+   333→          {/* Search Content */}
+   334→          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-3">
+   335→            {/* No query state - show recent searches */}
+   336→            {!hasQuery && (
+   337→              <div className="space-y-4">
+   338→                {/* Recent Searches */}
+   339→                {recentSearches.length > 0 && (
+   340→                  <div>
+   341→                    <div className="flex items-center justify-between mb-2.5">
+   342→                      <h3 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider flex items-center gap-1.5">
+   343→                        <Clock className="w-3.5 h-3.5" />
+   344→                        Recent Searches
+   345→                      </h3>
+   346→                      <button
+   347→                        onClick={clearRecentSearches}
+   348→                        className="text-[10px] font-semibold text-brand-red dark:text-brand-red-light hover:underline"
+   349→                      >
+   350→                        Clear All
+   351→                      </button>
+   352→                    </div>
+   353→                    <div className="flex flex-wrap gap-2">
+   354→                      {recentSearches.map((term) => (
+   355→                        <div
+   356→                          key={term}
+   357→                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700 group hover:border-brand-red/30 dark:hover:border-brand-red-light/30 transition-colors cursor-pointer"
+   358→                          onClick={() => {
+   359→                            setQuery(term);
+   360→                            saveRecentSearch(term);
+   361→                          }}
+   362→                        >
+   363→                          <span className="text-xs font-medium text-warm-700 dark:text-warm-200">{term}</span>
+   364→                          <button
+   365→                            onClick={(e) => {
+   366→                              e.stopPropagation();
+   367→                              removeRecentSearch(term);
+   368→                            }}
+   369→                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-full hover:bg-warm-200 dark:hover:bg-warm-700"
+   370→                            aria-label={`Remove ${term}`}
+   371→                          >
+   372→                            <X className="w-3 h-3 text-warm-400" />
+   373→                          </button>
+   374→                        </div>
+   375→                      ))}
+   376→                    </div>
+   377→                  </div>
+   378→                )}
+   379→
+   380→                {/* Quick Suggestions */}
+   381→                <div>
+   382→                  <h3 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
+   383→                    <Sparkles className="w-3.5 h-3.5" />
+   384→                    Try Searching
+   385→                  </h3>
+   386→                  <div className="flex flex-wrap gap-2">
+   387→                    {SEARCH_SUGGESTIONS.map((suggestion) => (
+   388→                      <button
+   389→                        key={suggestion}
+   390→                        onClick={() => {
+   391→                          setQuery(suggestion);
+   392→                          saveRecentSearch(suggestion);
+   393→                        }}
+   394→                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-red/5 dark:bg-brand-red-light/10 border border-brand-red/15 dark:border-brand-red-light/20 hover:bg-brand-red/10 dark:hover:bg-brand-red-light/15 transition-colors"
+   395→                      >
+   396→                        <TrendingUp className="w-3 h-3 text-brand-red dark:text-brand-red-light" />
+   397→                        <span className="text-xs font-medium text-brand-red dark:text-brand-red-light">{suggestion}</span>
+   398→                      </button>
+   399→                    ))}
+   400→                  </div>
+   401→                </div>
+   402→
+   403→                {/* Empty illustration area */}
+   404→                <div className="flex flex-col items-center justify-center py-12 text-center">
+   405→                  <div className="w-16 h-16 rounded-2xl bg-warm-100 dark:bg-warm-800 flex items-center justify-center mb-4">
+   406→                    <Search className="w-7 h-7 text-warm-300 dark:text-warm-600" />
+   407→                  </div>
+   408→                  <p className="text-sm font-semibold text-warm-600 dark:text-warm-300">
+   409→                    Search Kabaddi Pro
+   410→                  </p>
+   411→                  <p className="text-xs text-warm-400 dark:text-warm-500 mt-1 max-w-[220px]">
+   412→                    Find players, teams, and tournaments across the platform
+   413→                  </p>
+   414→                </div>
+   415→              </div>
+   416→            )}
+   417→
+   418→            {/* Loading state */}
+   419→            {hasQuery && isSearching && (
+   420→              <div className="flex flex-col items-center justify-center py-16">
+   421→                <motion.div
+   422→                  className="w-8 h-8 border-2 border-brand-red border-t-transparent rounded-full"
+   423→                  animate={{ rotate: 360 }}
+   424→                  transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+   425→                />
+   426→                <p className="text-xs text-warm-400 dark:text-warm-500 mt-3">Searching...</p>
+   427→              </div>
+   428→            )}
+   429→
+   430→            {/* Results */}
+   431→            {hasQuery && !isSearching && results && (
+   432→              <div className="space-y-5">
+   433→                {/* No results state */}
+   434→                {!hasResults && (
+   435→                  <div className="flex flex-col items-center justify-center py-16 text-center">
+   436→                    <div className="w-16 h-16 rounded-2xl bg-warm-100 dark:bg-warm-800 flex items-center justify-center mb-4">
+   437→                      <Search className="w-7 h-7 text-warm-300 dark:text-warm-600" />
+   438→                    </div>
+   439→                    <p className="text-sm font-semibold text-warm-700 dark:text-warm-200">
+   440→                      No results found
+   441→                    </p>
+   442→                    <p className="text-xs text-warm-400 dark:text-warm-500 mt-1 max-w-[240px]">
+   443→                      Try a different search term or browse by category
+   444→                    </p>
+   445→                    <div className="flex flex-wrap gap-2 mt-4 justify-center">
+   446→                      {SEARCH_SUGGESTIONS.map((suggestion) => (
+   447→                        <button
+   448→                          key={suggestion}
+   449→                          onClick={() => {
+   450→                            setQuery(suggestion);
+   451→                            saveRecentSearch(suggestion);
+   452→                          }}
+   453→                          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700 text-xs font-medium text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors"
+   454→                        >
+   455→                          <TrendingUp className="w-3 h-3" />
+   456→                          {suggestion}
+   457→                        </button>
+   458→                      ))}
+   459→                    </div>
+   460→                  </div>
+   461→                )}
+   462→
+   463→                {/* Players section */}
+   464→                {results.players.length > 0 && (
+   465→                  <div>
+   466→                    <div className="flex items-center gap-2 mb-2.5">
+   467→                      <div className="w-6 h-6 rounded-md bg-brand-teal/10 dark:bg-brand-teal-light/15 flex items-center justify-center">
+   468→                        <Users className="w-3.5 h-3.5 text-brand-teal dark:text-brand-teal-light" />
+   469→                      </div>
+   470→                      <h3 className="text-xs font-bold text-warm-700 dark:text-warm-200 uppercase tracking-wider">
+   471→                        Players
+   472→                      </h3>
+   473→                      <span className="text-[10px] font-semibold text-warm-400 dark:text-warm-500 bg-warm-100 dark:bg-warm-800 px-1.5 py-0.5 rounded-full">
+   474→                        {results.players.length}
+   475→                      </span>
+   476→                    </div>
+   477→                    <div className="space-y-1.5">
+   478→                      {results.players.map((player, idx) => (
+   479→                        <motion.button
+   480→                          key={player.id}
+   481→                          className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
+   482→                          initial={{ opacity: 0, y: 8 }}
+   483→                          animate={{ opacity: 1, y: 0 }}
+   484→                          transition={{ delay: idx * 0.03 }}
+   485→                          onClick={() => {
+   486→                            saveRecentSearch(query.trim());
+   487→                            if (onNavigatePlayer) {
+   488→                              onNavigatePlayer(player.id);
+   489→                            }
+   490→                            onClose();
+   491→                          }}
+   492→                        >
+   493→                          {/* Avatar */}
+   494→                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 dark:from-brand-teal-light/20 dark:to-brand-teal-light/5 border border-warm-200 dark:border-warm-700 flex items-center justify-center overflow-hidden shrink-0">
+   495→                            {player.avatar ? (
+   496→                              <img src={player.avatar} alt={player.name || ''} className="w-full h-full object-cover" />
+   497→                            ) : (
+   498→                              <span className="text-sm font-bold text-brand-teal dark:text-brand-teal-light">
+   499→                                {(player.name || '?').charAt(0).toUpperCase()}
+   500→                              </span>
+   501→                            )}
+   502→                          </div>
+   503→
+   504→                          {/* Info */}
+   505→                          <div className="flex-1 min-w-0">
+   506→                            <div className="flex items-center gap-1.5">
+   507→                              <span className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
+   508→                                {player.name || 'Unknown Player'}
+   509→                              </span>
+   510→                              {player.playerCode && (
+   511→                                <span className="search-highlight text-[10px] font-mono font-bold px-1 py-0.5 rounded">
+   512→                                  {player.playerCode}
+   513→                                </span>
+   514→                              )}
+   515→                            </div>
+   516→                            <div className="flex items-center gap-1.5 mt-0.5">
+   517→                              <span className="text-[10px] font-medium text-brand-teal dark:text-brand-teal-light">
+   518→                                {getPositionLabel(player.position)}
+   519→                              </span>
+   520→                              {player.teamNames.length > 0 && (
+   521→                                <>
+   522→                                  <span className="text-warm-300 dark:text-warm-600">·</span>
+   523→                                  <span className="text-[10px] text-warm-500 dark:text-warm-400 truncate">
+   524→                                    {player.teamNames.slice(0, 2).join(', ')}
+   525→                                  </span>
+   526→                                </>
+   527→                              )}
+   528→                            </div>
+   529→                          </div>
+   530→
+   531→                          {/* Chevron */}
+   532→                          <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 group-hover:text-warm-500 dark:group-hover:text-warm-400 transition-colors shrink-0" />
+   533→                        </motion.button>
+   534→                      ))}
+   535→                    </div>
+   536→                  </div>
+   537→                )}
+   538→
+   539→                {/* Teams section */}
+   540→                {results.teams.length > 0 && (
+   541→                  <div>
+   542→                    <div className="flex items-center gap-2 mb-2.5">
+   543→                      <div className="w-6 h-6 rounded-md bg-brand-red/10 dark:bg-brand-red-light/15 flex items-center justify-center">
+   544→                        <Shield className="w-3.5 h-3.5 text-brand-red dark:text-brand-red-light" />
+   545→                      </div>
+   546→                      <h3 className="text-xs font-bold text-warm-700 dark:text-warm-200 uppercase tracking-wider">
+   547→                        Teams
+   548→                      </h3>
+   549→                      <span className="text-[10px] font-semibold text-warm-400 dark:text-warm-500 bg-warm-100 dark:bg-warm-800 px-1.5 py-0.5 rounded-full">
+   550→                        {results.teams.length}
+   551→                      </span>
+   552→                    </div>
+   553→                    <div className="space-y-1.5">
+   554→                      {results.teams.map((team, idx) => (
+   555→                        <motion.button
+   556→                          key={team.id}
+   557→                          className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
+   558→                          initial={{ opacity: 0, y: 8 }}
+   559→                          animate={{ opacity: 1, y: 0 }}
+   560→                          transition={{ delay: idx * 0.03 }}
+   561→                          onClick={() => {
+   562→                            saveRecentSearch(query.trim());
+   563→                            if (onNavigateTeam) {
+   564→                              onNavigateTeam(team.id);
+   565→                            }
+   566→                            onClose();
+   567→                          }}
+   568→                        >
+   569→                          {/* Team color indicator */}
+   570→                          <div
+   571→                            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-warm-200 dark:border-warm-700"
+   572→                            style={{ backgroundColor: team.color || '#64748B' }}
+   573→                          >
+   574→                            <span className="text-xs font-black text-white drop-shadow-sm">
+   575→                              {(team.shortName || team.name).substring(0, 2).toUpperCase()}
+   576→                            </span>
+   577→                          </div>
+   578→
+   579→                          {/* Info */}
+   580→                          <div className="flex-1 min-w-0">
+   581→                            <div className="flex items-center gap-1.5">
+   582→                              <span className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
+   583→                                {team.name}
+   584→                              </span>
+   585→                              {team.shortName && (
+   586→                                <span className="search-highlight text-[10px] font-bold px-1 py-0.5 rounded">
+   587→                                  {team.shortName}
+   588→                                </span>
+   589→                              )}
+   590→                            </div>
+   591→                            {team.teamCode && (
+   592→                              <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono">
+   593→                                {team.teamCode}
+   594→                              </span>
+   595→                            )}
+   596→                          </div>
+   597→
+   598→                          {/* Chevron */}
+   599→                          <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 group-hover:text-warm-500 dark:group-hover:text-warm-400 transition-colors shrink-0" />
+   600→                        </motion.button>
+   601→                      ))}
+   602→                    </div>
+   603→                  </div>
+   604→                )}
+   605→
+   606→                {/* Tournaments section */}
+   607→                {results.tournaments.length > 0 && (
+   608→                  <div>
+   609→                    <div className="flex items-center gap-2 mb-2.5">
+   610→                      <div className="w-6 h-6 rounded-md bg-brand-gold/10 dark:bg-brand-gold-light/15 flex items-center justify-center">
+   611→                        <Trophy className="w-3.5 h-3.5 text-brand-gold dark:text-brand-gold-light" />
+   612→                      </div>
+   613→                      <h3 className="text-xs font-bold text-warm-700 dark:text-warm-200 uppercase tracking-wider">
+   614→                        Tournaments
+   615→                      </h3>
+   616→                      <span className="text-[10px] font-semibold text-warm-400 dark:text-warm-500 bg-warm-100 dark:bg-warm-800 px-1.5 py-0.5 rounded-full">
+   617→                        {results.tournaments.length}
+   618→                      </span>
+   619→                    </div>
+   620→                    <div className="space-y-1.5">
+   621→                      {results.tournaments.map((tournament, idx) => {
+   622→                        const statusStyle = getStatusStyle(tournament.status);
+   623→                        return (
+   624→                          <motion.button
+   625→                            key={tournament.id}
+   626→                            className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-warm-100/50 dark:bg-warm-800/50 hover:bg-warm-100 dark:hover:bg-warm-800 border border-transparent hover:border-warm-200 dark:hover:border-warm-700 transition-all text-left group"
+   627→                            initial={{ opacity: 0, y: 8 }}
+   628→                            animate={{ opacity: 1, y: 0 }}
+   629→                            transition={{ delay: idx * 0.03 }}
+   630→                            onClick={() => {
+   631→                              saveRecentSearch(query.trim());
+   632→                              if (onNavigateTournament) {
+   633→                                onNavigateTournament(tournament.id);
+   634→                              }
+   635→                              onClose();
+   636→                            }}
+   637→                          >
+   638→                            {/* Tournament icon */}
+   639→                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 dark:from-brand-gold-light/15 dark:to-brand-gold-light/5 border border-warm-200 dark:border-warm-700 flex items-center justify-center shrink-0">
+   640→                              <Trophy className="w-5 h-5 text-brand-gold dark:text-brand-gold-light" />
+   641→                            </div>
+   642→
+   643→                            {/* Info */}
+   644→                            <div className="flex-1 min-w-0">
+   645→                              <div className="flex items-center gap-1.5">
+   646→                                <span className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
+   647→                                  {tournament.name}
+   648→                                </span>
+   649→                              </div>
+   650→                              <div className="flex items-center gap-1.5 mt-0.5">
+   651→                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusStyle.bg} ${statusStyle.text}`}>
+   652→                                  {statusStyle.label}
+   653→                                </span>
+   654→                                <span className="text-[10px] text-warm-400 dark:text-warm-500">
+   655→                                  {getTypeLabel(tournament.type)}
+   656→                                </span>
+   657→                                {tournament.tournamentCode && (
+   658→                                  <>
+   659→                                    <span className="text-warm-300 dark:text-warm-600">·</span>
+   660→                                    <span className="search-highlight text-[10px] font-mono font-bold px-1 py-0.5 rounded">
+   661→                                      {tournament.tournamentCode}
+   662→                                    </span>
+   663→                                  </>
+   664→                                )}
+   665→                              </div>
+   666→                            </div>
+   667→
+   668→                            {/* Chevron */}
+   669→                            <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 group-hover:text-warm-500 dark:group-hover:text-warm-400 transition-colors shrink-0" />
+   670→                        </motion.button>
+   671→                        );
+   672→                      })}
+   673→                    </div>
+   674→                  </div>
+   675→                )}
+   676→              </div>
+   677→            )}
+   678→          </div>
+   679→        </motion.div>
+   680→      </motion.div>
+   681→    </AnimatePresence>
+   682→  );
+   683→}
+   684→

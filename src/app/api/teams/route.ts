@@ -22,10 +22,26 @@ async function generateTeamCode(): Promise<string> {
   return `KT${nextNum}`;
 }
 
+/**
+ * Auto-generate short name from team name (first letters of each word, max 3 chars)
+ */
+function generateShortName(name: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 3) {
+    return (words[0].charAt(0) + words[1].charAt(0) + words[2].charAt(0)).toUpperCase();
+  }
+  if (words.length === 2) {
+    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  }
+  return name.slice(0, 3).toUpperCase();
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
+    const userId = searchParams.get('userId') || '';
+    const filter = searchParams.get('filter') || 'all'; // 'my' or 'all'
     const limit = parseInt(searchParams.get('limit') || '20');
 
     const where: Record<string, unknown> = {};
@@ -33,13 +49,21 @@ export async function GET(request: NextRequest) {
       where.OR = [
         { name: { contains: search } },
         { teamCode: { contains: search, mode: 'insensitive' } },
+        { shortName: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    // Filter by user's teams if filter is 'my'
+    if (filter === 'my' && userId) {
+      where.members = {
+        some: { userId },
+      };
     }
 
     const teams = await db.team.findMany({
       where,
       take: limit,
-      include: { members: { include: { user: true } } },
+      include: { members: { include: { user: { include: { profile: true } } } } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -55,13 +79,52 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, shortName, color, logo, memberIds, captainId } = body;
 
+    // Validation
+    if (!name || typeof name !== 'string' || name.trim().length < 3) {
+      return NextResponse.json(
+        { error: 'Team name must be at least 3 characters' },
+        { status: 400 }
+      );
+    }
+    if (name.trim().length > 30) {
+      return NextResponse.json(
+        { error: 'Team name must be 30 characters or less' },
+        { status: 400 }
+      );
+    }
+
+    // Check free tier limit (1 team for free users)
+    if (captainId) {
+      const captainUser = await db.user.findUnique({
+        where: { id: captainId },
+        select: { isPremium: true },
+      });
+
+      if (captainUser && !captainUser.isPremium) {
+        const existingTeamCount = await db.teamMember.count({
+          where: { userId: captainId, isCaptain: true },
+        });
+        if (existingTeamCount >= 1) {
+          return NextResponse.json(
+            { error: 'Free users can create only 1 team. Upgrade to Premium for unlimited teams.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     // Auto-generate team code
     const teamCode = await generateTeamCode();
 
+    // Auto-generate short name if not provided
+    const finalShortName = shortName?.trim()
+      ? shortName.trim().slice(0, 3).toUpperCase()
+      : generateShortName(name);
+
     const team = await db.team.create({
       data: {
-        name,
-        shortName,
+        name: name.trim(),
+        shortName: finalShortName,
         teamCode,
         color: color || '#DC2626',
         logo,
@@ -78,7 +141,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ team }, { status: 201 });
+    // Return the team with members
+    const teamWithMembers = await db.team.findUnique({
+      where: { id: team.id },
+      include: { members: { include: { user: { include: { profile: true } } } } },
+    });
+
+    return NextResponse.json({ team: teamWithMembers }, { status: 201 });
   } catch (error) {
     console.error('Team create error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

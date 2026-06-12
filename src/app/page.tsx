@@ -20,6 +20,7 @@ const TossScreen = dynamic(() => import('@/components/kabaddi/TossScreen'), { ss
 const BottomNav = dynamic(() => import('@/components/kabaddi/BottomNav'), { ssr: false });
 const OfflineIndicator = dynamic(() => import('@/components/kabaddi/OfflineIndicator'), { ssr: false });
 const NotificationPanel = dynamic(() => import('@/components/kabaddi/NotificationPanel'), { ssr: false });
+const OnboardingWizard = dynamic(() => import('@/components/kabaddi/OnboardingWizard'), { ssr: false });
 
 // ─── Error Boundary Component ───────────────────────────────────────
 
@@ -223,7 +224,7 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss } =
+  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding } =
     useKabaddiStore();
 
   // Wait for Zustand persist to hydrate from localStorage
@@ -252,6 +253,11 @@ export default function Home() {
   // Show auth/onboarding if not authenticated
   if (!isAuthenticated || !isOnboarded) {
     return <AuthScreen />;
+  }
+
+  // Show onboarding wizard for first-time users
+  if (isAuthenticated && isOnboarded && !hasCompletedOnboarding) {
+    return <OnboardingWizard />;
   }
 
   // Show toss screen if a toss is in progress

@@ -5,16 +5,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const matchId = searchParams.get('matchId') || '';
+    const type = searchParams.get('type') || 'prediction';
 
-    const where: Record<string, unknown> = { status: 'active' };
+    const where: Record<string, unknown> = {};
     if (matchId) where.matchId = matchId;
+    if (type) where.type = type;
 
     const polls = await db.poll.findMany({
       where,
       include: {
         options: {
           include: {
-            team: { select: { id: true, name: true, shortName: true, logo: true } },
+            team: { select: { id: true, name: true, shortName: true, logo: true, color: true } },
             _count: { select: { votes: true } },
           },
         },
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
       include: {
         options: {
           include: {
-            team: { select: { id: true, name: true, shortName: true } },
+            team: { select: { id: true, name: true, shortName: true, color: true } },
             _count: { select: { votes: true } },
           },
         },

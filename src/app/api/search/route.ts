@@ -8,10 +8,10 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get('type')?.trim() || 'all';
 
     if (!q || q.length < 1) {
-      return NextResponse.json({ players: [], teams: [], tournaments: [] });
+      return NextResponse.json({ players: [], teams: [], tournaments: [], matches: [] });
     }
 
-    const filterType = ['all', 'players', 'teams', 'tournaments'].includes(type) ? type : 'all';
+    const filterType = ['all', 'players', 'teams', 'tournaments', 'matches'].includes(type) ? type : 'all';
     const results: {
       players: Array<{
         id: string;
@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
         avatar: string | null;
         position: string | null;
         teamNames: string[];
+        raidPoints: number;
+        tacklePoints: number;
       }>;
       teams: Array<{
         id: string;
@@ -27,6 +29,7 @@ export async function GET(req: NextRequest) {
         shortName: string | null;
         color: string | null;
         teamCode: string | null;
+        memberCount: number;
       }>;
       tournaments: Array<{
         id: string;
@@ -35,7 +38,20 @@ export async function GET(req: NextRequest) {
         status: string;
         tournamentCode: string | null;
       }>;
-    } = { players: [], teams: [], tournaments: [] };
+      matches: Array<{
+        id: string;
+        homeTeamName: string;
+        awayTeamName: string;
+        homeTeamColor: string | null;
+        awayTeamColor: string | null;
+        homeTeamShort: string | null;
+        awayTeamShort: string | null;
+        homeScore: number;
+        awayScore: number;
+        status: string;
+        date: string | null;
+      }>;
+    } = { players: [], teams: [], tournaments: [], matches: [] };
 
     // Search players (users)
     if (filterType === 'all' || filterType === 'players') {
@@ -43,7 +59,7 @@ export async function GET(req: NextRequest) {
         where: {
           OR: [
             { name: { contains: q } },
-            { playerCode: { contains: q, mode: 'insensitive' } },
+            { playerCode: { contains: q } },
           ],
         },
         select: {
@@ -51,7 +67,7 @@ export async function GET(req: NextRequest) {
           name: true,
           playerCode: true,
           avatar: true,
-          profile: { select: { position: true } },
+          profile: { select: { position: true, raidPoints: true, tacklePoints: true } },
           teams: {
             select: { team: { select: { name: true } } },
             take: 3,
@@ -67,6 +83,8 @@ export async function GET(req: NextRequest) {
         avatar: p.avatar,
         position: p.profile?.position ?? null,
         teamNames: p.teams.map((tm) => tm.team.name),
+        raidPoints: p.profile?.raidPoints ?? 0,
+        tacklePoints: p.profile?.tacklePoints ?? 0,
       }));
     }
 
@@ -76,8 +94,8 @@ export async function GET(req: NextRequest) {
         where: {
           OR: [
             { name: { contains: q } },
-            { shortName: { contains: q, mode: 'insensitive' } },
-            { teamCode: { contains: q, mode: 'insensitive' } },
+            { shortName: { contains: q } },
+            { teamCode: { contains: q } },
           ],
         },
         select: {
@@ -86,11 +104,19 @@ export async function GET(req: NextRequest) {
           shortName: true,
           color: true,
           teamCode: true,
+          _count: { select: { members: true } },
         },
         take: 20,
       });
 
-      results.teams = teams;
+      results.teams = teams.map((t) => ({
+        id: t.id,
+        name: t.name,
+        shortName: t.shortName,
+        color: t.color,
+        teamCode: t.teamCode,
+        memberCount: t._count.members,
+      }));
     }
 
     // Search tournaments
@@ -99,7 +125,7 @@ export async function GET(req: NextRequest) {
         where: {
           OR: [
             { name: { contains: q } },
-            { tournamentCode: { contains: q, mode: 'insensitive' } },
+            { tournamentCode: { contains: q } },
           ],
         },
         select: {
@@ -113,6 +139,48 @@ export async function GET(req: NextRequest) {
       });
 
       results.tournaments = tournaments;
+    }
+
+    // Search matches
+    if (filterType === 'all' || filterType === 'matches') {
+      const matches = await db.match.findMany({
+        where: {
+          OR: [
+            { homeTeam: { name: { contains: q } } },
+            { awayTeam: { name: { contains: q } } },
+            { homeTeam: { shortName: { contains: q } } },
+            { awayTeam: { shortName: { contains: q } } },
+          ],
+        },
+        select: {
+          id: true,
+          homeScore: true,
+          awayScore: true,
+          status: true,
+          startedAt: true,
+          createdAt: true,
+          homeTeam: { select: { name: true, shortName: true, color: true } },
+          awayTeam: { select: { name: true, shortName: true, color: true } },
+        },
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      results.matches = matches.map((m) => ({
+        id: m.id,
+        homeTeamName: m.homeTeam.name,
+        awayTeamName: m.awayTeam.name,
+        homeTeamColor: m.homeTeam.color,
+        awayTeamColor: m.awayTeam.color,
+        homeTeamShort: m.homeTeam.shortName,
+        awayTeamShort: m.awayTeam.shortName,
+        homeScore: m.homeScore,
+        awayScore: m.awayScore,
+        status: m.status,
+        date: m.startedAt
+          ? new Date(m.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      }));
     }
 
     return NextResponse.json(results);

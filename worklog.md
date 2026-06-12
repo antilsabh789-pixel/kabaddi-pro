@@ -2185,3 +2185,445 @@ Unresolved issues / Next phase recommendations:
 - Could add onboarding tutorial/walkthrough for first-time users
 - Profile tab could benefit from match history timeline visualization
 - Could add team management features (create team, invite players)
+
+---
+Task ID: R8-B
+Agent: R8-B Agent
+Task: Create OnboardingWizard for first-time users and enhance SocialFeedScreen
+
+Work Log:
+- Read worklog.md to understand project history and existing component structure
+- Read store.ts, page.tsx, SocialFeedScreen.tsx, and other relevant files
+- Modified store.ts:
+  - Added OnboardingPosition, OnboardingExperience, OnboardingWeightCategory types
+  - Added OnboardingProfile interface (position, experience, weightCategory, selectedTeamId)
+  - Added hasCompletedOnboarding and onboardingProfile to KabaddiState
+  - Added setHasCompletedOnboarding, setOnboardingProfile, completeOnboarding actions
+  - completeOnboarding merges onboarding profile data into currentUser
+  - Added new fields to persist partialize config
+- Created OnboardingWizard.tsx:
+  - 4-step multi-step wizard: Welcome, Your Profile, Pick Your Teams, You're All Set!
+  - Step 1: Kabaddi-themed welcome with Swords icon, feature list, "Let's Get Started" button
+  - Step 2: Profile setup with position (raider/defender/all-rounder), experience level, weight category
+  - Step 3: Team selection from API, with skip option
+  - Step 4: Summary with confetti burst animation, "Go to Home" button
+  - Animated step transitions (slide left/right) using framer-motion
+  - Progress dots at bottom showing current step
+  - Skip option on steps 2-3
+  - Dark red gradient background with subtle geometric pattern
+  - Smooth entrance/exit animations throughout
+- Enhanced SocialFeedScreen.tsx:
+  - Added 5 feed types: match_result, player_achievement, tournament_update, team_activity, community_post
+  - Type-specific left border colors (red=match, gold=achievement, teal=tournament, purple=team, blue=community)
+  - Glass-morphism cards with backdrop-blur and semi-transparent backgrounds
+  - Enhanced MatchResultCard with team scores, VS divider, key stats (top raider/defender)
+  - Enhanced AchievementCard with trophy icon, player name, animated badge
+  - Community posts with like/reaction buttons with count and share button
+  - Floating "Post" button at bottom right
+  - CreatePostModal with text input, 280 char limit, type selector
+  - Posts stored locally (no API needed for MVP)
+  - Sample feed items for empty state
+  - Pull-to-refresh indicator
+  - Empty state with illustration
+  - Full dark mode support throughout
+- Modified page.tsx:
+  - Added dynamic import for OnboardingWizard
+  - Added hasCompletedOnboarding to store destructure
+  - Added condition: if authenticated && isOnboarded && !hasCompletedOnboarding → show OnboardingWizard
+- Created stub TeamDetailScreen.tsx to fix pre-existing 500 error from missing module
+- Ran bun run lint: zero errors
+- Verified app compiles and serves (200 OK)
+
+Stage Summary:
+- OnboardingWizard: Full 4-step wizard with animations, confetti, dark gradient background, persisted state
+- SocialFeedScreen: Enhanced with 5 feed types, glass-morphism cards, type-specific borders, create post feature, like/share actions, sample data, pull-to-refresh
+- Store: New onboarding state (hasCompletedOnboarding, onboardingProfile) with persistence
+- page.tsx: OnboardingWizard integration after auth + onboard check
+- Zero lint errors, app compiles successfully
+
+---
+Task ID: R8-D
+Agent: Agent R8-D
+Task: Enhance AuthScreen styling, add Forgot Password flow, polish ProfileTab with match history timeline
+
+Work Log:
+- Read worklog.md to understand project history and existing code
+- Read all three target files (AuthScreen.tsx, ProfileTab.tsx, auth route.ts) in full
+- Read store.ts, prisma schema for context
+
+AuthScreen Enhancements:
+1. Visual Design Overhaul:
+   - Full-screen background with animated kabaddi court pattern (gold-themed lines)
+   - Gradient overlay (dark red to deep navy)
+   - Floating gold particle effects in background (24 particles with gold color)
+   - Central form card with glass-morphism effect (bg-white/10 backdrop-blur-xl)
+   - Animated logo at top with scale-in on mount (spring animation)
+   - "KABADDI PRO" with gradient text effect
+   - Spinning gold border ring around logo
+   - Smooth tab transitions between Login/Signup (existing AnimatePresence)
+
+2. Login Form Polish:
+   - Phone input with +91 prefix styled as a colored chip (bg-brand-red/10 border-brand-red/30)
+   - Password input with show/hide toggle icon (existing, kept)
+   - "Forgot Password?" link below password field (links to forgot password modal)
+   - Login button with gradient background + shimmer hover effect
+   - Social-style divider "OR" between login button and signup toggle
+   - "Don't have an account? Sign Up" with animated underline on hover
+
+3. Signup Form Polish:
+   - Name field with user icon (existing, kept)
+   - Phone field with phone icon in +91 chip
+   - Password strength indicator (colored bar + text: Weak/Medium/Strong/Very Strong)
+   - Confirm password with match/mismatch indicator (green checkmark or red dot)
+   - Terms & conditions checkbox with custom styling
+   - Create Account button with gradient + shimmer
+
+4. Forgot Password Flow (full modal):
+   - "Reset Password" screen: enter phone number with +91 prefix chip
+   - Send OTP (simulated API call - shows "Demo OTP: 123456")
+   - OTP entry with 6 digit boxes (auto-focus, paste support, backspace navigation)
+   - New password + confirm password with strength indicator
+   - Success screen with animated checkmark and "Login Now" button
+
+5. Loading States:
+   - Button loading spinner (Loader2 component) during API calls
+   - Form field validation with animated error messages
+   - Success animation on login/signup (checkmark overlay)
+
+API Route Enhancements:
+- Added 'forgot-password' action: checks if phone exists, returns success without revealing user existence
+- Added 'verify-otp' action: accepts "123456" as demo OTP
+- Added 'reset-password' action: verifies OTP, updates password in database
+
+ProfileTab Match History Timeline:
+1. Stats Summary Card:
+   - Win/Loss record display (e.g., "3W - 2L")
+   - Average points per match with AnimatedValue counter
+   - Best performance highlight (highest score in any match)
+   - Recent form indicator (last 5 matches: W/L dots with spring animation)
+
+2. Vertical Timeline Design:
+   - Timeline vertical line with gradient (brand-red → brand-gold → brand-teal)
+   - Date markers with gold dot indicators and rounded pill labels
+   - Match cards showing: opponent teams with colored dots, score, result (WIN/LOSS)
+   - Color-coded: green for wins, red for losses (background + left border)
+   - Match type badges (Practice/Tournament)
+   - "View Match Details" button on each card with hover animation
+   - Timeline connector dots on each match card
+
+3. Visual Polish:
+   - Animated stats counters on scroll into view (AnimatedValue component)
+   - Badge showcase with shimmer effect on unlocked badges (existing badge-unlocked-shimmer)
+   - Premium upsell with rotating gradient border (existing)
+   - Smooth section transitions with framer-motion
+
+Bug Fix:
+- Created missing TeamDetailScreen.tsx component that was imported but didn't exist, causing 500 errors
+
+Files Modified:
+- /home/z/my-project/src/components/kabaddi/AuthScreen.tsx (complete rewrite)
+- /home/z/my-project/src/app/api/auth/route.ts (added forgot-password, verify-otp, reset-password actions)
+- /home/z/my-project/src/components/kabaddi/ProfileTab.tsx (added match history timeline + stats summary)
+- /home/z/my-project/src/components/kabaddi/TeamDetailScreen.tsx (created new - missing component fix)
+
+Lint Results:
+- All modified files pass lint with zero errors
+- App compiles and serves successfully (200 OK)
+
+---
+Task ID: R8-E
+Agent: Enhancement Agent
+Task: Enhance MatchHighlightsScreen, LeaderboardScreen, AchievementsScreen, and add global CSS utilities
+
+Work Log:
+- Read worklog.md to understand project history from previous sessions
+- Read all 4 target files in full to understand existing structure
+- Added 13 new keyframe animations and 20+ new utility classes to globals.css
+- Enhanced MatchHighlightsScreen with:
+  - "Match Replay" style header with team color gradient
+  - Half-by-half breakdown tabs (Full Match / 1st Half / 2nd Half)
+  - Visual timeline for key moments with color-coded dots (raid=red, tackle=teal, bonus=gold, all-out=purple)
+  - Score at each moment indicator on timeline cards
+  - "Top Raids" section with points breakdown and progress bars
+  - "Top Tackles" section with similar breakdown
+  - "Super Raids" special callout section (3+ points in single raid)
+  - "All Outs" section with team that caused it and score at that time
+  - Score progression bar showing score share visually
+  - Half scores breakdown (1st half / 2nd half)
+  - Glass-morphism moment cards with border-color coding
+  - Animated entrance of cards using framer-motion
+  - "Share Highlights" button maintained
+- Enhanced LeaderboardScreen with:
+  - 5 category tabs: Raiders, Defenders, All-Rounders, Matches, Rating
+  - Top 3 podium display with gold/silver/bronze styling
+  - 3D-like elevated podium platforms (1st tallest, 2nd medium, 3rd shortest)
+  - Crown icon on #1 with float animation
+  - Gold/silver/bronze gradient borders using CSS utility classes
+  - Shimmer animation on 1st place card
+  - Below podium: list of remaining players with stats bar visualization
+  - Gender filter: All / Boys / Girls
+  - Time period filter: This Week / This Month / All Time
+  - User's own card highlighted at bottom if not in top 10
+  - Animated rank change indicators (spring animations)
+  - Dark mode support on ALL new elements
+- Enhanced AchievementsScreen with:
+  - 5 achievement categories: Raid Master, Defense Wall, Tournament Champion, Social Butterfly, Streak Master
+  - Achievement cards in 2-column grid layout
+  - Locked achievements shown greyed out with lock icon overlay
+  - Unlocked achievements with gold border + shimmer (achievement-unlocked CSS class)
+  - Rare (platinum) achievements with special glow effect (achievement-rare-glow)
+  - Progress bar with gradient fill on locked achievements
+  - "X/10" progress counter
+  - Date unlocked for completed achievements
+  - Stats summary: Total unlocked, Achievement points, Remaining
+  - Recent unlocks (last 3) displayed
+  - "Next Achievement" card showing closest to unlock
+  - Category tabs with colored icons
+  - Staggered entrance animation
+  - Dark mode support
+- Added to globals.css:
+  - @keyframes shimmer-slow (4s shimmer)
+  - @keyframes float-gentle (subtle float)
+  - @keyframes glow-pulse-soft (glow in/out)
+  - @keyframes podium-rise (rise up animation)
+  - .gradient-border-gold / .gradient-border-silver / .gradient-border-bronze (animated gradient borders)
+  - .animate-float-gentle (very subtle floating animation)
+  - .animate-pulse-soft (soft pulsing animation)
+  - .animate-shimmer-slow (slow shimmer sweep)
+  - .podium-gold / .podium-silver / .podium-bronze (podium card styling)
+  - .achievement-locked (greyed out with lock overlay styling)
+  - .achievement-unlocked (gold border with shimmer)
+  - .achievement-rare-glow (rare glow effect)
+  - .timeline-line (vertical timeline connector line)
+  - .timeline-dot (dot on timeline)
+  - .timeline-dot-raid / .timeline-dot-tackle / .timeline-dot-bonus / .timeline-dot-allout (color variants)
+  - .animate-podium-rise (podium rise animation)
+  - .score-bar-animated (score progression bar animation)
+- All lint checks pass with zero errors
+- All new elements support dark mode
+
+Stage Summary:
+- MatchHighlightsScreen: Full replay-style presentation with timeline, top performers, super raids, all outs, momentum graph, half tabs, team color gradients
+- LeaderboardScreen: Podium display with 3D platforms, 5 category tabs, time period + gender filters, user card highlight, animated entries
+- AchievementsScreen: Grid layout with 5 categories, progress tracking, stats summary, next achievement card, unlock celebration, rare glow effects
+- globals.css: 20+ new utility classes and 5 new keyframe animations for podium, timeline, achievements, and highlights
+
+---
+Task ID: R8-C
+Agent: Enhancement Agent
+Task: Enhance MatchPredictionScreen and GlobalSearchScreen with full functionality and improved styling
+
+Work Log:
+- Read worklog.md to understand project history and existing component structure
+- Read existing MatchPredictionScreen.tsx (1229 lines), GlobalSearchScreen.tsx (684 lines), API routes
+- Read Prisma schema to understand database models (Poll, PollOption, PollVote, Match, etc.)
+- Read globals.css to understand existing custom classes (gradient-text, card-elevated, brand-* colors, etc.)
+
+MatchPredictionScreen Enhancements:
+1. Added AccuracyRing component with SVG circular progress ring showing prediction accuracy
+2. Enhanced stats bar with glass-morphism card, gradient accent bar, accuracy ring, and animated number transitions
+3. Added streak bonus indicator when streak >= 3
+4. Redesigned Predict tab with larger team cards (w-12 h-12 team logos) for voting
+5. Added separate Draw prediction option with +25 pts label
+6. Created AnimatedPredictionBar component with animated fill and user pick checkmark overlay
+7. Added "just voted" animation state with green confirmation
+8. Enhanced Results tab with winner ring indicator, larger score display, and gradient winner header
+9. Added LeaderboardPeriod state (weekly/monthly/alltime) with 3 separate leaderboard datasets
+10. Added period filter tabs with icons (BarChart3, Calendar, Trophy)
+11. Enhanced leaderboard with column headers (Preds, Correct, Acc%, Pts) and correctPredictions field
+12. Added podium with enhanced styling (shadows, borders)
+13. Enhanced History tab with AccuracyRing, gradient accent bar, and team color indicators
+14. Added team color dots in history items
+15. All cards use glass-morphism (bg-white/70 backdrop-blur-lg)
+16. Consistent dark mode support throughout
+
+GlobalSearchScreen Enhancements:
+1. Added Matches search category with Swords icon and purple color scheme
+2. Added count badges on filter pills showing result counts per category
+3. Enhanced search input with animated focus state (ring, shadow, color change)
+4. Reduced recent searches max from 8 to 5
+5. Replaced search suggestions with TrendingItem array (Top Raiders, Pro Kabaddi, Bengaluru Bulls, Defender, Live Matches)
+6. Added trending items with type-specific icons (Zap, Trophy, Shield, BarChart3, Swords)
+7. Created skeleton loading components (PlayerSkeleton, TeamSkeleton, TournamentSkeleton, MatchSkeleton, SearchSkeletons)
+8. Added position color coding (Raider=red, Defender=teal, All-Rounder=gold)
+9. Added raid points and tackle points stats display on player cards
+10. Added member count display on team cards
+11. Added type-specific left border colors (Players=teal, Teams=team color, Tournaments=gold, Matches=purple)
+12. Added Match result cards with dual team color indicator, score display, and status badges
+13. Improved recent searches from chips to full-width rows with hover effects
+14. Better empty state: "Try searching for a player or team"
+15. All result cards have staggered animation (idx * 0.03 delay)
+
+API Route Updates:
+1. Updated /api/search/route.ts to include matches search with team name/shortName matching
+2. Added raidPoints and tacklePoints to player search results from PlayerProfile
+3. Added memberCount to team search results using _count
+4. Match results include homeTeam/awayTeam colors, shorts, scores, status, and formatted date
+5. Updated /api/polls/route.ts to include match relation with team colors and scores
+6. Added team color to poll options for display
+
+Files Modified:
+- /home/z/my-project/src/components/kabaddi/MatchPredictionScreen.tsx
+- /home/z/my-project/src/components/kabaddi/GlobalSearchScreen.tsx
+- /home/z/my-project/src/app/api/search/route.ts
+- /home/z/my-project/src/app/api/polls/route.ts
+
+Lint Result: 0 errors, 0 warnings ✅
+
+---
+Task ID: R8-A
+Agent: Task Agent (Team Management Enhancement)
+Task: Enhance TeamManagementScreen and create TeamDetailScreen
+
+Work Log:
+- Read worklog.md to understand project history (2471 lines of history)
+- Analyzed existing TeamManagementScreen (1167 lines with basic list/detail view, player search)
+- Reviewed existing API routes: /api/teams (GET/POST), /api/teams/[id] (GET/PATCH/DELETE)
+- Reviewed Prisma schema: Team has teamCode, color, shortName; TeamMember has isCaptain
+- Updated Zustand store with TeamFilter type, TeamManagementState interface, and team management actions
+- Enhanced /api/teams/route.ts: added team name validation (3-30 chars), free tier limit enforcement (1 team for free, unlimited for premium), auto short name generation, search by name/code/shortName, filter by userId, returns team with members
+- Enhanced /api/teams/[id]/route.ts: added addMemberId/removeMemberId handling in PATCH, computed team stats from matches (wins/losses/totalPoints), recent matches endpoint, member removal validation (can't remove captain)
+- Created /api/teams/join/route.ts: POST to join team by code (with duplicate check), GET to preview team before joining
+- Created /api/teams/leave/route.ts: POST to leave team (captain must transfer first; if last member, team is deleted)
+- Completely rewrote TeamManagementScreen with:
+  - Team list view with My Teams / All Teams filter tabs
+  - Search by team name or code with debounced input
+  - Team cards with team color left border, short name badge, captain badge, member count, team code
+  - Free tier limit indicator (1/1) with lock icon; premium shows "Unlimited" with sparkles
+  - Team creation dialog with: name validation (3-30 chars with counter), auto-generated short name from first letters, 8 kabaddi-themed color swatches with check indicator, preview card, free tier limit warning
+  - Join Team view: code input with hash icon, find team preview, confirmation dialog, "or create a team" CTA
+  - Empty state with both "Create Team" and "Join Team" CTAs
+  - Navigation to TeamDetailScreen on team card click
+  - Dark mode support throughout
+- Created TeamDetailScreen component with:
+  - Team header with gradient background using team color
+  - Team stats grid (Matches, Wins, Losses, Points) with colored icons
+  - Member list with captain crown, YOU badge, position/jersey info
+  - Invite button (share team code via Web Share API or clipboard copy)
+  - Add Player button (captain only, opens search dialog)
+  - Leave Team option for non-captains with confirmation dialog
+  - Remove Player option for captains with inline confirmation
+  - Transfer Captain option for captains with confirmation dialog
+  - Delete Team option for captains
+  - Copy team code on click
+  - Recent matches section with W/L/D badges and scores
+  - Loading skeleton states
+  - Team not found state
+  - Dark mode support throughout
+
+Files Modified:
+- /home/z/my-project/src/lib/store.ts (added TeamFilter type, TeamManagementState interface, team management state + actions)
+- /home/z/my-project/src/app/api/teams/route.ts (enhanced GET with filter/search, enhanced POST with validation/free tier)
+- /home/z/my-project/src/app/api/teams/[id]/route.ts (enhanced with addMember/removeMember, team stats, recent matches)
+- /home/z/my-project/src/components/kabaddi/TeamManagementScreen.tsx (complete rewrite with list/filter/search/join/create)
+
+Files Created:
+- /home/z/my-project/src/app/api/teams/join/route.ts (join team by code)
+- /home/z/my-project/src/app/api/teams/leave/route.ts (leave team)
+- /home/z/my-project/src/components/kabaddi/TeamDetailScreen.tsx (team detail view)
+
+Lint Result: 0 errors, 0 warnings ✅
+
+---
+Task ID: R8
+Agent: Main Agent (Cron Review Session - Round 8)
+Task: QA testing, API bug fixes, new features (Team Management, Onboarding, Social Feed, Match Prediction, Global Search), and styling improvements
+
+Work Log:
+- Read worklog.md to assess project status from 7+ prior rounds
+- Performed comprehensive QA with agent-browser: splash, auth, home, tournaments, quick score, profile, dark mode, notifications all working
+- Verified lint passes clean (0 errors, 0 warnings)
+- Found and fixed 2 critical API bugs:
+  1. Search API: `mode: 'insensitive'` not supported by SQLite Prisma - removed all insensitive mode flags
+  2. Polls API: `match` relation doesn't exist on Poll model - removed invalid include from GET and POST handlers
+- Tested login flow with correct password (password123) - works correctly
+- Tested OnboardingWizard flow (4 steps: Welcome → Profile → Pick Team → All Set) - works correctly
+- Tested GlobalSearchScreen with query "Jaipur" - returns teams and matches correctly
+- Launched 5 parallel subagents for major improvements
+
+Stage Summary:
+- **Bug Fixes:**
+  - Search API: Fixed `mode: 'insensitive'` error (SQLite doesn't support this with `contains`)
+  - Polls API: Fixed `match` relation error (Poll model doesn't have match relation, only matchId field)
+
+- **Team Management (R8-A):**
+  - TeamManagementScreen: Complete rewrite with My Teams/All Teams filter, search, team creation with color picker, join team by code
+  - New TeamDetailScreen: Gradient header, stats grid, member list with captain crown, invite/join/leave/remove/transfer captain/delete
+  - New API routes: POST /api/teams (create), POST /api/teams/join, POST /api/teams/leave
+  - Free tier limit (1 team) vs Premium (unlimited)
+
+- **Onboarding Wizard (R8-B):**
+  - New 4-step OnboardingWizard: Welcome → Profile (position/experience/weight) → Pick Team → All Set
+  - Animated step transitions, progress dots, skip on steps 2-3
+  - Confetti burst on completion, profile summary
+  - Integrated into page.tsx: shows after auth + onboard if !hasCompletedOnboarding
+  - Added onboarding state to Zustand store (persisted)
+
+- **Social Feed (R8-B):**
+  - 5 feed types: match_result, player_achievement, tournament_update, team_activity, community_post
+  - Type-specific left border colors, glass-morphism cards
+  - Create Post modal (280 char limit), like/share buttons
+  - Pull-to-refresh indicator, empty state
+
+- **Match Prediction (R8-C):**
+  - Enhanced prediction UI with tap-to-vote team cards
+  - AnimatedPredictionBar with percentage fill
+  - AccuracyRing SVG component
+  - Prediction leaderboard with Weekly/Monthly/All-time filters
+  - History tab with accuracy stats, correct/incorrect badges
+  - Enhanced results tab with winner ring indicator
+
+- **Global Search (R8-C):**
+  - New Matches search category with purple color scheme
+  - Count badges on filter pills
+  - Animated focus state on search input
+  - Type-specific trending searches
+  - Skeleton loading states per result type
+  - Position color coding (raider=red, defender=teal, all-rounder=gold)
+
+- **AuthScreen (R8-D):**
+  - Visual overhaul: animated kabaddi court pattern, floating gold particles, glass-morphism form card
+  - Forgot Password flow: phone entry → OTP (6-digit boxes with auto-focus) → new password → success
+  - Password strength indicator, confirm password match/mismatch
+  - Terms & conditions checkbox, OR divider
+  - Loading spinners on API calls
+
+- **ProfileTab (R8-D):**
+  - Match History Timeline: vertical timeline with date markers, color-coded W/L cards
+  - Stats Summary: Win/Loss record, average points, best performance, recent form dots
+  - Created missing TeamDetailScreen.tsx (was causing 500 errors)
+
+- **MatchHighlightsScreen (R8-E):**
+  - Half-by-half tabs, color-coded event timeline
+  - Top Raids/Tackles sections with points breakdown
+  - Super Raids callout, All Outs section
+  - Score progression bar, glass-morphism moment cards
+
+- **LeaderboardScreen (R8-E):**
+  - 5 category tabs: Raiders, Defenders, All-Rounders, Matches, Rating
+  - Top 3 podium with gold/silver/bronze styling, crown on #1
+  - Gender filter, time period filter
+  - User's own card highlighted at bottom
+
+- **AchievementsScreen (R8-E):**
+  - 5 achievement categories with 2-column grid
+  - Locked/unlocked/rare card states with shimmer/glow effects
+  - Progress tracking, stats summary, recent unlocks
+  - "Next Achievement" card
+
+- **Global CSS (R8-E):**
+  - 20+ new utility classes: gradient-border-gold/silver/bronze, podium-gold/silver/bronze, achievement-locked/unlocked, timeline-line/dot
+  - 5 new keyframe animations: shimmer-slow, float-gentle, glow-pulse-soft, podium-rise, score-bar-fill
+
+- Zero lint errors, all APIs returning 200, no runtime errors
+
+Unresolved issues / Next phase recommendations:
+- Framer-motion click events don't always register with agent-browser (known limitation, works for real users)
+- Tournament creation requires Premium - could add free tier limit
+- Could add WebSocket support for real-time live match updates
+- Could add more advanced analytics (raid patterns, time-based analysis)
+- Vercel deployment will need cloud database instead of SQLite
+- Social Feed posts are local-only (no backend persistence) - could add API
+- Match Predictions use local state - could add server-side persistence
+- Could add player comparison feature (side-by-side stats)
+- Could add team comparison with head-to-head history

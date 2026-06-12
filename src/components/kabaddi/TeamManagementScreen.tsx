@@ -10,8 +10,12 @@ import {
   Crown,
   Shield,
   ChevronLeft,
-  Edit3,
-  Trash2,
+  ChevronRight,
+  Hash,
+  LogIn,
+  Check,
+  Sparkles,
+  Lock,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,8 +29,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { useKabaddiStore } from '@/lib/store';
+import { useKabaddiStore, type TeamFilter } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
+import TeamDetailScreen from './TeamDetailScreen';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -38,6 +43,7 @@ interface TeamMemberUser {
   profile?: {
     position?: string | null;
     overallRating?: number;
+    jerseyNumber?: number;
   } | null;
 }
 
@@ -53,6 +59,7 @@ interface TeamData {
   id: string;
   name: string;
   shortName: string | null;
+  teamCode: string | null;
   color: string | null;
   logo: string | null;
   createdAt: string;
@@ -71,11 +78,14 @@ interface PlayerSearchResult {
   } | null;
 }
 
-interface TeamStats {
-  totalMatches: number;
-  wins: number;
-  losses: number;
-  totalPoints: number;
+interface JoinPreviewTeam {
+  id: string;
+  name: string;
+  shortName: string | null;
+  color: string | null;
+  teamCode: string | null;
+  memberCount: number;
+  captainName: string;
 }
 
 interface TeamManagementScreenProps {
@@ -84,10 +94,18 @@ interface TeamManagementScreenProps {
 
 // ─── Constants ────────────────────────────────────────────────────
 
-const TEAM_COLORS = [
-  '#DC2626', '#1E293B', '#14B8A6', '#475569', '#9333EA',
-  '#F97316', '#06B6D4', '#EC4899', '#84CC16', '#6366F1',
+const KABADDI_COLORS = [
+  { value: '#DC2626', label: 'Red' },
+  { value: '#1E40AF', label: 'Blue' },
+  { value: '#16A34A', label: 'Green' },
+  { value: '#EA580C', label: 'Orange' },
+  { value: '#9333EA', label: 'Purple' },
+  { value: '#0D9488', label: 'Teal' },
+  { value: '#CA8A04', label: 'Gold' },
+  { value: '#1E293B', label: 'Navy' },
 ];
+
+const TEAM_COLORS = KABADDI_COLORS.map((c) => c.value);
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -102,6 +120,17 @@ function getDisplayName(name: string | null | undefined): string {
   return name?.trim() || 'Unnamed Player';
 }
 
+function generateShortName(name: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 3) {
+    return (words[0].charAt(0) + words[1].charAt(0) + words[2].charAt(0)).toUpperCase();
+  }
+  if (words.length === 2) {
+    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  }
+  return name.slice(0, 3).toUpperCase();
+}
+
 // ─── Component ────────────────────────────────────────────────────
 
 export default function TeamManagementScreen({ onClose }: TeamManagementScreenProps) {
@@ -109,19 +138,14 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
   const { toast } = useToast();
 
   // View state
-  const [view, setView] = useState<'list' | 'detail'>('list');
+  const [view, setView] = useState<'list' | 'detail' | 'join'>('list');
   const [teams, setTeams] = useState<TeamData[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<TeamData | null>(null);
-  const [teamStats, setTeamStats] = useState<TeamStats>({
-    totalMatches: 0,
-    wins: 0,
-    losses: 0,
-    totalPoints: 0,
-  });
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>('my');
+  const [teamSearch, setTeamSearch] = useState('');
 
   // Loading states
   const [teamsLoading, setTeamsLoading] = useState(true);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Create Team Dialog
@@ -129,6 +153,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamShortName, setNewTeamShortName] = useState('');
   const [newTeamColor, setNewTeamColor] = useState(TEAM_COLORS[0]);
+  const [shortNameManuallySet, setShortNameManuallySet] = useState(false);
 
   // Search Players Dialog
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
@@ -136,23 +161,34 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
   const [searchResults, setSearchResults] = useState<PlayerSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  // Delete confirmation
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  // Join Team
+  const [joinCode, setJoinCode] = useState('');
+  const [joinPreview, setJoinPreview] = useState<JoinPreviewTeam | null>(null);
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [joinPreviewLoading, setJoinPreviewLoading] = useState(false);
+  const [joinConfirmOpen, setJoinConfirmOpen] = useState(false);
 
-  // ─── Fetch teams for current user ─────────────────────────────
+  // Count user's teams
+  const myTeamCount = teams.filter((t) =>
+    t.members.some((m) => m.userId === currentUser?.id)
+  ).length;
+  const isFreeUser = !currentUser?.isPremium;
+
+  // ─── Fetch teams ─────────────────────────────────────────────
 
   const fetchTeams = useCallback(async () => {
     if (!currentUser) return;
     setTeamsLoading(true);
     try {
-      const res = await fetch('/api/teams');
+      const params = new URLSearchParams();
+      if (teamSearch) params.set('search', teamSearch);
+      if (teamFilter === 'my') params.set('userId', currentUser.id);
+      params.set('filter', teamFilter);
+
+      const res = await fetch(`/api/teams?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch teams');
       const data = await res.json();
-      // Filter teams where the current user is a member
-      const userTeams: TeamData[] = (data.teams || []).filter((team: TeamData) =>
-        team.members.some((m: TeamMemberEntry) => m.userId === currentUser.id)
-      );
-      setTeams(userTeams);
+      setTeams(data.teams || []);
     } catch (err) {
       console.error('Fetch teams error:', err);
       toast({
@@ -163,42 +199,19 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
     } finally {
       setTeamsLoading(false);
     }
-  }, [currentUser, toast]);
+  }, [currentUser, teamFilter, teamSearch, toast]);
 
   useEffect(() => {
     fetchTeams();
   }, [fetchTeams]);
 
-  // ─── Fetch team detail ────────────────────────────────────────
+  // ─── Auto-generate short name ──────────────────────────────
 
-  const fetchTeamDetail = useCallback(async (teamId: string) => {
-    setDetailLoading(true);
-    try {
-      const res = await fetch(`/api/teams/${teamId}`);
-      if (!res.ok) throw new Error('Failed to fetch team detail');
-      const data = await res.json();
-      setSelectedTeam(data.team);
-
-      // Compute stats from matches (we'll approximate from what's available)
-      // Since there's no dedicated stats endpoint per team, we set defaults
-      // A real implementation would call a stats endpoint
-      setTeamStats({
-        totalMatches: 0,
-        wins: 0,
-        losses: 0,
-        totalPoints: 0,
-      });
-    } catch (err) {
-      console.error('Fetch team detail error:', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to load team details',
-        variant: 'destructive',
-      });
-    } finally {
-      setDetailLoading(false);
+  useEffect(() => {
+    if (!shortNameManuallySet && newTeamName) {
+      setNewTeamShortName(generateShortName(newTeamName));
     }
-  }, [toast]);
+  }, [newTeamName, shortNameManuallySet]);
 
   // ─── Search players ──────────────────────────────────────────
 
@@ -234,6 +247,22 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
 
   const handleCreateTeam = async () => {
     if (!currentUser || !newTeamName.trim()) return;
+    if (newTeamName.trim().length < 3) {
+      toast({
+        title: 'Validation Error',
+        description: 'Team name must be at least 3 characters',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (isFreeUser && myTeamCount >= 1) {
+      toast({
+        title: 'Team Limit Reached',
+        description: 'Free users can create only 1 team. Upgrade to Premium for unlimited teams.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActionLoading(true);
     try {
       const res = await fetch('/api/teams', {
@@ -247,7 +276,11 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
           captainId: currentUser.id,
         }),
       });
-      if (!res.ok) throw new Error('Failed to create team');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to create team');
+      }
+      const data = await res.json();
       toast({
         title: 'Team Created!',
         description: `${newTeamName.trim()} has been created successfully.`,
@@ -256,12 +289,19 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
       setNewTeamName('');
       setNewTeamShortName('');
       setNewTeamColor(TEAM_COLORS[0]);
+      setShortNameManuallySet(false);
       fetchTeams();
+      // Auto-navigate to new team detail
+      if (data.team) {
+        setSelectedTeam(data.team);
+        setView('detail');
+      }
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create team';
       console.error('Create team error:', err);
       toast({
         title: 'Error',
-        description: 'Failed to create team',
+        description: message,
         variant: 'destructive',
       });
     } finally {
@@ -275,9 +315,6 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
     if (!selectedTeam) return;
     setActionLoading(true);
     try {
-      // Add member via PATCH — we need to create a TeamMember
-      // The API doesn't have a direct add-member endpoint,
-      // so we'll use the teams API to create a new member entry
       const res = await fetch(`/api/teams/${selectedTeam.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -293,7 +330,13 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
       setSearchDialogOpen(false);
       setSearchQuery('');
       setSearchResults([]);
-      fetchTeamDetail(selectedTeam.id);
+      // Refresh team detail
+      const detailRes = await fetch(`/api/teams/${selectedTeam.id}`);
+      if (detailRes.ok) {
+        const detailData = await detailRes.json();
+        setSelectedTeam(detailData.team);
+      }
+      fetchTeams();
     } catch (err) {
       console.error('Add player error:', err);
       toast({
@@ -306,91 +349,67 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
     }
   };
 
-  // ─── Remove player from team ─────────────────────────────────
+  // ─── Join team by code ────────────────────────────────────────
 
-  const handleRemovePlayer = async (memberId: string, playerName: string) => {
-    if (!selectedTeam) return;
-    setActionLoading(true);
+  const handleJoinPreview = async () => {
+    if (!joinCode.trim()) return;
+    setJoinPreviewLoading(true);
     try {
-      const res = await fetch(`/api/teams/${selectedTeam.id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/teams/join?code=${encodeURIComponent(joinCode.trim())}`);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Team not found');
+      }
+      const data = await res.json();
+      setJoinPreview(data.team);
+      setJoinConfirmOpen(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Team not found';
+      toast({
+        title: 'Team Not Found',
+        description: message,
+        variant: 'destructive',
+      });
+      setJoinPreview(null);
+    } finally {
+      setJoinPreviewLoading(false);
+    }
+  };
+
+  const handleJoinTeam = async () => {
+    if (!currentUser || !joinPreview) return;
+    setJoinLoading(true);
+    try {
+      const res = await fetch('/api/teams/join', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          removeMemberId: memberId,
+          teamCode: joinPreview.teamCode,
+          userId: currentUser.id,
         }),
       });
-      if (!res.ok) throw new Error('Failed to remove player');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to join team');
+      }
       toast({
-        title: 'Player Removed',
-        description: `${playerName} has been removed from the team.`,
+        title: 'Team Joined!',
+        description: `You've joined ${joinPreview.name}.`,
       });
-      setDeleteConfirmId(null);
-      fetchTeamDetail(selectedTeam.id);
-    } catch (err) {
-      console.error('Remove player error:', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to remove player',
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // ─── Set captain ─────────────────────────────────────────────
-
-  const handleSetCaptain = async (userId: string, playerName: string) => {
-    if (!selectedTeam) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/teams/${selectedTeam.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ captainId: userId }),
-      });
-      if (!res.ok) throw new Error('Failed to set captain');
-      toast({
-        title: 'Captain Updated',
-        description: `${playerName} is now the captain.`,
-      });
-      fetchTeamDetail(selectedTeam.id);
-    } catch (err) {
-      console.error('Set captain error:', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to set captain',
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // ─── Delete team ─────────────────────────────────────────────
-
-  const handleDeleteTeam = async () => {
-    if (!selectedTeam) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/teams/${selectedTeam.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete team');
-      toast({
-        title: 'Team Deleted',
-        description: `${selectedTeam.name} has been deleted.`,
-      });
-      setSelectedTeam(null);
+      setJoinConfirmOpen(false);
+      setJoinCode('');
+      setJoinPreview(null);
       setView('list');
       fetchTeams();
     } catch (err) {
-      console.error('Delete team error:', err);
+      const message = err instanceof Error ? err.message : 'Failed to join team';
       toast({
         title: 'Error',
-        description: 'Failed to delete team',
+        description: message,
         variant: 'destructive',
       });
     } finally {
-      setActionLoading(false);
+      setJoinLoading(false);
     }
   };
 
@@ -399,12 +418,12 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
   const openTeamDetail = (team: TeamData) => {
     setSelectedTeam(team);
     setView('detail');
-    fetchTeamDetail(team.id);
   };
 
   const goBackToList = () => {
     setView('list');
     setSelectedTeam(null);
+    fetchTeams();
   };
 
   // ─── Get captain name for a team ─────────────────────────────
@@ -421,6 +440,28 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
     return selectedTeam.members.some((m) => m.userId === playerId);
   };
 
+  // ─── Handle team detail back/closes ─────────────────────────
+
+  const handleDetailBack = () => {
+    goBackToList();
+  };
+
+  const handleDetailClose = () => {
+    onClose();
+  };
+
+  // ─── If viewing team detail, show TeamDetailScreen ────────────
+
+  if (view === 'detail' && selectedTeam) {
+    return (
+      <TeamDetailScreen
+        teamId={selectedTeam.id}
+        onBack={handleDetailBack}
+        onClose={handleDetailClose}
+      />
+    );
+  }
+
   // ─── Render ──────────────────────────────────────────────────
 
   return (
@@ -428,16 +469,16 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-warm-50 flex flex-col"
+      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-800 flex flex-col"
     >
       {/* ═══ Header ═══ */}
-      <header className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
+      <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-800/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {view === 'detail' ? (
+            {view === 'join' ? (
               <button
-                onClick={goBackToList}
-                className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600 hover:bg-warm-300 transition-colors"
+                onClick={() => { setView('list'); setJoinPreview(null); setJoinCode(''); }}
+                className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 dark:hover:bg-warm-600 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -446,38 +487,90 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                 <Shield className="w-4 h-4 text-white" />
               </div>
             )}
-            <h1 className="text-base font-black tracking-wider text-warm-800">
-              {view === 'detail' && selectedTeam
-                ? selectedTeam.name.toUpperCase()
-                : 'MY TEAMS'}
+            <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">
+              {view === 'join' ? 'JOIN TEAM' : 'TEAMS'}
             </h1>
           </div>
           <div className="flex items-center gap-2">
             {view === 'list' && (
-              <button
-                onClick={() => setCreateDialogOpen(true)}
-                className="w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white hover:bg-brand-red-dark transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
-            {view === 'detail' && selectedTeam && (
-              <button
-                onClick={handleDeleteTeam}
-                disabled={actionLoading}
-                className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-500 hover:bg-red-100 hover:text-brand-red transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <>
+                <button
+                  onClick={() => setView('join')}
+                  className="w-8 h-8 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal hover:bg-brand-teal/20 transition-colors"
+                  title="Join Team"
+                >
+                  <LogIn className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCreateDialogOpen(true)}
+                  className="w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white hover:bg-brand-red-dark transition-colors"
+                  title="Create Team"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600 hover:bg-warm-300 transition-colors"
+              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 dark:hover:bg-warm-600 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
+
+        {/* Filter tabs & search (only on list view) */}
+        {view === 'list' && (
+          <div className="px-4 pb-3 space-y-3">
+            {/* Filter Tabs */}
+            <div className="flex gap-2">
+              {(['my', 'all'] as TeamFilter[]).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setTeamFilter(filter)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${
+                    teamFilter === filter
+                      ? 'bg-brand-red text-white shadow-md'
+                      : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-600'
+                  }`}
+                >
+                  {filter === 'my' ? 'My Teams' : 'All Teams'}
+                </button>
+              ))}
+              {isFreeUser && (
+                <div className="ml-auto flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400">
+                  <Lock className="w-3 h-3" />
+                  {myTeamCount}/1
+                </div>
+              )}
+              {!isFreeUser && (
+                <div className="ml-auto flex items-center gap-1 text-xs text-brand-teal">
+                  <Sparkles className="w-3 h-3" />
+                  Unlimited
+                </div>
+              )}
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+              <Input
+                placeholder="Search by name or code..."
+                value={teamSearch}
+                onChange={(e) => setTeamSearch(e.target.value)}
+                className="pl-9 h-9 bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 text-sm"
+              />
+              {teamSearch && (
+                <button
+                  onClick={() => setTeamSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ═══ Content ═══ */}
@@ -498,395 +591,280 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                   {[1, 2, 3].map((i) => (
                     <div
                       key={i}
-                      className="h-24 rounded-2xl bg-warm-100 animate-pulse"
+                      className="h-24 rounded-2xl bg-warm-100 dark:bg-warm-700 animate-pulse"
                     />
                   ))}
                 </div>
               ) : teams.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16">
-                  <div className="w-16 h-16 rounded-full bg-warm-200 flex items-center justify-center mb-4">
-                    <Users className="w-8 h-8 text-warm-400" />
-                  </div>
-                  <p className="text-warm-700 font-bold text-lg">No Teams Yet</p>
-                  <p className="text-warm-400 text-sm mt-1 text-center max-w-[240px]">
-                    Create your first team and start playing Kabaddi!
-                  </p>
-                  <Button
-                    onClick={() => setCreateDialogOpen(true)}
-                    className="mt-4 bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold"
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                    className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-red/10 to-brand-teal/10 flex items-center justify-center mb-4"
                   >
-                    <Plus className="w-4 h-4 mr-1.5" />
-                    Create Team
-                  </Button>
+                    <Users className="w-10 h-10 text-brand-red/50" />
+                  </motion.div>
+                  <p className="text-warm-700 dark:text-warm-200 font-bold text-lg">
+                    {teamSearch ? 'No Teams Found' : 'No Teams Yet'}
+                  </p>
+                  <p className="text-warm-400 dark:text-warm-500 text-sm mt-1 text-center max-w-[260px]">
+                    {teamSearch
+                      ? 'Try a different search term'
+                      : 'Create your first team and start playing Kabaddi!'}
+                  </p>
+                  {!teamSearch && (
+                    <div className="flex gap-3 mt-5">
+                      <Button
+                        onClick={() => setCreateDialogOpen(true)}
+                        className="bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold"
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" />
+                        Create Team
+                      </Button>
+                      <Button
+                        onClick={() => setView('join')}
+                        variant="outline"
+                        className="border-brand-teal text-brand-teal hover:bg-brand-teal/10 rounded-xl font-semibold"
+                      >
+                        <LogIn className="w-4 h-4 mr-1.5" />
+                        Join Team
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
-                teams.map((team, index) => (
-                  <motion.div
-                    key={team.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.06 }}
-                  >
-                    <Card
-                      className="bg-white border-warm-200 py-0 gap-0 overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.98]"
-                      onClick={() => openTeamDetail(team)}
+                teams.map((team, index) => {
+                  const isMyTeam = team.members.some(
+                    (m) => m.userId === currentUser?.id
+                  );
+                  const isCaptain = team.members.some(
+                    (m) => m.userId === currentUser?.id && m.isCaptain
+                  );
+
+                  return (
+                    <motion.div
+                      key={team.id}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.06 }}
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          {/* Color badge */}
-                          <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0 shadow-sm"
-                            style={{ backgroundColor: team.color || '#DC2626' }}
-                          >
-                            {team.shortName
-                              ? team.shortName.slice(0, 2)
-                              : team.name.charAt(0).toUpperCase()}
-                          </div>
-
-                          {/* Team info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-bold text-warm-800 truncate">
-                                {team.name}
-                              </h3>
-                              {team.shortName && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-[10px] px-1.5 py-0 bg-warm-100 text-warm-500 shrink-0"
-                                >
-                                  {team.shortName}
-                                </Badge>
-                              )}
+                      <Card
+                        className="bg-white dark:bg-warm-700 py-0 gap-0 overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.98] border-l-4"
+                        style={{ borderLeftColor: team.color || '#DC2626' }}
+                        onClick={() => openTeamDetail(team)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            {/* Color badge */}
+                            <div
+                              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0 shadow-sm"
+                              style={{
+                                backgroundColor: team.color || '#DC2626',
+                              }}
+                            >
+                              {team.shortName
+                                ? team.shortName.slice(0, 2)
+                                : team.name.charAt(0).toUpperCase()}
                             </div>
-                            <div className="flex items-center gap-3 mt-1">
-                              <span className="text-xs text-warm-500 flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                {team.members.length}
-                              </span>
-                              <span className="text-xs text-warm-500 flex items-center gap-1">
-                                <Crown className="w-3 h-3 text-brand-gold" />
-                                {getCaptainName(team)}
-                              </span>
-                            </div>
-                          </div>
 
-                          {/* Arrow indicator */}
-                          <ChevronLeft className="w-4 h-4 text-warm-400 rotate-180 shrink-0" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))
+                            {/* Team info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-warm-800 dark:text-warm-100 truncate">
+                                  {team.name}
+                                </h3>
+                                {team.shortName && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[10px] px-1.5 py-0 bg-warm-100 dark:bg-warm-600 text-warm-500 dark:text-warm-300 shrink-0"
+                                  >
+                                    {team.shortName}
+                                  </Badge>
+                                )}
+                                {isCaptain && (
+                                  <Badge className="bg-brand-gold/10 text-brand-gold-dark border-brand-gold/20 text-[9px] px-1.5 py-0 shrink-0">
+                                    <Crown className="w-2.5 h-2.5 mr-0.5" />
+                                    CAPTAIN
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="text-xs text-warm-500 dark:text-warm-400 flex items-center gap-1">
+                                  <Users className="w-3 h-3" />
+                                  {team.members.length}
+                                </span>
+                                {team.teamCode && (
+                                  <span className="text-xs text-warm-400 dark:text-warm-500 flex items-center gap-1 font-mono">
+                                    <Hash className="w-3 h-3" />
+                                    {team.teamCode}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Arrow indicator */}
+                            <ChevronRight className="w-4 h-4 text-warm-400 dark:text-warm-500 shrink-0" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })
               )}
             </motion.div>
           ) : (
+            /* ─── Join Team View ─── */
             <motion.div
-              key="team-detail"
+              key="join-team"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.2 }}
-              className="px-4 py-4 space-y-4"
+              className="px-4 py-6"
             >
-              {/* ─── Team Detail View ─── */}
-              {detailLoading ? (
-                <div className="flex flex-col gap-3">
-                  <div className="h-32 rounded-2xl bg-warm-100 animate-pulse" />
-                  <div className="h-20 rounded-2xl bg-warm-100 animate-pulse" />
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-16 rounded-xl bg-warm-100 animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : selectedTeam ? (
-                <>
-                  {/* Team Header Card */}
-                  <Card className="border-warm-200 py-0 gap-0 overflow-hidden">
-                    <CardContent className="p-5">
-                      <div className="flex items-center gap-4">
-                        <div
-                          className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl shrink-0 shadow-md"
-                          style={{
-                            backgroundColor: selectedTeam.color || '#DC2626',
-                          }}
-                        >
-                          {selectedTeam.shortName
-                            ? selectedTeam.shortName.slice(0, 3)
-                            : selectedTeam.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h2 className="text-xl font-black text-warm-800 truncate">
-                            {selectedTeam.name}
-                          </h2>
-                          <div className="flex items-center gap-2 mt-1">
-                            {selectedTeam.shortName && (
-                              <Badge
-                                variant="secondary"
-                                className="text-xs px-2 py-0.5 bg-warm-100 text-warm-600"
-                              >
-                                {selectedTeam.shortName}
-                              </Badge>
-                            )}
-                            <div
-                              className="w-4 h-4 rounded-full border-2 border-warm-200 shrink-0"
-                              style={{
-                                backgroundColor:
-                                  selectedTeam.color || '#DC2626',
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <Badge className="bg-brand-teal/10 text-brand-teal border-brand-teal/20 shrink-0">
-                          <Users className="w-3 h-3 mr-1" />
-                          {selectedTeam.members.length}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <div className="max-w-sm mx-auto space-y-6">
+                {/* Join Illustration */}
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="flex flex-col items-center"
+                >
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-teal/10 to-brand-teal/5 dark:from-brand-teal/20 dark:to-brand-teal/10 flex items-center justify-center mb-3">
+                    <LogIn className="w-10 h-10 text-brand-teal" />
+                  </div>
+                  <h2 className="text-xl font-black text-warm-800 dark:text-warm-100">
+                    Join a Team
+                  </h2>
+                  <p className="text-sm text-warm-500 dark:text-warm-400 text-center mt-1 max-w-[280px]">
+                    Enter the team code shared by the captain to join their team
+                  </p>
+                </motion.div>
 
-                  {/* Stats Row */}
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      {
-                        label: 'Matches',
-                        value: teamStats.totalMatches,
-                        color: 'text-warm-800',
-                      },
-                      {
-                        label: 'Wins',
-                        value: teamStats.wins,
-                        color: 'text-brand-teal',
-                      },
-                      {
-                        label: 'Losses',
-                        value: teamStats.losses,
-                        color: 'text-brand-red',
-                      },
-                      {
-                        label: 'Points',
-                        value: teamStats.totalPoints,
-                        color: 'text-brand-gold',
-                      },
-                    ].map((stat) => (
+                {/* Code Input */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
+                    Team Code
+                  </label>
+                  <div className="relative">
+                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-warm-400" />
+                    <Input
+                      placeholder="e.g. KT2001"
+                      value={joinCode}
+                      onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                      className="pl-10 h-14 bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 text-lg font-mono text-center tracking-widest uppercase"
+                      maxLength={10}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleJoinPreview();
+                      }}
+                    />
+                  </div>
+                  <Button
+                    onClick={handleJoinPreview}
+                    disabled={!joinCode.trim() || joinPreviewLoading}
+                    className="w-full bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl font-semibold h-12"
+                  >
+                    {joinPreviewLoading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Searching...
+                      </span>
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4 mr-2" />
+                        Find Team
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Join Preview */}
+                <AnimatePresence>
+                  {joinPreview && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12 }}
+                    >
                       <Card
-                        key={stat.label}
-                        className="bg-white border-warm-200 py-0 gap-0"
+                        className="bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 py-0 gap-0 overflow-hidden border-l-4"
+                        style={{ borderLeftColor: joinPreview.color || '#0D9488' }}
                       >
-                        <CardContent className="p-3 text-center">
-                          <p className={`text-lg font-black ${stat.color}`}>
-                            {stat.value}
-                          </p>
-                          <p className="text-[10px] text-warm-500 font-medium uppercase tracking-wide">
-                            {stat.label}
-                          </p>
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0"
+                              style={{
+                                backgroundColor: joinPreview.color || '#0D9488',
+                              }}
+                            >
+                              {joinPreview.shortName
+                                ? joinPreview.shortName.slice(0, 2)
+                                : joinPreview.name.charAt(0)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-warm-800 dark:text-warm-100 truncate">
+                                {joinPreview.name}
+                              </h3>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] px-1.5 py-0 bg-warm-100 dark:bg-warm-600 text-warm-500 dark:text-warm-300"
+                                >
+                                  {joinPreview.shortName}
+                                </Badge>
+                                <span className="text-xs text-warm-500 dark:text-warm-400">
+                                  <Users className="w-3 h-3 inline mr-0.5" />
+                                  {joinPreview.memberCount} members
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-warm-500 dark:text-warm-400 bg-warm-50 dark:bg-warm-800 rounded-lg p-2">
+                            <Crown className="w-3.5 h-3.5 text-brand-gold" />
+                            Captain: {joinPreview.captainName}
+                          </div>
+                          <Button
+                            onClick={() => setJoinConfirmOpen(true)}
+                            className="w-full bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl font-semibold"
+                          >
+                            <LogIn className="w-4 h-4 mr-2" />
+                            Join This Team
+                          </Button>
                         </CardContent>
                       </Card>
-                    ))}
-                  </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-                  {/* Members Header */}
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-warm-800 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-brand-teal" />
-                      Members
-                    </h3>
-                    <Button
-                      size="sm"
-                      onClick={() => setSearchDialogOpen(true)}
-                      className="bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl h-8 px-3 text-xs font-semibold"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1" />
-                      Add Player
-                    </Button>
-                  </div>
-
-                  {/* Member List */}
-                  <div className="space-y-2">
-                    {selectedTeam.members.length === 0 ? (
-                      <div className="text-center py-8">
-                        <Users className="w-10 h-10 text-warm-300 mx-auto mb-2" />
-                        <p className="text-warm-500 text-sm">
-                          No members yet
-                        </p>
-                      </div>
-                    ) : (
-                      selectedTeam.members.map((member, index) => {
-                        const isCurrentUserCaptain =
-                          selectedTeam.members.find(
-                            (m) => m.isCaptain
-                          )?.userId === currentUser?.id;
-                        const canManage =
-                          isCurrentUserCaptain ||
-                          currentUser?.isAdmin;
-
-                        return (
-                          <motion.div
-                            key={member.id}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.04 }}
-                          >
-                            <Card className="bg-white border-warm-200 py-0 gap-0 overflow-hidden">
-                              <CardContent className="p-3">
-                                <div className="flex items-center gap-3">
-                                  {/* Avatar */}
-                                  <div className="relative shrink-0">
-                                    <div
-                                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                                      style={{
-                                        backgroundColor:
-                                          selectedTeam.color || '#DC2626',
-                                      }}
-                                    >
-                                      {member.user.avatar ? (
-                                        <img
-                                          src={member.user.avatar}
-                                          alt={getDisplayName(
-                                            member.user.name
-                                          )}
-                                          className="w-full h-full rounded-full object-cover"
-                                        />
-                                      ) : (
-                                        getInitials(member.user.name)
-                                      )}
-                                    </div>
-                                    {member.isCaptain && (
-                                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-gold flex items-center justify-center shadow-sm">
-                                        <Crown className="w-3 h-3 text-white" />
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Name & Info */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-semibold text-sm text-warm-800 truncate">
-                                        {getDisplayName(member.user.name)}
-                                      </span>
-                                      {member.isCaptain && (
-                                        <Badge className="bg-brand-gold/10 text-brand-gold-dark border-brand-gold/20 text-[10px] px-1.5 py-0">
-                                          CAPTAIN
-                                        </Badge>
-                                      )}
-                                      {member.userId ===
-                                        currentUser?.id && (
-                                        <Badge
-                                          variant="secondary"
-                                          className="text-[10px] px-1.5 py-0 bg-brand-teal/10 text-brand-teal"
-                                        >
-                                          YOU
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-warm-500">
-                                      {member.user.phone}
-                                      {member.user.profile?.position &&
-                                        ` · ${member.user.profile.position}`}
-                                    </p>
-                                  </div>
-
-                                  {/* Actions */}
-                                  {canManage &&
-                                    member.userId !== currentUser?.id && (
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        {!member.isCaptain && (
-                                          <button
-                                            onClick={() =>
-                                              handleSetCaptain(
-                                                member.userId,
-                                                getDisplayName(
-                                                  member.user.name
-                                                )
-                                              )
-                                            }
-                                            disabled={actionLoading}
-                                            className="w-7 h-7 rounded-lg bg-brand-gold/10 flex items-center justify-center text-brand-gold hover:bg-brand-gold/20 transition-colors"
-                                            title="Set as Captain"
-                                          >
-                                            <Crown className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                        <button
-                                          onClick={() =>
-                                            setDeleteConfirmId(member.id)
-                                          }
-                                          disabled={actionLoading}
-                                          className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-warm-400 hover:bg-red-100 hover:text-brand-red transition-colors"
-                                          title="Remove Player"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    )}
-                                </div>
-
-                                {/* Delete confirmation */}
-                                <AnimatePresence>
-                                  {deleteConfirmId === member.id && (
-                                    <motion.div
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: 'auto', opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      transition={{ duration: 0.2 }}
-                                      className="overflow-hidden"
-                                    >
-                                      <div className="mt-2 pt-2 border-t border-warm-200 flex items-center justify-between">
-                                        <span className="text-xs text-warm-600">
-                                          Remove{' '}
-                                          <strong>
-                                            {getDisplayName(
-                                              member.user.name
-                                            )}
-                                          </strong>
-                                          ?
-                                        </span>
-                                        <div className="flex gap-2">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-xs rounded-lg border-warm-300"
-                                            onClick={() =>
-                                              setDeleteConfirmId(null)
-                                            }
-                                          >
-                                            Cancel
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            className="h-7 text-xs rounded-lg bg-brand-red hover:bg-brand-red-dark text-white"
-                                            onClick={() =>
-                                              handleRemovePlayer(
-                                                member.id,
-                                                getDisplayName(
-                                                  member.user.name
-                                                )
-                                              )
-                                            }
-                                            disabled={actionLoading}
-                                          >
-                                            Remove
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              </CardContent>
-                            </Card>
-                          </motion.div>
-                        );
-                      })
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <Shield className="w-12 h-12 text-warm-300 mb-3" />
-                  <p className="text-warm-500 text-sm">Team not found</p>
+                {/* Divider with "or" */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-600" />
+                  <span className="text-xs text-warm-400 dark:text-warm-500 uppercase font-medium">
+                    or
+                  </span>
+                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-600" />
                 </div>
-              )}
+
+                {/* Create team CTA */}
+                <div className="text-center">
+                  <p className="text-sm text-warm-500 dark:text-warm-400 mb-3">
+                    Don&apos;t have a team code?
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setView('list');
+                      setCreateDialogOpen(true);
+                    }}
+                    variant="outline"
+                    className="border-brand-red text-brand-red hover:bg-brand-red/10 rounded-xl font-semibold"
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Create a Team
+                  </Button>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -894,15 +872,15 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
 
       {/* ═══ Create Team Dialog ═══ */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="bg-warm-50 border-warm-200 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
+        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-warm-800 flex items-center gap-2">
+            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-brand-red flex items-center justify-center">
                 <Shield className="w-3.5 h-3.5 text-white" />
               </div>
               Create New Team
             </DialogTitle>
-            <DialogDescription className="text-warm-500">
+            <DialogDescription className="text-warm-500 dark:text-warm-400">
               Set up your Kabaddi team. You&apos;ll be added as captain automatically.
             </DialogDescription>
           </DialogHeader>
@@ -910,62 +888,83 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
           <div className="space-y-4 py-2">
             {/* Team Name */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-warm-700">
+              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
                 Team Name <span className="text-brand-red">*</span>
               </label>
               <Input
                 placeholder="e.g. Mumbai Warriors"
                 value={newTeamName}
                 onChange={(e) => setNewTeamName(e.target.value)}
-                className="h-11 bg-white border-warm-300 rounded-xl text-warm-800"
-                maxLength={50}
+                className={`h-11 bg-white dark:bg-warm-700 border-warm-300 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 ${
+                  newTeamName.length > 0 && newTeamName.length < 3
+                    ? 'border-brand-red focus:border-brand-red'
+                    : ''
+                }`}
+                maxLength={30}
               />
+              <div className="flex justify-between">
+                <span className="text-[10px] text-warm-400">
+                  {newTeamName.length > 0 && newTeamName.length < 3
+                    ? 'Minimum 3 characters'
+                    : '3-30 characters'}
+                </span>
+                <span className="text-[10px] text-warm-400">
+                  {newTeamName.length}/30
+                </span>
+              </div>
             </div>
 
             {/* Short Name */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-warm-700">
+              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
                 Short Name
                 <span className="text-warm-400 font-normal ml-1">
-                  (3 chars max)
+                  (2-3 chars, auto-generated)
                 </span>
               </label>
               <Input
                 placeholder="e.g. MUM"
                 value={newTeamShortName}
-                onChange={(e) =>
+                onChange={(e) => {
                   setNewTeamShortName(
                     e.target.value.slice(0, 3).toUpperCase()
-                  )
-                }
-                className="h-11 bg-white border-warm-300 rounded-xl text-warm-800 uppercase"
+                  );
+                  setShortNameManuallySet(true);
+                }}
+                className="h-11 bg-white dark:bg-warm-700 border-warm-300 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 uppercase font-mono tracking-wider"
                 maxLength={3}
               />
             </div>
 
             {/* Color Picker */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-warm-700">
+              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
                 Team Color
               </label>
               <div className="flex gap-2.5 flex-wrap">
-                {TEAM_COLORS.map((color) => (
+                {KABADDI_COLORS.map((colorInfo) => (
                   <button
-                    key={color}
-                    onClick={() => setNewTeamColor(color)}
-                    className={`w-9 h-9 rounded-xl transition-all duration-200 ${
-                      newTeamColor === color
-                        ? 'ring-2 ring-offset-2 ring-warm-400 scale-110 shadow-md'
+                    key={colorInfo.value}
+                    onClick={() => setNewTeamColor(colorInfo.value)}
+                    className={`w-9 h-9 rounded-xl transition-all duration-200 relative ${
+                      newTeamColor === colorInfo.value
+                        ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-800 scale-110 shadow-md'
                         : 'hover:scale-105'
                     }`}
-                    style={{ backgroundColor: color }}
-                  />
+                    style={{ backgroundColor: colorInfo.value }}
+                    title={colorInfo.label}
+                  >
+                    {newTeamColor === colorInfo.value && (
+                      <Check className="w-4 h-4 text-white absolute inset-0 m-auto" />
+                    )}
+                  </button>
                 ))}
               </div>
+
               {/* Preview */}
-              <div className="flex items-center gap-3 mt-3 p-3 bg-white rounded-xl border border-warm-200">
+              <div className="flex items-center gap-3 mt-3 p-3 bg-white/60 dark:bg-warm-700/60 backdrop-blur-sm rounded-xl border border-warm-200/60 dark:border-warm-600/60">
                 <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                  className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
                   style={{ backgroundColor: newTeamColor }}
                 >
                   {newTeamShortName
@@ -975,30 +974,53 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                     : '?'}
                 </div>
                 <div>
-                  <p className="font-bold text-warm-800 text-sm">
+                  <p className="font-bold text-warm-800 dark:text-warm-100 text-sm">
                     {newTeamName || 'Team Name'}
                   </p>
-                  <p className="text-xs text-warm-400">
-                    {newTeamShortName
-                      ? `Short: ${newTeamShortName}`
-                      : 'No short name'}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-warm-400 dark:text-warm-500">
+                      {newTeamShortName
+                        ? `Short: ${newTeamShortName}`
+                        : 'Auto-generated short name'}
+                    </p>
+                    <span className="text-xs text-warm-400 dark:text-warm-500 font-mono">
+                      · KT----
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Free tier limit notice */}
+            {isFreeUser && myTeamCount >= 1 && (
+              <div className="flex items-center gap-2 p-3 bg-brand-gold/10 dark:bg-brand-gold/20 rounded-xl border border-brand-gold/20">
+                <Lock className="w-4 h-4 text-brand-gold shrink-0" />
+                <p className="text-xs text-brand-gold-dark dark:text-brand-gold-light">
+                  Free users can create 1 team. Upgrade to Premium for unlimited teams.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
               variant="outline"
-              onClick={() => setCreateDialogOpen(false)}
-              className="rounded-xl border-warm-300 text-warm-600"
+              onClick={() => {
+                setCreateDialogOpen(false);
+                setShortNameManuallySet(false);
+              }}
+              className="rounded-xl border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300"
             >
               Cancel
             </Button>
             <Button
               onClick={handleCreateTeam}
-              disabled={!newTeamName.trim() || actionLoading}
+              disabled={
+                !newTeamName.trim() ||
+                newTeamName.trim().length < 3 ||
+                actionLoading ||
+                (isFreeUser && myTeamCount >= 1)
+              }
               className="bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold flex-1 sm:flex-none"
             >
               {actionLoading ? (
@@ -1017,17 +1039,62 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
         </DialogContent>
       </Dialog>
 
+      {/* ═══ Join Team Confirmation Dialog ═══ */}
+      <Dialog open={joinConfirmOpen} onOpenChange={setJoinConfirmOpen}>
+        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-brand-teal flex items-center justify-center">
+                <LogIn className="w-3.5 h-3.5 text-white" />
+              </div>
+              Confirm Join
+            </DialogTitle>
+            <DialogDescription className="text-warm-500 dark:text-warm-400">
+              {joinPreview
+                ? `Are you sure you want to join "${joinPreview.name}"?`
+                : 'Confirm joining this team?'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setJoinConfirmOpen(false)}
+              className="rounded-xl border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleJoinTeam}
+              disabled={joinLoading}
+              className="bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl font-semibold flex-1 sm:flex-none"
+            >
+              {joinLoading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Joining...
+                </span>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4 mr-1.5" />
+                  Join Team
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ═══ Search Players Dialog ═══ */}
       <Dialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen}>
-        <DialogContent className="bg-warm-50 border-warm-200 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
+        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-warm-800 flex items-center gap-2">
+            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-brand-teal flex items-center justify-center">
                 <Search className="w-3.5 h-3.5 text-white" />
               </div>
               Add Player
             </DialogTitle>
-            <DialogDescription className="text-warm-500">
+            <DialogDescription className="text-warm-500 dark:text-warm-400">
               Search for players by name or phone number.
             </DialogDescription>
           </DialogHeader>
@@ -1039,7 +1106,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
               placeholder="Search by name or phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-11 bg-white border-warm-300 rounded-xl text-warm-800"
+              className="pl-9 h-11 bg-white dark:bg-warm-700 border-warm-300 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100"
               autoFocus
             />
             {searchQuery && (
@@ -1062,22 +1129,22 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="h-14 rounded-xl bg-warm-100 animate-pulse"
+                    className="h-14 rounded-xl bg-warm-100 dark:bg-warm-700 animate-pulse"
                   />
                 ))}
               </div>
             ) : searchQuery.trim() === '' ? (
               <div className="text-center py-8">
-                <Search className="w-8 h-8 text-warm-300 mx-auto mb-2" />
-                <p className="text-warm-400 text-sm">
+                <Search className="w-8 h-8 text-warm-300 dark:text-warm-600 mx-auto mb-2" />
+                <p className="text-warm-400 dark:text-warm-500 text-sm">
                   Type to search for players
                 </p>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="text-center py-8">
-                <Users className="w-8 h-8 text-warm-300 mx-auto mb-2" />
-                <p className="text-warm-500 text-sm">No players found</p>
-                <p className="text-warm-400 text-xs mt-1">
+                <Users className="w-8 h-8 text-warm-300 dark:text-warm-600 mx-auto mb-2" />
+                <p className="text-warm-500 dark:text-warm-400 text-sm">No players found</p>
+                <p className="text-warm-400 dark:text-warm-500 text-xs mt-1">
                   Try a different search term
                 </p>
               </div>
@@ -1091,7 +1158,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                     animate={{ opacity: 1, y: 0 }}
                   >
                     <Card
-                      className={`bg-white border-warm-200 py-0 gap-0 overflow-hidden ${
+                      className={`bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 py-0 gap-0 overflow-hidden ${
                         alreadyInTeam
                           ? 'opacity-60'
                           : 'cursor-pointer hover:shadow-md active:scale-[0.98]'
@@ -1128,10 +1195,10 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
 
                           {/* Info */}
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm text-warm-800 truncate">
+                            <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
                               {getDisplayName(player.name)}
                             </p>
-                            <p className="text-xs text-warm-500">
+                            <p className="text-xs text-warm-500 dark:text-warm-400">
                               {player.phone}
                               {player.profile?.position &&
                                 ` · ${player.profile.position}`}

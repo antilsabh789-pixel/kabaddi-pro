@@ -1,0 +1,530 @@
+   700→                                    <Zap className="w-3.5 h-3.5 mr-1" />
+   701→                                    Submit Prediction
+   702→                                  </Button>
+   703→                                </motion.div>
+   704→                              )}
+   705→                            </>
+   706→                          ) : (
+   707→                            /* Already predicted */
+   708→                            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-brand-teal/10 dark:bg-brand-teal/15 border border-brand-teal/20">
+   709→                              <CheckCircle className="w-4 h-4 text-brand-teal" />
+   710→                              <span className="text-xs font-semibold text-brand-teal">
+   711→                                You predicted:{' '}
+   712→                                {existingPred.pick === 'teamA'
+   713→                                  ? `${match.teamA.name} Wins`
+   714→                                  : existingPred.pick === 'draw'
+   715→                                  ? 'Draw'
+   716→                                  : `${match.teamB.name} Wins`}
+   717→                              </span>
+   718→                            </div>
+   719→                          )}
+   720→                        </CardContent>
+   721→                      </Card>
+   722→                    </motion.div>
+   723→                  );
+   724→                })
+   725→              )}
+   726→            </div>
+   727→          </TabsContent>
+   728→
+   729→          {/* ─── Results Tab ─── */}
+   730→          <TabsContent value="results">
+   731→            <div className="space-y-3 mt-3 pb-6">
+   732→              {COMPLETED_MATCHES.length === 0 ? (
+   733→                <Card className="card-elevated p-8 text-center">
+   734→                  <Trophy className="w-10 h-10 text-warm-300 dark:text-warm-600 mx-auto mb-3" />
+   735→                  <p className="text-sm font-semibold text-warm-500 dark:text-warm-400">No completed matches yet</p>
+   736→                </Card>
+   737→              ) : (
+   738→                COMPLETED_MATCHES.map((match, idx) => {
+   739→                  const pred = getPrediction(match.id);
+   740→                  const isCorrect = pred ? match.result === pred.pick : null;
+   741→                  const isRevealing = revealingMatch === match.id;
+   742→
+   743→                  return (
+   744→                    <motion.div
+   745→                      key={match.id}
+   746→                      initial={{ opacity: 0, y: 16 }}
+   747→                      animate={{ opacity: 1, y: 0 }}
+   748→                      transition={{ delay: 0.1 + idx * 0.08 }}
+   749→                    >
+   750→                      <Card
+   751→                        className={`card-elevated overflow-hidden transition-all duration-500 ${
+   752→                          isCorrect === true
+   753→                            ? 'border-green-500/50 shadow-green-500/10 shadow-lg'
+   754→                            : isCorrect === false
+   755→                            ? 'border-red-500/30'
+   756→                            : ''
+   757→                        }`}
+   758→                      >
+   759→                        <div
+   760→                          className="h-1.5"
+   761→                          style={{
+   762→                            background: `linear-gradient(90deg, ${match.teamA.color}, ${match.teamB.color})`,
+   763→                          }}
+   764→                        />
+   765→                        <CardContent className="p-4">
+   766→                          {/* Match info */}
+   767→                          <div className="flex items-center justify-between mb-2">
+   768→                            <span className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">{match.date}</span>
+   769→                            <Badge variant="secondary" className="text-[9px] h-5">Completed</Badge>
+   770→                          </div>
+   771→
+   772→                          {/* Score display */}
+   773→                          <div className="flex items-center justify-between mb-3">
+   774→                            <div className="flex items-center gap-2 flex-1">
+   775→                              <div
+   776→                                className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[9px] font-black"
+   777→                                style={{ backgroundColor: match.teamA.color }}
+   778→                              >
+   779→                                {match.teamA.short}
+   780→                              </div>
+   781→                              <div>
+   782→                                <p className="text-xs font-bold text-warm-800 dark:text-warm-100">{match.teamA.name}</p>
+   783→                                <p className="text-lg font-black text-warm-800 dark:text-warm-100">{match.scoreA}</p>
+   784→                              </div>
+   785→                            </div>
+   786→                            <div className="px-2 text-center">
+   787→                              <span className="text-[10px] font-bold text-warm-400 dark:text-warm-500">FINAL</span>
+   788→                            </div>
+   789→                            <div className="flex items-center gap-2 flex-1 justify-end text-right">
+   790→                              <div>
+   791→                                <p className="text-xs font-bold text-warm-800 dark:text-warm-100">{match.teamB.name}</p>
+   792→                                <p className="text-lg font-black text-warm-800 dark:text-warm-100">{match.scoreB}</p>
+   793→                              </div>
+   794→                              <div
+   795→                                className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[9px] font-black"
+   796→                                style={{ backgroundColor: match.teamB.color }}
+   797→                              >
+   798→                                {match.teamB.short}
+   799→                              </div>
+   800→                            </div>
+   801→                          </div>
+   802→
+   803→                          {/* Result and prediction */}
+   804→                          {pred ? (
+   805→                            <motion.div
+   806→                              animate={
+   807→                                isRevealing
+   808→                                  ? { scale: [1, 1.03, 1] }
+   809→                                  : {}
+   810→                              }
+   811→                              transition={{ duration: 0.5 }}
+   812→                            >
+   813→                              <div
+   814→                                className={`flex items-center justify-between p-2.5 rounded-xl ${
+   815→                                  isCorrect
+   816→                                    ? 'bg-green-500/10 dark:bg-green-500/15 border border-green-500/20'
+   817→                                    : 'bg-red-500/10 dark:bg-red-500/15 border border-red-500/20'
+   818→                                }`}
+   819→                              >
+   820→                                <div className="flex items-center gap-2">
+   821→                                  {isCorrect ? (
+   822→                                    <motion.div
+   823→                                      initial={{ scale: 0 }}
+   824→                                      animate={{ scale: 1 }}
+   825→                                      transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+   826→                                    >
+   827→                                      <CheckCircle className="w-4 h-4 text-green-500" />
+   828→                                    </motion.div>
+   829→                                  ) : (
+   830→                                    <motion.div
+   831→                                      animate={isCorrect === false ? { x: [0, -3, 3, -3, 3, 0] } : {}}
+   832→                                      transition={{ duration: 0.4 }}
+   833→                                    >
+   834→                                      <XCircle className="w-4 h-4 text-red-500" />
+   835→                                    </motion.div>
+   836→                                  )}
+   837→                                  <span className={`text-xs font-semibold ${isCorrect ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+   838→                                    {isCorrect ? 'Correct!' : 'Incorrect'}
+   839→                                  </span>
+   840→                                </div>
+   841→                                <div className="flex items-center gap-1">
+   842→                                  <span className="text-[10px] text-warm-500 dark:text-warm-400">
+   843→                                    You picked: {pred.pick === 'teamA' ? match.teamA.short : pred.pick === 'draw' ? 'Draw' : match.teamB.short}
+   844→                                  </span>
+   845→                                  {isCorrect && (
+   846→                                    <Badge className="badge-win text-[9px] h-4 gap-0.5">
+   847→                                      <Star className="w-2.5 h-2.5" />
+   848→                                      +{pred.pick === 'draw' ? 25 : 10} pts
+   849→                                    </Badge>
+   850→                                  )}
+   851→                                </div>
+   852→                              </div>
+   853→
+   854→                              {/* Reveal button if not yet revealed */}
+   855→                              {!pred.revealed && (
+   856→                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2">
+   857→                                  <Button
+   858→                                    variant="outline"
+   859→                                    size="sm"
+   860→                                    onClick={() => handleReveal(match.id)}
+   861→                                    className="w-full text-xs h-7 press-down"
+   862→                                  >
+   863→                                    <Sparkles className="w-3 h-3 mr-1" />
+   864→                                    Reveal Result
+   865→                                  </Button>
+   866→                                </motion.div>
+   867→                              )}
+   868→                            </motion.div>
+   869→                          ) : (
+   870→                            <div className="p-2.5 rounded-xl bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700">
+   871→                              <p className="text-[11px] text-warm-500 dark:text-warm-400 text-center">
+   872→                                You didn&apos;t predict this match
+   873→                              </p>
+   874→                            </div>
+   875→                          )}
+   876→
+   877→                          {/* Winner indicator */}
+   878→                          <div className="mt-2 flex items-center justify-center gap-1">
+   879→                            <span className="text-[10px] font-semibold text-warm-500 dark:text-warm-400">Winner:</span>
+   880→                            <Badge
+   881→                              className="text-[9px] h-5"
+   882→                              style={{
+   883→                                backgroundColor:
+   884→                                  match.result === 'teamA'
+   885→                                    ? match.teamA.color
+   886→                                    : match.result === 'teamB'
+   887→                                    ? match.teamB.color
+   888→                                    : '#F59E0B',
+   889→                                color: '#FFFFFF',
+   890→                              }}
+   891→                            >
+   892→                              {match.result === 'teamA'
+   893→                                ? match.teamA.short
+   894→                                : match.result === 'draw'
+   895→                                ? 'Draw'
+   896→                                : match.teamB.short}
+   897→                            </Badge>
+   898→                          </div>
+   899→                        </CardContent>
+   900→                      </Card>
+   901→                    </motion.div>
+   902→                  );
+   903→                })
+   904→              )}
+   905→            </div>
+   906→          </TabsContent>
+   907→
+   908→          {/* ─── Leaderboard Tab ─── */}
+   909→          <TabsContent value="leaderboard">
+   910→            <div className="mt-3 pb-6">
+   911→              {/* Your rank card */}
+   912→              <motion.div
+   913→                initial={{ opacity: 0, y: 12 }}
+   914→                animate={{ opacity: 1, y: 0 }}
+   915→                transition={{ delay: 0.1 }}
+   916→              >
+   917→                <Card className="card-premium overflow-hidden mb-4">
+   918→                  <CardContent className="p-4">
+   919→                    <div className="flex items-center gap-2 mb-2">
+   920→                      <Medal className="w-4 h-4 text-brand-gold" />
+   921→                      <span className="text-xs font-bold text-warm-800 dark:text-warm-100">Your Ranking</span>
+   922→                    </div>
+   923→                    <div className="flex items-center justify-between">
+   924→                      <div>
+   925→                        <p className="text-3xl font-black gradient-text">#{userRank}</p>
+   926→                        <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-0.5">
+   927→                          {stats.totalPredictions} predictions • {stats.accuracy}% accuracy
+   928→                        </p>
+   929→                      </div>
+   930→                      <div className="text-right">
+   931→                        <p className="text-xl font-black text-brand-gold">{stats.totalPoints}</p>
+   932→                        <p className="text-[10px] text-warm-500 dark:text-warm-400">points</p>
+   933→                      </div>
+   934→                    </div>
+   935→                  </CardContent>
+   936→                </Card>
+   937→              </motion.div>
+   938→
+   939→              {/* Top 3 podium */}
+   940→              {updatedLeaderboard.length >= 3 && (
+   941→                <div className="flex items-end justify-center gap-2 mb-4 px-4">
+   942→                  {/* 2nd place */}
+   943→                  <motion.div
+   944→                    initial={{ opacity: 0, y: 16 }}
+   945→                    animate={{ opacity: 1, y: 0 }}
+   946→                    transition={{ delay: 0.2 }}
+   947→                    className="flex flex-col items-center"
+   948→                  >
+   949→                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center mb-1">
+   950→                      <span className="text-[10px] font-black text-white">2</span>
+   951→                    </div>
+   952→                    <div className="bg-gray-200 dark:bg-gray-700 rounded-t-lg w-20 h-16 flex flex-col items-center justify-end pb-2">
+   953→                      <p className="text-[9px] font-bold text-warm-700 dark:text-warm-200 truncate max-w-[72px] text-center">
+   954→                        {updatedLeaderboard[1].name}
+   955→                      </p>
+   956→                      <p className="text-[10px] font-black text-warm-800 dark:text-warm-100">{updatedLeaderboard[1].points}</p>
+   957→                    </div>
+   958→                  </motion.div>
+   959→
+   960→                  {/* 1st place */}
+   961→                  <motion.div
+   962→                    initial={{ opacity: 0, y: 16 }}
+   963→                    animate={{ opacity: 1, y: 0 }}
+   964→                    transition={{ delay: 0.15 }}
+   965→                    className="flex flex-col items-center"
+   966→                  >
+   967→                    <Crown className="w-5 h-5 text-brand-gold mb-0.5" />
+   968→                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center mb-1">
+   969→                      <span className="text-[10px] font-black text-white">1</span>
+   970→                    </div>
+   971→                    <div className="bg-brand-gold/20 dark:bg-brand-gold/15 rounded-t-lg w-20 h-24 flex flex-col items-center justify-end pb-2 border-2 border-brand-gold/30">
+   972→                      <p className="text-[9px] font-bold text-warm-700 dark:text-warm-200 truncate max-w-[72px] text-center">
+   973→                        {updatedLeaderboard[0].name}
+   974→                      </p>
+   975→                      <p className="text-xs font-black text-brand-gold">{updatedLeaderboard[0].points}</p>
+   976→                    </div>
+   977→                  </motion.div>
+   978→
+   979→                  {/* 3rd place */}
+   980→                  <motion.div
+   981→                    initial={{ opacity: 0, y: 16 }}
+   982→                    animate={{ opacity: 1, y: 0 }}
+   983→                    transition={{ delay: 0.25 }}
+   984→                    className="flex flex-col items-center"
+   985→                  >
+   986→                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center mb-1">
+   987→                      <span className="text-[10px] font-black text-white">3</span>
+   988→                    </div>
+   989→                    <div className="bg-amber-100 dark:bg-amber-900/30 rounded-t-lg w-20 h-12 flex flex-col items-center justify-end pb-2">
+   990→                      <p className="text-[9px] font-bold text-warm-700 dark:text-warm-200 truncate max-w-[72px] text-center">
+   991→                        {updatedLeaderboard[2].name}
+   992→                      </p>
+   993→                      <p className="text-[10px] font-black text-warm-800 dark:text-warm-100">{updatedLeaderboard[2].points}</p>
+   994→                    </div>
+   995→                  </motion.div>
+   996→                </div>
+   997→              )}
+   998→
+   999→              {/* Full leaderboard list */}
+  1000→              <Card className="card-elevated overflow-hidden">
+  1001→                <CardContent className="p-0">
+  1002→                  <div className="divide-y divide-warm-200 dark:divide-warm-700">
+  1003→                    {updatedLeaderboard.map((entry, idx) => {
+  1004→                      const rank = idx + 1;
+  1005→                      const isUser = entry.isUser;
+  1006→                      const isTop3 = rank <= 3;
+  1007→
+  1008→                      return (
+  1009→                        <motion.div
+  1010→                          key={entry.name}
+  1011→                          initial={{ opacity: 0, x: -8 }}
+  1012→                          animate={{ opacity: 1, x: 0 }}
+  1013→                          transition={{ delay: 0.05 * idx }}
+  1014→                          className={`flex items-center gap-3 px-4 py-3 ${
+  1015→                            isUser
+  1016→                              ? 'bg-brand-teal/5 dark:bg-brand-teal/10 border-l-2 border-brand-teal'
+  1017→                              : ''
+  1018→                          }`}
+  1019→                        >
+  1020→                          {/* Rank */}
+  1021→                          <div className="w-7 flex-shrink-0">
+  1022→                            {isTop3 ? (
+  1023→                              <div
+  1024→                                className={`w-6 h-6 rounded-full flex items-center justify-center ${
+  1025→                                  rank === 1
+  1026→                                    ? 'bg-gradient-to-br from-brand-gold to-brand-gold-dark'
+  1027→                                    : rank === 2
+  1028→                                    ? 'bg-gradient-to-br from-gray-300 to-gray-400'
+  1029→                                    : 'bg-gradient-to-br from-amber-600 to-amber-700'
+  1030→                                }`}
+  1031→                              >
+  1032→                                {rank === 1 ? (
+  1033→                                  <Crown className="w-3 h-3 text-white" />
+  1034→                                ) : (
+  1035→                                  <span className="text-[9px] font-black text-white">{rank}</span>
+  1036→                                )}
+  1037→                              </div>
+  1038→                            ) : (
+  1039→                              <span className="text-xs font-bold text-warm-400 dark:text-warm-500 text-center block">{rank}</span>
+  1040→                            )}
+  1041→                          </div>
+  1042→
+  1043→                          {/* Name & accuracy */}
+  1044→                          <div className="flex-1 min-w-0">
+  1045→                            <p className={`text-xs font-bold truncate ${isUser ? 'text-brand-teal' : 'text-warm-800 dark:text-warm-100'}`}>
+  1046→                              {entry.name}
+  1047→                              {isUser && (
+  1048→                                <Badge className="badge-new text-[8px] h-3.5 ml-1.5 px-1.5">YOU</Badge>
+  1049→                              )}
+  1050→                            </p>
+  1051→                            <div className="flex items-center gap-2 mt-0.5">
+  1052→                              <span className="text-[9px] text-warm-400 dark:text-warm-500">{entry.predictions} preds</span>
+  1053→                              <span className="text-[9px] text-warm-400 dark:text-warm-500">•</span>
+  1054→                              <span className="text-[9px] text-warm-400 dark:text-warm-500">{entry.accuracy}% acc</span>
+  1055→                            </div>
+  1056→                          </div>
+  1057→
+  1058→                          {/* Points */}
+  1059→                          <div className="text-right flex-shrink-0">
+  1060→                            <p className="text-sm font-black text-warm-800 dark:text-warm-100">{entry.points}</p>
+  1061→                            <p className="text-[9px] text-warm-400 dark:text-warm-500">pts</p>
+  1062→                          </div>
+  1063→                        </motion.div>
+  1064→                      );
+  1065→                    })}
+  1066→                  </div>
+  1067→                </CardContent>
+  1068→              </Card>
+  1069→            </div>
+  1070→          </TabsContent>
+  1071→
+  1072→          {/* ─── History Tab ─── */}
+  1073→          <TabsContent value="history">
+  1074→            <div className="mt-3 pb-6">
+  1075→              {/* Stats summary */}
+  1076→              <motion.div
+  1077→                initial={{ opacity: 0, y: 12 }}
+  1078→                animate={{ opacity: 1, y: 0 }}
+  1079→              >
+  1080→                <Card className="card-elevated p-4 mb-3">
+  1081→                  <div className="grid grid-cols-4 gap-2 text-center">
+  1082→                    <div>
+  1083→                      <p className="text-lg font-black text-warm-800 dark:text-warm-100">{stats.totalPredictions}</p>
+  1084→                      <p className="text-[9px] text-warm-500 dark:text-warm-400 font-semibold">Total</p>
+  1085→                    </div>
+  1086→                    <div>
+  1087→                      <p className="text-lg font-black text-green-500">{stats.correctCount}</p>
+  1088→                      <p className="text-[9px] text-warm-500 dark:text-warm-400 font-semibold">Correct</p>
+  1089→                    </div>
+  1090→                    <div>
+  1091→                      <p className="text-lg font-black text-warm-800 dark:text-warm-100">{stats.accuracy}%</p>
+  1092→                      <p className="text-[9px] text-warm-500 dark:text-warm-400 font-semibold">Accuracy</p>
+  1093→                    </div>
+  1094→                    <div>
+  1095→                      <p className="text-lg font-black text-brand-gold">{stats.totalPoints}</p>
+  1096→                      <p className="text-[9px] text-warm-500 dark:text-warm-400 font-semibold">Points</p>
+  1097→                    </div>
+  1098→                  </div>
+  1099→                  {stats.totalPredictions > 0 && (
+  1100→                    <div className="mt-3">
+  1101→                      <Progress
+  1102→                        value={stats.accuracy}
+  1103→                        className="h-1.5"
+  1104→                      />
+  1105→                    </div>
+  1106→                  )}
+  1107→                </Card>
+  1108→              </motion.div>
+  1109→
+  1110→              {/* Filter buttons */}
+  1111→              <div className="flex items-center gap-2 mb-3">
+  1112→                {(['all', 'correct', 'incorrect'] as const).map((filter) => (
+  1113→                  <Button
+  1114→                    key={filter}
+  1115→                    variant={historyFilter === filter ? 'default' : 'outline'}
+  1116→                    size="sm"
+  1117→                    onClick={() => setHistoryFilter(filter)}
+  1118→                    className={`text-[10px] h-7 px-3 press-down ${
+  1119→                      historyFilter === filter
+  1120→                        ? filter === 'correct'
+  1121→                          ? 'bg-green-500 hover:bg-green-600'
+  1122→                          : filter === 'incorrect'
+  1123→                          ? 'bg-red-500 hover:bg-red-600'
+  1124→                          : ''
+  1125→                        : ''
+  1126→                    }`}
+  1127→                  >
+  1128→                    {filter === 'all' && <Target className="w-3 h-3 mr-1" />}
+  1129→                    {filter === 'correct' && <CheckCircle className="w-3 h-3 mr-1" />}
+  1130→                    {filter === 'incorrect' && <XCircle className="w-3 h-3 mr-1" />}
+  1131→                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+  1132→                  </Button>
+  1133→                ))}
+  1134→              </div>
+  1135→
+  1136→              {/* History list */}
+  1137→              {filteredHistory.length === 0 ? (
+  1138→                <Card className="card-elevated p-8 text-center">
+  1139→                  <Clock className="w-10 h-10 text-warm-300 dark:text-warm-600 mx-auto mb-3" />
+  1140→                  <p className="text-sm font-semibold text-warm-500 dark:text-warm-400">
+  1141→                    {predictionHistory.length === 0 ? 'No predictions yet' : 'No matching predictions'}
+  1142→                  </p>
+  1143→                  <p className="text-xs text-warm-400 dark:text-warm-500 mt-1">
+  1144→                    Start predicting matches to build your history
+  1145→                  </p>
+  1146→                </Card>
+  1147→              ) : (
+  1148→                <Card className="card-elevated overflow-hidden">
+  1149→                  <CardContent className="p-0">
+  1150→                    <div className="divide-y divide-warm-200 dark:divide-warm-700 max-h-96 overflow-y-auto custom-scrollbar">
+  1151→                      {filteredHistory.map((item, idx) => {
+  1152→                        const match = [...UPCOMPING_MATCHES, ...COMPLETED_MATCHES].find((m) => m.id === item.matchId);
+  1153→                        return (
+  1154→                          <motion.div
+  1155→                            key={`${item.matchId}-${idx}`}
+  1156→                            initial={{ opacity: 0, x: -8 }}
+  1157→                            animate={{ opacity: 1, x: 0 }}
+  1158→                            transition={{ delay: 0.03 * idx }}
+  1159→                            className={`flex items-center gap-3 px-4 py-3 ${
+  1160→                              item.correct === true
+  1161→                                ? 'border-l-2 border-green-500 bg-green-500/5 dark:bg-green-500/5'
+  1162→                                : item.correct === false
+  1163→                                ? 'border-l-2 border-red-500 bg-red-500/5 dark:bg-red-500/5'
+  1164→                                : 'border-l-2 border-warm-300 dark:border-warm-600'
+  1165→                            }`}
+  1166→                          >
+  1167→                            {/* Status icon */}
+  1168→                            <div className="flex-shrink-0">
+  1169→                              {item.correct === true ? (
+  1170→                                <CheckCircle className="w-4 h-4 text-green-500" />
+  1171→                              ) : item.correct === false ? (
+  1172→                                <XCircle className="w-4 h-4 text-red-500" />
+  1173→                              ) : (
+  1174→                                <Clock className="w-4 h-4 text-warm-400 dark:text-warm-500" />
+  1175→                              )}
+  1176→                            </div>
+  1177→
+  1178→                            {/* Match info */}
+  1179→                            <div className="flex-1 min-w-0">
+  1180→                              <p className="text-xs font-bold text-warm-800 dark:text-warm-100">
+  1181→                                {item.teamA} vs {item.teamB}
+  1182→                              </p>
+  1183→                              <div className="flex items-center gap-1.5 mt-0.5">
+  1184→                                <span className="text-[9px] text-warm-400 dark:text-warm-500">
+  1185→                                  You: {item.pick === 'teamA' ? item.teamA : item.pick === 'draw' ? 'Draw' : item.teamB}
+  1186→                                </span>
+  1187→                                {item.result && (
+  1188→                                  <>
+  1189→                                    <span className="text-[9px] text-warm-300 dark:text-warm-600">•</span>
+  1190→                                    <span className="text-[9px] text-warm-400 dark:text-warm-500">
+  1191→                                      Result: {item.result === 'teamA' ? item.teamA : item.result === 'draw' ? 'Draw' : item.teamB}
+  1192→                                    </span>
+  1193→                                  </>
+  1194→                                )}
+  1195→                              </div>
+  1196→                            </div>
+  1197→
+  1198→                            {/* Points */}
+  1199→                            <div className="flex-shrink-0 text-right">
+  1200→                              {item.correct !== null && (
+  1201→                                <Badge
+  1202→                                  className={`text-[9px] h-4 ${
+  1203→                                    item.correct ? 'badge-win' : 'badge-loss'
+  1204→                                  }`}
+  1205→                                >
+  1206→                                  {item.correct ? `+${item.points}` : '0'}
+  1207→                                </Badge>
+  1208→                              )}
+  1209→                              {item.correct === null && (
+  1210→                                <Badge variant="secondary" className="text-[9px] h-4">
+  1211→                                  Pending
+  1212→                                </Badge>
+  1213→                              )}
+  1214→                            </div>
+  1215→                          </motion.div>
+  1216→                        );
+  1217→                      })}
+  1218→                    </div>
+  1219→                  </CardContent>
+  1220→                </Card>
+  1221→              )}
+  1222→            </div>
+  1223→          </TabsContent>
+  1224→        </Tabs>
+  1225→      </div>
+  1226→    </div>
+  1227→  );
+  1228→}
+  1229→

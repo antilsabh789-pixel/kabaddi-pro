@@ -1,0 +1,1167 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Users,
+     7→  Plus,
+     8→  X,
+     9→  Search,
+    10→  Crown,
+    11→  Shield,
+    12→  ChevronLeft,
+    13→  Edit3,
+    14→  Trash2,
+    15→} from 'lucide-react';
+    16→import { Card, CardContent } from '@/components/ui/card';
+    17→import { Button } from '@/components/ui/button';
+    18→import { Input } from '@/components/ui/input';
+    19→import { Badge } from '@/components/ui/badge';
+    20→import {
+    21→  Dialog,
+    22→  DialogContent,
+    23→  DialogHeader,
+    24→  DialogTitle,
+    25→  DialogDescription,
+    26→  DialogFooter,
+    27→} from '@/components/ui/dialog';
+    28→import { useKabaddiStore } from '@/lib/store';
+    29→import { useToast } from '@/hooks/use-toast';
+    30→
+    31→// ─── Types ────────────────────────────────────────────────────────
+    32→
+    33→interface TeamMemberUser {
+    34→  id: string;
+    35→  name: string | null;
+    36→  phone: string;
+    37→  avatar: string | null;
+    38→  profile?: {
+    39→    position?: string | null;
+    40→    overallRating?: number;
+    41→  } | null;
+    42→}
+    43→
+    44→interface TeamMemberEntry {
+    45→  id: string;
+    46→  teamId: string;
+    47→  userId: string;
+    48→  isCaptain: boolean;
+    49→  user: TeamMemberUser;
+    50→}
+    51→
+    52→interface TeamData {
+    53→  id: string;
+    54→  name: string;
+    55→  shortName: string | null;
+    56→  color: string | null;
+    57→  logo: string | null;
+    58→  createdAt: string;
+    59→  updatedAt: string;
+    60→  members: TeamMemberEntry[];
+    61→}
+    62→
+    63→interface PlayerSearchResult {
+    64→  id: string;
+    65→  name: string | null;
+    66→  phone: string;
+    67→  avatar: string | null;
+    68→  profile?: {
+    69→    position?: string | null;
+    70→    overallRating?: number;
+    71→  } | null;
+    72→}
+    73→
+    74→interface TeamStats {
+    75→  totalMatches: number;
+    76→  wins: number;
+    77→  losses: number;
+    78→  totalPoints: number;
+    79→}
+    80→
+    81→interface TeamManagementScreenProps {
+    82→  onClose: () => void;
+    83→}
+    84→
+    85→// ─── Constants ────────────────────────────────────────────────────
+    86→
+    87→const TEAM_COLORS = [
+    88→  '#DC2626', '#1E293B', '#14B8A6', '#475569', '#9333EA',
+    89→  '#F97316', '#06B6D4', '#EC4899', '#84CC16', '#6366F1',
+    90→];
+    91→
+    92→// ─── Helpers ──────────────────────────────────────────────────────
+    93→
+    94→function getInitials(name: string | null | undefined): string {
+    95→  if (!name) return '?';
+    96→  const parts = name.trim().split(/\s+/);
+    97→  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    98→  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    99→}
+   100→
+   101→function getDisplayName(name: string | null | undefined): string {
+   102→  return name?.trim() || 'Unnamed Player';
+   103→}
+   104→
+   105→// ─── Component ────────────────────────────────────────────────────
+   106→
+   107→export default function TeamManagementScreen({ onClose }: TeamManagementScreenProps) {
+   108→  const currentUser = useKabaddiStore((s) => s.currentUser);
+   109→  const { toast } = useToast();
+   110→
+   111→  // View state
+   112→  const [view, setView] = useState<'list' | 'detail'>('list');
+   113→  const [teams, setTeams] = useState<TeamData[]>([]);
+   114→  const [selectedTeam, setSelectedTeam] = useState<TeamData | null>(null);
+   115→  const [teamStats, setTeamStats] = useState<TeamStats>({
+   116→    totalMatches: 0,
+   117→    wins: 0,
+   118→    losses: 0,
+   119→    totalPoints: 0,
+   120→  });
+   121→
+   122→  // Loading states
+   123→  const [teamsLoading, setTeamsLoading] = useState(true);
+   124→  const [detailLoading, setDetailLoading] = useState(false);
+   125→  const [actionLoading, setActionLoading] = useState(false);
+   126→
+   127→  // Create Team Dialog
+   128→  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+   129→  const [newTeamName, setNewTeamName] = useState('');
+   130→  const [newTeamShortName, setNewTeamShortName] = useState('');
+   131→  const [newTeamColor, setNewTeamColor] = useState(TEAM_COLORS[0]);
+   132→
+   133→  // Search Players Dialog
+   134→  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+   135→  const [searchQuery, setSearchQuery] = useState('');
+   136→  const [searchResults, setSearchResults] = useState<PlayerSearchResult[]>([]);
+   137→  const [searchLoading, setSearchLoading] = useState(false);
+   138→
+   139→  // Delete confirmation
+   140→  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+   141→
+   142→  // ─── Fetch teams for current user ─────────────────────────────
+   143→
+   144→  const fetchTeams = useCallback(async () => {
+   145→    if (!currentUser) return;
+   146→    setTeamsLoading(true);
+   147→    try {
+   148→      const res = await fetch('/api/teams');
+   149→      if (!res.ok) throw new Error('Failed to fetch teams');
+   150→      const data = await res.json();
+   151→      // Filter teams where the current user is a member
+   152→      const userTeams: TeamData[] = (data.teams || []).filter((team: TeamData) =>
+   153→        team.members.some((m: TeamMemberEntry) => m.userId === currentUser.id)
+   154→      );
+   155→      setTeams(userTeams);
+   156→    } catch (err) {
+   157→      console.error('Fetch teams error:', err);
+   158→      toast({
+   159→        title: 'Error',
+   160→        description: 'Failed to load teams',
+   161→        variant: 'destructive',
+   162→      });
+   163→    } finally {
+   164→      setTeamsLoading(false);
+   165→    }
+   166→  }, [currentUser, toast]);
+   167→
+   168→  useEffect(() => {
+   169→    fetchTeams();
+   170→  }, [fetchTeams]);
+   171→
+   172→  // ─── Fetch team detail ────────────────────────────────────────
+   173→
+   174→  const fetchTeamDetail = useCallback(async (teamId: string) => {
+   175→    setDetailLoading(true);
+   176→    try {
+   177→      const res = await fetch(`/api/teams/${teamId}`);
+   178→      if (!res.ok) throw new Error('Failed to fetch team detail');
+   179→      const data = await res.json();
+   180→      setSelectedTeam(data.team);
+   181→
+   182→      // Compute stats from matches (we'll approximate from what's available)
+   183→      // Since there's no dedicated stats endpoint per team, we set defaults
+   184→      // A real implementation would call a stats endpoint
+   185→      setTeamStats({
+   186→        totalMatches: 0,
+   187→        wins: 0,
+   188→        losses: 0,
+   189→        totalPoints: 0,
+   190→      });
+   191→    } catch (err) {
+   192→      console.error('Fetch team detail error:', err);
+   193→      toast({
+   194→        title: 'Error',
+   195→        description: 'Failed to load team details',
+   196→        variant: 'destructive',
+   197→      });
+   198→    } finally {
+   199→      setDetailLoading(false);
+   200→    }
+   201→  }, [toast]);
+   202→
+   203→  // ─── Search players ──────────────────────────────────────────
+   204→
+   205→  const searchPlayers = useCallback(async (query: string) => {
+   206→    if (!query.trim()) {
+   207→      setSearchResults([]);
+   208→      return;
+   209→    }
+   210→    setSearchLoading(true);
+   211→    try {
+   212→      const res = await fetch(`/api/players?search=${encodeURIComponent(query)}`);
+   213→      if (!res.ok) throw new Error('Search failed');
+   214→      const data = await res.json();
+   215→      setSearchResults(data.players || []);
+   216→    } catch (err) {
+   217→      console.error('Search players error:', err);
+   218→      setSearchResults([]);
+   219→    } finally {
+   220→      setSearchLoading(false);
+   221→    }
+   222→  }, []);
+   223→
+   224→  // Debounced search
+   225→  useEffect(() => {
+   226→    if (!searchDialogOpen) return;
+   227→    const timer = setTimeout(() => {
+   228→      searchPlayers(searchQuery);
+   229→    }, 300);
+   230→    return () => clearTimeout(timer);
+   231→  }, [searchQuery, searchDialogOpen, searchPlayers]);
+   232→
+   233→  // ─── Create team ─────────────────────────────────────────────
+   234→
+   235→  const handleCreateTeam = async () => {
+   236→    if (!currentUser || !newTeamName.trim()) return;
+   237→    setActionLoading(true);
+   238→    try {
+   239→      const res = await fetch('/api/teams', {
+   240→        method: 'POST',
+   241→        headers: { 'Content-Type': 'application/json' },
+   242→        body: JSON.stringify({
+   243→          name: newTeamName.trim(),
+   244→          shortName: newTeamShortName.trim().slice(0, 3).toUpperCase() || undefined,
+   245→          color: newTeamColor,
+   246→          memberIds: [currentUser.id],
+   247→          captainId: currentUser.id,
+   248→        }),
+   249→      });
+   250→      if (!res.ok) throw new Error('Failed to create team');
+   251→      toast({
+   252→        title: 'Team Created!',
+   253→        description: `${newTeamName.trim()} has been created successfully.`,
+   254→      });
+   255→      setCreateDialogOpen(false);
+   256→      setNewTeamName('');
+   257→      setNewTeamShortName('');
+   258→      setNewTeamColor(TEAM_COLORS[0]);
+   259→      fetchTeams();
+   260→    } catch (err) {
+   261→      console.error('Create team error:', err);
+   262→      toast({
+   263→        title: 'Error',
+   264→        description: 'Failed to create team',
+   265→        variant: 'destructive',
+   266→      });
+   267→    } finally {
+   268→      setActionLoading(false);
+   269→    }
+   270→  };
+   271→
+   272→  // ─── Add player to team ──────────────────────────────────────
+   273→
+   274→  const handleAddPlayer = async (playerId: string, playerName: string) => {
+   275→    if (!selectedTeam) return;
+   276→    setActionLoading(true);
+   277→    try {
+   278→      // Add member via PATCH — we need to create a TeamMember
+   279→      // The API doesn't have a direct add-member endpoint,
+   280→      // so we'll use the teams API to create a new member entry
+   281→      const res = await fetch(`/api/teams/${selectedTeam.id}`, {
+   282→        method: 'PATCH',
+   283→        headers: { 'Content-Type': 'application/json' },
+   284→        body: JSON.stringify({
+   285→          addMemberId: playerId,
+   286→        }),
+   287→      });
+   288→      if (!res.ok) throw new Error('Failed to add player');
+   289→      toast({
+   290→        title: 'Player Added',
+   291→        description: `${playerName} has been added to the team.`,
+   292→      });
+   293→      setSearchDialogOpen(false);
+   294→      setSearchQuery('');
+   295→      setSearchResults([]);
+   296→      fetchTeamDetail(selectedTeam.id);
+   297→    } catch (err) {
+   298→      console.error('Add player error:', err);
+   299→      toast({
+   300→        title: 'Error',
+   301→        description: 'Failed to add player to team',
+   302→        variant: 'destructive',
+   303→      });
+   304→    } finally {
+   305→      setActionLoading(false);
+   306→    }
+   307→  };
+   308→
+   309→  // ─── Remove player from team ─────────────────────────────────
+   310→
+   311→  const handleRemovePlayer = async (memberId: string, playerName: string) => {
+   312→    if (!selectedTeam) return;
+   313→    setActionLoading(true);
+   314→    try {
+   315→      const res = await fetch(`/api/teams/${selectedTeam.id}`, {
+   316→        method: 'PATCH',
+   317→        headers: { 'Content-Type': 'application/json' },
+   318→        body: JSON.stringify({
+   319→          removeMemberId: memberId,
+   320→        }),
+   321→      });
+   322→      if (!res.ok) throw new Error('Failed to remove player');
+   323→      toast({
+   324→        title: 'Player Removed',
+   325→        description: `${playerName} has been removed from the team.`,
+   326→      });
+   327→      setDeleteConfirmId(null);
+   328→      fetchTeamDetail(selectedTeam.id);
+   329→    } catch (err) {
+   330→      console.error('Remove player error:', err);
+   331→      toast({
+   332→        title: 'Error',
+   333→        description: 'Failed to remove player',
+   334→        variant: 'destructive',
+   335→      });
+   336→    } finally {
+   337→      setActionLoading(false);
+   338→    }
+   339→  };
+   340→
+   341→  // ─── Set captain ─────────────────────────────────────────────
+   342→
+   343→  const handleSetCaptain = async (userId: string, playerName: string) => {
+   344→    if (!selectedTeam) return;
+   345→    setActionLoading(true);
+   346→    try {
+   347→      const res = await fetch(`/api/teams/${selectedTeam.id}`, {
+   348→        method: 'PATCH',
+   349→        headers: { 'Content-Type': 'application/json' },
+   350→        body: JSON.stringify({ captainId: userId }),
+   351→      });
+   352→      if (!res.ok) throw new Error('Failed to set captain');
+   353→      toast({
+   354→        title: 'Captain Updated',
+   355→        description: `${playerName} is now the captain.`,
+   356→      });
+   357→      fetchTeamDetail(selectedTeam.id);
+   358→    } catch (err) {
+   359→      console.error('Set captain error:', err);
+   360→      toast({
+   361→        title: 'Error',
+   362→        description: 'Failed to set captain',
+   363→        variant: 'destructive',
+   364→      });
+   365→    } finally {
+   366→      setActionLoading(false);
+   367→    }
+   368→  };
+   369→
+   370→  // ─── Delete team ─────────────────────────────────────────────
+   371→
+   372→  const handleDeleteTeam = async () => {
+   373→    if (!selectedTeam) return;
+   374→    setActionLoading(true);
+   375→    try {
+   376→      const res = await fetch(`/api/teams/${selectedTeam.id}`, { method: 'DELETE' });
+   377→      if (!res.ok) throw new Error('Failed to delete team');
+   378→      toast({
+   379→        title: 'Team Deleted',
+   380→        description: `${selectedTeam.name} has been deleted.`,
+   381→      });
+   382→      setSelectedTeam(null);
+   383→      setView('list');
+   384→      fetchTeams();
+   385→    } catch (err) {
+   386→      console.error('Delete team error:', err);
+   387→      toast({
+   388→        title: 'Error',
+   389→        description: 'Failed to delete team',
+   390→        variant: 'destructive',
+   391→      });
+   392→    } finally {
+   393→      setActionLoading(false);
+   394→    }
+   395→  };
+   396→
+   397→  // ─── Navigate to team detail ─────────────────────────────────
+   398→
+   399→  const openTeamDetail = (team: TeamData) => {
+   400→    setSelectedTeam(team);
+   401→    setView('detail');
+   402→    fetchTeamDetail(team.id);
+   403→  };
+   404→
+   405→  const goBackToList = () => {
+   406→    setView('list');
+   407→    setSelectedTeam(null);
+   408→  };
+   409→
+   410→  // ─── Get captain name for a team ─────────────────────────────
+   411→
+   412→  const getCaptainName = (team: TeamData): string => {
+   413→    const captain = team.members.find((m) => m.isCaptain);
+   414→    return captain ? getDisplayName(captain.user.name) : 'No captain';
+   415→  };
+   416→
+   417→  // ─── Check if player is already in team ──────────────────────
+   418→
+   419→  const isPlayerInTeam = (playerId: string): boolean => {
+   420→    if (!selectedTeam) return false;
+   421→    return selectedTeam.members.some((m) => m.userId === playerId);
+   422→  };
+   423→
+   424→  // ─── Render ──────────────────────────────────────────────────
+   425→
+   426→  return (
+   427→    <motion.div
+   428→      initial={{ opacity: 0 }}
+   429→      animate={{ opacity: 1 }}
+   430→      exit={{ opacity: 0 }}
+   431→      className="fixed inset-0 z-50 bg-warm-50 flex flex-col"
+   432→    >
+   433→      {/* ═══ Header ═══ */}
+   434→      <header className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
+   435→        <div className="px-4 py-3 flex items-center justify-between">
+   436→          <div className="flex items-center gap-2">
+   437→            {view === 'detail' ? (
+   438→              <button
+   439→                onClick={goBackToList}
+   440→                className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600 hover:bg-warm-300 transition-colors"
+   441→              >
+   442→                <ChevronLeft className="w-4 h-4" />
+   443→              </button>
+   444→            ) : (
+   445→              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
+   446→                <Shield className="w-4 h-4 text-white" />
+   447→              </div>
+   448→            )}
+   449→            <h1 className="text-base font-black tracking-wider text-warm-800">
+   450→              {view === 'detail' && selectedTeam
+   451→                ? selectedTeam.name.toUpperCase()
+   452→                : 'MY TEAMS'}
+   453→            </h1>
+   454→          </div>
+   455→          <div className="flex items-center gap-2">
+   456→            {view === 'list' && (
+   457→              <button
+   458→                onClick={() => setCreateDialogOpen(true)}
+   459→                className="w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white hover:bg-brand-red-dark transition-colors"
+   460→              >
+   461→                <Plus className="w-4 h-4" />
+   462→              </button>
+   463→            )}
+   464→            {view === 'detail' && selectedTeam && (
+   465→              <button
+   466→                onClick={handleDeleteTeam}
+   467→                disabled={actionLoading}
+   468→                className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-500 hover:bg-red-100 hover:text-brand-red transition-colors"
+   469→              >
+   470→                <Trash2 className="w-4 h-4" />
+   471→              </button>
+   472→            )}
+   473→            <button
+   474→              onClick={onClose}
+   475→              className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600 hover:bg-warm-300 transition-colors"
+   476→            >
+   477→              <X className="w-4 h-4" />
+   478→            </button>
+   479→          </div>
+   480→        </div>
+   481→      </header>
+   482→
+   483→      {/* ═══ Content ═══ */}
+   484→      <div className="flex-1 overflow-y-auto custom-scrollbar">
+   485→        <AnimatePresence mode="wait">
+   486→          {view === 'list' ? (
+   487→            <motion.div
+   488→              key="team-list"
+   489→              initial={{ opacity: 0, x: -20 }}
+   490→              animate={{ opacity: 1, x: 0 }}
+   491→              exit={{ opacity: 0, x: -20 }}
+   492→              transition={{ duration: 0.2 }}
+   493→              className="px-4 py-4 space-y-3"
+   494→            >
+   495→              {/* ─── Team List View ─── */}
+   496→              {teamsLoading ? (
+   497→                <div className="flex flex-col gap-3">
+   498→                  {[1, 2, 3].map((i) => (
+   499→                    <div
+   500→                      key={i}
+   501→                      className="h-24 rounded-2xl bg-warm-100 animate-pulse"
+   502→                    />
+   503→                  ))}
+   504→                </div>
+   505→              ) : teams.length === 0 ? (
+   506→                <div className="flex flex-col items-center justify-center py-16">
+   507→                  <div className="w-16 h-16 rounded-full bg-warm-200 flex items-center justify-center mb-4">
+   508→                    <Users className="w-8 h-8 text-warm-400" />
+   509→                  </div>
+   510→                  <p className="text-warm-700 font-bold text-lg">No Teams Yet</p>
+   511→                  <p className="text-warm-400 text-sm mt-1 text-center max-w-[240px]">
+   512→                    Create your first team and start playing Kabaddi!
+   513→                  </p>
+   514→                  <Button
+   515→                    onClick={() => setCreateDialogOpen(true)}
+   516→                    className="mt-4 bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold"
+   517→                  >
+   518→                    <Plus className="w-4 h-4 mr-1.5" />
+   519→                    Create Team
+   520→                  </Button>
+   521→                </div>
+   522→              ) : (
+   523→                teams.map((team, index) => (
+   524→                  <motion.div
+   525→                    key={team.id}
+   526→                    initial={{ opacity: 0, y: 12 }}
+   527→                    animate={{ opacity: 1, y: 0 }}
+   528→                    transition={{ delay: index * 0.06 }}
+   529→                  >
+   530→                    <Card
+   531→                      className="bg-white border-warm-200 py-0 gap-0 overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.98]"
+   532→                      onClick={() => openTeamDetail(team)}
+   533→                    >
+   534→                      <CardContent className="p-4">
+   535→                        <div className="flex items-center gap-3">
+   536→                          {/* Color badge */}
+   537→                          <div
+   538→                            className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0 shadow-sm"
+   539→                            style={{ backgroundColor: team.color || '#DC2626' }}
+   540→                          >
+   541→                            {team.shortName
+   542→                              ? team.shortName.slice(0, 2)
+   543→                              : team.name.charAt(0).toUpperCase()}
+   544→                          </div>
+   545→
+   546→                          {/* Team info */}
+   547→                          <div className="flex-1 min-w-0">
+   548→                            <div className="flex items-center gap-2">
+   549→                              <h3 className="font-bold text-warm-800 truncate">
+   550→                                {team.name}
+   551→                              </h3>
+   552→                              {team.shortName && (
+   553→                                <Badge
+   554→                                  variant="secondary"
+   555→                                  className="text-[10px] px-1.5 py-0 bg-warm-100 text-warm-500 shrink-0"
+   556→                                >
+   557→                                  {team.shortName}
+   558→                                </Badge>
+   559→                              )}
+   560→                            </div>
+   561→                            <div className="flex items-center gap-3 mt-1">
+   562→                              <span className="text-xs text-warm-500 flex items-center gap-1">
+   563→                                <Users className="w-3 h-3" />
+   564→                                {team.members.length}
+   565→                              </span>
+   566→                              <span className="text-xs text-warm-500 flex items-center gap-1">
+   567→                                <Crown className="w-3 h-3 text-brand-gold" />
+   568→                                {getCaptainName(team)}
+   569→                              </span>
+   570→                            </div>
+   571→                          </div>
+   572→
+   573→                          {/* Arrow indicator */}
+   574→                          <ChevronLeft className="w-4 h-4 text-warm-400 rotate-180 shrink-0" />
+   575→                        </div>
+   576→                      </CardContent>
+   577→                    </Card>
+   578→                  </motion.div>
+   579→                ))
+   580→              )}
+   581→            </motion.div>
+   582→          ) : (
+   583→            <motion.div
+   584→              key="team-detail"
+   585→              initial={{ opacity: 0, x: 20 }}
+   586→              animate={{ opacity: 1, x: 0 }}
+   587→              exit={{ opacity: 0, x: 20 }}
+   588→              transition={{ duration: 0.2 }}
+   589→              className="px-4 py-4 space-y-4"
+   590→            >
+   591→              {/* ─── Team Detail View ─── */}
+   592→              {detailLoading ? (
+   593→                <div className="flex flex-col gap-3">
+   594→                  <div className="h-32 rounded-2xl bg-warm-100 animate-pulse" />
+   595→                  <div className="h-20 rounded-2xl bg-warm-100 animate-pulse" />
+   596→                  {[1, 2, 3].map((i) => (
+   597→                    <div
+   598→                      key={i}
+   599→                      className="h-16 rounded-xl bg-warm-100 animate-pulse"
+   600→                    />
+   601→                  ))}
+   602→                </div>
+   603→              ) : selectedTeam ? (
+   604→                <>
+   605→                  {/* Team Header Card */}
+   606→                  <Card className="border-warm-200 py-0 gap-0 overflow-hidden">
+   607→                    <CardContent className="p-5">
+   608→                      <div className="flex items-center gap-4">
+   609→                        <div
+   610→                          className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl shrink-0 shadow-md"
+   611→                          style={{
+   612→                            backgroundColor: selectedTeam.color || '#DC2626',
+   613→                          }}
+   614→                        >
+   615→                          {selectedTeam.shortName
+   616→                            ? selectedTeam.shortName.slice(0, 3)
+   617→                            : selectedTeam.name.charAt(0).toUpperCase()}
+   618→                        </div>
+   619→                        <div className="flex-1 min-w-0">
+   620→                          <h2 className="text-xl font-black text-warm-800 truncate">
+   621→                            {selectedTeam.name}
+   622→                          </h2>
+   623→                          <div className="flex items-center gap-2 mt-1">
+   624→                            {selectedTeam.shortName && (
+   625→                              <Badge
+   626→                                variant="secondary"
+   627→                                className="text-xs px-2 py-0.5 bg-warm-100 text-warm-600"
+   628→                              >
+   629→                                {selectedTeam.shortName}
+   630→                              </Badge>
+   631→                            )}
+   632→                            <div
+   633→                              className="w-4 h-4 rounded-full border-2 border-warm-200 shrink-0"
+   634→                              style={{
+   635→                                backgroundColor:
+   636→                                  selectedTeam.color || '#DC2626',
+   637→                              }}
+   638→                            />
+   639→                          </div>
+   640→                        </div>
+   641→                        <Badge className="bg-brand-teal/10 text-brand-teal border-brand-teal/20 shrink-0">
+   642→                          <Users className="w-3 h-3 mr-1" />
+   643→                          {selectedTeam.members.length}
+   644→                        </Badge>
+   645→                      </div>
+   646→                    </CardContent>
+   647→                  </Card>
+   648→
+   649→                  {/* Stats Row */}
+   650→                  <div className="grid grid-cols-4 gap-2">
+   651→                    {[
+   652→                      {
+   653→                        label: 'Matches',
+   654→                        value: teamStats.totalMatches,
+   655→                        color: 'text-warm-800',
+   656→                      },
+   657→                      {
+   658→                        label: 'Wins',
+   659→                        value: teamStats.wins,
+   660→                        color: 'text-brand-teal',
+   661→                      },
+   662→                      {
+   663→                        label: 'Losses',
+   664→                        value: teamStats.losses,
+   665→                        color: 'text-brand-red',
+   666→                      },
+   667→                      {
+   668→                        label: 'Points',
+   669→                        value: teamStats.totalPoints,
+   670→                        color: 'text-brand-gold',
+   671→                      },
+   672→                    ].map((stat) => (
+   673→                      <Card
+   674→                        key={stat.label}
+   675→                        className="bg-white border-warm-200 py-0 gap-0"
+   676→                      >
+   677→                        <CardContent className="p-3 text-center">
+   678→                          <p className={`text-lg font-black ${stat.color}`}>
+   679→                            {stat.value}
+   680→                          </p>
+   681→                          <p className="text-[10px] text-warm-500 font-medium uppercase tracking-wide">
+   682→                            {stat.label}
+   683→                          </p>
+   684→                        </CardContent>
+   685→                      </Card>
+   686→                    ))}
+   687→                  </div>
+   688→
+   689→                  {/* Members Header */}
+   690→                  <div className="flex items-center justify-between">
+   691→                    <h3 className="font-bold text-warm-800 flex items-center gap-2">
+   692→                      <Users className="w-4 h-4 text-brand-teal" />
+   693→                      Members
+   694→                    </h3>
+   695→                    <Button
+   696→                      size="sm"
+   697→                      onClick={() => setSearchDialogOpen(true)}
+   698→                      className="bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl h-8 px-3 text-xs font-semibold"
+   699→                    >
+   700→                      <Plus className="w-3.5 h-3.5 mr-1" />
+   701→                      Add Player
+   702→                    </Button>
+   703→                  </div>
+   704→
+   705→                  {/* Member List */}
+   706→                  <div className="space-y-2">
+   707→                    {selectedTeam.members.length === 0 ? (
+   708→                      <div className="text-center py-8">
+   709→                        <Users className="w-10 h-10 text-warm-300 mx-auto mb-2" />
+   710→                        <p className="text-warm-500 text-sm">
+   711→                          No members yet
+   712→                        </p>
+   713→                      </div>
+   714→                    ) : (
+   715→                      selectedTeam.members.map((member, index) => {
+   716→                        const isCurrentUserCaptain =
+   717→                          selectedTeam.members.find(
+   718→                            (m) => m.isCaptain
+   719→                          )?.userId === currentUser?.id;
+   720→                        const canManage =
+   721→                          isCurrentUserCaptain ||
+   722→                          currentUser?.isAdmin;
+   723→
+   724→                        return (
+   725→                          <motion.div
+   726→                            key={member.id}
+   727→                            initial={{ opacity: 0, y: 8 }}
+   728→                            animate={{ opacity: 1, y: 0 }}
+   729→                            transition={{ delay: index * 0.04 }}
+   730→                          >
+   731→                            <Card className="bg-white border-warm-200 py-0 gap-0 overflow-hidden">
+   732→                              <CardContent className="p-3">
+   733→                                <div className="flex items-center gap-3">
+   734→                                  {/* Avatar */}
+   735→                                  <div className="relative shrink-0">
+   736→                                    <div
+   737→                                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+   738→                                      style={{
+   739→                                        backgroundColor:
+   740→                                          selectedTeam.color || '#DC2626',
+   741→                                      }}
+   742→                                    >
+   743→                                      {member.user.avatar ? (
+   744→                                        <img
+   745→                                          src={member.user.avatar}
+   746→                                          alt={getDisplayName(
+   747→                                            member.user.name
+   748→                                          )}
+   749→                                          className="w-full h-full rounded-full object-cover"
+   750→                                        />
+   751→                                      ) : (
+   752→                                        getInitials(member.user.name)
+   753→                                      )}
+   754→                                    </div>
+   755→                                    {member.isCaptain && (
+   756→                                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-gold flex items-center justify-center shadow-sm">
+   757→                                        <Crown className="w-3 h-3 text-white" />
+   758→                                      </div>
+   759→                                    )}
+   760→                                  </div>
+   761→
+   762→                                  {/* Name & Info */}
+   763→                                  <div className="flex-1 min-w-0">
+   764→                                    <div className="flex items-center gap-2">
+   765→                                      <span className="font-semibold text-sm text-warm-800 truncate">
+   766→                                        {getDisplayName(member.user.name)}
+   767→                                      </span>
+   768→                                      {member.isCaptain && (
+   769→                                        <Badge className="bg-brand-gold/10 text-brand-gold-dark border-brand-gold/20 text-[10px] px-1.5 py-0">
+   770→                                          CAPTAIN
+   771→                                        </Badge>
+   772→                                      )}
+   773→                                      {member.userId ===
+   774→                                        currentUser?.id && (
+   775→                                        <Badge
+   776→                                          variant="secondary"
+   777→                                          className="text-[10px] px-1.5 py-0 bg-brand-teal/10 text-brand-teal"
+   778→                                        >
+   779→                                          YOU
+   780→                                        </Badge>
+   781→                                      )}
+   782→                                    </div>
+   783→                                    <p className="text-xs text-warm-500">
+   784→                                      {member.user.phone}
+   785→                                      {member.user.profile?.position &&
+   786→                                        ` · ${member.user.profile.position}`}
+   787→                                    </p>
+   788→                                  </div>
+   789→
+   790→                                  {/* Actions */}
+   791→                                  {canManage &&
+   792→                                    member.userId !== currentUser?.id && (
+   793→                                      <div className="flex items-center gap-1 shrink-0">
+   794→                                        {!member.isCaptain && (
+   795→                                          <button
+   796→                                            onClick={() =>
+   797→                                              handleSetCaptain(
+   798→                                                member.userId,
+   799→                                                getDisplayName(
+   800→                                                  member.user.name
+   801→                                                )
+   802→                                              )
+   803→                                            }
+   804→                                            disabled={actionLoading}
+   805→                                            className="w-7 h-7 rounded-lg bg-brand-gold/10 flex items-center justify-center text-brand-gold hover:bg-brand-gold/20 transition-colors"
+   806→                                            title="Set as Captain"
+   807→                                          >
+   808→                                            <Crown className="w-3.5 h-3.5" />
+   809→                                          </button>
+   810→                                        )}
+   811→                                        <button
+   812→                                          onClick={() =>
+   813→                                            setDeleteConfirmId(member.id)
+   814→                                          }
+   815→                                          disabled={actionLoading}
+   816→                                          className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-warm-400 hover:bg-red-100 hover:text-brand-red transition-colors"
+   817→                                          title="Remove Player"
+   818→                                        >
+   819→                                          <Trash2 className="w-3.5 h-3.5" />
+   820→                                        </button>
+   821→                                      </div>
+   822→                                    )}
+   823→                                </div>
+   824→
+   825→                                {/* Delete confirmation */}
+   826→                                <AnimatePresence>
+   827→                                  {deleteConfirmId === member.id && (
+   828→                                    <motion.div
+   829→                                      initial={{ height: 0, opacity: 0 }}
+   830→                                      animate={{ height: 'auto', opacity: 1 }}
+   831→                                      exit={{ height: 0, opacity: 0 }}
+   832→                                      transition={{ duration: 0.2 }}
+   833→                                      className="overflow-hidden"
+   834→                                    >
+   835→                                      <div className="mt-2 pt-2 border-t border-warm-200 flex items-center justify-between">
+   836→                                        <span className="text-xs text-warm-600">
+   837→                                          Remove{' '}
+   838→                                          <strong>
+   839→                                            {getDisplayName(
+   840→                                              member.user.name
+   841→                                            )}
+   842→                                          </strong>
+   843→                                          ?
+   844→                                        </span>
+   845→                                        <div className="flex gap-2">
+   846→                                          <Button
+   847→                                            size="sm"
+   848→                                            variant="outline"
+   849→                                            className="h-7 text-xs rounded-lg border-warm-300"
+   850→                                            onClick={() =>
+   851→                                              setDeleteConfirmId(null)
+   852→                                            }
+   853→                                          >
+   854→                                            Cancel
+   855→                                          </Button>
+   856→                                          <Button
+   857→                                            size="sm"
+   858→                                            className="h-7 text-xs rounded-lg bg-brand-red hover:bg-brand-red-dark text-white"
+   859→                                            onClick={() =>
+   860→                                              handleRemovePlayer(
+   861→                                                member.id,
+   862→                                                getDisplayName(
+   863→                                                  member.user.name
+   864→                                                )
+   865→                                              )
+   866→                                            }
+   867→                                            disabled={actionLoading}
+   868→                                          >
+   869→                                            Remove
+   870→                                          </Button>
+   871→                                        </div>
+   872→                                      </div>
+   873→                                    </motion.div>
+   874→                                  )}
+   875→                                </AnimatePresence>
+   876→                              </CardContent>
+   877→                            </Card>
+   878→                          </motion.div>
+   879→                        );
+   880→                      })
+   881→                    )}
+   882→                  </div>
+   883→                </>
+   884→              ) : (
+   885→                <div className="flex flex-col items-center justify-center py-16">
+   886→                  <Shield className="w-12 h-12 text-warm-300 mb-3" />
+   887→                  <p className="text-warm-500 text-sm">Team not found</p>
+   888→                </div>
+   889→              )}
+   890→            </motion.div>
+   891→          )}
+   892→        </AnimatePresence>
+   893→      </div>
+   894→
+   895→      {/* ═══ Create Team Dialog ═══ */}
+   896→      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+   897→        <DialogContent className="bg-warm-50 border-warm-200 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
+   898→          <DialogHeader>
+   899→            <DialogTitle className="text-warm-800 flex items-center gap-2">
+   900→              <div className="w-7 h-7 rounded-lg bg-brand-red flex items-center justify-center">
+   901→                <Shield className="w-3.5 h-3.5 text-white" />
+   902→              </div>
+   903→              Create New Team
+   904→            </DialogTitle>
+   905→            <DialogDescription className="text-warm-500">
+   906→              Set up your Kabaddi team. You&apos;ll be added as captain automatically.
+   907→            </DialogDescription>
+   908→          </DialogHeader>
+   909→
+   910→          <div className="space-y-4 py-2">
+   911→            {/* Team Name */}
+   912→            <div className="space-y-2">
+   913→              <label className="text-sm font-medium text-warm-700">
+   914→                Team Name <span className="text-brand-red">*</span>
+   915→              </label>
+   916→              <Input
+   917→                placeholder="e.g. Mumbai Warriors"
+   918→                value={newTeamName}
+   919→                onChange={(e) => setNewTeamName(e.target.value)}
+   920→                className="h-11 bg-white border-warm-300 rounded-xl text-warm-800"
+   921→                maxLength={50}
+   922→              />
+   923→            </div>
+   924→
+   925→            {/* Short Name */}
+   926→            <div className="space-y-2">
+   927→              <label className="text-sm font-medium text-warm-700">
+   928→                Short Name
+   929→                <span className="text-warm-400 font-normal ml-1">
+   930→                  (3 chars max)
+   931→                </span>
+   932→              </label>
+   933→              <Input
+   934→                placeholder="e.g. MUM"
+   935→                value={newTeamShortName}
+   936→                onChange={(e) =>
+   937→                  setNewTeamShortName(
+   938→                    e.target.value.slice(0, 3).toUpperCase()
+   939→                  )
+   940→                }
+   941→                className="h-11 bg-white border-warm-300 rounded-xl text-warm-800 uppercase"
+   942→                maxLength={3}
+   943→              />
+   944→            </div>
+   945→
+   946→            {/* Color Picker */}
+   947→            <div className="space-y-2">
+   948→              <label className="text-sm font-medium text-warm-700">
+   949→                Team Color
+   950→              </label>
+   951→              <div className="flex gap-2.5 flex-wrap">
+   952→                {TEAM_COLORS.map((color) => (
+   953→                  <button
+   954→                    key={color}
+   955→                    onClick={() => setNewTeamColor(color)}
+   956→                    className={`w-9 h-9 rounded-xl transition-all duration-200 ${
+   957→                      newTeamColor === color
+   958→                        ? 'ring-2 ring-offset-2 ring-warm-400 scale-110 shadow-md'
+   959→                        : 'hover:scale-105'
+   960→                    }`}
+   961→                    style={{ backgroundColor: color }}
+   962→                  />
+   963→                ))}
+   964→              </div>
+   965→              {/* Preview */}
+   966→              <div className="flex items-center gap-3 mt-3 p-3 bg-white rounded-xl border border-warm-200">
+   967→                <div
+   968→                  className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+   969→                  style={{ backgroundColor: newTeamColor }}
+   970→                >
+   971→                  {newTeamShortName
+   972→                    ? newTeamShortName.slice(0, 2)
+   973→                    : newTeamName
+   974→                    ? newTeamName.charAt(0).toUpperCase()
+   975→                    : '?'}
+   976→                </div>
+   977→                <div>
+   978→                  <p className="font-bold text-warm-800 text-sm">
+   979→                    {newTeamName || 'Team Name'}
+   980→                  </p>
+   981→                  <p className="text-xs text-warm-400">
+   982→                    {newTeamShortName
+   983→                      ? `Short: ${newTeamShortName}`
+   984→                      : 'No short name'}
+   985→                  </p>
+   986→                </div>
+   987→              </div>
+   988→            </div>
+   989→          </div>
+   990→
+   991→          <DialogFooter className="gap-2 sm:gap-2">
+   992→            <Button
+   993→              variant="outline"
+   994→              onClick={() => setCreateDialogOpen(false)}
+   995→              className="rounded-xl border-warm-300 text-warm-600"
+   996→            >
+   997→              Cancel
+   998→            </Button>
+   999→            <Button
+  1000→              onClick={handleCreateTeam}
+  1001→              disabled={!newTeamName.trim() || actionLoading}
+  1002→              className="bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold flex-1 sm:flex-none"
+  1003→            >
+  1004→              {actionLoading ? (
+  1005→                <span className="flex items-center gap-2">
+  1006→                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+  1007→                  Creating...
+  1008→                </span>
+  1009→              ) : (
+  1010→                <>
+  1011→                  <Plus className="w-4 h-4 mr-1.5" />
+  1012→                  Create Team
+  1013→                </>
+  1014→              )}
+  1015→            </Button>
+  1016→          </DialogFooter>
+  1017→        </DialogContent>
+  1018→      </Dialog>
+  1019→
+  1020→      {/* ═══ Search Players Dialog ═══ */}
+  1021→      <Dialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen}>
+  1022→        <DialogContent className="bg-warm-50 border-warm-200 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
+  1023→          <DialogHeader>
+  1024→            <DialogTitle className="text-warm-800 flex items-center gap-2">
+  1025→              <div className="w-7 h-7 rounded-lg bg-brand-teal flex items-center justify-center">
+  1026→                <Search className="w-3.5 h-3.5 text-white" />
+  1027→              </div>
+  1028→              Add Player
+  1029→            </DialogTitle>
+  1030→            <DialogDescription className="text-warm-500">
+  1031→              Search for players by name or phone number.
+  1032→            </DialogDescription>
+  1033→          </DialogHeader>
+  1034→
+  1035→          {/* Search Input */}
+  1036→          <div className="relative">
+  1037→            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+  1038→            <Input
+  1039→              placeholder="Search by name or phone..."
+  1040→              value={searchQuery}
+  1041→              onChange={(e) => setSearchQuery(e.target.value)}
+  1042→              className="pl-9 h-11 bg-white border-warm-300 rounded-xl text-warm-800"
+  1043→              autoFocus
+  1044→            />
+  1045→            {searchQuery && (
+  1046→              <button
+  1047→                onClick={() => {
+  1048→                  setSearchQuery('');
+  1049→                  setSearchResults([]);
+  1050→                }}
+  1051→                className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+  1052→              >
+  1053→                <X className="w-4 h-4" />
+  1054→              </button>
+  1055→            )}
+  1056→          </div>
+  1057→
+  1058→          {/* Search Results */}
+  1059→          <div className="max-h-72 overflow-y-auto custom-scrollbar space-y-2">
+  1060→            {searchLoading ? (
+  1061→              <div className="flex flex-col gap-2 py-4">
+  1062→                {[1, 2, 3].map((i) => (
+  1063→                  <div
+  1064→                    key={i}
+  1065→                    className="h-14 rounded-xl bg-warm-100 animate-pulse"
+  1066→                  />
+  1067→                ))}
+  1068→              </div>
+  1069→            ) : searchQuery.trim() === '' ? (
+  1070→              <div className="text-center py-8">
+  1071→                <Search className="w-8 h-8 text-warm-300 mx-auto mb-2" />
+  1072→                <p className="text-warm-400 text-sm">
+  1073→                  Type to search for players
+  1074→                </p>
+  1075→              </div>
+  1076→            ) : searchResults.length === 0 ? (
+  1077→              <div className="text-center py-8">
+  1078→                <Users className="w-8 h-8 text-warm-300 mx-auto mb-2" />
+  1079→                <p className="text-warm-500 text-sm">No players found</p>
+  1080→                <p className="text-warm-400 text-xs mt-1">
+  1081→                  Try a different search term
+  1082→                </p>
+  1083→              </div>
+  1084→            ) : (
+  1085→              searchResults.map((player) => {
+  1086→                const alreadyInTeam = isPlayerInTeam(player.id);
+  1087→                return (
+  1088→                  <motion.div
+  1089→                    key={player.id}
+  1090→                    initial={{ opacity: 0, y: 6 }}
+  1091→                    animate={{ opacity: 1, y: 0 }}
+  1092→                  >
+  1093→                    <Card
+  1094→                      className={`bg-white border-warm-200 py-0 gap-0 overflow-hidden ${
+  1095→                        alreadyInTeam
+  1096→                          ? 'opacity-60'
+  1097→                          : 'cursor-pointer hover:shadow-md active:scale-[0.98]'
+  1098→                      } transition-all`}
+  1099→                      onClick={() => {
+  1100→                        if (!alreadyInTeam) {
+  1101→                          handleAddPlayer(
+  1102→                            player.id,
+  1103→                            getDisplayName(player.name)
+  1104→                          );
+  1105→                        }
+  1106→                      }}
+  1107→                    >
+  1108→                      <CardContent className="p-3">
+  1109→                        <div className="flex items-center gap-3">
+  1110→                          {/* Avatar */}
+  1111→                          <div
+  1112→                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+  1113→                            style={{
+  1114→                              backgroundColor:
+  1115→                                selectedTeam?.color || '#DC2626',
+  1116→                            }}
+  1117→                          >
+  1118→                            {player.avatar ? (
+  1119→                              <img
+  1120→                                src={player.avatar}
+  1121→                                alt={getDisplayName(player.name)}
+  1122→                                className="w-full h-full rounded-full object-cover"
+  1123→                              />
+  1124→                            ) : (
+  1125→                              getInitials(player.name)
+  1126→                            )}
+  1127→                          </div>
+  1128→
+  1129→                          {/* Info */}
+  1130→                          <div className="flex-1 min-w-0">
+  1131→                            <p className="font-semibold text-sm text-warm-800 truncate">
+  1132→                              {getDisplayName(player.name)}
+  1133→                            </p>
+  1134→                            <p className="text-xs text-warm-500">
+  1135→                              {player.phone}
+  1136→                              {player.profile?.position &&
+  1137→                                ` · ${player.profile.position}`}
+  1138→                            </p>
+  1139→                          </div>
+  1140→
+  1141→                          {/* Status */}
+  1142→                          {alreadyInTeam ? (
+  1143→                            <Badge
+  1144→                              variant="secondary"
+  1145→                              className="text-[10px] px-2 py-0.5 bg-brand-teal/10 text-brand-teal shrink-0"
+  1146→                            >
+  1147→                              IN TEAM
+  1148→                            </Badge>
+  1149→                          ) : (
+  1150→                            <div className="w-7 h-7 rounded-lg bg-brand-teal/10 flex items-center justify-center text-brand-teal shrink-0">
+  1151→                              <Plus className="w-4 h-4" />
+  1152→                            </div>
+  1153→                          )}
+  1154→                        </div>
+  1155→                      </CardContent>
+  1156→                    </Card>
+  1157→                  </motion.div>
+  1158→                );
+  1159→              })
+  1160→            )}
+  1161→          </div>
+  1162→        </DialogContent>
+  1163→      </Dialog>
+  1164→    </motion.div>
+  1165→  );
+  1166→}
+  1167→

@@ -1,0 +1,502 @@
+  1400→              {donutData.length > 0 ? (
+  1401→                <ResponsiveContainer width="100%" height="100%">
+  1402→                  <PieChart>
+  1403→                    <Pie
+  1404→                      data={donutData}
+  1405→                      cx="50%"
+  1406→                      cy="50%"
+  1407→                      innerRadius={38}
+  1408→                      outerRadius={58}
+  1409→                      dataKey="value"
+  1410→                      strokeWidth={3}
+  1411→                      stroke="var(--card)"
+  1412→                      animationBegin={300}
+  1413→                      animationDuration={1500}
+  1414→                      animationEasing="ease-out"
+  1415→                    >
+  1416→                      {donutData.map((entry, index) => (
+  1417→                        <Cell key={`cell-${index}`} fill={entry.fill} />
+  1418→                      ))}
+  1419→                    </Pie>
+  1420→                  </PieChart>
+  1421→                </ResponsiveContainer>
+  1422→              ) : (
+  1423→                <div className="flex items-center justify-center h-full text-warm-400 text-xs">No data yet</div>
+  1424→              )}
+  1425→              {/* Center label - enhanced */}
+  1426→              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+  1427→                <motion.span
+  1428→                  initial={{ scale: 0 }}
+  1429→                  animate={{ scale: 1 }}
+  1430→                  transition={{ delay: 0.8, type: 'spring', stiffness: 300 }}
+  1431→                  className="text-xl font-black text-warm-800 dark:text-warm-700"
+  1432→                >
+  1433→                  <AnimatedValue value={totalPoints} />
+  1434→                </motion.span>
+  1435→                <span className="text-[8px] font-bold text-warm-400 uppercase tracking-wider">Total</span>
+  1436→              </div>
+  1437→            </div>
+  1438→          </Card>
+  1439→
+  1440→          {/* Legend & Breakdown - Enhanced */}
+  1441→          <div className="col-span-3 space-y-2">
+  1442→            {donutData.map((item) => {
+  1443→              const pct = totalPoints > 0 ? ((item.value / totalPoints) * 100).toFixed(0) : 0;
+  1444→              return (
+  1445→                <motion.div
+  1446→                  key={item.name}
+  1447→                  initial={{ opacity: 0, x: 10 }}
+  1448→                  animate={{ opacity: 1, x: 0 }}
+  1449→                  transition={{ delay: 0.5 + donutData.indexOf(item) * 0.1 }}
+  1450→                  className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-warm-100/50 dark:hover:bg-warm-200/30 transition-colors"
+  1451→                >
+  1452→                  <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.fill }} />
+  1453→                  <span className="text-xs font-medium text-warm-600 dark:text-warm-500 flex-1">{item.name}</span>
+  1454→                  <span className="text-xs font-black text-warm-800 dark:text-warm-700">{item.value}</span>
+  1455→                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${item.fill}15`, color: item.fill }}>{pct}%</span>
+  1456→                </motion.div>
+  1457→              );
+  1458→            })}
+  1459→
+  1460→            {/* Success Rate Progress Bars - Enhanced */}
+  1461→            <div className="mt-2 space-y-2.5 pt-2 border-t border-warm-200 dark:border-warm-300">
+  1462→              <div>
+  1463→                <div className="flex items-center justify-between mb-1">
+  1464→                  <div className="flex items-center gap-1.5">
+  1465→                    <div className="w-5 h-5 rounded-md bg-orange-500/10 flex items-center justify-center">
+  1466→                      <Zap className="w-3 h-3 text-orange-500" />
+  1467→                    </div>
+  1468→                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-500">Raid Success</span>
+  1469→                  </div>
+  1470→                  <span className="text-[10px] font-black text-orange-500">{raidSuccessRate.toFixed(0)}%</span>
+  1471→                </div>
+  1472→                <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden progress-glow">
+  1473→                  <motion.div
+  1474→                    initial={{ width: 0 }}
+  1475→                    animate={{ width: `${Math.min(raidSuccessRate, 100)}%` }}
+  1476→                    transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 }}
+  1477→                    className="h-full rounded-full bg-gradient-to-r from-orange-400 via-red-500 to-amber-500"
+  1478→                  />
+  1479→                </div>
+  1480→              </div>
+  1481→              <div>
+  1482→                <div className="flex items-center justify-between mb-1">
+  1483→                  <div className="flex items-center gap-1.5">
+  1484→                    <div className="w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center">
+  1485→                      <Shield className="w-3 h-3 text-emerald-500" />
+  1486→                    </div>
+  1487→                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-500">Tackle Success</span>
+  1488→                  </div>
+  1489→                  <span className="text-[10px] font-black text-emerald-500">{tackleSuccessRate.toFixed(0)}%</span>
+  1490→                </div>
+  1491→                <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden progress-glow">
+  1492→                  <motion.div
+  1493→                    initial={{ width: 0 }}
+  1494→                    animate={{ width: `${Math.min(tackleSuccessRate, 100)}%` }}
+  1495→                    transition={{ duration: 1.5, ease: 'easeOut', delay: 0.4 }}
+  1496→                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-500 to-green-500"
+  1497→                  />
+  1498→                </div>
+  1499→              </div>
+  1500→            </div>
+  1501→          </div>
+  1502→        </div>
+  1503→
+  1504→        {/* Practice vs Tournament Stats */}
+  1505→        <div className="grid grid-cols-2 gap-3 mt-3">
+  1506→          <Card className="p-3 bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/20 shadow-sm">
+  1507→            <div className="flex items-center gap-1.5 mb-2">
+  1508→              <span className="text-sm">🏋️</span>
+  1509→              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Practice</span>
+  1510→            </div>
+  1511→            <div className="space-y-1.5">
+  1512→              <div className="flex justify-between text-[11px]">
+  1513→                <span className="text-warm-500 dark:text-warm-400">Matches</span>
+  1514→                <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.practiceMatches}</span>
+  1515→              </div>
+  1516→              <div className="flex justify-between text-[11px]">
+  1517→                <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+  1518→                <span className="text-orange-500 font-semibold">{profileData.practiceRaidPoints}</span>
+  1519→              </div>
+  1520→              <div className="flex justify-between text-[11px]">
+  1521→                <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+  1522→                <span className="text-emerald-500 font-semibold">{profileData.practiceTacklePoints}</span>
+  1523→              </div>
+  1524→              <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+  1525→                <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+  1526→                <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.practiceTotalPoints}</span>
+  1527→              </div>
+  1528→            </div>
+  1529→          </Card>
+  1530→          <Card className="p-3 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/20 shadow-sm">
+  1531→            <div className="flex items-center gap-1.5 mb-2">
+  1532→              <span className="text-sm">🏆</span>
+  1533→              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Tournament</span>
+  1534→            </div>
+  1535→            <div className="space-y-1.5">
+  1536→              <div className="flex justify-between text-[11px]">
+  1537→                <span className="text-warm-500 dark:text-warm-400">Matches</span>
+  1538→                <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.tournamentMatches}</span>
+  1539→              </div>
+  1540→              <div className="flex justify-between text-[11px]">
+  1541→                <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+  1542→                <span className="text-orange-500 font-semibold">{profileData.tournamentRaidPoints}</span>
+  1543→              </div>
+  1544→              <div className="flex justify-between text-[11px]">
+  1545→                <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+  1546→                <span className="text-emerald-500 font-semibold">{profileData.tournamentTacklePoints}</span>
+  1547→              </div>
+  1548→              <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+  1549→                <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+  1550→                <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.tournamentTotalPoints}</span>
+  1551→              </div>
+  1552→            </div>
+  1553→          </Card>
+  1554→        </div>
+  1555→      </motion.div>
+  1556→
+  1557→      {/* ═══════════════════════════════════════════ */}
+  1558→      {/* 4. RECENT MATCHES with Enhanced Cards */}
+  1559→      {/* ═══════════════════════════════════════════ */}
+  1560→      <motion.div
+  1561→        initial={{ opacity: 0, y: 10 }}
+  1562→        animate={{ opacity: 1, y: 0 }}
+  1563→        transition={{ delay: 0.14 }}
+  1564→      >
+  1565→        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1566→          <Calendar className="w-4 h-4 text-brand-teal" />
+  1567→          Recent Matches
+  1568→        </h3>
+  1569→        <Card className="shadow-sm overflow-hidden">
+  1570→          {recentMatches.length === 0 ? (
+  1571→            <div className="p-6 text-center">
+  1572→              <div className="w-12 h-12 rounded-full bg-warm-100 dark:bg-warm-200 flex items-center justify-center mx-auto mb-3">
+  1573→                <Swords className="w-6 h-6 text-warm-300 dark:text-warm-400" />
+  1574→              </div>
+  1575→              <p className="text-sm text-warm-500 dark:text-warm-400">No matches yet</p>
+  1576→              <p className="text-xs text-warm-400 dark:text-warm-300 mt-1">Start scoring to see your match history</p>
+  1577→            </div>
+  1578→          ) : (
+  1579→            <div className="divide-y divide-warm-200 dark:divide-warm-300">
+  1580→              {recentMatches.slice(0, 5).map((match, idx) => {
+  1581→                const result = getMatchResult(match);
+  1582→                const timeAgoStr = match.completedAt ? timeAgo(match.completedAt) : '';
+  1583→                return (
+  1584→                  <motion.div
+  1585→                    key={match.id}
+  1586→                    initial={{ opacity: 0, x: -10 }}
+  1587→                    animate={{ opacity: 1, x: 0 }}
+  1588→                    transition={{ delay: 0.1 * idx }}
+  1589→                    className={`flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 transition-colors border-l-4 ${getResultBg(result)}`}
+  1590→                  >
+  1591→                    {/* Win/Loss/Tie indicator - enhanced */}
+  1592→                    <motion.div
+  1593→                      initial={{ scale: 0 }}
+  1594→                      animate={{ scale: 1 }}
+  1595→                      transition={{ type: 'spring', stiffness: 300, delay: 0.15 * idx }}
+  1596→                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 shadow-sm ${getResultColor(result)} ${idx < 2 ? 'result-pulse' : ''}`}
+  1597→                    >
+  1598→                      {result}
+  1599→                    </motion.div>
+  1600→                    {/* Match info with team color indicators */}
+  1601→                    <div className="flex-1 min-w-0">
+  1602→                      <div className="flex items-center gap-1.5 text-sm font-medium text-warm-800 dark:text-warm-700">
+  1603→                        <span className="team-dot bg-brand-red" />
+  1604→                        <span className="truncate">{match.homeTeam}</span>
+  1605→                        <span className="text-warm-400 text-xs shrink-0 font-bold">vs</span>
+  1606→                        <span className="team-dot bg-brand-teal" />
+  1607→                        <span className="truncate">{match.awayTeam}</span>
+  1608→                      </div>
+  1609→                      <div className="flex items-center gap-2 mt-0.5">
+  1610→                        <span className="text-xs text-warm-400">{match.date}</span>
+  1611→                        {timeAgoStr && (
+  1612→                          <span className="text-[10px] text-warm-300 dark:text-warm-400 flex items-center gap-0.5">
+  1613→                            <Clock className="w-2.5 h-2.5" />{timeAgoStr}
+  1614→                          </span>
+  1615→                        )}
+  1616→                        {match.isPractice ? (
+  1617→                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal font-semibold flex items-center gap-0.5">
+  1618→                            <span className="w-1.5 h-1.5 rounded-full bg-brand-teal" />
+  1619→                            Practice
+  1620→                          </span>
+  1621→                        ) : (
+  1622→                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold font-semibold flex items-center gap-0.5">
+  1623→                            <span className="w-1.5 h-1.5 rounded-full bg-brand-gold" />
+  1624→                            Tournament
+  1625→                          </span>
+  1626→                        )}
+  1627→                      </div>
+  1628→                    </div>
+  1629→                    {/* Score */}
+  1630→                    <motion.div
+  1631→                      className="text-right shrink-0"
+  1632→                      initial={{ opacity: 0 }}
+  1633→                      animate={{ opacity: 1 }}
+  1634→                      transition={{ delay: 0.2 * idx }}
+  1635→                    >
+  1636→                      <span className="text-sm font-black text-warm-800 dark:text-warm-700 tabular-nums">
+  1637→                        {match.homeScore} - {match.awayScore}
+  1638→                      </span>
+  1639→                    </motion.div>
+  1640→                  </motion.div>
+  1641→                );
+  1642→              })}
+  1643→            </div>
+  1644→          )}
+  1645→          {recentMatches.length > 0 && (
+  1646→            <div className="px-4 py-2.5 border-t border-warm-200 dark:border-warm-300">
+  1647→              <button className="w-full text-center text-xs font-semibold text-brand-teal hover:text-brand-teal-dark transition-colors flex items-center justify-center gap-1">
+  1648→                View All Matches
+  1649→                <ChevronRight className="w-3.5 h-3.5" />
+  1650→              </button>
+  1651→            </div>
+  1652→          )}
+  1653→        </Card>
+  1654→      </motion.div>
+  1655→
+  1656→      {/* ═══════════════════════════════════════════ */}
+  1657→      {/* 5. BADGES Section with Categories, Locked & Progress */}
+  1658→      {/* ═══════════════════════════════════════════ */}
+  1659→      <motion.div
+  1660→        initial={{ opacity: 0, y: 10 }}
+  1661→        animate={{ opacity: 1, y: 0 }}
+  1662→        transition={{ delay: 0.15 }}
+  1663→      >
+  1664→        <PremiumLock feature="Detailed Badges">
+  1665→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1666→            <Award className="w-4 h-4 text-brand-gold" />
+  1667→            Badges
+  1668→          </h3>
+  1669→          <div className="space-y-4">
+  1670→            {badgeCategories.map((category) => (
+  1671→              <div key={category.title}>
+  1672→                <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-300 uppercase tracking-wider mb-2">{category.title}</p>
+  1673→                <div className="flex flex-wrap gap-2">
+  1674→                  {category.badges.map((badge, idx) => {
+  1675→                    const isLocked = badge.premium && !isPremium;
+  1676→                    return (
+  1677→                      <motion.div
+  1678→                        key={badge.label}
+  1679→                        initial={{ opacity: 0, scale: 0.8, y: 10 }}
+  1680→                        animate={{ opacity: 1, scale: 1, y: 0 }}
+  1681→                        transition={{ delay: 0.06 * idx, type: 'spring', stiffness: 300 }}
+  1682→                      >
+  1683→                        <Tooltip>
+  1684→                          <TooltipTrigger asChild>
+  1685→                            <div
+  1686→                              className={`relative flex flex-col items-center px-3 py-2.5 rounded-xl border-2 transition-all min-w-[72px] ${
+  1687→                                badge.condition
+  1688→                                  ? 'bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 border-brand-gold/40 shadow-md badge-unlocked-shimmer'
+  1689→                                  : isLocked
+  1690→                                    ? 'bg-warm-100/30 dark:bg-warm-200/20 border-warm-200/60 dark:border-warm-300/50 badge-locked'
+  1691→                                    : 'bg-warm-100 dark:bg-warm-200/50 border-warm-200 dark:border-warm-300 hover:border-brand-gold/30'
+  1692→                              }`}
+  1693→                            >
+  1694→                              <motion.span
+  1695→                                className="text-xl"
+  1696→                                animate={badge.condition ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : {}}
+  1697→                                transition={badge.condition ? { duration: 2.5, repeat: Infinity, repeatDelay: 4 } : {}}
+  1698→                              >
+  1699→                                {isLocked ? <Lock className="w-4 h-4 text-warm-400" /> : badge.icon}
+  1700→                              </motion.span>
+  1701→                              <span className={`text-[9px] font-bold mt-1 ${
+  1702→                                badge.condition ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'
+  1703→                              }`}>
+  1704→                                {badge.label}
+  1705→                              </span>
+  1706→                              {/* Progress indicator for partially completed - enhanced */}
+  1707→                              {!badge.condition && !isLocked && badge.progress > 0 && (
+  1708→                                <div className="w-full mt-1">
+  1709→                                  <div className="w-full h-1.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+  1710→                                    <motion.div
+  1711→                                      initial={{ width: 0 }}
+  1712→                                      animate={{ width: `${badge.progress}%` }}
+  1713→                                      transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+  1714→                                      className="h-full rounded-full bg-gradient-to-r from-brand-gold/60 to-brand-gold"
+  1715→                                    />
+  1716→                                  </div>
+  1717→                                  <span className="text-[7px] text-warm-400 font-medium">{badge.progress.toFixed(0)}%</span>
+  1718→                                </div>
+  1719→                              )}
+  1720→                              {isLocked && (
+  1721→                                <span className="text-[7px] font-bold text-brand-gold/60 mt-0.5 flex items-center gap-0.5">
+  1722→                                  <Crown className="w-2 h-2" /> PRO
+  1723→                                </span>
+  1724→                              )}
+  1725→                              {/* Unlocked checkmark */}
+  1726→                              {badge.condition && (
+  1727→                                <motion.div
+  1728→                                  initial={{ scale: 0 }}
+  1729→                                  animate={{ scale: 1 }}
+  1730→                                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm"
+  1731→                                >
+  1732→                                  <Check className="w-2.5 h-2.5 text-white" />
+  1733→                                </motion.div>
+  1734→                              )}
+  1735→                            </div>
+  1736→                          </TooltipTrigger>
+  1737→                          <TooltipContent side="bottom">
+  1738→                            <p className="font-semibold">{badge.condition ? '✨ Unlocked!' : `${badge.threshold} needed`}</p>
+  1739→                            {!badge.condition && <p className="text-[9px] opacity-70">{badge.progress.toFixed(0)}% progress</p>}
+  1740→                          </TooltipContent>
+  1741→                        </Tooltip>
+  1742→                      </motion.div>
+  1743→                    );
+  1744→                  })}
+  1745→                </div>
+  1746→              </div>
+  1747→            ))}
+  1748→          </div>
+  1749→        </PremiumLock>
+  1750→      </motion.div>
+  1751→
+  1752→      {/* ═══════════════════════════════════════════ */}
+  1753→      {/* 6. PERFORMANCE RADAR/SPIDER CHART */}
+  1754→      {/* ═══════════════════════════════════════════ */}
+  1755→      <motion.div
+  1756→        initial={{ opacity: 0, y: 10 }}
+  1757→        animate={{ opacity: 1, y: 0 }}
+  1758→        transition={{ delay: 0.2 }}
+  1759→      >
+  1760→        <PremiumLock feature="Performance Analytics">
+  1761→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1762→            <Gauge className="w-4 h-4 text-brand-red" />
+  1763→            Performance Radar
+  1764→          </h3>
+  1765→          <Card className="p-4 shadow-sm glass-card">
+  1766→            <div className="h-60">
+  1767→              <ResponsiveContainer width="100%" height="100%">
+  1768→                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="72%">
+  1769→                  <PolarGrid stroke="var(--border)" strokeOpacity={0.3} />
+  1770→                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--color-warm-500)' }} />
+  1771→                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+  1772→                  {/* Average player overlay - lighter, dashed */}
+  1773→                  <Radar
+  1774→                    name="Average"
+  1775→                    dataKey="avg"
+  1776→                    stroke="#94A3B8"
+  1777→                    fill="#94A3B8"
+  1778→                    fillOpacity={0.08}
+  1779→                    strokeDasharray="5 5"
+  1780→                    strokeWidth={1}
+  1781→                    animationBegin={0}
+  1782→                    animationDuration={800}
+  1783→                  />
+  1784→                  {/* Player's stats - enhanced */}
+  1785→                  <Radar
+  1786→                    name="You"
+  1787→                    dataKey="player"
+  1788→                    stroke="#DC2626"
+  1789→                    fill="#DC2626"
+  1790→                    fillOpacity={0.25}
+  1791→                    strokeWidth={2.5}
+  1792→                    animationBegin={400}
+  1793→                    animationDuration={1200}
+  1794→                    animationEasing="ease-out"
+  1795→                  />
+  1796→                </RadarChart>
+  1797→              </ResponsiveContainer>
+  1798→            </div>
+  1799→            {/* Legend - enhanced */}
+  1800→            <div className="flex items-center justify-center gap-6 mt-2">
+  1801→              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-brand-red/10">
+  1802→                <div className="w-3 h-1.5 rounded-full bg-brand-red" />
+  1803→                <span className="text-[10px] font-semibold text-brand-red">You</span>
+  1804→              </div>
+  1805→              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-warm-200/50 dark:bg-warm-300/30">
+  1806→                <div className="w-3 h-1.5 rounded-full bg-slate-400 opacity-50" />
+  1807→                <span className="text-[10px] font-medium text-warm-500 dark:text-warm-400">Avg Player</span>
+  1808→              </div>
+  1809→            </div>
+  1810→            {/* Skill highlights */}
+  1811→            <div className="grid grid-cols-3 gap-2 mt-3">
+  1812→              {radarData.slice(0, 3).map((skill) => (
+  1813→                <div key={skill.subject} className="text-center p-1.5 rounded-lg bg-warm-100/50 dark:bg-warm-200/30">
+  1814→                  <p className="text-[9px] text-warm-400 uppercase font-semibold">{skill.subject}</p>
+  1815→                  <p className="text-sm font-black text-warm-800 dark:text-warm-700">{Math.round(skill.player)}</p>
+  1816→                </div>
+  1817→              ))}
+  1818→            </div>
+  1819→          </Card>
+  1820→
+  1821→          {/* Bar Chart - legacy performance data */}
+  1822→          <Card className="p-4 shadow-sm mt-3">
+  1823→            <h4 className="text-xs font-semibold text-warm-600 dark:text-warm-500 mb-2">Performance Summary</h4>
+  1824→            <div className="h-36">
+  1825→              <ResponsiveContainer width="100%" height="100%">
+  1826→                <BarChart data={performanceData} barSize={40}>
+  1827→                  <XAxis
+  1828→                    dataKey="name"
+  1829→                    axisLine={false}
+  1830→                    tickLine={false}
+  1831→                    tick={{ fontSize: 11, fill: '#8B7355' }}
+  1832→                  />
+  1833→                  <YAxis hide />
+  1834→                  <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={1000} animationEasing="ease-out">
+  1835→                    {performanceData.map((_, index) => (
+  1836→                      <Cell key={`cell-${index}`} fill={barColors[index]} />
+  1837→                    ))}
+  1838→                  </Bar>
+  1839→                </BarChart>
+  1840→              </ResponsiveContainer>
+  1841→            </div>
+  1842→          </Card>
+  1843→        </PremiumLock>
+  1844→      </motion.div>
+  1845→
+  1846→      {/* ═══════════════════════════════════════════ */}
+  1847→      {/* 7. DETAILED BREAKDOWN with Animated Progress Bars */}
+  1848→      {/* ═══════════════════════════════════════════ */}
+  1849→      <motion.div
+  1850→        initial={{ opacity: 0, y: 10 }}
+  1851→        animate={{ opacity: 1, y: 0 }}
+  1852→        transition={{ delay: 0.22 }}
+  1853→      >
+  1854→        <PremiumLock feature="Detailed Stats" compact>
+  1855→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1856→            <Swords className="w-4 h-4 text-brand-red" />
+  1857→            Detailed Breakdown
+  1858→          </h3>
+  1859→          <Card className="p-4 shadow-sm glass-card">
+  1860→            <div className="space-y-4">
+  1861→              {detailedStats.map((stat, idx) => {
+  1862→                const IconComp = stat.icon;
+  1863→                const diff = stat.value - stat.prev;
+  1864→                return (
+  1865→                  <motion.div
+  1866→                    key={stat.label}
+  1867→                    initial={{ opacity: 0, x: -10 }}
+  1868→                    animate={{ opacity: 1, x: 0 }}
+  1869→                    transition={{ delay: 0.08 * idx }}
+  1870→                    className="progress-glow rounded-lg p-1 -m-1"
+  1871→                  >
+  1872→                    <div className="flex items-center justify-between mb-1.5">
+  1873→                      <div className="flex items-center gap-2">
+  1874→                        <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-sm`}>
+  1875→                          <IconComp className="w-3.5 h-3.5 text-white" />
+  1876→                        </div>
+  1877→                        <span className="text-sm font-semibold text-warm-700 dark:text-warm-600">{stat.label}</span>
+  1878→                      </div>
+  1879→                      <div className="flex items-center gap-2">
+  1880→                        <span className="text-sm font-black text-warm-800 dark:text-warm-700 tabular-nums">{stat.value.toFixed(0)}%</span>
+  1881→                        {diff !== 0 && (
+  1882→                          <span className={`text-[9px] font-bold flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${
+  1883→                            diff > 0 ? 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400' : 'text-red-600 bg-red-500/10 dark:text-red-400'
+  1884→                          }`}>
+  1885→                            {diff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+  1886→                            {Math.abs(diff).toFixed(0)}%
+  1887→                          </span>
+  1888→                        )}
+  1889→                      </div>
+  1890→                    </div>
+  1891→                    <div className="w-full h-3 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+  1892→                      <motion.div
+  1893→                        initial={{ width: 0 }}
+  1894→                        animate={{ width: `${Math.min(stat.value, 100)}%` }}
+  1895→                        transition={{ duration: 1.5, ease: 'easeOut', delay: 0.2 + idx * 0.1 }}
+  1896→                        className={`h-full rounded-full bg-gradient-to-r ${stat.color} relative`}
+  1897→                      >
+  1898→                        {/* Shine effect on progress bar */}
+  1899→                        <div className="absolute inset-0 rounded-full overflow-hidden">
+
+[showing lines 1400-1899 of 2369; use offset=1900 with limit to continue reading]

@@ -101,6 +101,27 @@ export type Language = 'en' | 'hi';
 
 export type HomeData = Record<string, unknown> | null;
 
+export type OnboardingPosition = 'raider' | 'defender' | 'all-rounder';
+export type OnboardingExperience = 'beginner' | 'intermediate' | 'advanced';
+export type OnboardingWeightCategory = 'below-60' | '60-70' | '70-80' | '80-90' | 'above-90';
+
+export interface OnboardingProfile {
+  position: OnboardingPosition | null;
+  experience: OnboardingExperience | null;
+  weightCategory: OnboardingWeightCategory | null;
+  selectedTeamId: string | null;
+}
+
+// Team management types
+export type TeamFilter = 'my' | 'all';
+
+export interface TeamManagementState {
+  teamFilter: TeamFilter;
+  teamSearch: string;
+  selectedTeamId: string | null;
+  teamDetailOpen: boolean;
+}
+
 interface KabaddiState {
   // Auth
   isAuthenticated: boolean;
@@ -126,6 +147,13 @@ interface KabaddiState {
 
   // Language
   language: Language;
+
+  // Onboarding
+  hasCompletedOnboarding: boolean;
+  onboardingProfile: OnboardingProfile;
+
+  // Team Management
+  teamManagement: TeamManagementState;
 
   // Actions
   login: (user: CurrentUser) => void;
@@ -159,6 +187,17 @@ interface KabaddiState {
 
   // Language action
   setLanguage: (lang: Language) => void;
+
+  // Onboarding actions
+  setHasCompletedOnboarding: (value: boolean) => void;
+  setOnboardingProfile: (profile: Partial<OnboardingProfile>) => void;
+  completeOnboarding: () => void;
+
+  // Team management actions
+  setTeamFilter: (filter: TeamFilter) => void;
+  setTeamSearch: (search: string) => void;
+  setSelectedTeamId: (teamId: string | null) => void;
+  setTeamDetailOpen: (open: boolean) => void;
 }
 
 /** Helper: determine which side a teamId belongs to in a match */
@@ -315,6 +354,23 @@ export const useKabaddiStore = create<KabaddiState>()(
 
       // Language
       language: 'en' as Language,
+
+      // Onboarding
+      hasCompletedOnboarding: false,
+      onboardingProfile: {
+        position: null,
+        experience: null,
+        weightCategory: null,
+        selectedTeamId: null,
+      },
+
+      // Team Management
+      teamManagement: {
+        teamFilter: 'my' as TeamFilter,
+        teamSearch: '',
+        selectedTeamId: null,
+        teamDetailOpen: false,
+      },
 
       // Actions
       login: (user) =>
@@ -610,6 +666,47 @@ export const useKabaddiStore = create<KabaddiState>()(
       clearNotifications: () => set({ notifications: [] }),
 
       setLanguage: (lang) => set({ language: lang }),
+
+      // Onboarding actions
+      setHasCompletedOnboarding: (value) => set({ hasCompletedOnboarding: value }),
+
+      setOnboardingProfile: (profile) =>
+        set((state) => ({
+          onboardingProfile: { ...state.onboardingProfile, ...profile },
+        })),
+
+      completeOnboarding: () =>
+        set((state) => ({
+          hasCompletedOnboarding: true,
+          currentUser: state.currentUser
+            ? {
+                ...state.currentUser,
+                ...(state.onboardingProfile.position && { role: state.onboardingProfile.position }),
+                ...(state.onboardingProfile.weightCategory && { weight: state.onboardingProfile.weightCategory }),
+              }
+            : null,
+        })),
+
+      // Team management actions
+      setTeamFilter: (filter) =>
+        set((state) => ({
+          teamManagement: { ...state.teamManagement, teamFilter: filter },
+        })),
+
+      setTeamSearch: (search) =>
+        set((state) => ({
+          teamManagement: { ...state.teamManagement, teamSearch: search },
+        })),
+
+      setSelectedTeamId: (teamId) =>
+        set((state) => ({
+          teamManagement: { ...state.teamManagement, selectedTeamId: teamId },
+        })),
+
+      setTeamDetailOpen: (open) =>
+        set((state) => ({
+          teamManagement: { ...state.teamManagement, teamDetailOpen: open },
+        })),
     }),
     {
       name: 'kabaddi-pro-storage',
@@ -622,6 +719,8 @@ export const useKabaddiStore = create<KabaddiState>()(
         hasSeenSplash: state.hasSeenSplash,
         notifications: state.notifications,
         language: state.language,
+        hasCompletedOnboarding: state.hasCompletedOnboarding,
+        onboardingProfile: state.onboardingProfile,
       }),
     }
   )

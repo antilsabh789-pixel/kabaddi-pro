@@ -1,0 +1,1133 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useMemo } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Trophy, X, Clock, MapPin, Zap, Crown, Share2,
+     7→  Flame, Swords, Shield, Target, TrendingUp, TrendingDown,
+     8→  ChevronRight, Star,
+     9→} from 'lucide-react';
+    10→import { Card, CardContent } from '@/components/ui/card';
+    11→import { Button } from '@/components/ui/button';
+    12→import { Badge } from '@/components/ui/badge';
+    13→import { useToast } from '@/hooks/use-toast';
+    14→import PremiumLock from './PremiumLock';
+    15→import ShareScorecard from './ShareScorecard';
+    16→
+    17→// ─── Types ────────────────────────────────────────────────────────────────────
+    18→
+    19→interface MatchHighlightsScreenProps {
+    20→  matchId: string;
+    21→  onClose: () => void;
+    22→}
+    23→
+    24→interface MatchTeam {
+    25→  id: string;
+    26→  name: string;
+    27→  shortName?: string;
+    28→  color?: string;
+    29→}
+    30→
+    31→interface MatchEventDB {
+    32→  id: string;
+    33→  matchId: string;
+    34→  teamId: string;
+    35→  playerId?: string;
+    36→  eventType: string;
+    37→  value: number;
+    38→  details?: string;
+    39→  half: number;
+    40→  timestamp: string;
+    41→}
+    42→
+    43→interface MotmUser {
+    44→  id: string;
+    45→  name: string;
+    46→  avatar?: string;
+    47→}
+    48→
+    49→interface MatchData {
+    50→  id: string;
+    51→  homeTeamId: string;
+    52→  awayTeamId: string;
+    53→  homeScore: number;
+    54→  awayScore: number;
+    55→  homeTeam: MatchTeam;
+    56→  awayTeam: MatchTeam;
+    57→  events: MatchEventDB[];
+    58→  scorers: { id: string; matchId: string; userId: string; user: { id: string; name: string; avatar?: string } }[];
+    59→  motmUser: MotmUser | null;
+    60→  tournament: { id: string; name: string } | null;
+    61→  status: string;
+    62→  gender?: string | null;
+    63→  startedAt: string | null;
+    64→  completedAt: string | null;
+    65→  halfDuration: number;
+    66→  playersPerSide: number;
+    67→  isPractice: boolean;
+    68→  venue?: string | null;
+    69→}
+    70→
+    71→interface KeyMoment {
+    72→  id: string;
+    73→  eventType: string;
+    74→  label: string;
+    75→  icon: string;
+    76→  teamId: string;
+    77→  teamName: string;
+    78→  teamColor: string;
+    79→  playerName?: string;
+    80→  value: number;
+    81→  half: number;
+    82→  timestamp: string;
+    83→  description: string;
+    84→}
+    85→
+    86→interface TurningPoint {
+    87→  id: string;
+    88→  type: 'all_out_lead_change' | 'do_or_die_shift' | 'comeback';
+    89→  label: string;
+    90→  icon: string;
+    91→  description: string;
+    92→  teamName: string;
+    93→  teamColor: string;
+    94→  timestamp: string;
+    95→  half: number;
+    96→}
+    97→
+    98→// ─── Constants ────────────────────────────────────────────────────────────────
+    99→
+   100→const HIGHLIGHT_EVENTS = new Set([
+   101→  'super_raid',
+   102→  'super_tackle',
+   103→  'all_out',
+   104→  'do_or_die_raid',
+   105→]);
+   106→
+   107→const EVENT_META: Record<string, { icon: string; label: string; color: string }> = {
+   108→  raid_point:       { icon: '⚔️', label: 'Raid Point',      color: 'text-brand-red' },
+   109→  bonus_point:      { icon: '🎯', label: 'Bonus Point',      color: 'text-brand-teal' },
+   110→  tackle_point:     { icon: '🛡️', label: 'Tackle Point',     color: 'text-brand-blue' },
+   111→  super_raid:       { icon: '💥', label: 'Super Raid',        color: 'text-brand-gold' },
+   112→  super_tackle:     { icon: '🔒', label: 'Super Tackle',      color: 'text-brand-gold' },
+   113→  do_or_die_raid:   { icon: '⚡', label: 'Do-or-Die Raid',    color: 'text-brand-gold' },
+   114→  all_out:          { icon: '🔥', label: 'All Out',           color: 'text-brand-red' },
+   115→  timeout:          { icon: '⏸️', label: 'Timeout',           color: 'text-warm-400' },
+   116→  yellow_card:      { icon: '🟨', label: 'Yellow Card',       color: 'text-yellow-500' },
+   117→  red_card:         { icon: '🟥', label: 'Red Card',          color: 'text-red-500' },
+   118→  green_card:       { icon: '🟩', label: 'Green Card',        color: 'text-green-500' },
+   119→};
+   120→
+   121→// ─── Helpers ──────────────────────────────────────────────────────────────────
+   122→
+   123→function formatDuration(isoStart: string | null, isoEnd: string | null): string {
+   124→  if (!isoStart || !isoEnd) return '';
+   125→  const ms = new Date(isoEnd).getTime() - new Date(isoStart).getTime();
+   126→  const totalMins = Math.round(ms / 60000);
+   127→  return `${totalMins} min`;
+   128→}
+   129→
+   130→function formatDateTime(iso: string | null): string {
+   131→  if (!iso) return '';
+   132→  const d = new Date(iso);
+   133→  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+   134→}
+   135→
+   136→// ─── Animation Variants ───────────────────────────────────────────────────────
+   137→
+   138→const containerVariants = {
+   139→  hidden: { opacity: 0 },
+   140→  visible: {
+   141→    opacity: 1,
+   142→    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+   143→  },
+   144→};
+   145→
+   146→const itemVariants = {
+   147→  hidden: { opacity: 0, y: 20, scale: 0.97 },
+   148→  visible: {
+   149→    opacity: 1,
+   150→    y: 0,
+   151→    scale: 1,
+   152→    transition: { type: 'spring', damping: 20, stiffness: 260 },
+   153→  },
+   154→};
+   155→
+   156→const cardVariants = {
+   157→  hidden: { opacity: 0, y: 24 },
+   158→  visible: {
+   159→    opacity: 1,
+   160→    y: 0,
+   161→    transition: { type: 'spring', damping: 22, stiffness: 240 },
+   162→  },
+   163→};
+   164→
+   165→// ─── Component ────────────────────────────────────────────────────────────────
+   166→
+   167→export default function MatchHighlightsScreen({ matchId, onClose }: MatchHighlightsScreenProps) {
+   168→  const [match, setMatch] = useState<MatchData | null>(null);
+   169→  const [loading, setLoading] = useState(true);
+   170→  const [error, setError] = useState<string | null>(null);
+   171→  const [showShare, setShowShare] = useState(false);
+   172→
+   173→  const { toast } = useToast();
+   174→
+   175→  // ── Fetch match ────────────────────────────────────────────────────────────
+   176→  const fetchMatch = useCallback(async () => {
+   177→    setLoading(true);
+   178→    setError(null);
+   179→    try {
+   180→      const res = await fetch(`/api/matches?id=${encodeURIComponent(matchId)}`);
+   181→      if (!res.ok) throw new Error('Match not found');
+   182→      const data = await res.json();
+   183→      setMatch(data.match as MatchData);
+   184→    } catch (err) {
+   185→      console.error('Match highlights fetch error:', err);
+   186→      setError('Failed to load match highlights');
+   187→    } finally {
+   188→      setLoading(false);
+   189→    }
+   190→  }, [matchId]);
+   191→
+   192→  useEffect(() => {
+   193→    fetchMatch();
+   194→  }, [fetchMatch]);
+   195→
+   196→  // ── Derived data ───────────────────────────────────────────────────────────
+   197→  const homeColor = match?.homeTeam?.color || '#DC2626';
+   198→  const awayColor = match?.awayTeam?.color || '#1E293B';
+   199→  const isHomeWin = match ? match.homeScore > match.awayScore : false;
+   200→  const isAwayWin = match ? match.awayScore > match.homeScore : false;
+   201→  const isDraw = match ? match.homeScore === match.awayScore : false;
+   202→  const winnerSide: 'home' | 'away' | 'draw' | null = match
+   203→    ? isDraw ? 'draw' : isHomeWin ? 'home' : 'away'
+   204→    : null;
+   205→
+   206→  // Build scorer name lookup
+   207→  const scorerNames = useMemo(() => {
+   208→    if (!match) return {} as Record<string, string>;
+   209→    const map: Record<string, string> = {};
+   210→    for (const s of match.scorers) {
+   211→      map[s.userId] = s.user.name;
+   212→    }
+   213→    return map;
+   214→  }, [match]);
+   215→
+   216→  // ── Sorted events (chronological) ──────────────────────────────────────────
+   217→  const sortedEvents = useMemo(() => {
+   218→    if (!match) return [];
+   219→    return [...match.events].sort(
+   220→      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+   221→    );
+   222→  }, [match]);
+   223→
+   224→  // ── Key Moments ────────────────────────────────────────────────────────────
+   225→  const keyMoments = useMemo((): KeyMoment[] => {
+   226→    if (!match) return [];
+   227→
+   228→    const moments: KeyMoment[] = [];
+   229→    let homeScore = 0;
+   230→    let awayScore = 0;
+   231→    let leadingTeamId: string | null = null;
+   232→
+   233→    for (const evt of sortedEvents) {
+   234→      const isHome = evt.teamId === match.homeTeamId;
+   235→      const teamName = isHome ? match.homeTeam.name : match.awayTeam.name;
+   236→      const teamColor = isHome ? homeColor : awayColor;
+   237→      const playerName = evt.playerId ? scorerNames[evt.playerId] : undefined;
+   238→
+   239→      // Track score for comeback detection
+   240→      if (isHome) {
+   241→        homeScore += evt.value;
+   242→      } else {
+   243→        awayScore += evt.value;
+   244→      }
+   245→
+   246→      // Detect lead change (comeback)
+   247→      const currentLeader = homeScore > awayScore
+   248→        ? match.homeTeamId
+   249→        : awayScore > homeScore
+   250→          ? match.awayTeamId
+   251→          : null;
+   252→
+   253→      const isComeback = currentLeader !== null
+   254→        && leadingTeamId !== null
+   255→        && currentLeader !== leadingTeamId
+   256→        && sortedEvents.indexOf(evt) > 0;
+   257→
+   258→      leadingTeamId = currentLeader;
+   259→
+   260→      // Filter for highlight events
+   261→      if (HIGHLIGHT_EVENTS.has(evt.eventType)) {
+   262→        const meta = EVENT_META[evt.eventType] || { icon: '📌', label: evt.eventType, color: 'text-warm-500' };
+   263→        let description = '';
+   264→
+   265→        switch (evt.eventType) {
+   266→          case 'super_raid':
+   267→            description = `${playerName || teamName} scores 3+ points in a single raid!`;
+   268→            break;
+   269→          case 'super_tackle':
+   270→            description = `${playerName || teamName} executes a super tackle with 3 or fewer defenders!`;
+   271→            break;
+   272→          case 'all_out':
+   273→            description = `${teamName} inflicts an All Out — entire opposition sent off the mat!`;
+   274→            break;
+   275→          case 'do_or_die_raid':
+   276→            description = `${playerName || teamName} delivers in the crucial Do-or-Die raid!`;
+   277→            break;
+   278→        }
+   279→
+   280→        moments.push({
+   281→          id: evt.id,
+   282→          eventType: evt.eventType,
+   283→          label: meta.label,
+   284→          icon: meta.icon,
+   285→          teamId: evt.teamId,
+   286→          teamName,
+   287→          teamColor,
+   288→          playerName,
+   289→          value: evt.value,
+   290→          half: evt.half,
+   291→          timestamp: evt.timestamp,
+   292→          description,
+   293→        });
+   294→      }
+   295→
+   296→      // Add comeback moment
+   297→      if (isComeback && currentLeader !== null) {
+   298→        const comebackTeam = currentLeader === match.homeTeamId ? match.homeTeam : match.awayTeam;
+   299→        const comebackColor = currentLeader === match.homeTeamId ? homeColor : awayColor;
+   300→        moments.push({
+   301→          id: `comeback_${evt.id}`,
+   302→          eventType: 'comeback',
+   303→          label: 'Comeback!',
+   304→          icon: '🔄',
+   305→          teamId: currentLeader,
+   306→          teamName: comebackTeam.name,
+   307→          teamColor: comebackColor,
+   308→          value: 0,
+   309→          half: evt.half,
+   310→          timestamp: evt.timestamp,
+   311→          description: `${comebackTeam.name} takes the lead! The momentum shifts!`,
+   312→        });
+   313→      }
+   314→    }
+   315→
+   316→    return moments;
+   317→  }, [match, sortedEvents, homeColor, awayColor, scorerNames]);
+   318→
+   319→  // ── MVP Breakdown ──────────────────────────────────────────────────────────
+   320→  const mvpBreakdown = useMemo(() => {
+   321→    if (!match?.motmUser) return null;
+   322→
+   323→    let raidPoints = 0;
+   324→    let tacklePoints = 0;
+   325→    let bonusPoints = 0;
+   326→
+   327→    for (const evt of match.events) {
+   328→      if (evt.playerId !== match.motmUser.id) continue;
+   329→      switch (evt.eventType) {
+   330→        case 'raid_point':
+   331→        case 'super_raid':
+   332→        case 'do_or_die_raid':
+   333→          raidPoints += evt.value;
+   334→          break;
+   335→        case 'tackle_point':
+   336→        case 'super_tackle':
+   337→          tacklePoints += evt.value;
+   338→          break;
+   339→        case 'bonus_point':
+   340→          bonusPoints += evt.value;
+   341→          break;
+   342→      }
+   343→    }
+   344→
+   345→    const totalPoints = raidPoints + tacklePoints + bonusPoints;
+   346→    const motmTeamId = match.events.find(e => e.playerId === match.motmUser!.id)?.teamId;
+   347→    const teamName = motmTeamId === match.homeTeamId
+   348→      ? match.homeTeam.name
+   349→      : motmTeamId === match.awayTeamId
+   350→        ? match.awayTeam.name
+   351→        : '';
+   352→
+   353→    return {
+   354→      raidPoints,
+   355→      tacklePoints,
+   356→      bonusPoints,
+   357→      totalPoints,
+   358→      teamName,
+   359→    };
+   360→  }, [match]);
+   361→
+   362→  // ── Score Progression (for momentum graph) ─────────────────────────────────
+   363→  const scoreProgression = useMemo(() => {
+   364→    if (!match) return [];
+   365→
+   366→    let homeScore = 0;
+   367→    let awayScore = 0;
+   368→    const progression: { index: number; homeScore: number; awayScore: number; gap: number; half: number }[] = [];
+   369→
+   370→    // Start at 0-0
+   371→    progression.push({ index: 0, homeScore: 0, awayScore: 0, gap: 0, half: 1 });
+   372→
+   373→    sortedEvents.forEach((evt, idx) => {
+   374→      const isHome = evt.teamId === match.homeTeamId;
+   375→      if (isHome) {
+   376→        homeScore += evt.value;
+   377→      } else {
+   378→        awayScore += evt.value;
+   379→      }
+   380→      progression.push({
+   381→        index: idx + 1,
+   382→        homeScore,
+   383→        awayScore,
+   384→        gap: homeScore - awayScore,
+   385→        half: evt.half,
+   386→      });
+   387→    });
+   388→
+   389→    return progression;
+   390→  }, [match, sortedEvents]);
+   391→
+   392→  // ── Turning Points ─────────────────────────────────────────────────────────
+   393→  const turningPoints = useMemo((): TurningPoint[] => {
+   394→    if (!match) return [];
+   395→
+   396→    const points: TurningPoint[] = [];
+   397→    let homeScore = 0;
+   398→    let awayScore = 0;
+   399→    let prevLeader: 'home' | 'away' | 'draw' = 'draw';
+   400→
+   401→    for (const evt of sortedEvents) {
+   402→      const isHome = evt.teamId === match.homeTeamId;
+   403→      if (isHome) {
+   404→        homeScore += evt.value;
+   405→      } else {
+   406→        awayScore += evt.value;
+   407→      }
+   408→
+   409→      const currentLeader: 'home' | 'away' | 'draw' =
+   410→        homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
+   411→
+   412→      // All Out that changed lead
+   413→      if (evt.eventType === 'all_out' && currentLeader !== prevLeader && currentLeader !== 'draw') {
+   414→        const team = currentLeader === 'home' ? match.homeTeam : match.awayTeam;
+   415→        const color = currentLeader === 'home' ? homeColor : awayColor;
+   416→        points.push({
+   417→          id: `tp_ao_${evt.id}`,
+   418→          type: 'all_out_lead_change',
+   419→          label: 'All Out Lead Change',
+   420→          icon: '🔥',
+   421→          description: `${team.name}'s All Out flipped the lead! ${homeScore}-${awayScore}`,
+   422→          teamName: team.name,
+   423→          teamColor: color,
+   424→          timestamp: evt.timestamp,
+   425→          half: evt.half,
+   426→        });
+   427→      }
+   428→
+   429→      // Do-or-Die raid that shifted momentum (lead change)
+   430→      if (evt.eventType === 'do_or_die_raid' && currentLeader !== prevLeader && currentLeader !== 'draw') {
+   431→        const team = currentLeader === 'home' ? match.homeTeam : match.awayTeam;
+   432→        const color = currentLeader === 'home' ? homeColor : awayColor;
+   433→        points.push({
+   434→          id: `tp_dod_${evt.id}`,
+   435→          type: 'do_or_die_shift',
+   436→          label: 'Do-or-Die Shift',
+   437→          icon: '⚡',
+   438→          description: `${team.name} seized the lead in a Do-or-Die raid! ${homeScore}-${awayScore}`,
+   439→          teamName: team.name,
+   440→          teamColor: color,
+   441→          timestamp: evt.timestamp,
+   442→          half: evt.half,
+   443→        });
+   444→      }
+   445→
+   446→      // Comeback: team was losing by 3+ and takes lead
+   447→      if (currentLeader !== 'draw' && currentLeader !== prevLeader) {
+   448→        const prevGap = Math.abs(homeScore - awayScore);
+   449→        if (prevGap >= 3) {
+   450→          const team = currentLeader === 'home' ? match.homeTeam : match.awayTeam;
+   451→          const color = currentLeader === 'home' ? homeColor : awayColor;
+   452→          points.push({
+   453→            id: `tp_cb_${evt.id}`,
+   454→            type: 'comeback',
+   455→            label: 'Comeback Moment',
+   456→            icon: '🔄',
+   457→            description: `${team.name} fights back from ${prevGap} points down to take the lead!`,
+   458→            teamName: team.name,
+   459→            teamColor: color,
+   460→            timestamp: evt.timestamp,
+   461→            half: evt.half,
+   462→          });
+   463→        }
+   464→      }
+   465→
+   466→      prevLeader = currentLeader;
+   467→    }
+   468→
+   469→    return points;
+   470→  }, [match, sortedEvents, homeColor, awayColor]);
+   471→
+   472→  // ── Share data ─────────────────────────────────────────────────────────────
+   473→  const buildShareData = useCallback(() => {
+   474→    if (!match) return null;
+   475→
+   476→    // Top raider/defender from events
+   477→    const raidMap: Record<string, { name: string; points: number }> = {};
+   478→    const tackleMap: Record<string, { name: string; points: number }> = {};
+   479→    for (const evt of match.events) {
+   480→      if (!evt.playerId) continue;
+   481→      const name = scorerNames[evt.playerId] || evt.playerId.slice(0, 6);
+   482→      if (['raid_point', 'super_raid', 'do_or_die_raid'].includes(evt.eventType)) {
+   483→        if (!raidMap[evt.playerId]) raidMap[evt.playerId] = { name, points: 0 };
+   484→        raidMap[evt.playerId].points += evt.value;
+   485→      }
+   486→      if (['tackle_point', 'super_tackle'].includes(evt.eventType)) {
+   487→        if (!tackleMap[evt.playerId]) tackleMap[evt.playerId] = { name, points: 0 };
+   488→        tackleMap[evt.playerId].points += evt.value;
+   489→      }
+   490→    }
+   491→
+   492→    const topRaiders = Object.values(raidMap).sort((a, b) => b.points - a.points);
+   493→    const topDefenders = Object.values(tackleMap).sort((a, b) => b.points - a.points);
+   494→
+   495→    const motm = match.motmUser
+   496→      ? { name: match.motmUser.name, points: mvpBreakdown?.totalPoints || 0 }
+   497→      : null;
+   498→
+   499→    return {
+   500→      homeTeam: match.homeTeam.name,
+   501→      awayTeam: match.awayTeam.name,
+   502→      homeScore: match.homeScore,
+   503→      awayScore: match.awayScore,
+   504→      homeTeamColor: homeColor,
+   505→      awayTeamColor: awayColor,
+   506→      tournament: match.tournament?.name || null,
+   507→      date: match.startedAt,
+   508→      venue: match.venue || null,
+   509→      gender: match.gender || null,
+   510→      topRaider: topRaiders[0] || null,
+   511→      topDefender: topDefenders[0] || null,
+   512→      motm,
+   513→    };
+   514→  }, [match, homeColor, awayColor, scorerNames, mvpBreakdown]);
+   515→
+   516→  // ── Render ─────────────────────────────────────────────────────────────────
+   517→  return (
+   518→    <AnimatePresence>
+   519→      <motion.div
+   520→        initial={{ opacity: 0 }}
+   521→        animate={{ opacity: 1 }}
+   522→        exit={{ opacity: 0 }}
+   523→        className="fixed inset-0 z-50 bg-brand-navy-dark flex flex-col"
+   524→      >
+   525→        {/* ── Header bar ── */}
+   526→        <header className="sticky top-0 z-10 bg-brand-navy-dark/90 backdrop-blur-md border-b border-white/10">
+   527→          <div className="px-4 py-3 flex items-center justify-between">
+   528→            <div className="flex items-center gap-2">
+   529→              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center">
+   530→                <Star className="w-4 h-4 text-white" />
+   531→              </div>
+   532→              <h1 className="text-sm font-black tracking-wider text-white">MATCH HIGHLIGHTS</h1>
+   533→            </div>
+   534→            <button
+   535→              onClick={onClose}
+   536→              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:bg-white/20 hover:text-white transition-colors"
+   537→            >
+   538→              <X className="w-4 h-4" />
+   539→            </button>
+   540→          </div>
+   541→        </header>
+   542→
+   543→        {/* ── Scrollable content ── */}
+   544→        <div className="flex-1 overflow-y-auto custom-scrollbar">
+   545→          {loading ? (
+   546→            <div className="px-4 py-8 space-y-4">
+   547→              <div className="h-56 rounded-2xl bg-white/5 animate-pulse" />
+   548→              <div className="h-32 rounded-2xl bg-white/5 animate-pulse" />
+   549→              <div className="h-48 rounded-2xl bg-white/5 animate-pulse" />
+   550→              <div className="h-64 rounded-2xl bg-white/5 animate-pulse" />
+   551→            </div>
+   552→          ) : error || !match ? (
+   553→            <div className="flex flex-col items-center justify-center py-20 px-6">
+   554→              <Shield className="w-12 h-12 text-white/20 mb-3" />
+   555→              <p className="text-white/50 text-sm font-medium">{error || 'Match not found'}</p>
+   556→              <Button onClick={fetchMatch} variant="outline" className="mt-4 rounded-xl border-white/20 text-white hover:bg-white/10">
+   557→                Retry
+   558→              </Button>
+   559→            </div>
+   560→          ) : (
+   561→            <motion.div
+   562→              variants={containerVariants}
+   563→              initial="hidden"
+   564→              animate="visible"
+   565→              className="px-4 py-4 space-y-4 pb-28"
+   566→            >
+   567→              {/* ════════════════════════════════════════════════════════════════
+   568→                  1. CINEMATIC HEADER CARD
+   569→                  ════════════════════════════════════════════════════════════════ */}
+   570→              <motion.div variants={cardVariants}>
+   571→                <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-brand-navy to-brand-navy-dark">
+   572→                  {/* Decorative glow */}
+   573→                  <div className="absolute inset-0 pointer-events-none">
+   574→                    <div className="absolute top-0 left-1/4 w-64 h-64 bg-brand-gold/5 rounded-full blur-3xl" />
+   575→                    <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-brand-red/5 rounded-full blur-3xl" />
+   576→                  </div>
+   577→
+   578→                  {/* Top ribbon */}
+   579→                  <div className="relative bg-gradient-to-r from-brand-gold/90 to-brand-gold-dark/90 px-5 py-2.5 flex items-center justify-between">
+   580→                    <div className="flex items-center gap-1.5">
+   581→                      <Trophy className="w-4 h-4 text-white" />
+   582→                      <span className="font-black tracking-widest text-xs text-white">FULL TIME</span>
+   583→                    </div>
+   584→                    <div className="flex items-center gap-2">
+   585→                      {match.tournament && (
+   586→                        <Badge className="bg-white/25 text-white text-[10px] font-semibold border-0 px-2 py-0.5">
+   587→                          {match.tournament.name}
+   588→                        </Badge>
+   589→                      )}
+   590→                      <Badge className={`text-[10px] font-semibold border-0 px-2 py-0.5 ${
+   591→                        match.gender === 'male' ? 'bg-brand-blue/40 text-white' : 'bg-pink-500/30 text-pink-200'
+   592→                      }`}>
+   593→                        {match.gender === 'male' ? '♂ Boys' : '♀ Girls'}
+   594→                      </Badge>
+   595→                    </div>
+   596→                  </div>
+   597→
+   598→                  {/* Scoreboard */}
+   599→                  <div className="relative px-5 pt-8 pb-6">
+   600→                    <div className="flex items-center justify-between">
+   601→                      {/* Home Team */}
+   602→                      <div className="flex-1 text-center">
+   603→                        <div className="relative inline-block">
+   604→                          <div
+   605→                            className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg mx-auto ring-2 ring-white/10"
+   606→                            style={{ backgroundColor: homeColor }}
+   607→                          >
+   608→                            {match.homeTeam.name.charAt(0).toUpperCase()}
+   609→                          </div>
+   610→                          {winnerSide === 'home' && (
+   611→                            <motion.div
+   612→                              initial={{ scale: 0, rotate: -180 }}
+   613→                              animate={{ scale: 1, rotate: 0 }}
+   614→                              transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.5 }}
+   615→                              className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-brand-gold flex items-center justify-center shadow-lg"
+   616→                            >
+   617→                              <Trophy className="w-4 h-4 text-white" />
+   618→                            </motion.div>
+   619→                          )}
+   620→                        </div>
+   621→                        <p className={`font-bold text-sm mt-3 truncate px-1 ${
+   622→                          isHomeWin ? 'text-brand-gold' : 'text-white/70'
+   623→                        }`}>
+   624→                          {match.homeTeam.name}
+   625→                        </p>
+   626→                        {isHomeWin && (
+   627→                          <motion.div
+   628→                            initial={{ opacity: 0, y: 4 }}
+   629→                            animate={{ opacity: 1, y: 0 }}
+   630→                            transition={{ delay: 0.7 }}
+   631→                          >
+   632→                            <Badge className="bg-brand-gold/20 text-brand-gold text-[10px] font-bold border-0 mt-1">
+   633→                              WINNER
+   634→                            </Badge>
+   635→                          </motion.div>
+   636→                        )}
+   637→                      </div>
+   638→
+   639→                      {/* Score */}
+   640→                      <div className="px-4 text-center">
+   641→                        <div className="flex items-center gap-3">
+   642→                          <motion.span
+   643→                            initial={{ scale: 0.5, opacity: 0 }}
+   644→                            animate={{ scale: 1, opacity: 1 }}
+   645→                            transition={{ type: 'spring', damping: 15, stiffness: 200, delay: 0.3 }}
+   646→                            className={`text-6xl font-black tabular-nums ${
+   647→                              isHomeWin ? 'text-brand-gold' : 'text-white'
+   648→                            }`}
+   649→                          >
+   650→                            {match.homeScore}
+   651→                          </motion.span>
+   652→                          <span className="text-white/20 text-2xl font-medium">-</span>
+   653→                          <motion.span
+   654→                            initial={{ scale: 0.5, opacity: 0 }}
+   655→                            animate={{ scale: 1, opacity: 1 }}
+   656→                            transition={{ type: 'spring', damping: 15, stiffness: 200, delay: 0.4 }}
+   657→                            className={`text-6xl font-black tabular-nums ${
+   658→                              isAwayWin ? 'text-brand-gold' : 'text-white'
+   659→                            }`}
+   660→                          >
+   661→                            {match.awayScore}
+   662→                          </motion.span>
+   663→                        </div>
+   664→                        {isDraw && (
+   665→                          <Badge className="bg-brand-gold/20 text-brand-gold text-[10px] font-bold border-0 mt-3">
+   666→                            DRAW
+   667→                          </Badge>
+   668→                        )}
+   669→                      </div>
+   670→
+   671→                      {/* Away Team */}
+   672→                      <div className="flex-1 text-center">
+   673→                        <div className="relative inline-block">
+   674→                          <div
+   675→                            className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg mx-auto ring-2 ring-white/10"
+   676→                            style={{ backgroundColor: awayColor }}
+   677→                          >
+   678→                            {match.awayTeam.name.charAt(0).toUpperCase()}
+   679→                          </div>
+   680→                          {winnerSide === 'away' && (
+   681→                            <motion.div
+   682→                              initial={{ scale: 0, rotate: -180 }}
+   683→                              animate={{ scale: 1, rotate: 0 }}
+   684→                              transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.5 }}
+   685→                              className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-brand-gold flex items-center justify-center shadow-lg"
+   686→                            >
+   687→                              <Trophy className="w-4 h-4 text-white" />
+   688→                            </motion.div>
+   689→                          )}
+   690→                        </div>
+   691→                        <p className={`font-bold text-sm mt-3 truncate px-1 ${
+   692→                          isAwayWin ? 'text-brand-gold' : 'text-white/70'
+   693→                        }`}>
+   694→                          {match.awayTeam.name}
+   695→                        </p>
+   696→                        {isAwayWin && (
+   697→                          <motion.div
+   698→                            initial={{ opacity: 0, y: 4 }}
+   699→                            animate={{ opacity: 1, y: 0 }}
+   700→                            transition={{ delay: 0.7 }}
+   701→                          >
+   702→                            <Badge className="bg-brand-gold/20 text-brand-gold text-[10px] font-bold border-0 mt-1">
+   703→                              WINNER
+   704→                            </Badge>
+   705→                          </motion.div>
+   706→                        )}
+   707→                      </div>
+   708→                    </div>
+   709→                  </div>
+   710→
+   711→                  {/* Meta row */}
+   712→                  <div className="relative px-5 pb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-white/40 text-[11px]">
+   713→                    {match.startedAt && (
+   714→                      <span className="flex items-center gap-1">
+   715→                        <Clock className="w-3 h-3" />
+   716→                        {formatDuration(match.startedAt, match.completedAt)}
+   717→                      </span>
+   718→                    )}
+   719→                    {match.venue && (
+   720→                      <span className="flex items-center gap-1">
+   721→                        <MapPin className="w-3 h-3" />
+   722→                        {match.venue}
+   723→                      </span>
+   724→                    )}
+   725→                    <span className="flex items-center gap-1">
+   726→                      <Zap className="w-3 h-3" />
+   727→                      {match.halfDuration}min halves
+   728→                    </span>
+   729→                  </div>
+   730→                </div>
+   731→              </motion.div>
+   732→
+   733→              {/* ════════════════════════════════════════════════════════════════
+   734→                  2. KEY MOMENTS
+   735→                  ════════════════════════════════════════════════════════════════ */}
+   736→              {keyMoments.length > 0 && (
+   737→                <motion.div variants={cardVariants}>
+   738→                  <Card className="bg-brand-navy/80 border-white/10 py-0 gap-0 overflow-hidden backdrop-blur-sm">
+   739→                    <div className="px-4 pt-4 pb-2">
+   740→                      <h3 className="text-sm font-black tracking-wider text-white flex items-center gap-2">
+   741→                        <Flame className="w-4 h-4 text-brand-gold" />
+   742→                        KEY MOMENTS
+   743→                      </h3>
+   744→                      <p className="text-white/40 text-[11px] mt-0.5">
+   745→                        {keyMoments.length} exciting moment{keyMoments.length !== 1 ? 's' : ''} from the match
+   746→                      </p>
+   747→                    </div>
+   748→                    <div className="max-h-80 overflow-y-auto custom-scrollbar px-4 pb-4 space-y-2">
+   749→                      {keyMoments.map((moment, idx) => (
+   750→                        <motion.div
+   751→                          key={moment.id}
+   752→                          initial={{ opacity: 0, x: -16 }}
+   753→                          animate={{ opacity: 1, x: 0 }}
+   754→                          transition={{ delay: idx * 0.06, type: 'spring', damping: 20, stiffness: 240 }}
+   755→                          className="relative flex items-start gap-3 bg-white/5 rounded-xl px-3 py-2.5 border border-white/5 hover:border-brand-gold/30 transition-colors"
+   756→                        >
+   757→                          {/* Icon */}
+   758→                          <div className="w-9 h-9 rounded-lg bg-brand-gold/15 flex items-center justify-center shrink-0 text-lg">
+   759→                            {moment.icon}
+   760→                          </div>
+   761→
+   762→                          {/* Content */}
+   763→                          <div className="flex-1 min-w-0">
+   764→                            <div className="flex items-center gap-2">
+   765→                              <span className="text-white font-bold text-xs">{moment.label}</span>
+   766→                              <span
+   767→                                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
+   768→                                style={{ backgroundColor: moment.teamColor }}
+   769→                              >
+   770→                                {moment.teamName}
+   771→                              </span>
+   772→                              <Badge className="bg-white/10 text-white/50 text-[9px] font-semibold border-0 px-1.5 py-0 ml-auto shrink-0">
+   773→                                H{moment.half}
+   774→                              </Badge>
+   775→                            </div>
+   776→                            <p className="text-white/50 text-[11px] mt-0.5 line-clamp-2">
+   777→                              {moment.description}
+   778→                            </p>
+   779→                          </div>
+   780→                        </motion.div>
+   781→                      ))}
+   782→                    </div>
+   783→                  </Card>
+   784→                </motion.div>
+   785→              )}
+   786→
+   787→              {/* ════════════════════════════════════════════════════════════════
+   788→                  3. MVP BREAKDOWN
+   789→                  ════════════════════════════════════════════════════════════════ */}
+   790→              {match.motmUser && mvpBreakdown && (
+   791→                <motion.div variants={cardVariants}>
+   792→                  <PremiumLock feature="MVP Breakdown">
+   793→                    <Card className="bg-gradient-to-br from-brand-gold/10 to-brand-gold-dark/5 border-brand-gold/20 py-0 gap-0 overflow-hidden">
+   794→                      <div className="px-4 pt-4 pb-2">
+   795→                        <h3 className="text-sm font-black tracking-wider text-warm-800 flex items-center gap-2">
+   796→                          <Crown className="w-4 h-4 text-brand-gold" />
+   797→                          MVP BREAKDOWN
+   798→                        </h3>
+   799→                      </div>
+   800→                      <CardContent className="px-4 pb-4">
+   801→                        <div className="flex items-center gap-4">
+   802→                          {/* Avatar */}
+   803→                          <div className="relative shrink-0">
+   804→                            <div className="w-16 h-16 rounded-full bg-warm-100 border-2 border-brand-gold/40 flex items-center justify-center overflow-hidden">
+   805→                              {match.motmUser.avatar ? (
+   806→                                <img
+   807→                                  src={match.motmUser.avatar}
+   808→                                  alt={match.motmUser.name}
+   809→                                  className="w-full h-full object-cover"
+   810→                                />
+   811→                              ) : (
+   812→                                <span className="text-2xl font-bold text-warm-500">
+   813→                                  {match.motmUser.name.charAt(0).toUpperCase()}
+   814→                                </span>
+   815→                              )}
+   816→                            </div>
+   817→                            <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-gold flex items-center justify-center shadow">
+   818→                              <Crown className="w-3.5 h-3.5 text-white" />
+   819→                            </div>
+   820→                          </div>
+   821→
+   822→                          {/* Name & Team */}
+   823→                          <div className="flex-1 min-w-0">
+   824→                            <Badge className="bg-brand-gold/20 text-brand-gold-dark text-[10px] font-semibold border-0 px-2 py-0.5 mb-1">
+   825→                              <Crown className="w-2.5 h-2.5 mr-0.5" />
+   826→                              Man of the Match
+   827→                            </Badge>
+   828→                            <p className="text-warm-800 font-bold text-base truncate">
+   829→                              {match.motmUser.name}
+   830→                            </p>
+   831→                            {mvpBreakdown.teamName && (
+   832→                              <p className="text-warm-500 text-xs">{mvpBreakdown.teamName}</p>
+   833→                            )}
+   834→                          </div>
+   835→
+   836→                          {/* Total Points */}
+   837→                          <div className="text-right shrink-0">
+   838→                            <motion.p
+   839→                              initial={{ scale: 0 }}
+   840→                              animate={{ scale: 1 }}
+   841→                              transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.3 }}
+   842→                              className="text-brand-gold font-black text-3xl"
+   843→                            >
+   844→                              {mvpBreakdown.totalPoints}
+   845→                            </motion.p>
+   846→                            <p className="text-warm-400 text-[10px]">points</p>
+   847→                          </div>
+   848→                        </div>
+   849→
+   850→                        {/* Stat Bars */}
+   851→                        <div className="mt-4 space-y-3">
+   852→                          {/* Raid Points */}
+   853→                          <div>
+   854→                            <div className="flex items-center justify-between mb-1">
+   855→                              <span className="text-xs font-semibold text-warm-700 flex items-center gap-1.5">
+   856→                                <Swords className="w-3 h-3 text-brand-red" />
+   857→                                Raid Points
+   858→                              </span>
+   859→                              <span className="text-xs font-bold text-brand-red">{mvpBreakdown.raidPoints}</span>
+   860→                            </div>
+   861→                            <div className="h-2 bg-warm-200 rounded-full overflow-hidden">
+   862→                              <motion.div
+   863→                                initial={{ width: 0 }}
+   864→                                animate={{ width: `${mvpBreakdown.totalPoints > 0 ? (mvpBreakdown.raidPoints / mvpBreakdown.totalPoints) * 100 : 0}%` }}
+   865→                                transition={{ duration: 0.8, delay: 0.4, ease: 'easeOut' }}
+   866→                                className="h-full bg-gradient-to-r from-brand-red to-brand-red-light rounded-full"
+   867→                              />
+   868→                            </div>
+   869→                          </div>
+   870→
+   871→                          {/* Tackle Points */}
+   872→                          <div>
+   873→                            <div className="flex items-center justify-between mb-1">
+   874→                              <span className="text-xs font-semibold text-warm-700 flex items-center gap-1.5">
+   875→                                <Shield className="w-3 h-3 text-brand-teal" />
+   876→                                Tackle Points
+   877→                              </span>
+   878→                              <span className="text-xs font-bold text-brand-teal">{mvpBreakdown.tacklePoints}</span>
+   879→                            </div>
+   880→                            <div className="h-2 bg-warm-200 rounded-full overflow-hidden">
+   881→                              <motion.div
+   882→                                initial={{ width: 0 }}
+   883→                                animate={{ width: `${mvpBreakdown.totalPoints > 0 ? (mvpBreakdown.tacklePoints / mvpBreakdown.totalPoints) * 100 : 0}%` }}
+   884→                                transition={{ duration: 0.8, delay: 0.5, ease: 'easeOut' }}
+   885→                                className="h-full bg-gradient-to-r from-brand-teal to-brand-teal-light rounded-full"
+   886→                              />
+   887→                            </div>
+   888→                          </div>
+   889→
+   890→                          {/* Bonus Points */}
+   891→                          <div>
+   892→                            <div className="flex items-center justify-between mb-1">
+   893→                              <span className="text-xs font-semibold text-warm-700 flex items-center gap-1.5">
+   894→                                <Target className="w-3 h-3 text-brand-gold" />
+   895→                                Bonus Points
+   896→                              </span>
+   897→                              <span className="text-xs font-bold text-brand-gold">{mvpBreakdown.bonusPoints}</span>
+   898→                            </div>
+   899→                            <div className="h-2 bg-warm-200 rounded-full overflow-hidden">
+   900→                              <motion.div
+   901→                                initial={{ width: 0 }}
+   902→                                animate={{ width: `${mvpBreakdown.totalPoints > 0 ? (mvpBreakdown.bonusPoints / mvpBreakdown.totalPoints) * 100 : 0}%` }}
+   903→                                transition={{ duration: 0.8, delay: 0.6, ease: 'easeOut' }}
+   904→                                className="h-full bg-gradient-to-r from-brand-gold to-brand-gold-light rounded-full"
+   905→                              />
+   906→                            </div>
+   907→                          </div>
+   908→                        </div>
+   909→                      </CardContent>
+   910→                    </Card>
+   911→                  </PremiumLock>
+   912→                </motion.div>
+   913→              )}
+   914→
+   915→              {/* ════════════════════════════════════════════════════════════════
+   916→                  4. MATCH MOMENTUM
+   917→                  ════════════════════════════════════════════════════════════════ */}
+   918→              {scoreProgression.length > 1 && (
+   919→                <motion.div variants={cardVariants}>
+   920→                  <PremiumLock feature="Match Momentum">
+   921→                    <Card className="bg-brand-navy/80 border-white/10 py-0 gap-0 overflow-hidden backdrop-blur-sm">
+   922→                      <div className="px-4 pt-4 pb-2">
+   923→                        <h3 className="text-sm font-black tracking-wider text-white flex items-center gap-2">
+   924→                          <TrendingUp className="w-4 h-4 text-brand-teal" />
+   925→                          MATCH MOMENTUM
+   926→                        </h3>
+   927→                        <p className="text-white/40 text-[11px] mt-0.5">Score gap progression over time</p>
+   928→                      </div>
+   929→                      <CardContent className="px-4 pb-4">
+   930→                        {/* Graph */}
+   931→                        <div className="relative">
+   932→                          {/* Center line (0 gap) */}
+   933→                          <div className="absolute left-0 right-0 top-1/2 h-px bg-white/10" />
+   934→
+   935→                          <div className="flex items-end gap-px h-40">
+   936→                            {scoreProgression.map((point, idx) => {
+   937→                              const maxGap = Math.max(
+   938→                                ...scoreProgression.map(p => Math.abs(p.gap)),
+   939→                                1
+   940→                              );
+   941→                              const normalizedGap = point.gap / maxGap;
+   942→                              const barHeight = Math.abs(normalizedGap) * 50;
+   943→                              const isHomeLeading = point.gap > 0;
+   944→                              const isNeutral = point.gap === 0;
+   945→
+   946→                              return (
+   947→                                <motion.div
+   948→                                  key={idx}
+   949→                                  initial={{ height: 0 }}
+   950→                                  animate={{ height: `${isNeutral ? 2 : barHeight}%` }}
+   951→                                  transition={{ duration: 0.5, delay: idx * 0.03, ease: 'easeOut' }}
+   952→                                  className="flex-1 min-w-[3px] max-w-[8px] rounded-sm"
+   953→                                  style={{
+   954→                                    backgroundColor: isNeutral
+   955→                                      ? 'rgba(255,255,255,0.15)'
+   956→                                      : isHomeLeading
+   957→                                        ? homeColor
+   958→                                        : awayColor,
+   959→                                    alignSelf: isHomeLeading ? 'flex-end' : 'flex-start',
+   960→                                    marginTop: isHomeLeading ? 'auto' : 0,
+   961→                                    marginBottom: isHomeLeading ? 0 : 'auto',
+   962→                                    opacity: isNeutral ? 0.3 : 0.7,
+   963→                                  }}
+   964→                                />
+   965→                              );
+   966→                            })}
+   967→                          </div>
+   968→
+   969→                          {/* Half separator */}
+   970→                          {(() => {
+   971→                            const half2Start = scoreProgression.findIndex(p => p.half === 2);
+   972→                            if (half2Start <= 0) return null;
+   973→                            const halfPercent = (half2Start / scoreProgression.length) * 100;
+   974→                            return (
+   975→                              <div
+   976→                                className="absolute top-0 bottom-0 w-px bg-brand-gold/30"
+   977→                                style={{ left: `${halfPercent}%` }}
+   978→                              >
+   979→                                <div className="absolute -top-5 left-1/2 -translate-x-1/2">
+   980→                                  <span className="text-brand-gold/60 text-[8px] font-bold">H2</span>
+   981→                                </div>
+   982→                              </div>
+   983→                            );
+   984→                          })()}
+   985→
+   986→                          {/* Legend */}
+   987→                          <div className="flex items-center justify-between mt-3">
+   988→                            <div className="flex items-center gap-1.5">
+   989→                              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: homeColor }} />
+   990→                              <span className="text-white/50 text-[10px] font-medium">{match.homeTeam.name} leading</span>
+   991→                            </div>
+   992→                            <div className="flex items-center gap-1.5">
+   993→                              <span className="text-white/50 text-[10px] font-medium">{match.awayTeam.name} leading</span>
+   994→                              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: awayColor }} />
+   995→                            </div>
+   996→                          </div>
+   997→                        </div>
+   998→
+   999→                        {/* Final gap indicator */}
+  1000→                        <div className="mt-3 bg-white/5 rounded-xl px-3 py-2 flex items-center justify-between">
+  1001→                          <span className="text-white/40 text-[11px]">Final Gap</span>
+  1002→                          <span className={`font-bold text-sm ${
+  1003→                            match.homeScore > match.awayScore
+  1004→                              ? 'text-white'
+  1005→                              : match.awayScore > match.homeScore
+  1006→                                ? 'text-white'
+  1007→                                : 'text-brand-gold'
+  1008→                          }`}>
+  1009→                            {isDraw ? 'Level' : `${Math.abs(match.homeScore - match.awayScore)} pts`}
+  1010→                          </span>
+  1011→                        </div>
+  1012→                      </CardContent>
+  1013→                    </Card>
+  1014→                  </PremiumLock>
+  1015→                </motion.div>
+  1016→              )}
+  1017→
+  1018→              {/* ════════════════════════════════════════════════════════════════
+  1019→                  5. TURNING POINTS
+  1020→                  ════════════════════════════════════════════════════════════════ */}
+  1021→              {turningPoints.length > 0 && (
+  1022→                <motion.div variants={cardVariants}>
+  1023→                  <PremiumLock feature="Turning Points">
+  1024→                    <Card className="bg-brand-navy/80 border-white/10 py-0 gap-0 overflow-hidden backdrop-blur-sm">
+  1025→                      <div className="px-4 pt-4 pb-2">
+  1026→                        <h3 className="text-sm font-black tracking-wider text-white flex items-center gap-2">
+  1027→                          <Zap className="w-4 h-4 text-brand-gold" />
+  1028→                          TURNING POINTS
+  1029→                        </h3>
+  1030→                        <p className="text-white/40 text-[11px] mt-0.5">
+  1031→                          {turningPoints.length} moment{turningPoints.length !== 1 ? 's' : ''} that shifted the match
+  1032→                        </p>
+  1033→                      </div>
+  1034→                      <div className="px-4 pb-4 space-y-2">
+  1035→                        {turningPoints.map((tp, idx) => (
+  1036→                          <motion.div
+  1037→                            key={tp.id}
+  1038→                            initial={{ opacity: 0, scale: 0.95 }}
+  1039→                            animate={{ opacity: 1, scale: 1 }}
+  1040→                            transition={{ delay: idx * 0.1, type: 'spring', damping: 20, stiffness: 240 }}
+  1041→                            className="relative bg-gradient-to-r from-brand-gold/10 to-transparent rounded-xl px-4 py-3 border border-brand-gold/20"
+  1042→                          >
+  1043→                            {/* Decorative accent */}
+  1044→                            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-brand-gold" />
+  1045→
+  1046→                            <div className="flex items-start gap-3">
+  1047→                              <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center shrink-0 text-base">
+  1048→                                {tp.icon}
+  1049→                              </div>
+  1050→                              <div className="flex-1 min-w-0">
+  1051→                                <div className="flex items-center gap-2">
+  1052→                                  <span className="text-brand-gold font-bold text-xs">{tp.label}</span>
+  1053→                                  <span
+  1054→                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
+  1055→                                    style={{ backgroundColor: tp.teamColor }}
+  1056→                                  >
+  1057→                                    {tp.teamName}
+  1058→                                  </span>
+  1059→                                  <Badge className="bg-white/10 text-white/40 text-[9px] font-semibold border-0 px-1.5 py-0 ml-auto shrink-0">
+  1060→                                    H{tp.half}
+  1061→                                  </Badge>
+  1062→                                </div>
+  1063→                                <p className="text-white/60 text-[11px] mt-0.5">{tp.description}</p>
+  1064→                              </div>
+  1065→                            </div>
+  1066→                          </motion.div>
+  1067→                        ))}
+  1068→                      </div>
+  1069→                    </Card>
+  1070→                  </PremiumLock>
+  1071→                </motion.div>
+  1072→              )}
+  1073→
+  1074→              {/* ════════════════════════════════════════════════════════════════
+  1075→                  6. NO HIGHLIGHTS FALLBACK
+  1076→                  ════════════════════════════════════════════════════════════════ */}
+  1077→              {keyMoments.length === 0 && turningPoints.length === 0 && (
+  1078→                <motion.div variants={cardVariants}>
+  1079→                  <Card className="bg-brand-navy/80 border-white/10 py-0 gap-0 overflow-hidden backdrop-blur-sm">
+  1080→                    <CardContent className="p-6 flex flex-col items-center text-center">
+  1081→                      <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center mb-3">
+  1082→                        <Flame className="w-7 h-7 text-white/20" />
+  1083→                      </div>
+  1084→                      <p className="text-white/60 font-semibold text-sm">No Key Highlights</p>
+  1085→                      <p className="text-white/30 text-xs mt-1">
+  1086→                        This match didn&apos;t have any Super Raids, Super Tackles, All Outs, or Do-or-Die raids.
+  1087→                      </p>
+  1088→                    </CardContent>
+  1089→                  </Card>
+  1090→                </motion.div>
+  1091→              )}
+  1092→            </motion.div>
+  1093→          )}
+  1094→        </div>
+  1095→
+  1096→        {/* ── Bottom share bar ── */}
+  1097→        {!loading && match && (
+  1098→          <div className="sticky bottom-0 bg-brand-navy-dark/95 backdrop-blur-md border-t border-white/10 px-4 py-3 safe-bottom">
+  1099→            <Button
+  1100→              onClick={() => {
+  1101→                const data = buildShareData();
+  1102→                if (data) {
+  1103→                  setShowShare(true);
+  1104→                } else {
+  1105→                  toast({ title: 'Cannot share', description: 'Match data unavailable' });
+  1106→                }
+  1107→              }}
+  1108→              className="w-full h-12 bg-gradient-to-r from-brand-gold to-brand-gold-dark hover:from-brand-gold-light hover:to-brand-gold text-white font-bold rounded-xl text-sm shadow-lg shadow-brand-gold/20"
+  1109→            >
+  1110→              <Share2 className="w-4 h-4 mr-2" />
+  1111→              Share Highlights
+  1112→            </Button>
+  1113→          </div>
+  1114→        )}
+  1115→
+  1116→        {/* ── Share Scorecard overlay ── */}
+  1117→        <AnimatePresence>
+  1118→          {showShare && (() => {
+  1119→            const data = buildShareData();
+  1120→            if (!data) return null;
+  1121→            return (
+  1122→              <ShareScorecard
+  1123→                onClose={() => setShowShare(false)}
+  1124→                matchData={data}
+  1125→              />
+  1126→            );
+  1127→          })()}
+  1128→        </AnimatePresence>
+  1129→      </motion.div>
+  1130→    </AnimatePresence>
+  1131→  );
+  1132→}
+  1133→

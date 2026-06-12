@@ -1,0 +1,859 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  ArrowLeft,
+     7→  RefreshCw,
+     8→  Trophy,
+     9→  Award,
+    10→  Flag,
+    11→  Milestone,
+    12→  UserPlus,
+    13→  UserCheck,
+    14→  Swords,
+    15→  Users,
+    16→  Rss,
+    17→} from 'lucide-react';
+    18→import { Card, CardContent } from '@/components/ui/card';
+    19→import { Badge } from '@/components/ui/badge';
+    20→import { Button } from '@/components/ui/button';
+    21→import { useKabaddiStore } from '@/lib/store';
+    22→import { useToast } from '@/hooks/use-toast';
+    23→
+    24→// ─── Types ────────────────────────────────────────────────────────
+    25→
+    26→interface SocialFeedScreenProps {
+    27→  onClose: () => void;
+    28→}
+    29→
+    30→interface Activity {
+    31→  id: string;
+    32→  userId: string;
+    33→  userName: string | null;
+    34→  userAvatar: string | null;
+    35→  userGender: string | null;
+    36→  type: string;
+    37→  title: string | null;
+    38→  description: string | null;
+    39→  matchId: string | null;
+    40→  tournamentId: string | null;
+    41→  metadata: string | null;
+    42→  createdAt: string;
+    43→}
+    44→
+    45→interface SuggestedPlayer {
+    46→  id: string;
+    47→  name: string | null;
+    48→  avatar: string | null;
+    49→  phone: string;
+    50→  gender: string | null;
+    51→  isFollowing?: boolean;
+    52→}
+    53→
+    54→// ─── Helpers ──────────────────────────────────────────────────────
+    55→
+    56→function getInitial(name: string | null | undefined): string {
+    57→  if (!name) return '?';
+    58→  return name.trim().charAt(0).toUpperCase();
+    59→}
+    60→
+    61→function getDisplayName(name: string | null | undefined): string {
+    62→  return name?.trim() || 'Unnamed Player';
+    63→}
+    64→
+    65→function formatTimeAgo(dateStr: string): string {
+    66→  try {
+    67→    const diff = Date.now() - new Date(dateStr).getTime();
+    68→    const seconds = Math.floor(diff / 1000);
+    69→    if (seconds < 60) return 'just now';
+    70→    const minutes = Math.floor(seconds / 60);
+    71→    if (minutes < 60) return `${minutes}m ago`;
+    72→    const hours = Math.floor(minutes / 60);
+    73→    if (hours < 24) return `${hours}h ago`;
+    74→    const days = Math.floor(hours / 24);
+    75→    if (days === 1) return 'Yesterday';
+    76→    if (days < 7) return `${days}d ago`;
+    77→    if (days < 30) return `${Math.floor(days / 7)}w ago`;
+    78→    const months = Math.floor(days / 30);
+    79→    return `${months}mo ago`;
+    80→  } catch {
+    81→    return '';
+    82→  }
+    83→}
+    84→
+    85→function parseMetadata(metadata: string | null): Record<string, unknown> | null {
+    86→  if (!metadata) return null;
+    87→  try {
+    88→    return JSON.parse(metadata);
+    89→  } catch {
+    90→    return null;
+    91→  }
+    92→}
+    93→
+    94→// ─── Activity Type Config ─────────────────────────────────────────
+    95→
+    96→type ActivityType = 'match_completed' | 'tournament_joined' | 'achievement_unlocked' | 'player_milestone';
+    97→
+    98→interface ActivityTypeConfig {
+    99→  icon: typeof Trophy;
+   100→  color: string;
+   101→  bgColor: string;
+   102→  borderColor: string;
+   103→  badgeBg: string;
+   104→  badgeText: string;
+   105→  label: string;
+   106→}
+   107→
+   108→const ACTIVITY_CONFIG: Record<ActivityType, ActivityTypeConfig> = {
+   109→  match_completed: {
+   110→    icon: Trophy,
+   111→    color: 'text-brand-red',
+   112→    bgColor: 'bg-brand-red/5',
+   113→    borderColor: 'border-brand-red/20',
+   114→    badgeBg: 'bg-brand-red/15',
+   115→    badgeText: 'text-brand-red',
+   116→    label: 'Match',
+   117→  },
+   118→  achievement_unlocked: {
+   119→    icon: Award,
+   120→    color: 'text-brand-gold',
+   121→    bgColor: 'bg-brand-gold/5',
+   122→    borderColor: 'border-brand-gold/20',
+   123→    badgeBg: 'bg-brand-gold/15',
+   124→    badgeText: 'text-brand-gold-dark',
+   125→    label: 'Achievement',
+   126→  },
+   127→  tournament_joined: {
+   128→    icon: Flag,
+   129→    color: 'text-brand-teal',
+   130→    bgColor: 'bg-brand-teal/5',
+   131→    borderColor: 'border-brand-teal/20',
+   132→    badgeBg: 'bg-brand-teal/15',
+   133→    badgeText: 'text-brand-teal-dark',
+   134→    label: 'Tournament',
+   135→  },
+   136→  player_milestone: {
+   137→    icon: Milestone,
+   138→    color: 'text-brand-navy',
+   139→    bgColor: 'bg-brand-navy/5',
+   140→    borderColor: 'border-brand-navy/20',
+   141→    badgeBg: 'bg-brand-navy/15',
+   142→    badgeText: 'text-brand-navy',
+   143→    label: 'Milestone',
+   144→  },
+   145→};
+   146→
+   147→function getActivityConfig(type: string): ActivityTypeConfig {
+   148→  return ACTIVITY_CONFIG[type as ActivityType] ?? {
+   149→    icon: Rss,
+   150→    color: 'text-warm-500',
+   151→    bgColor: 'bg-warm-100',
+   152→    borderColor: 'border-warm-300',
+   153→    badgeBg: 'bg-warm-200',
+   154→    badgeText: 'text-warm-600',
+   155→    label: 'Activity',
+   156→  };
+   157→}
+   158→
+   159→// ─── Avatar Component ─────────────────────────────────────────────
+   160→
+   161→function PlayerAvatar({
+   162→  name,
+   163→  avatar,
+   164→  gender,
+   165→  size = 'md',
+   166→}: {
+   167→  name: string | null;
+   168→  avatar: string | null;
+   169→  gender?: string | null;
+   170→  size?: 'sm' | 'md';
+   171→}) {
+   172→  const sizeClasses = size === 'sm' ? 'w-9 h-9 text-xs' : 'w-11 h-11 text-sm';
+   173→
+   174→  return (
+   175→    <div className="relative shrink-0">
+   176→      <div
+   177→        className={`${sizeClasses} rounded-full bg-gradient-to-br from-brand-navy to-brand-navy-light flex items-center justify-center overflow-hidden ring-2 ring-warm-100`}
+   178→      >
+   179→        {avatar ? (
+   180→          <img
+   181→            src={avatar}
+   182→            alt={getDisplayName(name)}
+   183→            className="w-full h-full object-cover"
+   184→          />
+   185→        ) : (
+   186→          <span className="font-bold text-white">{getInitial(name)}</span>
+   187→        )}
+   188→      </div>
+   189→      {gender && (
+   190→        <span
+   191→          className={`absolute -bottom-0.5 -right-0.5 text-[10px] font-bold ${
+   192→            gender === 'male' ? 'text-brand-blue' : 'text-brand-red'
+   193→          }`}
+   194→        >
+   195→          {gender === 'male' ? '♂' : '♀'}
+   196→        </span>
+   197→      )}
+   198→    </div>
+   199→  );
+   200→}
+   201→
+   202→// ─── Activity-Specific Content ────────────────────────────────────
+   203→
+   204→function ActivityCardContent({ activity }: { activity: Activity }) {
+   205→  const config = getActivityConfig(activity.type);
+   206→  const meta = parseMetadata(activity.metadata);
+   207→
+   208→  switch (activity.type) {
+   209→    case 'match_completed': {
+   210→      const homeTeam = (meta?.homeTeam as string) || 'Team A';
+   211→      const awayTeam = (meta?.awayTeam as string) || 'Team B';
+   212→      const homeScore = (meta?.homeScore as number) ?? 0;
+   213→      const awayScore = (meta?.awayScore as number) ?? 0;
+   214→      const winner = (meta?.winner as string) || null;
+   215→
+   216→      return (
+   217→        <div className="mt-2.5 p-3 rounded-lg bg-white/60 border border-warm-200/60">
+   218→          <div className="flex items-center justify-between gap-3">
+   219→            <div className={`flex-1 text-center ${winner === 'home' ? 'font-bold text-brand-red' : 'text-warm-600'}`}>
+   220→              <p className="text-xs truncate">{homeTeam}</p>
+   221→              <p className="text-xl font-black">{homeScore}</p>
+   222→            </div>
+   223→            <div className="flex flex-col items-center gap-0.5">
+   224→              <Swords className="w-4 h-4 text-warm-400" />
+   225→              <span className="text-[9px] text-warm-400 font-semibold uppercase">vs</span>
+   226→            </div>
+   227→            <div className={`flex-1 text-center ${winner === 'away' ? 'font-bold text-brand-red' : 'text-warm-600'}`}>
+   228→              <p className="text-xs truncate">{awayTeam}</p>
+   229→              <p className="text-xl font-black">{awayScore}</p>
+   230→            </div>
+   231→          </div>
+   232→        </div>
+   233→      );
+   234→    }
+   235→
+   236→    case 'tournament_joined': {
+   237→      const tournamentName = (meta?.tournamentName as string) || activity.title || 'Tournament';
+   238→      const teamCount = (meta?.teamCount as number) ?? null;
+   239→
+   240→      return (
+   241→        <div className="mt-2.5 p-3 rounded-lg bg-white/60 border border-warm-200/60 flex items-center gap-2.5">
+   242→          <div className={`w-9 h-9 rounded-lg ${config.badgeBg} flex items-center justify-center shrink-0`}>
+   243→            <Flag className={`w-4 h-4 ${config.color}`} />
+   244→          </div>
+   245→          <div className="min-w-0">
+   246→            <p className="text-sm font-semibold text-warm-800 truncate">{tournamentName}</p>
+   247→            {teamCount && (
+   248→              <p className="text-[11px] text-warm-400">{teamCount} teams participating</p>
+   249→            )}
+   250→          </div>
+   251→        </div>
+   252→      );
+   253→    }
+   254→
+   255→    case 'achievement_unlocked': {
+   256→      const achievementName = (meta?.achievementName as string) || activity.title || 'Achievement';
+   257→      const achievementIcon = (meta?.achievementIcon as string) || '🏆';
+   258→
+   259→      return (
+   260→        <div className="mt-2.5 p-3 rounded-lg bg-white/60 border border-warm-200/60 flex items-center gap-2.5">
+   261→          <div className={`w-9 h-9 rounded-lg ${config.badgeBg} flex items-center justify-center shrink-0 text-lg`}>
+   262→            {achievementIcon}
+   263→          </div>
+   264→          <div className="min-w-0">
+   265→            <p className="text-sm font-semibold text-warm-800 truncate">{achievementName}</p>
+   266→            <p className="text-[11px] text-warm-400">New achievement unlocked!</p>
+   267→          </div>
+   268→        </div>
+   269→      );
+   270→    }
+   271→
+   272→    case 'player_milestone': {
+   273→      const milestoneType = (meta?.milestoneType as string) || activity.title || 'Milestone';
+   274→      const milestoneValue = (meta?.milestoneValue as string | number) ?? null;
+   275→
+   276→      return (
+   277→        <div className="mt-2.5 p-3 rounded-lg bg-white/60 border border-warm-200/60 flex items-center gap-2.5">
+   278→          <div className={`w-9 h-9 rounded-lg ${config.badgeBg} flex items-center justify-center shrink-0`}>
+   279→            <Milestone className={`w-4 h-4 ${config.color}`} />
+   280→          </div>
+   281→          <div className="min-w-0">
+   282→            <p className="text-sm font-semibold text-warm-800 truncate">{milestoneType}</p>
+   283→            {milestoneValue && (
+   284→              <p className="text-[11px] text-warm-400">Reached {String(milestoneValue)}</p>
+   285→            )}
+   286→          </div>
+   287→        </div>
+   288→      );
+   289→    }
+   290→
+   291→    default:
+   292→      return activity.description ? (
+   293→        <p className="mt-1.5 text-xs text-warm-500 leading-relaxed">{activity.description}</p>
+   294→      ) : null;
+   295→  }
+   296→}
+   297→
+   298→// ─── Skeleton Loaders ─────────────────────────────────────────────
+   299→
+   300→function ActivitySkeleton() {
+   301→  return (
+   302→    <div className="rounded-xl bg-warm-100 border border-warm-300 p-4 animate-pulse">
+   303→      <div className="flex items-center gap-3">
+   304→        <div className="w-11 h-11 rounded-full bg-warm-200 shrink-0" />
+   305→        <div className="flex-1 space-y-2">
+   306→          <div className="h-3.5 w-32 rounded-full bg-warm-200" />
+   307→          <div className="h-2.5 w-48 rounded-full bg-warm-200" />
+   308→        </div>
+   309→        <div className="w-8 h-8 rounded-full bg-warm-200 shrink-0" />
+   310→      </div>
+   311→      <div className="mt-3 h-16 rounded-lg bg-warm-200" />
+   312→    </div>
+   313→  );
+   314→}
+   315→
+   316→function SuggestedPlayerSkeleton() {
+   317→  return (
+   318→    <div className="flex items-center gap-3 py-2 animate-pulse">
+   319→      <div className="w-10 h-10 rounded-full bg-warm-200 shrink-0" />
+   320→      <div className="flex-1 space-y-2">
+   321→        <div className="h-3 w-24 rounded-full bg-warm-200" />
+   322→        <div className="h-2 w-16 rounded-full bg-warm-200" />
+   323→      </div>
+   324→      <div className="w-16 h-7 rounded-full bg-warm-200 shrink-0" />
+   325→    </div>
+   326→  );
+   327→}
+   328→
+   329→// ─── Follow Button (compact for suggestions) ──────────────────────
+   330→
+   331→function SuggestionFollowButton({
+   332→  isFollowing,
+   333→  onToggle,
+   334→  loading,
+   335→}: {
+   336→  isFollowing: boolean;
+   337→  onToggle: () => void;
+   338→  loading: boolean;
+   339→}) {
+   340→  return (
+   341→    <button
+   342→      onClick={onToggle}
+   343→      disabled={loading}
+   344→      className={`h-7 px-3 rounded-full text-[11px] font-bold transition-all duration-200 flex items-center gap-1 shrink-0 ${
+   345→        isFollowing
+   346→          ? 'bg-warm-200 text-warm-600 hover:bg-red-100 hover:text-brand-red'
+   347→          : 'bg-brand-teal text-white hover:bg-brand-teal-dark shadow-sm'
+   348→      } ${loading ? 'opacity-60 cursor-not-allowed' : 'active:scale-95'}`}
+   349→    >
+   350→      {loading ? (
+   351→        <motion.div
+   352→          className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"
+   353→          animate={{ rotate: 360 }}
+   354→          transition={{ duration: 0.6, repeat: Infinity, ease: 'linear' }}
+   355→        />
+   356→      ) : isFollowing ? (
+   357→        <>
+   358→          <UserCheck className="w-3 h-3" />
+   359→          <span>Following</span>
+   360→        </>
+   361→      ) : (
+   362→        <>
+   363→          <UserPlus className="w-3 h-3" />
+   364→          <span>Follow</span>
+   365→        </>
+   366→      )}
+   367→    </button>
+   368→  );
+   369→}
+   370→
+   371→// ─── Main Component ───────────────────────────────────────────────
+   372→
+   373→export default function SocialFeedScreen({ onClose }: SocialFeedScreenProps) {
+   374→  const currentUser = useKabaddiStore((s) => s.currentUser);
+   375→  const { toast } = useToast();
+   376→
+   377→  // Activity feed state
+   378→  const [activities, setActivities] = useState<Activity[]>([]);
+   379→  const [feedLoading, setFeedLoading] = useState(true);
+   380→  const [refreshing, setRefreshing] = useState(false);
+   381→  const [offset, setOffset] = useState(0);
+   382→  const [hasMore, setHasMore] = useState(true);
+   383→
+   384→  // Suggested players state
+   385→  const [suggestedPlayers, setSuggestedPlayers] = useState<SuggestedPlayer[]>([]);
+   386→  const [suggestedLoading, setSuggestedLoading] = useState(false);
+   387→  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+   388→
+   389→  // ─── Fetch Activities ───────────────────────────────────────
+   390→
+   391→  const fetchActivities = useCallback(
+   392→    async (isRefresh = false) => {
+   393→      if (!currentUser) return;
+   394→
+   395→      if (isRefresh) {
+   396→        setRefreshing(true);
+   397→      } else {
+   398→        setFeedLoading(true);
+   399→      }
+   400→
+   401→      try {
+   402→        const params = new URLSearchParams({
+   403→          userId: currentUser.id,
+   404→          limit: '20',
+   405→          offset: isRefresh ? '0' : String(offset),
+   406→        });
+   407→        const res = await fetch(`/api/activities?${params}`);
+   408→        if (!res.ok) throw new Error('Failed to fetch');
+   409→        const data = await res.json();
+   410→        const newActivities: Activity[] = data.activities || [];
+   411→
+   412→        if (isRefresh) {
+   413→          setActivities(newActivities);
+   414→          setOffset(0);
+   415→        } else {
+   416→          setActivities((prev) => [...prev, ...newActivities]);
+   417→        }
+   418→        setHasMore(newActivities.length === 20);
+   419→      } catch (err) {
+   420→        console.error('Activities fetch error:', err);
+   421→        if (isRefresh) setActivities([]);
+   422→      } finally {
+   423→        setFeedLoading(false);
+   424→        setRefreshing(false);
+   425→      }
+   426→    },
+   427→    [currentUser, offset]
+   428→  );
+   429→
+   430→  // ─── Fetch Suggested Players ────────────────────────────────
+   431→
+   432→  const fetchSuggestedPlayers = useCallback(async () => {
+   433→    if (!currentUser) return;
+   434→    setSuggestedLoading(true);
+   435→    try {
+   436→      const params = new URLSearchParams({
+   437→        userId: currentUser.id,
+   438→        type: 'search',
+   439→      });
+   440→      const res = await fetch(`/api/follow?${params}`);
+   441→      if (!res.ok) throw new Error('Failed to fetch');
+   442→      const data = await res.json();
+   443→      const players: SuggestedPlayer[] = (data.players || [])
+   444→        .filter((p: SuggestedPlayer) => !p.isFollowing && p.id !== currentUser.id)
+   445→        .slice(0, 5);
+   446→      setSuggestedPlayers(players);
+   447→    } catch (err) {
+   448→      console.error('Suggested players fetch error:', err);
+   449→      setSuggestedPlayers([]);
+   450→    } finally {
+   451→      setSuggestedLoading(false);
+   452→    }
+   453→  }, [currentUser]);
+   454→
+   455→  // ─── Follow / Unfollow action ───────────────────────────────
+   456→
+   457→  const handleFollowAction = async (
+   458→    targetId: string,
+   459→    isCurrentlyFollowing: boolean
+   460→  ) => {
+   461→    if (!currentUser || actionLoadingId) return;
+   462→    setActionLoadingId(targetId);
+   463→    try {
+   464→      const res = await fetch('/api/follow', {
+   465→        method: 'POST',
+   466→        headers: { 'Content-Type': 'application/json' },
+   467→        body: JSON.stringify({
+   468→          followerId: currentUser.id,
+   469→          followingId: targetId,
+   470→          action: isCurrentlyFollowing ? 'unfollow' : 'follow',
+   471→        }),
+   472→      });
+   473→      if (!res.ok) throw new Error('Action failed');
+   474→
+   475→      const nowFollowing = !isCurrentlyFollowing;
+   476→
+   477→      // Update suggested players
+   478→      setSuggestedPlayers((prev) =>
+   479→        prev.map((p) =>
+   480→          p.id === targetId ? { ...p, isFollowing: nowFollowing } : p
+   481→        )
+   482→      );
+   483→
+   484→      toast({
+   485→        title: nowFollowing ? 'Following!' : 'Unfollowed',
+   486→        description: nowFollowing
+   487→          ? 'You are now following this player'
+   488→          : 'You unfollowed this player',
+   489→      });
+   490→
+   491→      // Refresh feed to show new followed user's activities
+   492→      if (nowFollowing) {
+   493→        fetchActivities(true);
+   494→      }
+   495→    } catch (err) {
+   496→      console.error('Follow action error:', err);
+   497→      toast({
+   498→        title: 'Error',
+   499→        description: 'Something went wrong. Please try again.',
+   500→        variant: 'destructive',
+   501→      });
+   502→    } finally {
+   503→      setActionLoadingId(null);
+   504→    }
+   505→  };
+   506→
+   507→  // ─── Load more ──────────────────────────────────────────────
+   508→
+   509→  const loadMore = useCallback(() => {
+   510→    if (!hasMore || feedLoading) return;
+   511→    setOffset((prev) => prev + 20);
+   512→  }, [hasMore, feedLoading]);
+   513→
+   514→  // ─── Effects ────────────────────────────────────────────────
+   515→
+   516→  useEffect(() => {
+   517→    fetchActivities();
+   518→  }, [fetchActivities]);
+   519→
+   520→  // Refetch when offset changes (load more)
+   521→  useEffect(() => {
+   522→    if (offset > 0) {
+   523→      fetchActivities();
+   524→    }
+   525→  }, [offset]);
+   526→
+   527→  useEffect(() => {
+   528→    fetchSuggestedPlayers();
+   529→  }, [fetchSuggestedPlayers]);
+   530→
+   531→  // ─── Derived ────────────────────────────────────────────────
+   532→
+   533→  const feedIsEmpty = !feedLoading && activities.length === 0;
+   534→
+   535→  // ─── Render ─────────────────────────────────────────────────
+   536→
+   537→  return (
+   538→    <motion.div
+   539→      initial={{ y: '100%' }}
+   540→      animate={{ y: 0 }}
+   541→      exit={{ y: '100%' }}
+   542→      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+   543→      className="fixed inset-0 z-50 bg-warm-50 flex flex-col"
+   544→    >
+   545→      {/* ═══ Header ═══ */}
+   546→      <header className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
+   547→        <div className="px-4 py-3 flex items-center justify-between">
+   548→          <div className="flex items-center gap-2">
+   549→            <button
+   550→              onClick={onClose}
+   551→              className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600 hover:bg-warm-300 transition-colors"
+   552→            >
+   553→              <ArrowLeft className="w-4 h-4" />
+   554→            </button>
+   555→            <div className="flex items-center gap-2">
+   556→              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-teal to-brand-teal-dark flex items-center justify-center">
+   557→                <Rss className="w-4 h-4 text-white" />
+   558→              </div>
+   559→              <h1 className="text-base font-black tracking-wider text-warm-800">
+   560→                SOCIAL FEED
+   561→              </h1>
+   562→            </div>
+   563→          </div>
+   564→          <button
+   565→            onClick={() => fetchActivities(true)}
+   566→            disabled={refreshing}
+   567→            className="w-8 h-8 rounded-full bg-warm-100 flex items-center justify-center text-warm-500 hover:bg-warm-200 hover:text-warm-700 transition-colors disabled:opacity-50"
+   568→            aria-label="Refresh feed"
+   569→          >
+   570→            <RefreshCw
+   571→              className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+   572→            />
+   573→          </button>
+   574→        </div>
+   575→      </header>
+   576→
+   577→      {/* ═══ Content ═══ */}
+   578→      <div className="flex-1 overflow-y-auto custom-scrollbar">
+   579→        <AnimatePresence mode="wait">
+   580→          {feedLoading ? (
+   581→            <motion.div
+   582→              key="loading"
+   583→              initial={{ opacity: 0 }}
+   584→              animate={{ opacity: 1 }}
+   585→              exit={{ opacity: 0 }}
+   586→              className="px-4 py-3 flex flex-col gap-3"
+   587→            >
+   588→              {[1, 2, 3, 4, 5].map((i) => (
+   589→                <ActivitySkeleton key={i} />
+   590→              ))}
+   591→            </motion.div>
+   592→          ) : feedIsEmpty ? (
+   593→            <motion.div
+   594→              key="empty"
+   595→              initial={{ opacity: 0, y: 12 }}
+   596→              animate={{ opacity: 1, y: 0 }}
+   597→              exit={{ opacity: 0 }}
+   598→              className="px-4 py-6"
+   599→            >
+   600→              {/* Empty State */}
+   601→              <div className="flex flex-col items-center justify-center py-10">
+   602→                <div className="w-16 h-16 rounded-full bg-warm-100 flex items-center justify-center mb-4">
+   603→                  <Rss className="w-8 h-8 text-warm-300" />
+   604→                </div>
+   605→                <p className="text-warm-700 font-bold text-sm">
+   606→                  No activity yet
+   607→                </p>
+   608→                <p className="text-warm-400 text-xs mt-1 text-center max-w-[260px]">
+   609→                  Follow players to see their updates!
+   610→                </p>
+   611→              </div>
+   612→
+   613→              {/* Suggested Players Section */}
+   614→              <div className="mt-4">
+   615→                <div className="flex items-center gap-2 mb-3">
+   616→                  <Users className="w-4 h-4 text-brand-teal" />
+   617→                  <h2 className="text-sm font-bold text-warm-800">
+   618→                    Suggested Players
+   619→                  </h2>
+   620→                </div>
+   621→
+   622→                {suggestedLoading ? (
+   623→                  <div className="space-y-1">
+   624→                    {[1, 2, 3, 4, 5].map((i) => (
+   625→                      <SuggestedPlayerSkeleton key={i} />
+   626→                    ))}
+   627→                  </div>
+   628→                ) : suggestedPlayers.length > 0 ? (
+   629→                  <Card className="bg-warm-100 border-warm-300 py-0 gap-0 overflow-hidden">
+   630→                    <CardContent className="p-0 divide-y divide-warm-200/60">
+   631→                      {suggestedPlayers.map((player, index) => (
+   632→                        <motion.div
+   633→                          key={player.id}
+   634→                          initial={{ opacity: 0, x: -8 }}
+   635→                          animate={{ opacity: 1, x: 0 }}
+   636→                          transition={{ delay: index * 0.05 }}
+   637→                          className="flex items-center gap-3 px-4 py-3 hover:bg-warm-50/50 transition-colors"
+   638→                        >
+   639→                          <PlayerAvatar
+   640→                            name={player.name}
+   641→                            avatar={player.avatar}
+   642→                            gender={player.gender}
+   643→                            size="sm"
+   644→                          />
+   645→                          <div className="flex-1 min-w-0">
+   646→                            <div className="flex items-center gap-1.5">
+   647→                              <p className="font-semibold text-sm text-warm-800 truncate">
+   648→                                {getDisplayName(player.name)}
+   649→                              </p>
+   650→                              {player.gender && (
+   651→                                <span
+   652→                                  className={`text-[11px] font-semibold ${
+   653→                                    player.gender === 'male'
+   654→                                      ? 'text-brand-blue'
+   655→                                      : 'text-brand-red'
+   656→                                  }`}
+   657→                                >
+   658→                                  {player.gender === 'male' ? '♂' : '♀'}
+   659→                                </span>
+   660→                              )}
+   661→                            </div>
+   662→                            <p className="text-[11px] text-warm-400 truncate">
+   663→                              {player.phone}
+   664→                            </p>
+   665→                          </div>
+   666→                          <SuggestionFollowButton
+   667→                            isFollowing={!!player.isFollowing}
+   668→                            onToggle={() =>
+   669→                              handleFollowAction(
+   670→                                player.id,
+   671→                                !!player.isFollowing
+   672→                              )
+   673→                            }
+   674→                            loading={actionLoadingId === player.id}
+   675→                          />
+   676→                        </motion.div>
+   677→                      ))}
+   678→                    </CardContent>
+   679→                  </Card>
+   680→                ) : (
+   681→                  <div className="flex flex-col items-center py-8">
+   682→                    <Users className="w-8 h-8 text-warm-300 mb-2" />
+   683→                    <p className="text-warm-400 text-xs text-center">
+   684→                      No suggestions available right now
+   685→                    </p>
+   686→                  </div>
+   687→                )}
+   688→              </div>
+   689→            </motion.div>
+   690→          ) : (
+   691→            <motion.div
+   692→              key="feed"
+   693→              initial={{ opacity: 0 }}
+   694→              animate={{ opacity: 1 }}
+   695→              exit={{ opacity: 0 }}
+   696→              className="px-4 py-3"
+   697→            >
+   698→              {/* Activity Cards */}
+   699→              <div className="flex flex-col gap-3">
+   700→                {activities.map((activity, index) => {
+   701→                  const config = getActivityConfig(activity.type);
+   702→                  const Icon = config.icon;
+   703→                  const isOwnActivity = activity.userId === currentUser?.id;
+   704→
+   705→                  return (
+   706→                    <motion.div
+   707→                      key={activity.id}
+   708→                      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+   709→                      animate={{ opacity: 1, y: 0, scale: 1 }}
+   710→                      transition={{
+   711→                        delay: Math.min(index * 0.04, 0.4),
+   712→                        type: 'spring',
+   713→                        damping: 20,
+   714→                        stiffness: 200,
+   715→                      }}
+   716→                    >
+   717→                      <Card
+   718→                        className={`${config.bgColor} ${config.borderColor} border rounded-xl py-0 gap-0 overflow-hidden`}
+   719→                      >
+   720→                        <CardContent className="p-4">
+   721→                          {/* Top row: avatar, name, timestamp, type icon */}
+   722→                          <div className="flex items-start gap-3">
+   723→                            <PlayerAvatar
+   724→                              name={activity.userName}
+   725→                              avatar={activity.userAvatar}
+   726→                              gender={activity.userGender}
+   727→                              size="sm"
+   728→                            />
+   729→
+   730→                            <div className="flex-1 min-w-0">
+   731→                              <div className="flex items-center gap-1.5 flex-wrap">
+   732→                                <p className="font-bold text-sm text-warm-800 truncate">
+   733→                                  {getDisplayName(activity.userName)}
+   734→                                </p>
+   735→                                {isOwnActivity && (
+   736→                                  <Badge className="bg-brand-teal/15 text-brand-teal-dark text-[9px] font-semibold border-0 px-1.5 py-0 h-4">
+   737→                                    You
+   738→                                  </Badge>
+   739→                                )}
+   740→                              </div>
+   741→                              {/* Activity description line */}
+   742→                              <p className="text-xs text-warm-500 mt-0.5 leading-relaxed">
+   743→                                {activity.description || activity.title}
+   744→                              </p>
+   745→                              <p className="text-[10px] text-warm-400 mt-1">
+   746→                                {formatTimeAgo(activity.createdAt)}
+   747→                              </p>
+   748→                            </div>
+   749→
+   750→                            {/* Activity type icon */}
+   751→                            <div
+   752→                              className={`w-9 h-9 rounded-lg ${config.badgeBg} flex items-center justify-center shrink-0`}
+   753→                            >
+   754→                              <Icon className={`w-4 h-4 ${config.color}`} />
+   755→                            </div>
+   756→                          </div>
+   757→
+   758→                          {/* Activity-specific content */}
+   759→                          <ActivityCardContent activity={activity} />
+   760→
+   761→                          {/* Activity type badge at bottom */}
+   762→                          <div className="mt-2.5 flex items-center gap-1.5">
+   763→                            <Badge
+   764→                              className={`${config.badgeBg} ${config.badgeText} text-[9px] font-semibold border-0 px-2 py-0 h-5`}
+   765→                            >
+   766→                              <Icon className="w-2.5 h-2.5" />
+   767→                              {config.label}
+   768→                            </Badge>
+   769→                          </div>
+   770→                        </CardContent>
+   771→                      </Card>
+   772→                    </motion.div>
+   773→                  );
+   774→                })}
+   775→              </div>
+   776→
+   777→              {/* Load More */}
+   778→              {hasMore && (
+   779→                <div className="mt-4 flex justify-center">
+   780→                  <Button
+   781→                    variant="outline"
+   782→                    size="sm"
+   783→                    onClick={loadMore}
+   784→                    disabled={feedLoading}
+   785→                    className="rounded-full border-warm-300 text-warm-600 hover:bg-warm-100 text-xs font-semibold"
+   786→                  >
+   787→                    Load More
+   788→                  </Button>
+   789→                </div>
+   790→              )}
+   791→
+   792→              {/* Suggested Players at bottom of feed */}
+   793→              {suggestedPlayers.length > 0 && (
+   794→                <div className="mt-6 mb-4">
+   795→                  <div className="flex items-center gap-2 mb-3">
+   796→                    <Users className="w-4 h-4 text-brand-teal" />
+   797→                    <h2 className="text-sm font-bold text-warm-800">
+   798→                      Suggested Players
+   799→                    </h2>
+   800→                  </div>
+   801→
+   802→                  <Card className="bg-warm-100 border-warm-300 py-0 gap-0 overflow-hidden">
+   803→                    <CardContent className="p-0 divide-y divide-warm-200/60">
+   804→                      {suggestedPlayers.slice(0, 3).map((player, index) => (
+   805→                        <motion.div
+   806→                          key={player.id}
+   807→                          initial={{ opacity: 0, x: -8 }}
+   808→                          animate={{ opacity: 1, x: 0 }}
+   809→                          transition={{ delay: 0.2 + index * 0.05 }}
+   810→                          className="flex items-center gap-3 px-4 py-2.5 hover:bg-warm-50/50 transition-colors"
+   811→                        >
+   812→                          <PlayerAvatar
+   813→                            name={player.name}
+   814→                            avatar={player.avatar}
+   815→                            gender={player.gender}
+   816→                            size="sm"
+   817→                          />
+   818→                          <div className="flex-1 min-w-0">
+   819→                            <div className="flex items-center gap-1.5">
+   820→                              <p className="font-semibold text-xs text-warm-800 truncate">
+   821→                                {getDisplayName(player.name)}
+   822→                              </p>
+   823→                              {player.gender && (
+   824→                                <span
+   825→                                  className={`text-[10px] font-semibold ${
+   826→                                    player.gender === 'male'
+   827→                                      ? 'text-brand-blue'
+   828→                                      : 'text-brand-red'
+   829→                                  }`}
+   830→                                >
+   831→                                  {player.gender === 'male' ? '♂' : '♀'}
+   832→                                </span>
+   833→                              )}
+   834→                            </div>
+   835→                          </div>
+   836→                          <SuggestionFollowButton
+   837→                            isFollowing={!!player.isFollowing}
+   838→                            onToggle={() =>
+   839→                              handleFollowAction(
+   840→                                player.id,
+   841→                                !!player.isFollowing
+   842→                              )
+   843→                            }
+   844→                            loading={actionLoadingId === player.id}
+   845→                          />
+   846→                        </motion.div>
+   847→                      ))}
+   848→                    </CardContent>
+   849→                  </Card>
+   850→                </div>
+   851→              )}
+   852→            </motion.div>
+   853→          )}
+   854→        </AnimatePresence>
+   855→      </div>
+   856→    </motion.div>
+   857→  );
+   858→}
+   859→
