@@ -1,0 +1,1143 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, useRef } from 'react';
+     4→     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→     5→import { Plus, MapPin, Calendar, Users, ChevronDown, ChevronUp, Trophy, Crown, Lock, Loader2, Search, X, Copy, Check, Hash, UserPlus, Trash2, Swords, Sparkles, Timer } from 'lucide-react';
+     6→     6→import { Card } from '@/components/ui/card';
+     7→     7→import { Button } from '@/components/ui/button';
+     8→     8→import { Input } from '@/components/ui/input';
+     9→     9→import { Badge } from '@/components/ui/badge';
+    10→    10→import {
+    11→    11→  Dialog,
+    12→    12→  DialogContent,
+    13→    13→  DialogHeader,
+    14→    14→  DialogTitle,
+    15→    15→  DialogTrigger,
+    16→    16→} from '@/components/ui/dialog';
+    17→    17→import { useKabaddiStore } from '@/lib/store';
+    18→    18→import { useToast } from '@/hooks/use-toast';
+    19→    19→import PremiumUpgradeScreen from './PremiumUpgradeScreen';
+    20→    20→
+    21→    21→interface TeamInTournament {
+    22→    22→  id: string;
+    23→    23→  name: string;
+    24→    24→  shortName?: string;
+    25→    25→  teamCode?: string;
+    26→    26→  color: string;
+    27→    27→  logo?: string;
+    28→    28→  played: number;
+    29→    29→  won: number;
+    30→    30→  lost: number;
+    31→    31→  drawn: number;
+    32→    32→  scoreDiff: number;
+    33→    33→  points: number;
+    34→    34→}
+    35→    35→
+    36→    36→interface Tournament {
+    37→    37→  id: string;
+    38→    38→  name: string;
+    39→    39→  tournamentCode?: string;
+    40→    40→  type: string;
+    41→    41→  venue: string;
+    42→    42→  startDate: string | null;
+    43→    43→  endDate: string | null;
+    44→    44→  status: string;
+    45→    45→  gender: string;
+    46→    46→  teams: TeamInTournament[];
+    47→    47→  matchCount: number;
+    48→    48→  organizerId?: string;
+    49→    49→}
+    50→    50→
+    51→    51→interface DbTeam {
+    52→    52→  id: string;
+    53→    53→  name: string;
+    54→    54→  shortName: string | null;
+    55→    55→  teamCode: string | null;
+    56→    56→  color: string | null;
+    57→    57→  logo: string | null;
+    58→    58→}
+    59→    59→
+    60→    60→export default function TournamentsTab() {
+    61→    61→  const { currentUser } = useKabaddiStore();
+    62→    62→  const { toast } = useToast();
+    63→    63→  const isPremium = currentUser?.isPremium || false;
+    64→    64→
+    65→    65→  const [statusFilter, setStatusFilter] = useState<'ongoing' | 'upcoming' | 'past'>('ongoing');
+    66→    66→  const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+    67→    67→  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+    68→    68→  const [expandedId, setExpandedId] = useState<string | null>(null);
+    69→    69→  const [loading, setLoading] = useState(true);
+    70→    70→  const [createOpen, setCreateOpen] = useState(false);
+    71→    71→  const [showUpgrade, setShowUpgrade] = useState(false);
+    72→    72→  const [generatingBracket, setGeneratingBracket] = useState(false);
+    73→    73→
+    74→    74→  // Tournament search by code
+    75→    75→  const [tournamentSearch, setTournamentSearch] = useState('');
+    76→    76→
+    77→    77→  // New tournament form
+    78→    78→  const [newTournament, setNewTournament] = useState({
+    79→    79→    name: '',
+    80→    80→    venue: '',
+    81→    81→    gender: 'male',
+    82→    82→    type: 'knockout',
+    83→    83→  });
+    84→    84→
+    85→    85→  // Add teams to tournament
+    86→    86→  const [addTeamDialogOpen, setAddTeamDialogOpen] = useState<string | null>(null);
+    87→    87→  const [teamSearch, setTeamSearch] = useState('');
+    88→    88→  const [teamSearchResults, setTeamSearchResults] = useState<DbTeam[]>([]);
+    89→    89→  const [isSearchingTeams, setIsSearchingTeams] = useState(false);
+    90→    90→  const [allTeams, setAllTeams] = useState<DbTeam[]>([]);
+    91→    91→  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+    92→    92→  const [addingTeams, setAddingTeams] = useState(false);
+    93→    93→  const teamInputRef = useRef<HTMLDivElement>(null);
+    94→    94→
+    95→    95→  // Remove team confirmation
+    96→    96→  const [removeTeamId, setRemoveTeamId] = useState<string | null>(null);
+    97→    97→  const [removingTeam, setRemovingTeam] = useState(false);
+    98→    98→
+    99→    99→  // Copy code feedback
+   100→   100→  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+   101→   101→
+   102→   102→  useEffect(() => {
+   103→   103→    fetchTournaments();
+   104→   104→  }, [statusFilter, genderFilter]);
+   105→   105→
+   106→   106→  // Fetch all teams on mount for instant filtering
+   107→   107→  useEffect(() => {
+   108→   108→    const fetchAllTeams = async () => {
+   109→   109→      try {
+   110→   110→        const res = await fetch('/api/teams?limit=100');
+   111→   111→        if (res.ok) {
+   112→   112→          const data = await res.json();
+   113→   113→          setAllTeams(data.teams || []);
+   114→   114→        }
+   115→   115→      } catch {
+   116→   116→        // silently fail
+   117→   117→      }
+   118→   118→    };
+   119→   119→    fetchAllTeams();
+   120→   120→  }, []);
+   121→   121→
+   122→   122→  // Close team suggestions when clicking outside
+   123→   123→  useEffect(() => {
+   124→   124→    const handleClickOutside = (e: MouseEvent) => {
+   125→   125→      if (teamInputRef.current && !teamInputRef.current.contains(e.target as Node)) {
+   126→   126→        setTeamSearchResults([]);
+   127→   127→      }
+   128→   128→    };
+   129→   129→    document.addEventListener('mousedown', handleClickOutside);
+   130→   130→    return () => document.removeEventListener('mousedown', handleClickOutside);
+   131→   131→  }, []);
+   132→   132→
+   133→   133→  const fetchTournaments = useCallback(async () => {
+   134→   134→    try {
+   135→   135→      setLoading(true);
+   136→   136→      const params = new URLSearchParams();
+   137→   137→      if (statusFilter) params.set('status', statusFilter);
+   138→   138→      if (genderFilter && genderFilter !== 'all') params.set('gender', genderFilter);
+   139→   139→      if (tournamentSearch.trim()) params.set('search', tournamentSearch.trim());
+   140→   140→
+   141→   141→      const res = await fetch(`/api/tournaments?${params}`);
+   142→   142→      if (res.ok) {
+   143→   143→        const data = await res.json();
+   144→   144→        setTournaments(data.tournaments || []);
+   145→   145→      }
+   146→   146→    } catch {
+   147→   147→      setTournaments([]);
+   148→   148→    } finally {
+   149→   149→      setLoading(false);
+   150→   150→    }
+   151→   151→  }, [statusFilter, genderFilter, tournamentSearch]);
+   152→   152→
+   153→   153→  useEffect(() => {
+   154→   154→    const timer = setTimeout(() => {
+   155→   155→      fetchTournaments();
+   156→   156→    }, 300);
+   157→   157→    return () => clearTimeout(timer);
+   158→   158→  }, [tournamentSearch]);
+   159→   159→
+   160→   160→  const handleCreateClick = () => {
+   161→   161→    if (!isPremium) {
+   162→   162→      setShowUpgrade(true);
+   163→   163→      return;
+   164→   164→    }
+   165→   165→    setCreateOpen(true);
+   166→   166→  };
+   167→   167→
+   168→   168→  const handleCreateTournament = async () => {
+   169→   169→    try {
+   170→   170→      const res = await fetch('/api/tournaments', {
+   171→   171→        method: 'POST',
+   172→   172→        headers: { 'Content-Type': 'application/json' },
+   173→   173→        body: JSON.stringify({
+   174→   174→          ...newTournament,
+   175→   175→          organizerId: currentUser?.id,
+   176→   176→        }),
+   177→   177→      });
+   178→   178→      if (res.ok) {
+   179→   179→        const data = await res.json();
+   180→   180→        toast({
+   181→   181→          title: 'Tournament Created!',
+   182→   182→          description: `Code: ${data.tournament?.tournamentCode || 'N/A'}`,
+   183→   183→        });
+   184→   184→        setCreateOpen(false);
+   185→   185→        fetchTournaments();
+   186→   186→      } else {
+   187→   187→        const data = await res.json();
+   188→   188→        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+   189→   189→      }
+   190→   190→    } catch {
+   191→   191→      toast({ title: 'Error', description: 'Failed to create tournament', variant: 'destructive' });
+   192→   192→    }
+   193→   193→    setNewTournament({ name: '', venue: '', gender: 'male', type: 'knockout' });
+   194→   194→  };
+   195→   195→
+   196→   196→  const handleGenerateBracket = async (tournamentId: string, teamIds: string[]) => {
+   197→   197→    setGeneratingBracket(true);
+   198→   198→    try {
+   199→   199→      const res = await fetch('/api/tournaments/generate-bracket', {
+   200→   200→        method: 'POST',
+   201→   201→        headers: { 'Content-Type': 'application/json' },
+   202→   202→        body: JSON.stringify({ tournamentId, teamIds }),
+   203→   203→      });
+   204→   204→      if (res.ok) {
+   205→   205→        const data = await res.json();
+   206→   206→        toast({
+   207→   207→          title: 'Bracket Generated!',
+   208→   208→          description: `${data.matchCount} matches scheduled`,
+   209→   209→        });
+   210→   210→        fetchTournaments();
+   211→   211→      } else {
+   212→   212→        const data = await res.json();
+   213→   213→        toast({ title: 'Error', description: data.error || 'Failed to generate bracket', variant: 'destructive' });
+   214→   214→      }
+   215→   215→    } catch {
+   216→   216→      toast({ title: 'Error', description: 'Failed to generate bracket', variant: 'destructive' });
+   217→   217→    } finally {
+   218→   218→      setGeneratingBracket(false);
+   219→   219→    }
+   220→   220→  };
+   221→   221→
+   222→   222→  // Search teams for adding to tournament
+   223→   223→  const getFilteredTeams = useCallback((query: string): DbTeam[] => {
+   224→   224→    if (!query.trim()) return allTeams.slice(0, 20);
+   225→   225→    const q = query.toLowerCase().trim();
+   226→   226→    return allTeams.filter(t =>
+   227→   227→      t.name.toLowerCase().includes(q) ||
+   228→   228→      (t.teamCode && t.teamCode.toLowerCase().includes(q)) ||
+   229→   229→      (t.shortName && t.shortName.toLowerCase().includes(q))
+   230→   230→    ).slice(0, 20);
+   231→   231→  }, [allTeams]);
+   232→   232→
+   233→   233→  useEffect(() => {
+   234→   234→    if (!addTeamDialogOpen) return;
+   235→   235→    const timer = setTimeout(async () => {
+   236→   236→      const localResults = getFilteredTeams(teamSearch);
+   237→   237→      setTeamSearchResults(localResults);
+   238→   238→
+   239→   239→      if (teamSearch.length >= 2) {
+   240→   240→        setIsSearchingTeams(true);
+   241→   241→        try {
+   242→   242→          const res = await fetch(`/api/teams?search=${encodeURIComponent(teamSearch)}`);
+   243→   243→          if (res.ok) {
+   244→   244→            const data = await res.json();
+   245→   245→            const serverTeams: DbTeam[] = data.teams || [];
+   246→   246→            const serverIds = new Set(serverTeams.map(t => t.id));
+   247→   247→            const merged = [...serverTeams, ...localResults.filter(t => !serverIds.has(t.id))].slice(0, 20);
+   248→   248→            setTeamSearchResults(merged);
+   249→   249→          }
+   250→   250→        } catch {
+   251→   251→          // keep local results
+   252→   252→        } finally {
+   253→   253→          setIsSearchingTeams(false);
+   254→   254→        }
+   255→   255→      }
+   256→   256→    }, 200);
+   257→   257→    return () => clearTimeout(timer);
+   258→   258→  }, [teamSearch, addTeamDialogOpen, getFilteredTeams]);
+   259→   259→
+   260→   260→  const openAddTeamDialog = (tournamentId: string) => {
+   261→   261→    const tournament = tournaments.find(t => t.id === tournamentId);
+   262→   262→    setSelectedTeamIds([]);
+   263→   263→    setTeamSearch('');
+   264→   264→    setTeamSearchResults(getFilteredTeams(''));
+   265→   265→    setAddTeamDialogOpen(tournamentId);
+   266→   266→  };
+   267→   267→
+   268→   268→  const handleAddTeams = async () => {
+   269→   269→    if (!addTeamDialogOpen || selectedTeamIds.length === 0) return;
+   270→   270→    setAddingTeams(true);
+   271→   271→    try {
+   272→   272→      const res = await fetch(`/api/tournaments/${addTeamDialogOpen}`, {
+   273→   273→        method: 'PATCH',
+   274→   274→        headers: { 'Content-Type': 'application/json' },
+   275→   275→        body: JSON.stringify({ addTeamIds: selectedTeamIds }),
+   276→   276→      });
+   277→   277→      if (res.ok) {
+   278→   278→        const data = await res.json();
+   279→   279→        toast({
+   280→   280→          title: 'Teams Added!',
+   281→   281→          description: data.message || `${selectedTeamIds.length} team(s) added to tournament`,
+   282→   282→        });
+   283→   283→        setAddTeamDialogOpen(null);
+   284→   284→        setSelectedTeamIds([]);
+   285→   285→        fetchTournaments();
+   286→   286→      } else {
+   287→   287→        const data = await res.json();
+   288→   288→        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+   289→   289→      }
+   290→   290→    } catch {
+   291→   291→      toast({ title: 'Error', description: 'Failed to add teams', variant: 'destructive' });
+   292→   292→    } finally {
+   293→   293→      setAddingTeams(false);
+   294→   294→    }
+   295→   295→  };
+   296→   296→
+   297→   297→  const handleRemoveTeam = async (tournamentId: string, teamId: string) => {
+   298→   298→    setRemovingTeam(true);
+   299→   299→    try {
+   300→   300→      const res = await fetch(`/api/tournaments/${tournamentId}`, {
+   301→   301→        method: 'PATCH',
+   302→   302→        headers: { 'Content-Type': 'application/json' },
+   303→   303→        body: JSON.stringify({ removeTeamIds: [teamId] }),
+   304→   304→      });
+   305→   305→      if (res.ok) {
+   306→   306→        toast({ title: 'Team Removed', description: 'Team removed from tournament' });
+   307→   307→        setRemoveTeamId(null);
+   308→   308→        fetchTournaments();
+   309→   309→      } else {
+   310→   310→        const data = await res.json();
+   311→   311→        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+   312→   312→      }
+   313→   313→    } catch {
+   314→   314→      toast({ title: 'Error', description: 'Failed to remove team', variant: 'destructive' });
+   315→   315→    } finally {
+   316→   316→      setRemovingTeam(false);
+   317→   317→    }
+   318→   318→  };
+   319→   319→
+   320→   320→  const copyToClipboard = async (code: string) => {
+   321→   321→    try {
+   322→   322→      await navigator.clipboard.writeText(code);
+   323→   323→      setCopiedCode(code);
+   324→   324→      toast({ title: 'Copied!', description: `Code ${code} copied to clipboard` });
+   325→   325→      setTimeout(() => setCopiedCode(null), 2000);
+   326→   326→    } catch {
+   327→   327→      // fallback
+   328→   328→    }
+   329→   329→  };
+   330→   330→
+   331→   331→  const filteredTournaments = tournaments.filter((t) => {
+   332→   332→    if (t.status !== statusFilter) return false;
+   333→   333→    if (genderFilter !== 'all' && t.gender !== genderFilter) return false;
+   334→   334→    return true;
+   335→   335→  });
+   336→   336→
+   337→   337→  const highlightMatch = (text: string, query: string) => {
+   338→   338→    if (!query.trim()) return text;
+   339→   339→    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+   340→   340→    const parts = text.split(regex);
+   341→   341→    return parts.map((part, i) =>
+   342→   342→      regex.test(part) ? (
+   343→   343→        <span key={i} className="text-brand-red font-bold">{part}</span>
+   344→   344→      ) : (
+   345→   345→        <span key={i}>{part}</span>
+   346→   346→      )
+   347→   347→    );
+   348→   348→  };
+   349→   349→
+   350→   350→  // Format date helper
+   351→   351→  const formatDate = (dateStr: string | null) => {
+   352→   352→    if (!dateStr) return 'TBD';
+   353→   353→    try {
+   354→   354→      const date = new Date(dateStr);
+   355→   355→      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+   356→   356→    } catch {
+   357→   357→      return dateStr;
+   358→   358→    }
+   359→   359→  };
+   360→   360→
+   361→   361→  // Tournament type badge styling
+   362→   362→  const getTypeBadge = (type: string) => {
+   363→   363→    switch (type) {
+   364→   364→      case 'knockout':
+   365→   365→        return { bg: 'bg-orange-500/10 dark:bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400', icon: <Swords className="w-3 h-3" /> };
+   366→   366→      case 'league':
+   367→   367→        return { bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', icon: <Trophy className="w-3 h-3" /> };
+   368→   368→      case 'hybrid':
+   369→   369→        return { bg: 'bg-purple-500/10 dark:bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400', icon: <Sparkles className="w-3 h-3" /> };
+   370→   370→      default:
+   371→   371→        return { bg: 'bg-warm-200 dark:bg-warm-700', text: 'text-warm-600 dark:text-warm-300', icon: <Trophy className="w-3 h-3" /> };
+   372→   372→    }
+   373→   373→  };
+   374→   374→
+   375→   375→  // Empty state content based on filter
+   376→   376→  const getEmptyContent = () => {
+   377→   377→    if (tournamentSearch.trim()) {
+   378→   378→      return {
+   379→   379→        icon: '🔍',
+   380→   380→        title: 'No results found',
+   381→   381→        description: `Try searching by tournament code like "TC3001"`,
+   382→   382→        cta: null,
+   383→   383→      };
+   384→   384→    }
+   385→   385→    switch (statusFilter) {
+   386→   386→      case 'ongoing':
+   387→   387→        return {
+   388→   388→          icon: '🏟️',
+   389→   389→          title: 'No ongoing tournaments right now',
+   390→   390→          description: 'Check back later or create your own tournament',
+   391→   391→          cta: isPremium ? 'Create Tournament' : null,
+   392→   392→        };
+   393→   393→      case 'upcoming':
+   394→   394→        return {
+   395→   395→          icon: '📅',
+   396→   396→          title: 'No upcoming tournaments',
+   397→   397→          description: 'Be the first to host one!',
+   398→   398→          cta: isPremium ? 'Host Tournament' : null,
+   399→   399→        };
+   400→   400→      case 'past':
+   401→   401→        return {
+   402→   402→          icon: '🏆',
+   403→   403→          title: 'No past tournaments yet',
+   404→   404→          description: 'Completed tournaments will appear here',
+   405→   405→          cta: null,
+   406→   406→        };
+   407→   407→      default:
+   408→   408→        return {
+   409→   409→          icon: '🏆',
+   410→   410→          title: 'No tournaments found',
+   411→   411→          description: '',
+   412→   412→          cta: null,
+   413→   413→        };
+   414→   414→    }
+   415→   415→  };
+   416→   416→
+   417→   417→  return (
+   418→   418→    <div className="px-4 py-6 space-y-5">
+   419→   419→      {/* Premium Upgrade Modal */}
+   420→   420→      {showUpgrade && (
+   421→   421→        <PremiumUpgradeScreen
+   422→   422→          onClose={() => setShowUpgrade(false)}
+   423→   423→          feature="Host Tournaments"
+   424→   424→        />
+   425→   425→      )}
+   426→   426→
+   427→   427→      {/* Header */}
+   428→   428→      <div className="flex items-center justify-between">
+   429→   429→        <h1 className="text-xl font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2">
+   430→   430→          <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center">
+   431→   431→            <Trophy className="w-4 h-4 text-brand-gold" />
+   432→   432→          </div>
+   433→   433→          Tournaments
+   434→   434→        </h1>
+   435→   435→        <motion.div whileTap={{ scale: 0.95 }}>
+   436→   436→          <Button
+   437→   437→            onClick={handleCreateClick}
+   438→   438→            className={`rounded-xl h-10 px-4 font-bold ${
+   439→   439→              isPremium
+   440→   440→                ? 'bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white shadow-lg shadow-brand-red/20'
+   441→   441→                : 'bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white hover:opacity-90 shadow-lg shadow-brand-gold/20'
+   442→   442→            }`}
+   443→   443→          >
+   444→   444→            {isPremium ? (
+   445→   445→              <>
+   446→   446→                <Plus className="w-4 h-4 mr-1" />
+   447→   447→                Create
+   448→   448→              </>
+   449→   449→            ) : (
+   450→   450→              <>
+   451→   451→                <Crown className="w-4 h-4 mr-1" />
+   452→   452→                Host
+   453→   453→                <Lock className="w-3 h-3 ml-1" />
+   454→   454→              </>
+   455→   455→            )}
+   456→   456→          </Button>
+   457→   457→        </motion.div>
+   458→   458→
+   459→   459→        {/* Create Tournament Dialog */}
+   460→   460→        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+   461→   461→          <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700">
+   462→   462→            <DialogHeader>
+   463→   463→              <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+   464→   464→                Create Tournament
+   465→   465→                <Badge className="bg-brand-gold/20 text-brand-gold text-[10px] border-0">
+   466→   466→                  <Crown className="w-3 h-3 mr-1" />
+   467→   467→                  PRO
+   468→   468→                </Badge>
+   469→   469→              </DialogTitle>
+   470→   470→            </DialogHeader>
+   471→   471→            <div className="space-y-4 mt-2">
+   472→   472→              <Input
+   473→   473→                placeholder="Tournament name"
+   474→   474→                value={newTournament.name}
+   475→   475→                onChange={(e) => setNewTournament({ ...newTournament, name: e.target.value })}
+   476→   476→                className="bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-700 rounded-xl"
+   477→   477→              />
+   478→   478→              <Input
+   479→   479→                placeholder="Venue"
+   480→   480→                value={newTournament.venue}
+   481→   481→                onChange={(e) => setNewTournament({ ...newTournament, venue: e.target.value })}
+   482→   482→                className="bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-700 rounded-xl"
+   483→   483→              />
+   484→   484→              <div className="grid grid-cols-3 gap-2">
+   485→   485→                {(['knockout', 'league', 'hybrid'] as const).map((t) => {
+   486→   486→                  const badge = getTypeBadge(t);
+   487→   487→                  return (
+   488→   488→                    <button
+   489→   489→                      key={t}
+   490→   490→                      onClick={() => setNewTournament({ ...newTournament, type: t })}
+   491→   491→                      className={`p-2.5 rounded-xl border-2 text-xs font-bold capitalize flex flex-col items-center gap-1 transition-all ${
+   492→   492→                        newTournament.type === t
+   493→   493→                          ? `${badge.bg} ${badge.text} border-current`
+   494→   494→                          : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400'
+   495→   495→                      }`}
+   496→   496→                    >
+   497→   497→                      {badge.icon}
+   498→   498→                      {t}
+   499→   499→                    </button>
+   500→   500→                  );
+   501→   501→                })}
+   502→   502→              </div>
+   503→   503→              <div className="grid grid-cols-2 gap-3">
+   504→   504→                <button
+   505→   505→                  onClick={() => setNewTournament({ ...newTournament, gender: 'male' })}
+   506→   506→                  className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
+   507→   507→                    newTournament.gender === 'male'
+   508→   508→                      ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+   509→   509→                      : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400'
+   510→   510→                  }`}
+   511→   511→                >
+   512→   512→                  ♂ Boys
+   513→   513→                </button>
+   514→   514→                <button
+   515→   515→                  onClick={() => setNewTournament({ ...newTournament, gender: 'female' })}
+   516→   516→                  className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
+   517→   517→                    newTournament.gender === 'female'
+   518→   518→                      ? 'border-red-500 bg-red-500/10 text-red-600 dark:text-red-400'
+   519→   519→                      : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400'
+   520→   520→                  }`}
+   521→   521→                >
+   522→   522→                  ♀ Girls
+   523→   523→                </button>
+   524→   524→              </div>
+   525→   525→              <div className="bg-warm-100 dark:bg-warm-800 rounded-xl p-3 text-center">
+   526→   526→                <p className="text-xs text-warm-500 dark:text-warm-400">A unique tournament code will be auto-generated</p>
+   527→   527→                <p className="text-[10px] text-warm-400 dark:text-warm-500">Share this code so others can easily find & join</p>
+   528→   528→              </div>
+   529→   529→              <Button
+   530→   530→                onClick={handleCreateTournament}
+   531→   531→                disabled={!newTournament.name}
+   532→   532→                className="w-full bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold"
+   533→   533→              >
+   534→   534→                Create Tournament
+   535→   535→              </Button>
+   536→   536→            </div>
+   537→   537→          </DialogContent>
+   538→   538→        </Dialog>
+   539→   539→      </div>
+   540→   540→
+   541→   541→      {/* Search Tournaments by Code/Name */}
+   542→   542→      <div className="relative">
+   543→   543→        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+   544→   544→        <Input
+   545→   545→          placeholder="Search by name or tournament code (e.g. TC3001)..."
+   546→   546→          value={tournamentSearch}
+   547→   547→          onChange={(e) => setTournamentSearch(e.target.value)}
+   548→   548→          className="pl-9 pr-9 h-11 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm"
+   549→   549→        />
+   550→   550→        {tournamentSearch && (
+   551→   551→          <button
+   552→   552→            onClick={() => setTournamentSearch('')}
+   553→   553→            className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+   554→   554→          >
+   555→   555→            <X className="w-4 h-4" />
+   556→   556→          </button>
+   557→   557→        )}
+   558→   558→      </div>
+   559→   559→
+   560→   560→      {/* Premium hint for non-premium users */}
+   561→   561→      {!isPremium && (
+   562→   562→        <motion.div
+   563→   563→          initial={{ opacity: 0, y: -10 }}
+   564→   564→          animate={{ opacity: 1, y: 0 }}
+   565→   565→        >
+   566→   566→          <Card
+   567→   567→            className="p-4 bg-gradient-to-r from-brand-gold/10 via-brand-gold/5 to-brand-gold/10 dark:from-brand-gold/20 dark:via-brand-gold/10 dark:to-brand-gold/20 border border-brand-gold/30 cursor-pointer active:scale-[0.98] transition-transform overflow-hidden relative"
+   568→   568→            onClick={() => setShowUpgrade(true)}
+   569→   569→          >
+   570→   570→            {/* Shimmer effect */}
+   571→   571→            <motion.div
+   572→   572→              className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/10 to-transparent"
+   573→   573→              animate={{ x: ['-100%', '200%'] }}
+   574→   574→              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+   575→   575→            />
+   576→   576→            <div className="flex items-center gap-3 relative">
+   577→   577→              <div className="w-10 h-10 rounded-xl bg-brand-gold/20 flex items-center justify-center shrink-0">
+   578→   578→                <Crown className="w-5 h-5 text-brand-gold" />
+   579→   579→              </div>
+   580→   580→              <div className="flex-1 min-w-0">
+   581→   581→                <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Want to host your own tournament?</p>
+   582→   582→                <p className="text-[11px] text-warm-500 dark:text-warm-400">Upgrade to Premium to create and manage tournaments</p>
+   583→   583→              </div>
+   584→   584→              <div className="shrink-0">
+   585→   585→                <div className="px-3 py-1.5 rounded-lg bg-brand-gold/20 text-brand-gold font-bold text-xs flex items-center gap-1">
+   586→   586→                  <Sparkles className="w-3 h-3" />
+   587→   587→                  Upgrade
+   588→   588→                </div>
+   589→   589→              </div>
+   590→   590→            </div>
+   591→   591→          </Card>
+   592→   592→        </motion.div>
+   593→   593→      )}
+   594→   594→
+   595→   595→      {/* Status Tabs */}
+   596→   596→      <div className="flex gap-1 bg-warm-100 dark:bg-warm-800 p-1 rounded-xl">
+   597→   597→        {(['ongoing', 'upcoming', 'past'] as const).map((s) => (
+   598→   598→          <button
+   599→   599→            key={s}
+   600→   600→            onClick={() => setStatusFilter(s)}
+   601→   601→            className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all duration-200 relative ${
+   602→   602→              statusFilter === s
+   603→   603→                ? 'bg-white dark:bg-warm-700 text-brand-red shadow-sm'
+   604→   604→                : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
+   605→   605→            }`}
+   606→   606→          >
+   607→   607→            {s}
+   608→   608→            {statusFilter === s && (
+   609→   609→              <motion.div
+   610→   610→                className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-brand-red rounded-full"
+   611→   611→                layoutId="statusIndicator"
+   612→   612→                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+   613→   613→              />
+   614→   614→            )}
+   615→   615→          </button>
+   616→   616→        ))}
+   617→   617→      </div>
+   618→   618→
+   619→   619→      {/* Gender Filter */}
+   620→   620→      <div className="flex gap-2">
+   621→   621→        {[
+   622→   622→          { id: 'all' as const, label: 'All' },
+   623→   623→          { id: 'male' as const, label: '♂ Boys' },
+   624→   624→          { id: 'female' as const, label: '♀ Girls' },
+   625→   625→        ].map((f) => (
+   626→   626→          <button
+   627→   627→            key={f.id}
+   628→   628→            onClick={() => setGenderFilter(f.id)}
+   629→   629→            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
+   630→   630→              genderFilter === f.id
+   631→   631→                ? 'bg-warm-800 dark:bg-warm-200 text-white dark:text-warm-800'
+   632→   632→                : 'bg-warm-100 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+   633→   633→            }`}
+   634→   634→          >
+   635→   635→            {f.label}
+   636→   636→          </button>
+   637→   637→        ))}
+   638→   638→      </div>
+   639→   639→
+   640→   640→      {/* Tournament Cards */}
+   641→   641→      {loading ? (
+   642→   642→        <div className="space-y-3">
+   643→   643→          {[1, 2].map((i) => (
+   644→   644→            <div key={i} className="h-36 bg-warm-100 dark:bg-warm-800 rounded-2xl animate-pulse" />
+   645→   645→          ))}
+   646→   646→        </div>
+   647→   647→      ) : filteredTournaments.length === 0 ? (
+   648→   648→        <motion.div
+   649→   649→          initial={{ opacity: 0, y: 10 }}
+   650→   650→          animate={{ opacity: 1, y: 0 }}
+   651→   651→        >
+   652→   652→          <Card className="p-8 text-center border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50">
+   653→   653→            <div className="text-5xl mb-3">{getEmptyContent().icon}</div>
+   654→   654→            <p className="text-warm-700 dark:text-warm-200 text-base font-bold">{getEmptyContent().title}</p>
+   655→   655→            <p className="text-warm-400 dark:text-warm-500 text-sm mt-1">{getEmptyContent().description}</p>
+   656→   656→            {getEmptyContent().cta && (
+   657→   657→              <Button
+   658→   658→                onClick={handleCreateClick}
+   659→   659→                className="mt-4 bg-gradient-to-r from-brand-red to-brand-red-light text-white rounded-xl font-bold"
+   660→   660→              >
+   661→   661→                <Plus className="w-4 h-4 mr-1" />
+   662→   662→                {getEmptyContent().cta}
+   663→   663→              </Button>
+   664→   664→            )}
+   665→   665→          </Card>
+   666→   666→        </motion.div>
+   667→   667→      ) : (
+   668→   668→        <div className="space-y-3">
+   669→   669→          {filteredTournaments.map((tournament, i) => {
+   670→   670→            const typeBadge = getTypeBadge(tournament.type);
+   671→   671→            const teamCount = tournament.teams.length;
+   672→   672→            return (
+   673→   673→              <motion.div
+   674→   674→                key={tournament.id}
+   675→   675→                initial={{ opacity: 0, y: 10 }}
+   676→   676→                animate={{ opacity: 1, y: 0 }}
+   677→   677→                transition={{ delay: i * 0.05 }}
+   678→   678→              >
+   679→   679→                <Card className="overflow-hidden border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50">
+   680→   680→                  {/* Gradient Accent Bar */}
+   681→   681→                  <div className={`h-1 ${
+   682→   682→                    tournament.gender === 'male'
+   683→   683→                      ? 'bg-gradient-to-r from-blue-500 to-blue-400'
+   684→   684→                      : 'bg-gradient-to-r from-red-500 to-red-400'
+   685→   685→                  }`} />
+   686→   686→
+   687→   687→                  <div
+   688→   688→                    className="p-4 cursor-pointer"
+   689→   689→                    onClick={() => setExpandedId(expandedId === tournament.id ? null : tournament.id)}
+   690→   690→                  >
+   691→   691→                    <div className="flex items-start justify-between">
+   692→   692→                      <div className="flex-1 min-w-0">
+   693→   693→                        <div className="flex items-center gap-2">
+   694→   694→                          <h3 className="font-bold text-warm-800 dark:text-warm-100 text-sm truncate">
+   695→   695→                            {tournament.name}
+   696→   696→                          </h3>
+   697→   697→                          {/* Tournament Type Badge */}
+   698→   698→                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-bold capitalize ${typeBadge.bg} ${typeBadge.text} shrink-0`}>
+   699→   699→                            {typeBadge.icon}
+   700→   700→                            {tournament.type}
+   701→   701→                          </span>
+   702→   702→                        </div>
+   703→   703→                        {/* Tournament Code Badge */}
+   704→   704→                        {tournament.tournamentCode && (
+   705→   705→                          <div
+   706→   706→                            className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-brand-teal/10 dark:bg-brand-teal/20 cursor-pointer hover:bg-brand-teal/20 transition-colors"
+   707→   707→                            onClick={(e) => {
+   708→   708→                              e.stopPropagation();
+   709→   709→                              copyToClipboard(tournament.tournamentCode!);
+   710→   710→                            }}
+   711→   711→                          >
+   712→   712→                            <Hash className="w-3 h-3 text-brand-teal" />
+   713→   713→                            <span className="text-[10px] font-mono font-bold text-brand-teal">
+   714→   714→                              {tournament.tournamentCode}
+   715→   715→                            </span>
+   716→   716→                            {copiedCode === tournament.tournamentCode ? (
+   717→   717→                              <Check className="w-3 h-3 text-brand-green" />
+   718→   718→                            ) : (
+   719→   719→                              <Copy className="w-3 h-3 text-brand-teal/60" />
+   720→   720→                            )}
+   721→   721→                          </div>
+   722→   722→                        )}
+   723→   723→                        <div className="flex items-center gap-1 mt-1.5 text-xs text-warm-500 dark:text-warm-400">
+   724→   724→                          <MapPin className="w-3 h-3" />
+   725→   725→                          <span className="truncate">{tournament.venue}</span>
+   726→   726→                        </div>
+   727→   727→                        <div className="flex items-center gap-1 mt-0.5 text-xs text-warm-500 dark:text-warm-400">
+   728→   728→                          <Calendar className="w-3 h-3" />
+   729→   729→                          <span>{formatDate(tournament.startDate)}</span>
+   730→   730→                        </div>
+   731→   731→                      </div>
+   732→   732→                      <div className="flex flex-col items-end gap-1.5 ml-3">
+   733→   733→                        <Badge
+   734→   734→                          variant="secondary"
+   735→   735→                          className={`text-[10px] font-bold ${
+   736→   736→                            tournament.gender === 'male'
+   737→   737→                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+   738→   738→                              : 'bg-red-500/10 text-red-600 dark:text-red-400'
+   739→   739→                          }`}
+   740→   740→                        >
+   741→   741→                          {tournament.gender === 'male' ? '♂ Boys' : '♀ Girls'}
+   742→   742→                        </Badge>
+   743→   743→                        {/* Team & Match Count */}
+   744→   744→                        <div className="flex items-center gap-2">
+   745→   745→                          <div className="flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-md">
+   746→   746→                            <Users className="w-3 h-3" />
+   747→   747→                            <span className="font-bold">{teamCount}</span>
+   748→   748→                          </div>
+   749→   749→                          {tournament.matchCount > 0 && (
+   750→   750→                            <div className="flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-md">
+   751→   751→                              <Timer className="w-3 h-3" />
+   752→   752→                              <span className="font-bold">{tournament.matchCount}</span>
+   753→   753→                            </div>
+   754→   754→                          )}
+   755→   755→                        </div>
+   756→   756→                      </div>
+   757→   757→                    </div>
+   758→   758→
+   759→   759→                    {/* Team Avatars Row + Progress */}
+   760→   760→                    <div className="flex items-center justify-between mt-3">
+   761→   761→                      <div className="flex -space-x-1.5">
+   762→   762→                        {tournament.teams.slice(0, 5).map((team) => (
+   763→   763→                          <div
+   764→   764→                            key={team.id}
+   765→   765→                            className="w-7 h-7 rounded-full border-2 border-white dark:border-warm-800 flex items-center justify-center text-[8px] font-bold text-white shadow-sm"
+   766→   766→                            style={{ backgroundColor: team.color }}
+   767→   767→                          >
+   768→   768→                            {team.shortName?.charAt(0) || team.name.charAt(0)}
+   769→   769→                          </div>
+   770→   770→                        ))}
+   771→   771→                        {tournament.teams.length > 5 && (
+   772→   772→                          <div className="w-7 h-7 rounded-full border-2 border-white dark:border-warm-800 bg-warm-200 dark:bg-warm-600 flex items-center justify-center text-[8px] font-bold text-warm-600 dark:text-warm-300">
+   773→   773→                            +{tournament.teams.length - 5}
+   774→   774→                          </div>
+   775→   775→                        )}
+   776→   776→                      </div>
+   777→   777→                      {/* Progress indicator for ongoing tournaments */}
+   778→   778→                      {tournament.status === 'ongoing' && tournament.matchCount > 0 && (
+   779→   779→                        <div className="flex items-center gap-1.5">
+   780→   780→                          <div className="w-16 h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
+   781→   781→                            <div className="h-full bg-brand-green rounded-full" style={{ width: '45%' }} />
+   782→   782→                          </div>
+   783→   783→                          <span className="text-[9px] text-brand-green font-bold">Live</span>
+   784→   784→                        </div>
+   785→   785→                      )}
+   786→   786→                      {expandedId === tournament.id ? (
+   787→   787→                        <ChevronUp className="w-4 h-4 text-warm-400" />
+   788→   788→                      ) : (
+   789→   789→                        <ChevronDown className="w-4 h-4 text-warm-400" />
+   790→   790→                      )}
+   791→   791→                    </div>
+   792→   792→                  </div>
+   793→   793→
+   794→   794→                  <AnimatePresence>
+   795→   795→                    {expandedId === tournament.id && (
+   796→   796→                      <motion.div
+   797→   797→                        initial={{ height: 0, opacity: 0 }}
+   798→   798→                        animate={{ height: 'auto', opacity: 1 }}
+   799→   799→                        exit={{ height: 0, opacity: 0 }}
+   800→   800→                        transition={{ duration: 0.2 }}
+   801→   801→                        className="overflow-hidden"
+   802→   802→                      >
+   803→   803→                        <div className="border-t border-warm-200 dark:border-warm-700 p-4 bg-warm-50 dark:bg-warm-800/30 space-y-4">
+   804→   804→                          {/* Tournament Code Display */}
+   805→   805→                          {tournament.tournamentCode && (
+   806→   806→                            <div className="flex items-center justify-between bg-white dark:bg-warm-800 rounded-xl p-3 border border-warm-200 dark:border-warm-700">
+   807→   807→                              <div>
+   808→   808→                                <p className="text-[10px] text-warm-400 dark:text-warm-500 uppercase font-semibold tracking-wider">Tournament Code</p>
+   809→   809→                                <p className="text-lg font-mono font-bold text-brand-teal">{tournament.tournamentCode}</p>
+   810→   810→                              </div>
+   811→   811→                              <Button
+   812→   812→                                variant="outline"
+   813→   813→                                size="sm"
+   814→   814→                                onClick={() => copyToClipboard(tournament.tournamentCode!)}
+   815→   815→                                className="rounded-lg text-xs"
+   816→   816→                              >
+   817→   817→                                {copiedCode === tournament.tournamentCode ? (
+   818→   818→                                  <><Check className="w-3 h-3 mr-1" /> Copied</>
+   819→   819→                                ) : (
+   820→   820→                                  <><Copy className="w-3 h-3 mr-1" /> Copy</>
+   821→   821→                                )}
+   822→   822→                              </Button>
+   823→   823→                            </div>
+   824→   824→                          )}
+   825→   825→
+   826→   826→                          {/* Teams List */}
+   827→   827→                          <div>
+   828→   828→                            <div className="flex items-center justify-between mb-2">
+   829→   829→                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">Teams ({tournament.teams.length})</h4>
+   830→   830→                              {/* Add Team Button */}
+   831→   831→                              <Button
+   832→   832→                                onClick={() => openAddTeamDialog(tournament.id)}
+   833→   833→                                variant="outline"
+   834→   834→                                size="sm"
+   835→   835→                                className="rounded-lg h-7 px-2.5 text-[10px] font-bold border-brand-teal text-brand-teal hover:bg-brand-teal/10"
+   836→   836→                              >
+   837→   837→                                <Plus className="w-3 h-3 mr-1" />
+   838→   838→                                Add Team
+   839→   839→                              </Button>
+   840→   840→                            </div>
+   841→   841→                            <div className="space-y-1.5">
+   842→   842→                              {tournament.teams.map((team) => (
+   843→   843→                                <div key={team.id} className="flex items-center gap-2.5 text-sm text-warm-700 dark:text-warm-300 group bg-white dark:bg-warm-800/50 rounded-lg px-3 py-2 border border-warm-100 dark:border-warm-700/50">
+   844→   844→                                  <div
+   845→   845→                                    className="w-6 h-6 rounded-lg shrink-0 flex items-center justify-center text-white text-[10px] font-bold"
+   846→   846→                                    style={{ backgroundColor: team.color }}
+   847→   847→                                  >
+   848→   848→                                    {team.shortName?.charAt(0) || team.name.charAt(0)}
+   849→   849→                                  </div>
+   850→   850→                                  <span className="flex-1 truncate font-medium">{team.name}</span>
+   851→   851→                                  {team.teamCode && (
+   852→   852→                                    <span className="text-[9px] font-mono font-semibold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded">
+   853→   853→                                      {team.teamCode}
+   854→   854→                                    </span>
+   855→   855→                                  )}
+   856→   856→                                  {team.played > 0 && (
+   857→   857→                                    <span className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">
+   858→   858→                                      P{team.played} W{team.won} Pts{team.points}
+   859→   859→                                    </span>
+   860→   860→                                  )}
+   861→   861→                                  {/* Remove team button */}
+   862→   862→                                  {(tournament.status === 'upcoming' || tournament.status === 'ongoing') && (
+   863→   863→                                    <button
+   864→   864→                                      onClick={() => setRemoveTeamId(team.id)}
+   865→   865→                                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-brand-red/10 text-warm-400 hover:text-brand-red"
+   866→   866→                                    >
+   867→   867→                                      <Trash2 className="w-3 h-3" />
+   868→   868→                                    </button>
+   869→   869→                                  )}
+   870→   870→                                </div>
+   871→   871→                              ))}
+   872→   872→                              {tournament.teams.length === 0 && (
+   873→   873→                                <p className="text-xs text-warm-400 dark:text-warm-500 text-center py-3">No teams yet. Add teams to get started.</p>
+   874→   874→                              )}
+   875→   875→                            </div>
+   876→   876→                          </div>
+   877→   877→
+   878→   878→                          <div className="flex items-center gap-2 text-xs text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700/50 rounded-lg px-3 py-2">
+   879→   879→                            <Timer className="w-3.5 h-3.5" />
+   880→   880→                            <span className="font-medium">{tournament.matchCount} matches scheduled</span>
+   881→   881→                          </div>
+   882→   882→
+   883→   883→                          {/* Standings Table */}
+   884→   884→                          {tournament.teams.length > 0 && (
+   885→   885→                            <div>
+   886→   886→                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-2">Standings</h4>
+   887→   887→                              <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 overflow-hidden">
+   888→   888→                                <div className="grid grid-cols-8 gap-1 text-[10px] text-warm-400 dark:text-warm-500 font-bold uppercase tracking-wider px-3 py-2 bg-warm-50 dark:bg-warm-800 border-b border-warm-100 dark:border-warm-700/50">
+   889→   889→                                  <span className="col-span-3">Team</span>
+   890→   890→                                  <span className="text-center">P</span>
+   891→   891→                                  <span className="text-center">W</span>
+   892→   892→                                  <span className="text-center">L</span>
+   893→   893→                                  <span className="text-center">SD</span>
+   894→   894→                                  <span className="text-center">Pts</span>
+   895→   895→                                </div>
+   896→   896→                                {[...tournament.teams].sort((a, b) => b.points - a.points).map((team, idx) => (
+   897→   897→                                  <div key={team.id} className={`grid grid-cols-8 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2 text-xs ${idx > 0 ? 'border-t border-warm-50 dark:border-warm-700/30' : ''}`}>
+   898→   898→                                    <span className="col-span-3 flex items-center gap-1.5 truncate">
+   899→   899→                                      <span className="text-[9px] text-warm-400 dark:text-warm-500 font-bold w-3">{idx + 1}</span>
+   900→   900→                                      <div className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: team.color }} />
+   901→   901→                                      <span className="truncate font-medium">{team.name}</span>
+   902→   902→                                    </span>
+   903→   903→                                    <span className="text-center">{team.played}</span>
+   904→   904→                                    <span className="text-center font-medium text-brand-green">{team.won}</span>
+   905→   905→                                    <span className="text-center">{team.lost}</span>
+   906→   906→                                    <span className="text-center">{team.scoreDiff > 0 ? '+' : ''}{team.scoreDiff}</span>
+   907→   907→                                    <span className="text-center font-bold text-brand-red">{team.points}</span>
+   908→   908→                                  </div>
+   909→   909→                                ))}
+   910→   910→                              </div>
+   911→   911→                            </div>
+   912→   912→                          )}
+   913→   913→
+   914→   914→                          {/* Generate Bracket Button (upcoming) */}
+   915→   915→                          {tournament.status === 'upcoming' && tournament.teams.length >= 2 && (
+   916→   916→                            <Button
+   917→   917→                              onClick={() => handleGenerateBracket(tournament.id, tournament.teams.map(t => t.id))}
+   918→   918→                              disabled={generatingBracket}
+   919→   919→                              className="w-full bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl h-10 text-xs font-bold shadow-lg shadow-brand-red/20"
+   920→   920→                            >
+   921→   921→                              {generatingBracket ? (
+   922→   922→                                <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
+   923→   923→                              ) : (
+   924→   924→                                <><Swords className="w-3 h-3 mr-1" /> Generate Bracket & Start</>
+   925→   925→                              )}
+   926→   926→                            </Button>
+   927→   927→                          )}
+   928→   928→                          {tournament.status === 'upcoming' && tournament.teams.length < 2 && (
+   929→   929→                            <div className="bg-brand-gold/10 dark:bg-brand-gold/20 border border-brand-gold/20 dark:border-brand-gold/30 rounded-xl p-3 text-center">
+   930→   930→                              <p className="text-xs text-warm-600 dark:text-warm-300 font-medium">Add at least 2 teams to generate bracket</p>
+   931→   931→                            </div>
+   932→   932→                          )}
+   933→   933→                        </div>
+   934→   934→                      </motion.div>
+   935→   935→                    )}
+   936→   936→                  </AnimatePresence>
+   937→   937→                </Card>
+   938→   938→              </motion.div>
+   939→   939→            );
+   940→   940→          })}
+   941→   941→        </div>
+   942→   942→      )}
+   943→   943→
+   944→   944→      {/* Add Team Dialog */}
+   945→   945→      <Dialog open={!!addTeamDialogOpen} onOpenChange={(open) => { if (!open) setAddTeamDialogOpen(null); }}>
+   946→   946→        <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700 max-h-[80vh] overflow-hidden flex flex-col">
+   947→   947→          <DialogHeader>
+   948→   948→            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+   949→   949→              <div className="w-7 h-7 rounded-lg bg-brand-teal/10 flex items-center justify-center">
+   950→   950→                <UserPlus className="w-4 h-4 text-brand-teal" />
+   951→   951→              </div>
+   952→   952→              Add Teams
+   953→   953→              {selectedTeamIds.length > 0 && (
+   954→   954→                <Badge className="bg-brand-teal/20 text-brand-teal text-[10px] border-0">
+   955→   955→                  {selectedTeamIds.length} selected
+   956→   956→                </Badge>
+   957→   957→              )}
+   958→   958→            </DialogTitle>
+   959→   959→          </DialogHeader>
+   960→   960→          <div className="space-y-3 mt-2 flex-1 overflow-hidden flex flex-col" ref={teamInputRef}>
+   961→   961→            {/* Search Input */}
+   962→   962→            <div className="relative">
+   963→   963→              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+   964→   964→              <Input
+   965→   965→                placeholder="Search by team name or code (e.g. KT2001)..."
+   966→   966→                value={teamSearch}
+   967→   967→                onChange={(e) => setTeamSearch(e.target.value)}
+   968→   968→                className="pl-9 pr-9 h-10 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm"
+   969→   969→                autoFocus
+   970→   970→              />
+   971→   971→              {teamSearch && (
+   972→   972→                <button
+   973→   973→                  onClick={() => { setTeamSearch(''); setTeamSearchResults(getFilteredTeams('')); }}
+   974→   974→                  className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+   975→   975→                >
+   976→   976→                  <X className="w-4 h-4" />
+   977→   977→                </button>
+   978→   978→              )}
+   979→   979→            </div>
+   980→   980→
+   981→   981→            {/* Search Results */}
+   982→   982→            <div className="flex-1 overflow-y-auto min-h-0">
+   983→   983→              {isSearchingTeams && (
+   984→   984→                <div className="px-3 py-2 flex items-center gap-2">
+   985→   985→                  <div className="w-3 h-3 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+   986→   986→                  <span className="text-xs text-warm-400">Searching...</span>
+   987→   987→                </div>
+   988→   988→              )}
+   989→   989→
+   990→   990→              {/* Already in tournament teams */}
+   991→   991→              {(() => {
+   992→   992→                const currentTournament = tournaments.find(t => t.id === addTeamDialogOpen);
+   993→   993→                const existingTeamIds = new Set(currentTournament?.teams.map(t => t.id) || []);
+   994→   994→                return teamSearchResults.length > 0 ? (
+   995→   995→                  <div className="space-y-1">
+   996→   996→                    {teamSearchResults.map(team => {
+   997→   997→                      const isAlreadyIn = existingTeamIds.has(team.id);
+   998→   998→                      const isSelected = selectedTeamIds.includes(team.id);
+   999→   999→                      return (
+  1000→  1000→                        <button
+  1001→  1001→                          key={team.id}
+  1002→  1002→                          onClick={() => {
+  1003→  1003→                            if (isAlreadyIn) return;
+  1004→  1004→                            setSelectedTeamIds(prev =>
+  1005→  1005→                              isSelected
+  1006→  1006→                                ? prev.filter(id => id !== team.id)
+  1007→  1007→                                : [...prev, team.id]
+  1008→  1008→                            );
+  1009→  1009→                          }}
+  1010→  1010→                          disabled={isAlreadyIn}
+  1011→  1011→                          className={`w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition-all ${
+  1012→  1012→                            isAlreadyIn
+  1013→  1013→                              ? 'opacity-50 cursor-not-allowed bg-warm-100 dark:bg-warm-800'
+  1014→  1014→                              : isSelected
+  1015→  1015→                                ? 'bg-brand-teal/10 ring-1 ring-brand-teal'
+  1016→  1016→                                : 'hover:bg-warm-50 dark:hover:bg-warm-800 active:bg-warm-100 dark:active:bg-warm-700'
+  1017→  1017→                          }`}
+  1018→  1018→                        >
+  1019→  1019→                          <div
+  1020→  1020→                            className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold text-white overflow-hidden shrink-0"
+  1021→  1021→                            style={{ backgroundColor: team.color || '#475569' }}
+  1022→  1022→                          >
+  1023→  1023→                            {team.shortName?.charAt(0) || team.name.charAt(0)}
+  1024→  1024→                          </div>
+  1025→  1025→                          <div className="flex-1 min-w-0">
+  1026→  1026→                            <p className="text-sm font-medium text-warm-800 dark:text-warm-200 truncate">
+  1027→  1027→                              {highlightMatch(team.name, teamSearch)}
+  1028→  1028→                            </p>
+  1029→  1029→                            <div className="flex items-center gap-2">
+  1030→  1030→                              {team.teamCode && (
+  1031→  1031→                                <span className="text-[10px] font-mono font-semibold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded">
+  1032→  1032→                                  {highlightMatch(team.teamCode, teamSearch)}
+  1033→  1033→                                </span>
+  1034→  1034→                              )}
+  1035→  1035→                              {team.shortName && (
+  1036→  1036→                                <span className="text-[10px] text-warm-400 dark:text-warm-500">{team.shortName}</span>
+  1037→  1037→                              )}
+  1038→  1038→                            </div>
+  1039→  1039→                          </div>
+  1040→  1040→                          {isAlreadyIn ? (
+  1041→  1041→                            <Badge className="bg-brand-green/10 text-brand-green text-[9px] border-0">In</Badge>
+  1042→  1042→                          ) : isSelected ? (
+  1043→  1043→                            <div className="w-6 h-6 rounded-full bg-brand-teal flex items-center justify-center">
+  1044→  1044→                              <Check className="w-3.5 h-3.5 text-white" />
+  1045→  1045→                            </div>
+  1046→  1046→                          ) : (
+  1047→  1047→                            <div className="w-6 h-6 rounded-full border-2 border-warm-300 dark:border-warm-600" />
+  1048→  1048→                          )}
+  1049→  1049→                        </button>
+  1050→  1050→                      );
+  1051→  1051→                    })}
+  1052→  1052→                  </div>
+  1053→  1053→                ) : !isSearchingTeams && teamSearch.trim() ? (
+  1054→  1054→                  <div className="px-3 py-6 text-center">
+  1055→  1055→                    <p className="text-sm text-warm-500 dark:text-warm-400">No teams found for &quot;{teamSearch}&quot;</p>
+  1056→  1056→                    <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">Create a team first from Team Management</p>
+  1057→  1057→                  </div>
+  1058→  1058→                ) : !teamSearch.trim() && allTeams.length === 0 ? (
+  1059→  1059→                  <div className="px-3 py-6 text-center">
+  1060→  1060→                    <p className="text-xs text-warm-400 dark:text-warm-500">No teams in database yet</p>
+  1061→  1061→                  </div>
+  1062→  1062→                ) : null;
+  1063→  1063→              })()}
+  1064→  1064→            </div>
+  1065→  1065→
+  1066→  1066→            {/* Selected Teams Chips */}
+  1067→  1067→            {selectedTeamIds.length > 0 && (
+  1068→  1068→              <div className="flex flex-wrap gap-1.5 pt-2 border-t border-warm-200 dark:border-warm-700">
+  1069→  1069→                {selectedTeamIds.map(teamId => {
+  1070→  1070→                  const team = allTeams.find(t => t.id === teamId);
+  1071→  1071→                  return team ? (
+  1072→  1072→                    <Badge
+  1073→  1073→                      key={teamId}
+  1074→  1074→                      className="bg-brand-teal/10 text-brand-teal text-xs border-0 pr-1 gap-1"
+  1075→  1075→                    >
+  1076→  1076→                      {team.name}
+  1077→  1077→                      <button
+  1078→  1078→                        onClick={() => setSelectedTeamIds(prev => prev.filter(id => id !== teamId))}
+  1079→  1079→                        className="hover:text-brand-red"
+  1080→  1080→                      >
+  1081→  1081→                        <X className="w-3 h-3" />
+  1082→  1082→                      </button>
+  1083→  1083→                    </Badge>
+  1084→  1084→                  ) : null;
+  1085→  1085→                })}
+  1086→  1086→              </div>
+  1087→  1087→            )}
+  1088→  1088→
+  1089→  1089→            {/* Add Button */}
+  1090→  1090→            <Button
+  1091→  1091→              onClick={handleAddTeams}
+  1092→  1092→              disabled={selectedTeamIds.length === 0 || addingTeams}
+  1093→  1093→              className="w-full bg-gradient-to-r from-brand-teal to-teal-400 hover:from-brand-teal/90 hover:to-teal-500 text-white rounded-xl font-bold shadow-lg shadow-brand-teal/20"
+  1094→  1094→            >
+  1095→  1095→              {addingTeams ? (
+  1096→  1096→                <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Adding...</>
+  1097→  1097→              ) : (
+  1098→  1098→                <><Plus className="w-4 h-4 mr-1" /> Add {selectedTeamIds.length} Team{selectedTeamIds.length !== 1 ? 's' : ''}</>
+  1099→  1099→              )}
+  1100→  1100→            </Button>
+  1101→  1101→          </div>
+  1102→  1102→        </DialogContent>
+  1103→  1103→      </Dialog>
+  1104→  1104→
+  1105→  1105→      {/* Remove Team Confirmation */}
+  1106→  1106→      <Dialog open={!!removeTeamId} onOpenChange={(open) => { if (!open) setRemoveTeamId(null); }}>
+  1107→  1107→        <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700">
+  1108→  1108→          <DialogHeader>
+  1109→  1109→            <DialogTitle className="text-warm-800 dark:text-warm-100">Remove Team?</DialogTitle>
+  1110→  1110→          </DialogHeader>
+  1111→  1111→          <p className="text-sm text-warm-600 dark:text-warm-300">
+  1112→  1112→            This will remove the team and any upcoming matches involving them. This cannot be undone.
+  1113→  1113→          </p>
+  1114→  1114→          <div className="flex gap-2 mt-3">
+  1115→  1115→            <Button
+  1116→  1116→              variant="outline"
+  1117→  1117→              onClick={() => setRemoveTeamId(null)}
+  1118→  1118→              className="flex-1 rounded-xl"
+  1119→  1119→            >
+  1120→  1120→              Cancel
+  1121→  1121→            </Button>
+  1122→  1122→            <Button
+  1123→  1123→              onClick={() => {
+  1124→  1124→                if (expandedId && removeTeamId) {
+  1125→  1125→                  handleRemoveTeam(expandedId, removeTeamId);
+  1126→  1126→                }
+  1127→  1127→              }}
+  1128→  1128→              disabled={removingTeam}
+  1129→  1129→              className="flex-1 bg-brand-red hover:bg-brand-red-dark text-white rounded-xl"
+  1130→  1130→            >
+  1131→  1131→              {removingTeam ? (
+  1132→  1132→                <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Removing...</>
+  1133→  1133→              ) : (
+  1134→  1134→                'Remove'
+  1135→  1135→              )}
+  1136→  1136→            </Button>
+  1137→  1137→          </div>
+  1138→  1138→        </DialogContent>
+  1139→  1139→      </Dialog>
+  1140→  1140→    </div>
+  1141→  1141→  );
+  1142→  1142→}
+  1143→  1143→

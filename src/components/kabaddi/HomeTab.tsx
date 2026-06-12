@@ -51,6 +51,7 @@ import MatchAwardsScreen from './MatchAwardsScreen';
 import NotificationPanel from './NotificationPanel';
 import ShareScorecard from './ShareScorecard';
 import MatchDetailsScreen from './MatchDetailsScreen';
+import MatchDayExperience from './MatchDayExperience';
 import FollowScreen from './FollowScreen';
 import SocialFeedScreen from './SocialFeedScreen';
 import MatchHighlightsScreen from './MatchHighlightsScreen';
@@ -453,7 +454,7 @@ function CountdownTimer({ targetDate }: { targetDate: string | null }) {
               animate={{ rotateX: 0, opacity: 1 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
             >
-              <span className="text-sm font-black text-white dark:text-warm-900 tabular-nums">
+              <span className="text-sm font-black text-white dark:text-warm-900 tabular-nums countdown-flip">
                 {String(unit.value).padStart(2, '0')}
               </span>
             </motion.div>
@@ -501,6 +502,8 @@ export default function HomeTab() {
   const [shareMatchData, setShareMatchData] = useState<CompletedMatch | null>(null);
   const [showMatchDetails, setShowMatchDetails] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [showMatchDayExperience, setShowMatchDayExperience] = useState(false);
+  const [matchDayExperienceId, setMatchDayExperienceId] = useState<string | null>(null);
   const [showFollow, setShowFollow] = useState(false);
   const [showSocialFeed, setShowSocialFeed] = useState(false);
   const [showHighlights, setShowHighlights] = useState(false);
@@ -671,10 +674,14 @@ export default function HomeTab() {
   }, [currentUser?.name, upcomingMatches.length]);
 
   const handleMatchClick = (match: LiveMatch) => {
-    toast({
-      title: `${match.homeTeam.name} vs ${match.awayTeam.name}`,
-      description: `Score: ${match.homeScore} - ${match.awayScore} | ${match.half === 1 ? '1st' : '2nd'} Half`,
-    });
+    // For live matches, show the immersive MatchDayExperience
+    if (match.status === 'live') {
+      setMatchDayExperienceId(match.id);
+      setShowMatchDayExperience(true);
+    } else {
+      setSelectedMatchId(match.id);
+      setShowMatchDetails(true);
+    }
   };
 
   const handleRecentMatchClick = (match: CompletedMatch) => {
@@ -879,14 +886,15 @@ export default function HomeTab() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: Math.max(pullDistance * 0.6, isRefreshing ? 48 : 0), opacity: pullDistance > 0 || isRefreshing ? 1 : 0 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
           >
             <div className="flex flex-col items-center gap-1">
-              {/* Animated icon */}
+              {/* Animated icon with haptic snap feel */}
               {isRefreshing ? (
                 <motion.div
                   animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                  className="ptr-snap-anim"
                 >
                   <RefreshCw className="w-5 h-5 text-brand-red" />
                 </motion.div>
@@ -894,9 +902,10 @@ export default function HomeTab() {
                 <motion.div
                   animate={{
                     rotate: isPastThreshold ? 180 : pullProgress * 180,
-                    scale: isPastThreshold ? 1.1 : 1,
+                    scale: isPastThreshold ? 1.15 : 1,
                   }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                  className={isPastThreshold ? 'ptr-snap-anim' : ''}
                 >
                   <ArrowDown className="w-5 h-5 text-brand-red" />
                 </motion.div>
@@ -993,6 +1002,15 @@ export default function HomeTab() {
           onClose={() => {
             setShowMatchDetails(false);
             setSelectedMatchId(null);
+          }}
+        />
+      )}
+      {showMatchDayExperience && matchDayExperienceId && (
+        <MatchDayExperience
+          matchId={matchDayExperienceId}
+          onClose={() => {
+            setShowMatchDayExperience(false);
+            setMatchDayExperienceId(null);
           }}
         />
       )}
@@ -1161,25 +1179,64 @@ export default function HomeTab() {
       </header>
 
       {/* ─── Greeting ─── */}
-      <div className="px-4 pt-4 pb-2">
+      <motion.div
+        className="px-4 pt-4 pb-2 greeting-gradient-bg rounded-b-2xl"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <div className="flex items-center justify-between">
           <div>
             <p className="text-warm-500 dark:text-warm-400 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
               <span>{getTimeEmoji()}</span>
               <span>{getTimeGreeting()}</span>
             </p>
-            <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mt-0.5">
-              {currentUser?.name ?? 'Player'}{' '}
-              <span className="text-base align-middle">
-                {currentUser?.gender && (
-                  <span className={currentUser.gender.toLowerCase() === 'female' || currentUser.gender.toLowerCase() === 'girls'
+            <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mt-0.5 flex items-center gap-2">
+              <span>{currentUser?.name ?? 'Player'}</span>
+              {/* Position Badge */}
+              {currentUser?.role && (
+                <motion.span
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', damping: 12, stiffness: 280, delay: 0.2 }}
+                  style={{
+                    backgroundColor: currentUser.role.toLowerCase() === 'raider' ? 'rgba(220,38,38,0.15)'
+                      : currentUser.role.toLowerCase() === 'defender' ? 'rgba(30,41,59,0.15)'
+                      : 'rgba(245,158,11,0.15)',
+                    color: currentUser.role.toLowerCase() === 'raider' ? '#DC2626'
+                      : currentUser.role.toLowerCase() === 'defender' ? '#1E293B'
+                      : '#D97706',
+                  }}
+                >
+                  {currentUser.role.toLowerCase() === 'raider' && <Swords className="w-2.5 h-2.5" />}
+                  {currentUser.role.toLowerCase() === 'defender' && <Shield className="w-2.5 h-2.5" />}
+                  {currentUser.role.toLowerCase() !== 'raider' && currentUser.role.toLowerCase() !== 'defender' && <Zap className="w-2.5 h-2.5" />}
+                  {currentUser.role}
+                </motion.span>
+              )}
+              {/* Gender icon */}
+              {currentUser?.gender && (
+                <span
+                  className={currentUser.gender.toLowerCase() === 'female' || currentUser.gender.toLowerCase() === 'girls'
                     ? 'text-brand-red'
                     : 'text-brand-blue dark:text-brand-teal'
-                  }>
-                    {genderIcon}
-                  </span>
-                )}
-              </span>
+                  }
+                >
+                  {genderIcon}
+                </span>
+              )}
+              {/* Streak/Fire icon for active players */}
+              {(recentMatches.length > 0 || liveMatches.length > 0) && (
+                <motion.span
+                  className="fire-flicker"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.4 }}
+                >
+                  <Flame className="w-4 h-4 text-brand-gold" />
+                </motion.span>
+              )}
             </h2>
           </div>
           {/* Player Code */}
@@ -1198,16 +1255,21 @@ export default function HomeTab() {
             </motion.button>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* ─── Quick Stats Banner ─── */}
       <div className="px-4 mt-2">
-        <div className="bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-navy rounded-2xl p-5 shadow-xl shadow-brand-red/25 overflow-hidden relative">
+        <motion.div
+          className="bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-navy rounded-2xl p-5 shadow-xl shadow-brand-red/25 overflow-hidden relative"
+          initial={{ opacity: 0, y: 12, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+        >
           {/* Decorative elements */}
           <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
           <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full bg-white/5" />
           <div className="absolute top-2 right-20 w-8 h-8 rounded-full bg-white/5" />
-          {/* Shimmer overlay */}
+          {/* Animated shimmer overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-4">
@@ -1224,7 +1286,12 @@ export default function HomeTab() {
               )}
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div className="text-center">
+              <motion.div
+                className="text-center glass-card rounded-xl p-2 stat-card-glow cursor-pointer"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+              >
                 <div className="flex items-center justify-center gap-1">
                   <Swords className="w-3 h-3 text-brand-gold-light" />
                 </div>
@@ -1232,8 +1299,13 @@ export default function HomeTab() {
                   <AnimatedCounter target={raidPts} />
                 </div>
                 <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Raid Pts</div>
-              </div>
-              <div className="text-center border-x border-white/10">
+              </motion.div>
+              <motion.div
+                className="text-center glass-card rounded-xl p-2 stat-card-glow cursor-pointer border-x border-white/10"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+              >
                 <div className="flex items-center justify-center gap-1">
                   <Target className="w-3 h-3 text-brand-gold-light" />
                 </div>
@@ -1241,8 +1313,13 @@ export default function HomeTab() {
                   <AnimatedCounter target={tacklePts} />
                 </div>
                 <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Tackle Pts</div>
-              </div>
-              <div className="text-center">
+              </motion.div>
+              <motion.div
+                className="text-center glass-card rounded-xl p-2 stat-card-glow cursor-pointer"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => { if (currentUser?.id) setShowStats(true); }}
+              >
                 <div className="flex items-center justify-center gap-1">
                   <Flame className="w-3 h-3 text-brand-gold-light" />
                 </div>
@@ -1250,10 +1327,10 @@ export default function HomeTab() {
                   <AnimatedCounter target={totalMatches} />
                 </div>
                 <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Matches</div>
-              </div>
+              </motion.div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* ─── Error State ─── */}
@@ -1278,7 +1355,7 @@ export default function HomeTab() {
 
       {/* ─── Live Matches (FREE) ─── */}
       <section className="px-4 mt-5">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 section-header-decorated">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
               Live Matches
@@ -1356,7 +1433,7 @@ export default function HomeTab() {
                     whileTap={{ scale: 0.98 }}
                   >
                     <Card
-                      className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 cursor-pointer hover:border-brand-red/30 dark:hover:border-brand-red/30 transition-all duration-200 py-0 gap-0 overflow-hidden relative"
+                      className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 cursor-pointer hover:border-brand-red/30 dark:hover:border-brand-red/30 transition-all duration-200 py-0 gap-0 overflow-hidden relative live-card-glow"
                       onClick={() => handleMatchClick(match)}
                     >
                       {/* Team color gradient strip at top */}
@@ -1366,18 +1443,43 @@ export default function HomeTab() {
                           background: `linear-gradient(90deg, ${match.homeTeam.color || '#DC2626'}, ${match.awayTeam.color || '#1E293B'})`,
                         }}
                       />
-                      <CardContent className="p-4 relative">
+                      {/* Animated background particles */}
+                      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                        {[...Array(4)].map((_, i) => (
+                          <motion.div
+                            key={`particle-${match.id}-${i}`}
+                            className="absolute w-1 h-1 rounded-full"
+                            style={{
+                              left: `${20 + i * 20}%`,
+                              top: '60%',
+                              backgroundColor: i % 2 === 0 ? 'rgba(220,38,38,0.15)' : 'rgba(245,158,11,0.15)',
+                            }}
+                            animate={{
+                              y: [0, -20, -30],
+                              opacity: [0.3, 0.5, 0],
+                              scale: [1, 1.2, 0.8],
+                            }}
+                            transition={{
+                              duration: 2.5,
+                              repeat: Infinity,
+                              delay: i * 0.6,
+                              ease: 'easeOut',
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <CardContent className="p-4 relative z-10">
                         {/* Confetti on score change */}
                         <ConfettiParticles trigger={match.homeScore + match.awayScore} />
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <Badge
                               variant="secondary"
-                              className="bg-brand-red/20 text-brand-red text-[10px] font-semibold border-0 px-2 py-0.5 flex items-center gap-1 live-double-ring"
+                              className="bg-brand-red/20 text-brand-red text-[10px] font-bold border-0 px-2.5 py-1 flex items-center gap-1.5 live-badge-dramatic"
                             >
-                              <span className="relative flex h-1.5 w-1.5">
+                              <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand-red" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-red" />
                               </span>
                               LIVE
                             </Badge>
@@ -1403,10 +1505,10 @@ export default function HomeTab() {
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col items-center gap-1 flex-1">
                             <div
-                              className="w-10 h-10 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-sm"
+                              className="w-11 h-11 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-sm"
                               style={{
                                 borderColor: match.homeTeam.color || '#DC2626',
-                                borderWidth: 2,
+                                borderWidth: 2.5,
                               }}
                             >
                               {getTeamShortName(match.homeTeam)}
@@ -1416,22 +1518,22 @@ export default function HomeTab() {
                             </span>
                           </div>
                           <div className="flex items-center gap-3 px-4">
-                            <span className="text-2xl font-black text-warm-800 dark:text-warm-100 tabular-nums">
+                            <span className="text-3xl font-black score-gradient tabular-nums">
                               <NumberTicker value={match.homeScore} />
                             </span>
                             <span className="text-warm-400 text-sm font-medium">
                               vs
                             </span>
-                            <span className="text-2xl font-black text-warm-800 dark:text-warm-100 tabular-nums">
+                            <span className="text-3xl font-black score-gradient tabular-nums">
                               <NumberTicker value={match.awayScore} />
                             </span>
                           </div>
                           <div className="flex flex-col items-center gap-1 flex-1">
                             <div
-                              className="w-10 h-10 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-sm"
+                              className="w-11 h-11 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-sm"
                               style={{
                                 borderColor: match.awayTeam.color || '#DC2626',
-                                borderWidth: 2,
+                                borderWidth: 2.5,
                               }}
                             >
                               {getTeamShortName(match.awayTeam)}
@@ -1439,6 +1541,28 @@ export default function HomeTab() {
                             <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight">
                               {match.awayTeam.name}
                             </span>
+                          </div>
+                        </div>
+                        {/* Half Progress Bar */}
+                        <div className="mt-3 px-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] font-bold text-warm-500 dark:text-warm-400 uppercase">
+                              {halfLabel(match.half)}
+                            </span>
+                            <span className="text-[9px] font-medium text-warm-400 dark:text-warm-500">
+                              {match.half === 1 ? '1st' : '2nd'} Half
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-warm-200/60 dark:bg-warm-700/60 overflow-hidden">
+                            <motion.div
+                              className="h-full rounded-full half-progress-bar"
+                              style={{
+                                background: `linear-gradient(90deg, ${match.homeTeam.color || '#DC2626'}, ${match.awayTeam.color || '#1E293B'})`,
+                              }}
+                              initial={{ width: '0%' }}
+                              animate={{ width: match.half === 1 ? '50%' : '100%' }}
+                              transition={{ duration: 1, ease: 'easeOut' }}
+                            />
                           </div>
                         </div>
                         {match.tournament && (
@@ -1521,7 +1645,7 @@ export default function HomeTab() {
       {/* ─── Recent Results / Match History ─── */}
       {!loading && recentMatches.length > 0 && (
         <section className="px-4 mt-6">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 section-header-decorated">
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Recent Results</h3>
               <Clock className="w-4 h-4 text-warm-400" />
@@ -1613,7 +1737,7 @@ export default function HomeTab() {
       {/* ─── Upcoming Matches ─── */}
       {!loading && upcomingMatches.length > 0 && (
         <section className="px-4 mt-6">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 section-header-decorated">
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Upcoming Matches</h3>
               <Calendar className="w-4 h-4 text-brand-teal" />
@@ -1664,7 +1788,7 @@ export default function HomeTab() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm ring-2 ring-white/30"
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm ring-2 ring-white/30"
                             style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
                           >
                             {getTeamShortName(match.homeTeam)}
@@ -1679,12 +1803,17 @@ export default function HomeTab() {
                             {match.awayTeam.name}
                           </span>
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm ring-2 ring-white/30"
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm ring-2 ring-white/30"
                             style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
                           >
                             {getTeamShortName(match.awayTeam)}
                           </div>
                         </div>
+                      </div>
+                      {/* Team color bars */}
+                      <div className="flex gap-1 mt-2">
+                        <div className="h-1 rounded-full flex-1" style={{ backgroundColor: match.homeTeam.color || '#DC2626', opacity: 0.6 }} />
+                        <div className="h-1 rounded-full flex-1" style={{ backgroundColor: match.awayTeam.color || '#1E293B', opacity: 0.6 }} />
                       </div>
                       {/* Venue info */}
                       {(match.tournament || match.startedAt) && (
@@ -1700,25 +1829,27 @@ export default function HomeTab() {
                         <CountdownTimer targetDate={match.startedAt} />
                       </div>
                       <div className="flex justify-end mt-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-[11px] text-brand-teal hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
-                          onClick={() => {
-                            addNotification({
-                              type: 'general',
-                              title: 'Reminder Set',
-                              description: `${match.homeTeam.name} vs ${match.awayTeam.name} - ${formatDate(match.startedAt)}`,
-                            });
-                            toast({
-                              title: 'Reminder Set',
-                              description: `You'll be notified before ${match.homeTeam.name} vs ${match.awayTeam.name}`,
-                            });
-                          }}
-                        >
-                          <Bell className="w-3 h-3 mr-1 bell-ring-anim" />
-                          Set Reminder
-                        </Button>
+                        <motion.div whileTap={{ scale: 0.9 }}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[11px] text-brand-teal hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
+                            onClick={() => {
+                              addNotification({
+                                type: 'general',
+                                title: 'Reminder Set',
+                                description: `${match.homeTeam.name} vs ${match.awayTeam.name} - ${formatDate(match.startedAt)}`,
+                              });
+                              toast({
+                                title: 'Reminder Set',
+                                description: `You'll be notified before ${match.homeTeam.name} vs ${match.awayTeam.name}`,
+                              });
+                            }}
+                          >
+                            <Bell className="w-3 h-3 mr-1 bell-ring-bounce" />
+                            Set Reminder
+                          </Button>
+                        </motion.div>
                       </div>
                     </CardContent>
                   </Card>
@@ -1731,7 +1862,7 @@ export default function HomeTab() {
 
       {/* ─── Awards & Honors (Premium for detailed stats) ─── */}
       <section className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 section-header-decorated">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
               Awards & Honors
@@ -1770,34 +1901,34 @@ export default function HomeTab() {
                   whileHover={{ scale: 1.015 }}
                 >
                   <Card
-                    className="bg-gradient-to-r from-brand-gold/15 via-brand-gold/10 to-brand-gold-dark/5 border py-0 gap-0 overflow-hidden cursor-pointer relative"
+                    className="bg-gradient-to-r from-brand-gold/15 via-brand-gold/10 to-brand-gold-dark/5 border py-0 gap-0 overflow-hidden cursor-pointer relative golden-shimmer-sweep"
                     onClick={() => setShowAwards(true)}
                   >
                     {/* Rotating gold shimmer border */}
                     <div className="absolute inset-0 rounded-lg gold-shimmer-border" style={{ WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude', padding: '2px' }} />
                     {/* Shimmer on MOTM card */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/10 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
                     <CardContent className="p-4 relative z-10">
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
-                          <div className="w-14 h-14 rounded-full bg-warm-100 dark:bg-warm-700 border-2 border-brand-gold/40 flex items-center justify-center overflow-hidden shadow-md shadow-brand-gold/20">
+                          <div className="w-16 h-16 rounded-full bg-warm-100 dark:bg-warm-700 border-2 border-brand-gold/40 flex items-center justify-center overflow-hidden shadow-md shadow-brand-gold/20">
                             {motm.userAvatar ? (
                               <img src={motm.userAvatar} alt={motm.userName} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-gold/20 to-brand-gold-dark/20 flex items-center justify-center text-lg font-bold text-brand-gold-dark dark:text-brand-gold">
+                              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-gold/20 to-brand-gold-dark/20 flex items-center justify-center text-xl font-bold text-brand-gold-dark dark:text-brand-gold">
                                 {motm.userName.charAt(0)}
                               </div>
                             )}
                           </div>
-                          <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md">
-                            <Crown className="w-3 h-3 text-warm-800" />
+                          <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md">
+                            <Crown className="w-3.5 h-3.5 text-warm-800" />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-lg">🥇</span>
+                            <span className="text-xl medal-hover">🥇</span>
                             <Badge className="bg-brand-gold/20 text-brand-gold-dark dark:text-brand-gold text-[10px] font-semibold border-0 px-2 py-0.5">
-                              <Trophy className="w-2.5 h-2.5 mr-0.5" />
+                              <Trophy className="w-3 h-3 mr-0.5" />
                               Man of the Match
                             </Badge>
                           </div>
@@ -1837,18 +1968,18 @@ export default function HomeTab() {
                     <CardContent className="p-4 relative z-10">
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
-                          <div className="w-14 h-14 rounded-full bg-warm-100 dark:bg-warm-700 border-2 border-brand-gold/30 flex items-center justify-center overflow-hidden shadow-sm">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-warm-200 to-warm-100 dark:from-warm-600 dark:to-warm-700 flex items-center justify-center text-lg font-bold text-warm-600 dark:text-warm-300">
+                          <div className="w-16 h-16 rounded-full bg-warm-100 dark:bg-warm-700 border-2 border-brand-gold/30 flex items-center justify-center overflow-hidden shadow-sm">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-warm-200 to-warm-100 dark:from-warm-600 dark:to-warm-700 flex items-center justify-center text-lg font-bold text-warm-600 dark:text-warm-300">
                               {player.name.charAt(0)}
                             </div>
                           </div>
-                          <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md">
-                            <Icon className="w-3 h-3 text-warm-800" />
+                          <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md">
+                            <Icon className="w-3.5 h-3.5 text-warm-800" />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm">{medal}</span>
+                            <span className="text-base medal-hover">{medal}</span>
                             <Badge
                               className={`${player.badgeBg} text-[10px] font-semibold border-0 px-2 py-0.5 mb-1`}
                             >
@@ -1919,18 +2050,18 @@ export default function HomeTab() {
 
       {/* ─── Leaderboard Preview ─── */}
       <section className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 section-header-decorated">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Leaderboard</h3>
             <BarChart3 className="w-4 h-4 text-brand-teal" />
           </div>
           <motion.button
             onClick={() => setShowLeaderboard(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-brand-red to-brand-red-dark text-white text-[11px] font-bold shadow-sm shadow-brand-red/20 active:scale-95 transition-transform"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-brand-red to-brand-red-dark text-white text-[11px] font-bold shadow-sm shadow-brand-red/20 active:scale-95 transition-transform view-all-arrow"
             whileTap={{ scale: 0.95 }}
           >
             View Full
-            <ChevronRight className="w-3 h-3" />
+            <ChevronRight className="w-3 h-3 arrow-slide-target" />
           </motion.button>
         </div>
 
@@ -1970,7 +2101,7 @@ export default function HomeTab() {
 
       {/* ─── Explore ─── */}
       <section className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 section-header-decorated">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Explore</h3>
             <Sparkles className="w-4 h-4 text-brand-gold" />
@@ -1984,11 +2115,12 @@ export default function HomeTab() {
             transition={{ delay: 0.1 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(20, 184, 166, 0.5)' }}
               onClick={() => setShowSocialFeed(true)}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center icon-bounce-target">
                   <Rss className="w-4 h-4 text-brand-teal" />
                 </div>
                 <div>
@@ -2006,11 +2138,12 @@ export default function HomeTab() {
             transition={{ delay: 0.15 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-navy/40 dark:hover:border-brand-navy-light/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-navy/5 border-glow-hover bg-gradient-to-br from-slate-50/60 to-warm-50 dark:from-slate-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-navy/40 dark:hover:border-brand-navy-light/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-navy/5 border-glow-hover bg-gradient-to-br from-slate-50/60 to-warm-50 dark:from-slate-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(30, 41, 59, 0.5)' }}
               onClick={() => setShowFollow(true)}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-navy/20 dark:from-brand-navy-light/20 to-brand-navy/5 dark:to-brand-navy-light/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-navy/20 dark:from-brand-navy-light/20 to-brand-navy/5 dark:to-brand-navy-light/5 flex items-center justify-center icon-bounce-target">
                   <Users className="w-4 h-4 text-brand-navy dark:text-brand-navy-light" />
                 </div>
                 <div>
@@ -2028,11 +2161,12 @@ export default function HomeTab() {
             transition={{ delay: 0.2 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(220, 38, 38, 0.5)' }}
               onClick={() => setShowMatchHistory(true)}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center icon-bounce-target">
                   <Calendar className="w-4 h-4 text-brand-red" />
                 </div>
                 <div>
@@ -2050,7 +2184,8 @@ export default function HomeTab() {
             transition={{ delay: 0.22 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(220, 38, 38, 0.5)' }}
               onClick={() => {
                 if (currentUser?.id) {
                   setShowStats(true);
@@ -2058,7 +2193,7 @@ export default function HomeTab() {
               }}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center icon-bounce-target">
                   <Activity className="w-4 h-4 text-brand-red" />
                 </div>
                 <div>
@@ -2076,11 +2211,12 @@ export default function HomeTab() {
             transition={{ delay: 0.22 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-emerald-50/60 to-warm-50 dark:from-emerald-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-emerald-50/60 to-warm-50 dark:from-emerald-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(20, 184, 166, 0.5)' }}
               onClick={() => setShowRules(true)}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center icon-bounce-target">
                   <BookOpen className="w-4 h-4 text-brand-teal" />
                 </div>
                 <div>
@@ -2098,7 +2234,8 @@ export default function HomeTab() {
             transition={{ delay: 0.25 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-gold/5 border-glow-hover bg-gradient-to-br from-amber-50/60 to-warm-50 dark:from-amber-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-gold/5 border-glow-hover bg-gradient-to-br from-amber-50/60 to-warm-50 dark:from-amber-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(245, 158, 11, 0.5)' }}
               onClick={() => {
                 if (recentMatches.length > 0) {
                   setHighlightsMatchId(recentMatches[0].id);
@@ -2109,7 +2246,7 @@ export default function HomeTab() {
               }}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-gold/20 to-brand-gold/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-gold/20 to-brand-gold/5 flex items-center justify-center icon-bounce-target">
                   <Sparkles className="w-4 h-4 text-brand-gold" />
                 </div>
                 <div>
@@ -2130,11 +2267,12 @@ export default function HomeTab() {
             transition={{ delay: 0.3 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-gold/5 border-glow-hover bg-gradient-to-br from-amber-50/60 to-warm-50 dark:from-amber-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-gold/5 border-glow-hover bg-gradient-to-br from-amber-50/60 to-warm-50 dark:from-amber-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(245, 158, 11, 0.5)' }}
               onClick={() => setShowStreaks(true)}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-gold/20 to-brand-gold/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-gold/20 to-brand-gold/5 flex items-center justify-center icon-bounce-target">
                   <Award className="w-4 h-4 text-brand-gold" />
                 </div>
                 <div>
@@ -2152,11 +2290,12 @@ export default function HomeTab() {
             transition={{ delay: 0.35 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(220, 38, 38, 0.5)' }}
               onClick={() => setShowComparison(true)}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center icon-bounce-target">
                   <Swords className="w-4 h-4 text-brand-red" />
                 </div>
                 <div>
@@ -2174,11 +2313,12 @@ export default function HomeTab() {
             transition={{ delay: 0.4 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(20, 184, 166, 0.5)' }}
               onClick={() => setShowGrounds(true)}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center icon-bounce-target">
                   <MapPin className="w-4 h-4 text-brand-teal" />
                 </div>
                 <div>
@@ -2196,7 +2336,8 @@ export default function HomeTab() {
             transition={{ delay: 0.45 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-navy/40 dark:hover:border-brand-navy-light/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-navy/5 border-glow-hover bg-gradient-to-br from-slate-50/60 to-warm-50 dark:from-slate-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700"
+              className="p-3 cursor-pointer hover:border-brand-navy/40 dark:hover:border-brand-navy-light/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-navy/5 border-glow-hover bg-gradient-to-br from-slate-50/60 to-warm-50 dark:from-slate-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
+              style={{ borderLeftColor: 'rgba(30, 41, 59, 0.5)' }}
               onClick={() => {
                 if (recentMatches.length > 0) {
                   setReplayMatchId(recentMatches[0].id);
@@ -2207,7 +2348,7 @@ export default function HomeTab() {
               }}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-navy/20 dark:from-brand-navy-light/20 to-brand-navy/5 dark:to-brand-navy-light/5 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-navy/20 dark:from-brand-navy-light/20 to-brand-navy/5 dark:to-brand-navy-light/5 flex items-center justify-center icon-bounce-target">
                   <Play className="w-4 h-4 text-brand-navy dark:text-brand-navy-light" />
                 </div>
                 <div>
@@ -2385,7 +2526,7 @@ export default function HomeTab() {
       {/* ─── Recent Activity ─── */}
       {!loading && recentMatches.length > 0 && (
         <section className="px-4 mt-6">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-3 section-header-decorated">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Recent Activity</h3>
             <TrendingUp className="w-4 h-4 text-brand-teal" />
           </div>
@@ -2475,10 +2616,10 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
   }, [rank, category]);
 
   const rankConfig = rank === 1
-    ? { bg: 'from-yellow-400/20 to-yellow-600/10 dark:from-yellow-400/15 dark:to-yellow-600/5', border: 'border-yellow-500/40', medal: '🥇', label: '1st', labelColor: 'text-yellow-500', ring: 'ring-yellow-400/30' }
+    ? { bg: 'from-yellow-400/20 to-yellow-600/10 dark:from-yellow-400/15 dark:to-yellow-600/5', border: 'border-yellow-500/40', medal: '🥇', label: '1st', labelColor: 'text-yellow-500', ring: 'ring-yellow-400/30', badgeBg: 'bg-yellow-500', badgeText: 'text-yellow-900' }
     : rank === 2
-      ? { bg: 'from-slate-300/20 to-slate-400/10 dark:from-slate-400/15 dark:to-slate-500/5', border: 'border-slate-400/40', medal: '🥈', label: '2nd', labelColor: 'text-slate-400', ring: 'ring-slate-300/30' }
-      : { bg: 'from-amber-600/20 to-amber-700/10 dark:from-amber-600/15 dark:to-amber-700/5', border: 'border-amber-600/40', medal: '🥉', label: '3rd', labelColor: 'text-amber-600', ring: 'ring-amber-500/30' };
+      ? { bg: 'from-slate-300/20 to-slate-400/10 dark:from-slate-400/15 dark:to-slate-500/5', border: 'border-slate-400/40', medal: '🥈', label: '2nd', labelColor: 'text-slate-400', ring: 'ring-slate-300/30', badgeBg: 'bg-slate-400', badgeText: 'text-slate-900' }
+      : { bg: 'from-amber-600/20 to-amber-700/10 dark:from-amber-600/15 dark:to-amber-700/5', border: 'border-amber-600/40', medal: '🥉', label: '3rd', labelColor: 'text-amber-600', ring: 'ring-amber-500/30', badgeBg: 'bg-amber-600', badgeText: 'text-amber-100' };
 
   if (!player) {
     return (
@@ -2490,6 +2631,14 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
     );
   }
 
+  // Generate a mini bar chart breakdown
+  const barMax = Math.max(player.stat, 1);
+  const barSegments = [
+    { label: 'R', value: Math.round(barMax * 0.5), color: 'bg-brand-red' },
+    { label: 'T', value: Math.round(barMax * 0.3), color: 'bg-brand-navy dark:bg-brand-navy-light' },
+    { label: 'B', value: Math.round(barMax * 0.2), color: 'bg-brand-gold' },
+  ];
+
   return (
     <motion.div
       className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankConfig.bg} ${rankConfig.border} border p-3 flex flex-col items-center gap-1`}
@@ -2497,8 +2646,11 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: rank * 0.1 }}
     >
-      <span className="text-lg">{rankConfig.medal}</span>
-      <div className={`w-10 h-10 rounded-full bg-warm-100 dark:bg-warm-700 border border-warm-200 dark:border-warm-600 ring-2 ${rankConfig.ring} flex items-center justify-center overflow-hidden`}>
+      {/* Rank badge with shine */}
+      <div className={`${rankConfig.badgeBg} ${rankConfig.badgeText} w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black rank-badge-shine shadow-sm`}>
+        {rank}
+      </div>
+      <div className={`w-10 h-10 rounded-full bg-warm-100 dark:bg-warm-700 border border-warm-200 dark:border-warm-600 ring-2 ${rankConfig.ring} flex items-center justify-center overflow-hidden relative`}>
         {player.avatar ? (
           <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
         ) : (
@@ -2506,11 +2658,27 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
             {player.name.charAt(0).toUpperCase()}
           </span>
         )}
+        {/* Team color indicator dot */}
+        {player.teamNames && player.teamNames.length > 0 && (
+          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-brand-red border border-white dark:border-warm-800 shadow-sm" />
+        )}
       </div>
       <p className="text-[11px] font-bold text-warm-800 dark:text-warm-100 text-center truncate w-full">
         {player.name}
       </p>
       <p className="text-brand-gold dark:text-brand-gold-light font-black text-sm">{player.stat}</p>
+      {/* Mini bar chart breakdown */}
+      <div className="flex gap-0.5 w-full items-end mt-0.5">
+        {barSegments.map((seg) => (
+          <div key={seg.label} className="flex-1 flex flex-col items-center gap-0.5">
+            <div
+              className={`w-full rounded-sm ${seg.color}`}
+              style={{ height: `${Math.max((seg.value / barMax) * 16, 3)}px` }}
+            />
+            <span className="text-[6px] text-warm-400 font-medium">{seg.label}</span>
+          </div>
+        ))}
+      </div>
       <p className="text-[8px] text-warm-400 dark:text-warm-500 text-center">{player.statLabel}</p>
     </motion.div>
   );

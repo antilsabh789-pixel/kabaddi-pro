@@ -1405,3 +1405,339 @@ Unresolved issues / Next phase recommendations:
 - Tournament creation still requires Premium - could add free tier limit
 - Could add keyboard shortcut (Cmd+K) for global search
 - Could add more advanced analytics (raid patterns, time-based analysis)
+
+---
+Task ID: 8
+Agent: CSS Improvements Agent
+Task: Add comprehensive CSS improvements, animations, transitions, and micro-interactions to the global stylesheet
+
+Work Log:
+- Read existing globals.css (1373 lines) and worklog.md to understand project context
+- Analyzed all existing keyframes, utility classes, and styles to identify what was already present vs. what needed to be added
+- Added 6 new keyframe animations: pulse-ring, slide-in-up, scale-in, rotate-slow, number-flip, wave, shimmer-gold
+- Added 12 animate-* utility classes: .animate-shimmer (golden sweep with ::after), .animate-float, .animate-pulse-ring (expanding ring border), .animate-slide-in-right, .animate-slide-in-left, .animate-slide-in-up, .animate-scale-in, .animate-glow-pulse, .animate-gradient-shift, .animate-number-flip (3D flip), .animate-bounce-in, .animate-wave, .animate-rotate-slow
+- Added 3 glassmorphism utilities: .glass-card, .glass-card-strong, .glass-card-dark — all with proper dark mode support
+- Added 3 gradient text utilities: .gradient-text-red (brand-red to brand-gold), .gradient-text-gold, .gradient-text-warm — all with dark mode variants
+- Added 4 card hover effects: .card-hover-lift (bouncy translateY + shadow), .card-hover-glow (brand color glow), .card-hover-border (colored border reveal), .card-press (scale-down on active)
+- Added 3 skeleton enhancements: .skeleton-shimmer (gold-tinted gradient), .skeleton-pulse (opacity pulse), .skeleton-wave (red-tinted gradient wave)
+- Enhanced global scrollbar styling: thin 6px rounded scrollbar with brand gradient, separate dark mode colors, polished Firefox scrollbar-color, updated .custom-scrollbar with dark mode support
+- Added 7 focus ring styles: .focus-ring-brand, .focus-ring-gold, .focus-ring-teal, .focus-ring-animated (pulsing ring for tabs), .input-focus-brand, .input-focus-gold, plus 2 focus-ring-pulse keyframes with dark mode variants
+- Added .transition-spring utility (0.5s spring cubic-bezier)
+- Added 4 badge/pill styles: .pill-active, .pill-inactive, .badge-gold (gradient + shadow), .badge-live-enhanced (combined pulse-dot + pulse-ring)
+- Added .fade-enter and .fade-exit page transition classes with keyframes
+- Added 5 micro-interaction helpers: .hover-scale-105, .hover-scale-95, .hover-brightness, .active-scale-95, .tap-feedback
+- Added 8 stagger animation delay utilities (.stagger-1 through .stagger-8)
+- Added custom text selection color (::selection) with brand-red tint
+- Added global -webkit-tap-highlight-color: transparent for button/a/role=button
+- Added prefers-reduced-motion media query for accessibility
+- All new styles include proper dark mode variants using .dark selector
+- Lint passes with 0 errors, 0 warnings
+- Dev server running with no CSS compilation errors
+
+Stage Summary:
+- Total CSS additions: ~860 lines of new styles appended after existing content
+- 6 new @keyframes animations, 12 .animate-* utility classes, 3 glassmorphism cards, 3 gradient text utilities, 4 card hover effects, 3 skeleton variants, polished scrollbar styling, 7 focus ring styles, 3 transition utilities, 4 badge/pill styles, 2 page transitions, 5 micro-interaction helpers, stagger delays, selection styling, reduced motion support
+- All styles support both light and dark modes
+- Zero lint errors
+
+---
+Task ID: 4-b
+Agent: Subagent (TournamentsTab Enhancement)
+Task: Enhance TournamentsTab with better visual design, bracket view, and interactivity
+
+Work Log:
+- Read existing TournamentsTab.tsx (1143 lines) and project context from worklog.md
+- Analyzed existing component structure, state management, and API interactions
+- Complete rewrite of TournamentsTab with all 7 required improvements:
+
+1. **Tournament Card Redesign**:
+   - Gradient left border using status color (emerald for ongoing, amber for upcoming, warm for past)
+   - Team count badge with Users icon and Swords icon for match count
+   - Match progress bar (MatchProgressBar component) with animated fill using framer-motion
+   - Shimmer overlay on hover (ShimmerOverlay component) with animated gradient sweep
+   - Animated status indicator (StatusIndicator component) with pulsing green dot for live tournaments
+   - Format type badges (knockout/league/hybrid) with distinct colors and border styling
+
+2. **Tournament Detail View Enhancement**:
+   - Built BracketView component with visual bracket/tree for knockout tournaments
+   - Fetches real match data from /api/tournaments/{id}/matches
+   - Team logos with colors shown in bracket match cards
+   - Match cards display scores, winner highlight, and VS dividers
+   - Current match highlighted with red border and ring + "Live" badge with radio icon
+   - Staggered animation when revealing bracket rounds
+   - Placeholder bracket generation for tournaments without matches yet
+   - Round names (Final, Semi-Final, Quarter-Final, Round N)
+
+3. **Search Enhancement**:
+   - Search bar expands on focus with scale animation and brand-red ring
+   - Recent searches saved to localStorage with clear functionality
+   - Search suggestions dropdown with animated appearance
+   - Keyboard shortcut hint (/) shown in search bar
+
+4. **Status Tab Polish**:
+   - Count badges on each tab (ongoing/upcoming/past) with dynamic counts
+   - Animated underline indicator using layoutId for smooth spring transition
+   - Tab-specific icons (Radio, CalendarDays, Award) and active colors
+   - More visually distinct tabs with colored active states
+
+5. **Empty States**:
+   - Beautiful EmptyState component with floating icon animation
+   - Decorative gradient blobs in background
+   - Staggered fade-in for title, description, and CTA
+   - Contextual CTAs based on premium status and filter type
+
+6. **Host Tournament Flow**:
+   - Step-by-step modal with 3 steps: Details → Format → Review
+   - Progress indicator with step icons and completion checkmarks
+   - Animated progress bar tracking step completion
+   - Step transitions with horizontal slide animation (AnimatePresence)
+   - Format selection with descriptive text and visual cards
+   - Review step showing tournament summary with gradient header
+
+7. **Tournament Card Animations**:
+   - Staggered entrance animation (delay based on index, 0.07s apart)
+   - Card expand/collapse with height animation and opacity fade
+   - Skeleton loading with shimmer effect (3 skeletons instead of 2)
+   - ChevronDown rotation animation on expand/collapse
+   - All animations use framer-motion
+
+Style Compliance:
+- All colors use app's brand system (brand-red, brand-gold, brand-teal, warm-* variants)
+- No indigo or blue primary colors
+- Full dark mode support throughout
+- Mobile-first responsive design
+- All existing functionality preserved (create, add teams, remove teams, generate bracket, etc.)
+
+Lint: 0 errors, 0 warnings
+
+---
+Task ID: 5
+Agent: MatchDayExperience Agent
+Task: Create MatchDayExperience screen component with immersive live match viewing experience
+
+Work Log:
+- Read worklog.md to understand project context and existing component architecture
+- Analyzed existing components: HomeTab, MatchDetailsScreen, LiveCommentaryTicker, store.ts, match-events API
+- Understood the LiveMatch, CompletedMatch, and MatchEvent types
+- Reviewed the API endpoint /api/match-events?matchId=xxx for data fetching
+- Reviewed the existing LiveCommentaryTicker component for integration
+
+Created: /home/z/my-project/src/components/kabaddi/MatchDayExperience.tsx
+A full-screen immersive match viewing experience with 7 major sections:
+
+1. **Match Header with Live Timer**:
+   - Full-width gradient header using home/away team colors
+   - Animated score display with scale animation on score changes (using useRef for prev scores)
+   - Real-time match timer (MM:SS format) with circular SVG progress indicator
+   - Half indicator (1st Half / 2nd Half) with framer-motion entrance animation
+   - Team icons (Swords for home, Shield for away) with team color backgrounds
+   - Pulsing VS divider animation
+   - "LIVE" badge with dramatic pulsing glow and Radio icon
+   - Score uses large tabular-nums font for stable width
+
+2. **Live Event Feed** (feed tab):
+   - Real-time scrolling feed of match events
+   - Each event card has: event type icon, event label badge, team color bar, commentary text, point value with +/- indicator, relative timestamp
+   - Color-coded by event type (red for raid, teal for tackle, amber for super raid, orange for all out)
+   - Special big event styling for all_out, super_raid, super_tackle with amber highlight and pulsing glow
+   - Auto-scroll to latest event
+   - Slide-in-from-right entrance animation for new events
+   - Empty state with waiting message
+
+3. **Match Statistics Panel** (stats tab):
+   - Side-by-side team stats comparison with team color headers
+   - Stats: Total Points, Raid Points, Tackle Points, Bonus Points, All Outs, Timeouts
+   - Animated horizontal bar charts with framer-motion width transitions
+   - Success Rates section: Raid Success %, Tackle Success %
+   - Percentage indicators for rate stats
+   - Centered labels between home/away values
+
+4. **Key Moments Timeline** (moments tab):
+   - Horizontal scrollable timeline with KeyMomentMarker buttons
+   - Each marker has: event icon in team-colored circle, event label, time
+   - Big events (all_out, super_raid, super_tackle) have pulsing animation
+   - Tap on a moment to expand detail card with border accent color
+   - Full list view of all moments below the timeline
+   - Empty state for when no key moments exist
+
+5. **Top Performers Section** (performers tab):
+   - Top Raider card with: Zap icon, raid points, total raids stats grid
+   - Top Defender card with: Shield icon, tackle points, total tackles stats grid
+   - Player name, team name with team color dot
+   - Card-style presentation with radial gradient glow effect
+   - Staggered entrance animation
+   - Empty state cards when no data available
+
+6. **Commentary Ticker**:
+   - Integrated existing LiveCommentaryTicker component in compact mode
+   - Scrolling marquee bar at bottom with auto-generated commentary text
+   - Team-colored dots next to each commentary item
+   - Seamless infinite scroll animation via CSS @keyframes marquee
+   - Fallback "Commentary will appear here..." when no events
+
+7. **Interactive Controls**:
+   - Back button (ArrowLeft) to close the experience
+   - Share button for sharing match status via Web Share API / clipboard
+   - Full-screen toggle (Maximize2/Minimize2)
+   - Mute/unmute button (Volume2/VolumeX)
+   - All controls in semi-transparent dark buttons
+
+Data Flow:
+- Fetches match data from /api/match-events?matchId=xxx
+- Polls every 5 seconds for live updates
+- Converts API response to MatchEvent[] for LiveCommentaryTicker integration
+- Computes all stats from events array (raid points, tackle points, bonus points, all outs, timeouts, success rates)
+- Identifies key moments from events (all_out, super_raid, super_tackle)
+- Aggregates player stats for top performers
+
+Integration into HomeTab.tsx:
+- Added import for MatchDayExperience
+- Added state: showMatchDayExperience, matchDayExperienceId
+- Modified handleMatchClick: live matches (status === 'live') open MatchDayExperience, others open MatchDetailsScreen
+- Added MatchDayExperience rendering alongside MatchDetailsScreen
+
+CSS Addition:
+- Added @keyframes marquee animation to globals.css
+- .animate-marquee class for seamless infinite horizontal scroll
+
+Lint: 0 errors, 0 warnings
+
+---
+Task ID: 4-a
+Agent: Sub Agent (HomeTab Visual Enhancement)
+Task: Enhance HomeTab component with better styling, animations, and visual polish
+
+Work Log:
+- Read worklog.md and current HomeTab.tsx to understand project context
+- Read globals.css to understand existing CSS utilities and animations
+- Added 20+ new CSS keyframes and utility classes to globals.css for enhanced animations
+- Enhanced Hero Section: animated gradient background, position badge, streak/fire icon, glassmorphism stat cards with hover animations
+- Redesigned Live Match Cards: pulsing glow border, animated background particles, gradient score text, half progress bar, dramatic LIVE badge pulse
+- Enhanced Upcoming Match Cards: team color bars, bell-ring-bounce animation on Set Reminder, larger team avatars
+- Polished Awards Section: golden shimmer sweep on MOTM card, larger avatar/icons (16px→16px, 6px→7px), medal-hover wiggle animation
+- Enhanced Leaderboard Preview Cards: rank badges with gold/silver/bronze shine, mini bar chart breakdown (R/T/B), team color indicator dot
+- Enhanced Explore Grid: colored left borders per category, icon-bounce-hover effect, explore-card-border class
+- Added section-header-decorated class with gradient line pattern to all section headers
+- Added view-all-arrow class with arrow-slide animation to Leaderboard View Full button
+- Enhanced Pull-to-Refresh: stiffer spring animation (stiffness 400→500), ptr-snap-anim haptic feel, faster spin (1s→0.8s)
+- Added countdown-flip class to countdown timer numbers
+
+CSS Additions (globals.css):
+- @keyframes greeting-gradient - animated gradient for greeting section
+- .greeting-gradient-bg / .dark variant
+- .glass-card - glassmorphism with backdrop blur
+- @keyframes live-card-glow - pulsing red/orange glow for live cards
+- .live-card-glow / .dark variant
+- .score-gradient - gradient text for match scores
+- @keyframes live-badge-dramatic - more dramatic pulse
+- .live-badge-dramatic
+- @keyframes medal-wiggle - wiggle rotation on hover
+- .medal-hover
+- @keyframes icon-bounce - bounce on hover
+- .icon-bounce-hover / .icon-bounce-target
+- .section-header-decorated - gradient line after header
+- @keyframes ptr-snap - haptic snap feel
+- .ptr-snap-anim
+- @keyframes half-progress-pulse - pulsing opacity
+- .half-progress-bar
+- @keyframes golden-shimmer-sweep - MOTM card shimmer
+- .golden-shimmer-sweep::after
+- @keyframes arrow-slide - View All arrow animation
+- .view-all-arrow / .arrow-slide-target
+- @keyframes float-particle - background particle float
+- .stat-card-glow - hover glow on stat cards
+- @keyframes fire-flicker - streak fire flicker
+- .fire-flicker
+- .explore-card-border - left border for explore cards
+- @keyframes flip-in - countdown number flip
+- .countdown-flip
+- @keyframes bell-ring-bounce - bell ring with bounce
+- .bell-ring-bounce
+- @keyframes rank-badge-shine - leaderboard badge shine
+- .rank-badge-shine
+
+Lint: 0 errors, 0 warnings
+
+---
+Task ID: 7
+Agent: Profile Enhancement Agent
+Task: Enhance ProfileTab with richer player profile, better stats visualization, and more visual polish
+
+Work Log:
+- Read worklog.md to understand project context and previous changes
+- Read current ProfileTab.tsx (2146 lines) and globals.css to understand existing code
+- Identified that many features were already partially implemented from prior tasks
+- Enhanced Profile Header with dynamic gradient banner (brand-red + brand-gold), larger avatar (w-28), enhanced dual-color pulsing ring animation
+- Enhanced Stats Cards with glass-card class, stat-specific glow effects (orange/emerald/amber), icon backgrounds, bolder typography, pill-shaped trend indicators
+- Enhanced Score Breakdown donut chart with glass-card, larger chart area, animated center label with count-up, rounded legend dots with colored percentage badges, progress bars with glow effects
+- Enhanced Recent Matches with team color dots (brand-red/brand-teal), Clock icon on relative time, bolder "vs" separator, dot indicators on match type badges, larger result indicators with rounded-xl
+- Enhanced Badges section with badge-unlocked-shimmer CSS class, Lock icon for locked badges (instead of emoji), badge-locked CSS filter class, animated progress bars, green checkmark on unlocked badges, enhanced icon animations (rotate+scale), Crown icon on PRO labels
+- Enhanced Performance Radar with glass-card, CSS variable colors, larger chart (h-60), thicker stroke, pill-shaped legend, skill highlights grid below chart
+- Enhanced Detailed Breakdown with glass-card, progress-glow hover effect, gradient icon backgrounds, shine effect on progress bars, tabular-nums, pill-shaped trend badges, AnimatedValue on quick stat grid, gradient backgrounds
+- Enhanced Features Grid with premium-feature-shimmer CSS class on premium items, Crown icon on PRO badges, z-10 on content to stay above shimmer
+- Enhanced Settings section with glass-card, icon backgrounds for each setting row, Flag icon for language, enhanced language toggle (rounded-xl, motion buttons, shadow-md), enhanced dark mode toggle (spring animation, larger icons, whileHover), Crown icon on Plan display
+- Added new CSS utility classes to globals.css: badge-unlocked-shimmer, premium-feature-shimmer, profile-banner-gradient, progress-glow, team-dot, avatar-pulse-enhanced, stat-glow-orange/emerald/amber, badge-locked, @keyframes banner-gradient-shift, @keyframes avatar-pulse-ring
+- Fixed duplicate code remnant from old dark mode toggle section
+- Verified lint passes clean (0 errors, 0 warnings)
+- Dev server running without errors
+
+Stage Summary:
+- All 9 required improvements implemented
+- Profile Header: Dynamic gradient banner (brand-red → brand-gold), larger avatar (w-28), enhanced pulsing ring with dual colors (red+gold)
+- Stats Cards: glass-card class, color-coded glow effects, icon backgrounds, bolder font-black values, pill trend indicators
+- Score Breakdown: Enhanced donut chart with glass-card, animated count-up center label, colored percentage badges, progress bars with progress-glow
+- Recent Matches: Team color dots, Clock icon on relative time, dot indicators on match type badges, larger result indicators
+- Badges: Shimmer effect on unlocked badges, Lock icon for locked, badge-locked CSS filter, animated progress bars, green checkmark overlays, enhanced icon animations
+- Performance Radar: glass-card, CSS variable colors, larger chart, thicker stroke, pill legend, skill highlights grid
+- Detailed Breakdown: glass-card, progress-glow hover, gradient icon backgrounds, shine effect on bars, AnimatedValue on quick stats
+- Features Grid: Golden shimmer on premium items, Crown PRO badges, z-10 layering
+- Settings: glass-card, icon backgrounds per row, enhanced language toggle, spring-animated dark mode toggle
+- Zero lint errors
+
+---
+Task ID: Round-3
+Agent: Main Agent (Cron Review Session - Round 3)
+Task: Comprehensive QA, bug fixes, major styling improvements, and new features
+
+Work Log:
+- Read worklog.md to assess project status from previous sessions (Round 1 & 2 completed)
+- Performed comprehensive QA with agent-browser:
+  - Tested splash screen → login flow (9876543210/password123) → all 4 tabs
+  - Verified all API endpoints responding (200 status codes)
+  - Checked for console errors and page errors - none found
+  - Tested dark mode toggle - works correctly
+- **Bug Fixed**: Live match click handler was only showing a toast instead of opening match details
+  - Changed `handleMatchClick()` in HomeTab.tsx to call `setSelectedMatchId()` and `setShowMatchDetails(true)` instead of `toast()`
+- Launched 5 parallel subagents for major improvements:
+  - Agent 4-a: HomeTab visual enhancement (hero section, live match cards, upcoming matches, awards, leaderboard, explore grid, section headers, pull-to-refresh)
+  - Agent 4-b: TournamentsTab redesign (tournament cards, bracket view, search, status tabs, empty states, host tournament flow, animations)
+  - Agent 5: MatchDayExperience - NEW full-screen immersive live match viewer
+  - Agent 7: ProfileTab enhancement (header, stats, score breakdown, badges, performance radar, detailed breakdown, features, settings)
+  - Agent 8: Global CSS improvements (20+ keyframe animations, glassmorphism utilities, gradient text, card hover effects, skeleton enhancements, scrollbar, focus rings, transitions, badge/pill styles, page transitions, micro-interactions)
+- First attempt for Agent 7 (ProfileTab) failed (context deadline), retried successfully
+- All agents completed with zero lint errors
+- Final QA verified: app runs correctly, no errors, all features working including dark mode
+
+Stage Summary:
+- **Bug Fix**: Live match click now opens MatchDetailsScreen/MatchDayExperience instead of just toast
+- **HomeTab**: Animated gradient greeting, position badge, streak indicator, glassmorphism stat cards, live card glow border, animated particles, gradient score text, half progress bar, dramatic LIVE badge, enhanced upcoming match cards with countdown, golden shimmer on MOTM, rank badges on leaderboard, colored explore card borders, decorative section headers, improved pull-to-refresh
+- **TournamentsTab**: Gradient left border cards, team count badges, match progress bars, shimmer on hover, animated status indicators, format type badges, visual bracket/tree view, expandable search with recent searches, count badges on tabs, animated underline, beautiful empty states, 3-step Host Tournament modal, staggered entrance animations, skeleton loading
+- **MatchDayExperience (NEW)**: Full-screen immersive live match viewer with: gradient header with team colors, animated score display, circular SVG timer, half indicator, pulsing LIVE badge, live event feed with type-specific icons and animations, match statistics comparison with animated bar charts, key moments timeline, top performers section with glow effects, commentary ticker, interactive controls (back, share, fullscreen, mute), 5-second polling for live updates
+- **ProfileTab**: Dynamic gradient banner, larger avatar with dual-color pulsing ring, position badge, level indicator, glassmorphism stat cards with color-coded glows, enhanced donut chart with animated count-up, team color dots on matches, win/loss indicators, badge shimmer effects, locked badges with lock icons, performance radar chart with skill highlights, gradient progress bars, golden shimmer on premium features, flag icons on language toggle, spring-animated dark mode toggle
+- **Global CSS**: 20+ new keyframe animations (shimmer, float, pulse-ring, slide-in-*, scale-in, glow-pulse, rotate-slow, gradient-shift, number-flip, bounce-in, wave), glassmorphism utilities (glass-card, glass-card-strong, glass-card-dark), gradient text utilities, card hover effects (lift, glow, border, press), skeleton enhancements (shimmer, pulse, wave), polished scrollbar, custom focus rings, transition utilities, badge/pill styles, page transitions, micro-interaction helpers (hover-scale, active-scale, tap-feedback), prefers-reduced-motion support
+- Zero lint errors, zero runtime errors
+- All features support dark mode
+
+Unresolved Issues / Risks:
+- Some sub-screens (AI Insights, Broadcast, etc.) may still have basic styling - could benefit from further polish
+- MatchDayExperience polling could be optimized with WebSocket for real-time updates
+- The tournament bracket view could be enhanced with more data (player stats per match)
+- Profile performance radar chart uses mock data for "average player" comparison
+- Consider adding sound effects for live match events (mentioned in MatchDayExperience but not implemented)
+
+Priority Recommendations for Next Phase:
+1. Add real-time WebSocket support for live match updates
+2. Enhance sub-screens that still have basic styling (AI Insights, Broadcast, etc.)
+3. Add sound effects/haptics for match events
+4. Implement the tournament bracket with real match data progression
+5. Add offline-first PWA capabilities

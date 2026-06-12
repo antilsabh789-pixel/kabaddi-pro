@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MapPin, Calendar, Users, ChevronDown, ChevronUp, Trophy, Crown, Lock, Loader2, Search, X, Copy, Check, Hash, UserPlus, Trash2, Swords, Sparkles, Timer } from 'lucide-react';
+import {
+  Plus, MapPin, Calendar, Users, ChevronDown, ChevronUp, Trophy, Crown,
+  Lock, Loader2, Search, X, Copy, Check, Hash, UserPlus, Trash2, Swords,
+  Sparkles, Timer, Filter, TrendingUp, Clock, Zap, CalendarDays, LayoutGrid,
+  ChevronRight, Star, ArrowRight, CircleDot, Radio, Award, Target
+} from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +17,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { useKabaddiStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
@@ -57,6 +61,443 @@ interface DbTeam {
   logo: string | null;
 }
 
+// ─── Bracket Match for visual bracket view ─────────────────────────────
+interface BracketMatch {
+  id: string;
+  round: number;
+  position: number;
+  team1Id: string | null;
+  team2Id: string | null;
+  team1Score: number | null;
+  team2Score: number | null;
+  winnerId: string | null;
+  status: string;
+}
+
+// ─── Sub-components ────────────────────────────────────────────────────
+
+/** Animated status indicator dot */
+function StatusIndicator({ status }: { status: string }) {
+  const config = {
+    ongoing: { color: 'bg-emerald-500', ring: 'ring-emerald-500/30', pulse: true },
+    upcoming: { color: 'bg-amber-500', ring: 'ring-amber-500/30', pulse: false },
+    past: { color: 'bg-warm-400', ring: 'ring-warm-400/30', pulse: false },
+  }[status] || { color: 'bg-warm-400', ring: 'ring-warm-400/30', pulse: false };
+
+  return (
+    <span className="relative flex h-3 w-3">
+      {config.pulse && (
+        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.color} opacity-75`} />
+      )}
+      <span className={`relative inline-flex rounded-full h-3 w-3 ${config.color} ring-2 ${config.ring}`} />
+    </span>
+  );
+}
+
+/** Match progress bar */
+function MatchProgressBar({ completed, total }: { completed: number; total: number }) {
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2 w-full">
+      <div className="flex-1 h-2 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light"
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+        />
+      </div>
+      <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 shrink-0">{completed}/{total}</span>
+    </div>
+  );
+}
+
+/** Shimmer overlay for hover effect */
+function ShimmerOverlay() {
+  return (
+    <motion.div
+      className="absolute inset-0 pointer-events-none z-10 overflow-hidden rounded-2xl"
+      initial={{ opacity: 0 }}
+      whileHover={{ opacity: 1 }}
+    >
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent dark:via-white/5"
+        animate={{ x: ['-100%', '200%'] }}
+        transition={{ duration: 2, ease: 'linear' }}
+      />
+    </motion.div>
+  );
+}
+
+/** Knockout bracket view */
+function BracketView({ tournament }: { tournament: Tournament }) {
+  const [bracketMatches, setBracketMatches] = useState<BracketMatch[]>([]);
+  const [loadingBracket, setLoadingBracket] = useState(false);
+
+  useEffect(() => {
+    const fetchBracket = async () => {
+      setLoadingBracket(true);
+      try {
+        const res = await fetch(`/api/tournaments/${tournament.id}/matches`);
+        if (res.ok) {
+          const data = await res.json();
+          const matches: BracketMatch[] = (data.matches || []).map((m: Record<string, unknown>) => ({
+            id: m.id as string,
+            round: (m.round as number) || 1,
+            position: (m.position as number) || 0,
+            team1Id: (m.team1Id as string) || null,
+            team2Id: (m.team2Id as string) || null,
+            team1Score: (m.team1Score as number) ?? null,
+            team2Score: (m.team2Score as number) ?? null,
+            winnerId: (m.winnerId as string) || null,
+            status: (m.status as string) || 'scheduled',
+          }));
+          setBracketMatches(matches);
+        }
+      } catch {
+        // silently fail
+      } finally {
+        setLoadingBracket(false);
+      }
+    };
+    fetchBracket();
+  }, [tournament.id]);
+
+  const teamsMap = new Map(tournament.teams.map(t => [t.id, t]));
+
+  // Group matches by round
+  const rounds = new Map<number, BracketMatch[]>();
+  bracketMatches.forEach(m => {
+    const list = rounds.get(m.round) || [];
+    list.push(m);
+    rounds.set(m.round, list);
+  });
+  const sortedRounds = Array.from(rounds.entries()).sort((a, b) => a[0] - b[0]);
+
+  // If knockout with no matches yet, show placeholder bracket
+  const showPlaceholder = bracketMatches.length === 0 && !loadingBracket;
+
+  // Generate placeholder bracket based on team count
+  const generatePlaceholderRounds = () => {
+    const teamCount = tournament.teams.length;
+    if (teamCount < 2) return [];
+    const roundsCount = Math.ceil(Math.log2(teamCount));
+    const result: { round: number; matches: { team1: string | null; team2: string | null }[] }[] = [];
+    let currentMatches = Math.floor(teamCount / 2);
+
+    for (let r = 1; r <= roundsCount; r++) {
+      const matches = [];
+      for (let m = 0; m < currentMatches; m++) {
+        const team1Idx = m * 2;
+        const team2Idx = m * 2 + 1;
+        matches.push({
+          team1: tournament.teams[team1Idx]?.id || null,
+          team2: team2Idx < tournament.teams.length ? tournament.teams[team2Idx]?.id || null : null,
+        });
+      }
+      result.push({ round: r, matches });
+      currentMatches = Math.ceil(currentMatches / 2);
+    }
+    return result;
+  };
+
+  const placeholderRounds = showPlaceholder ? generatePlaceholderRounds() : [];
+
+  const getRoundName = (round: number, totalRounds: number) => {
+    if (round === totalRounds) return 'Final';
+    if (round === totalRounds - 1) return 'Semi-Final';
+    if (round === totalRounds - 2) return 'Quarter-Final';
+    return `Round ${round}`;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <Swords className="w-4 h-4 text-brand-red" />
+        <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">
+          {tournament.type === 'knockout' ? 'Knockout Bracket' : tournament.type === 'league' ? 'League Fixtures' : 'Tournament Bracket'}
+        </h4>
+      </div>
+
+      {loadingBracket ? (
+        <div className="flex items-center justify-center py-8 gap-2">
+          <Loader2 className="w-5 h-5 animate-spin text-brand-red" />
+          <span className="text-sm text-warm-400">Loading bracket...</span>
+        </div>
+      ) : (
+        <div className="overflow-x-auto pb-2 -mx-1">
+          <div className="flex gap-6 min-w-max px-1">
+            {/* Real bracket from API data */}
+            {sortedRounds.length > 0 ? sortedRounds.map(([roundNum, matches], rIdx) => {
+              const totalRounds = sortedRounds.length;
+              return (
+                <motion.div
+                  key={roundNum}
+                  className="flex flex-col gap-3 min-w-[180px]"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: rIdx * 0.15, duration: 0.4 }}
+                >
+                  <div className="text-center">
+                    <Badge className="bg-brand-red/10 text-brand-red text-[10px] border-0 font-bold">
+                      {getRoundName(roundNum, totalRounds)}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-col justify-around flex-1 gap-2">
+                    {matches.sort((a, b) => a.position - b.position).map((match) => {
+                      const team1 = match.team1Id ? teamsMap.get(match.team1Id) : null;
+                      const team2 = match.team2Id ? teamsMap.get(match.team2Id) : null;
+                      const isLive = match.status === 'live' || match.status === 'ongoing';
+                      const isCompleted = match.status === 'completed';
+                      return (
+                        <motion.div
+                          key={match.id}
+                          className={`rounded-xl border p-2.5 text-xs transition-all ${
+                            isLive
+                              ? 'border-brand-red bg-brand-red/5 dark:bg-brand-red/10 ring-1 ring-brand-red/30'
+                              : isCompleted
+                                ? 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50'
+                                : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/30'
+                          }`}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: rIdx * 0.1 + 0.1 }}
+                        >
+                          {isLive && (
+                            <div className="flex items-center gap-1 mb-1">
+                              <Radio className="w-2.5 h-2.5 text-brand-red animate-pulse" />
+                              <span className="text-[9px] font-bold text-brand-red uppercase">Live</span>
+                            </div>
+                          )}
+                          {/* Team 1 */}
+                          <div className={`flex items-center gap-2 py-1 ${match.winnerId === match.team1Id ? 'font-bold' : ''}`}>
+                            {team1 ? (
+                              <>
+                                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ backgroundColor: team1.color }}>
+                                  {team1.shortName?.charAt(0) || team1.name.charAt(0)}
+                                </div>
+                                <span className={`truncate flex-1 ${match.winnerId === match.team1Id ? 'text-warm-800 dark:text-warm-100' : 'text-warm-600 dark:text-warm-300'}`}>
+                                  {team1.name}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-warm-400 italic">TBD</span>
+                            )}
+                            {match.team1Score !== null && (
+                              <span className={`font-mono font-bold ${match.winnerId === match.team1Id ? 'text-brand-green' : 'text-warm-500'}`}>
+                                {match.team1Score}
+                              </span>
+                            )}
+                          </div>
+                          <div className="border-t border-warm-100 dark:border-warm-700/50 my-0.5" />
+                          {/* Team 2 */}
+                          <div className={`flex items-center gap-2 py-1 ${match.winnerId === match.team2Id ? 'font-bold' : ''}`}>
+                            {team2 ? (
+                              <>
+                                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ backgroundColor: team2.color }}>
+                                  {team2.shortName?.charAt(0) || team2.name.charAt(0)}
+                                </div>
+                                <span className={`truncate flex-1 ${match.winnerId === match.team2Id ? 'text-warm-800 dark:text-warm-100' : 'text-warm-600 dark:text-warm-300'}`}>
+                                  {team2.name}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-warm-400 italic">TBD</span>
+                            )}
+                            {match.team2Score !== null && (
+                              <span className={`font-mono font-bold ${match.winnerId === match.team2Id ? 'text-brand-green' : 'text-warm-500'}`}>
+                                {match.team2Score}
+                              </span>
+                            )}
+                          </div>
+                          {match.winnerId && (
+                            <div className="flex items-center gap-1 mt-1 pt-1 border-t border-warm-100 dark:border-warm-700/30">
+                              <Trophy className="w-2.5 h-2.5 text-brand-gold" />
+                              <span className="text-[9px] text-brand-gold font-bold">
+                                {teamsMap.get(match.winnerId)?.name || 'Winner'}
+                              </span>
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              );
+            }) : null}
+
+            {/* Placeholder bracket */}
+            {placeholderRounds.length > 0 ? placeholderRounds.map((round, rIdx) => {
+              const totalRounds = placeholderRounds.length;
+              return (
+                <motion.div
+                  key={`placeholder-${round.round}`}
+                  className="flex flex-col gap-3 min-w-[160px]"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: rIdx * 0.15, duration: 0.4 }}
+                >
+                  <div className="text-center">
+                    <Badge className="bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400 text-[10px] border-0 font-bold">
+                      {getRoundName(round.round, totalRounds)}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-col justify-around flex-1 gap-2">
+                    {round.matches.map((match, mIdx) => {
+                      const team1 = match.team1 ? teamsMap.get(match.team1) : null;
+                      const team2 = match.team2 ? teamsMap.get(match.team2) : null;
+                      return (
+                        <div key={mIdx} className="rounded-xl border border-dashed border-warm-300 dark:border-warm-600 p-2.5 text-xs bg-warm-50 dark:bg-warm-800/20">
+                          <div className="flex items-center gap-2 py-0.5">
+                            {team1 ? (
+                              <>
+                                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ backgroundColor: team1.color }}>
+                                  {team1.shortName?.charAt(0) || team1.name.charAt(0)}
+                                </div>
+                                <span className="truncate text-warm-500 dark:text-warm-400">{team1.name}</span>
+                              </>
+                            ) : (
+                              <span className="text-warm-400 italic">TBD</span>
+                            )}
+                          </div>
+                          <div className="text-warm-300 dark:text-warm-600 text-center py-0.5 text-[10px]">VS</div>
+                          <div className="flex items-center gap-2 py-0.5">
+                            {team2 ? (
+                              <>
+                                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ backgroundColor: team2.color }}>
+                                  {team2.shortName?.charAt(0) || team2.name.charAt(0)}
+                                </div>
+                                <span className="truncate text-warm-500 dark:text-warm-400">{team2.name}</span>
+                              </>
+                            ) : (
+                              <span className="text-warm-400 italic">BYE</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              );
+            }) : null}
+
+            {/* No data at all */}
+            {sortedRounds.length === 0 && placeholderRounds.length === 0 && !loadingBracket && (
+              <div className="text-center py-6 w-full">
+                <Target className="w-8 h-8 text-warm-300 dark:text-warm-600 mx-auto mb-2" />
+                <p className="text-sm text-warm-400 dark:text-warm-500">No bracket generated yet</p>
+                <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">Add teams and generate a bracket to see the tournament tree</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+/** Skeleton loader with shimmer */
+function SkeletonCard() {
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700">
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-warm-200 dark:bg-warm-700" />
+      <div className="p-4 space-y-3">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2 flex-1">
+            <div className="h-4 w-3/4 rounded-lg bg-warm-200 dark:bg-warm-700" />
+            <div className="h-3 w-1/2 rounded-lg bg-warm-100 dark:bg-warm-700/50" />
+            <div className="h-3 w-2/3 rounded-lg bg-warm-100 dark:bg-warm-700/50" />
+          </div>
+          <div className="h-6 w-14 rounded-md bg-warm-200 dark:bg-warm-700" />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex -space-x-1.5">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="w-7 h-7 rounded-full bg-warm-200 dark:bg-warm-700 border-2 border-white dark:border-warm-800" />
+            ))}
+          </div>
+          <div className="h-2 w-20 rounded-full bg-warm-200 dark:bg-warm-700" />
+        </div>
+      </div>
+      {/* Shimmer effect */}
+      <div className="absolute inset-0">
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-white/5 to-transparent"
+          animate={{ x: ['-100%', '200%'] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Beautiful empty state */
+function EmptyState({ content, onCta }: { content: { icon: string; title: string; description: string; cta: string | null }; onCta: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="py-8"
+    >
+      <Card className="p-8 text-center border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 overflow-hidden relative">
+        {/* Decorative background */}
+        <div className="absolute inset-0 opacity-5 dark:opacity-10">
+          <div className="absolute top-4 left-4 w-16 h-16 rounded-full bg-brand-red blur-2xl" />
+          <div className="absolute bottom-4 right-4 w-20 h-20 rounded-full bg-brand-gold blur-2xl" />
+        </div>
+        <div className="relative">
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            className="text-6xl mb-4 inline-block"
+          >
+            {content.icon}
+          </motion.div>
+          <motion.h3
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-warm-700 dark:text-warm-200 text-base font-bold"
+          >
+            {content.title}
+          </motion.h3>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-warm-400 dark:text-warm-500 text-sm mt-1.5 max-w-xs mx-auto"
+          >
+            {content.description}
+          </motion.p>
+          {content.cta && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <Button
+                onClick={onCta}
+                className="mt-5 bg-gradient-to-r from-brand-red to-brand-red-light text-white rounded-xl font-bold shadow-lg shadow-brand-red/20"
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                {content.cta}
+                <ArrowRight className="w-4 h-4 ml-1.5" />
+              </Button>
+            </motion.div>
+          )}
+        </div>
+      </Card>
+    </motion.div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────
+
 export default function TournamentsTab() {
   const { currentUser } = useKabaddiStore();
   const { toast } = useToast();
@@ -64,6 +505,7 @@ export default function TournamentsTab() {
 
   const [statusFilter, setStatusFilter] = useState<'ongoing' | 'upcoming' | 'past'>('ongoing');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,6 +515,11 @@ export default function TournamentsTab() {
 
   // Tournament search by code
   const [tournamentSearch, setTournamentSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  // Host tournament step
+  const [hostStep, setHostStep] = useState(0);
 
   // New tournament form
   const [newTournament, setNewTournament] = useState({
@@ -119,6 +566,16 @@ export default function TournamentsTab() {
     fetchAllTeams();
   }, []);
 
+  // Load recent searches from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('tournament-recent-searches');
+      if (saved) setRecentSearches(JSON.parse(saved));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Close team suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -162,6 +619,7 @@ export default function TournamentsTab() {
       setShowUpgrade(true);
       return;
     }
+    setHostStep(0);
     setCreateOpen(true);
   };
 
@@ -182,6 +640,7 @@ export default function TournamentsTab() {
           description: `Code: ${data.tournament?.tournamentCode || 'N/A'}`,
         });
         setCreateOpen(false);
+        setHostStep(0);
         fetchTournaments();
       } else {
         const data = await res.json();
@@ -328,9 +787,21 @@ export default function TournamentsTab() {
     }
   };
 
+  const handleSearchSubmit = (query: string) => {
+    if (!query.trim()) return;
+    setRecentSearches(prev => {
+      const updated = [query, ...prev.filter(s => s !== query)].slice(0, 5);
+      try { localStorage.setItem('tournament-recent-searches', JSON.stringify(updated)); } catch { /* ignore */ }
+      return updated;
+    });
+    setTournamentSearch(query);
+    setSearchFocused(false);
+  };
+
   const filteredTournaments = tournaments.filter((t) => {
     if (t.status !== statusFilter) return false;
     if (genderFilter !== 'all' && t.gender !== genderFilter) return false;
+    if (typeFilter !== 'all' && t.type !== typeFilter) return false;
     return true;
   });
 
@@ -347,7 +818,6 @@ export default function TournamentsTab() {
     );
   };
 
-  // Format date helper
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'TBD';
     try {
@@ -362,13 +832,23 @@ export default function TournamentsTab() {
   const getTypeBadge = (type: string) => {
     switch (type) {
       case 'knockout':
-        return { bg: 'bg-orange-500/10 dark:bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400', icon: <Swords className="w-3 h-3" /> };
+        return { bg: 'bg-orange-500/10 dark:bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400', icon: <Swords className="w-3 h-3" />, border: 'border-orange-500/30', gradient: 'from-orange-500 to-orange-400' };
       case 'league':
-        return { bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', icon: <Trophy className="w-3 h-3" /> };
+        return { bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', icon: <Trophy className="w-3 h-3" />, border: 'border-emerald-500/30', gradient: 'from-emerald-500 to-emerald-400' };
       case 'hybrid':
-        return { bg: 'bg-purple-500/10 dark:bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400', icon: <Sparkles className="w-3 h-3" /> };
+        return { bg: 'bg-purple-500/10 dark:bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400', icon: <Sparkles className="w-3 h-3" />, border: 'border-purple-500/30', gradient: 'from-purple-500 to-purple-400' };
       default:
-        return { bg: 'bg-warm-200 dark:bg-warm-700', text: 'text-warm-600 dark:text-warm-300', icon: <Trophy className="w-3 h-3" /> };
+        return { bg: 'bg-warm-200 dark:bg-warm-700', text: 'text-warm-600 dark:text-warm-300', icon: <Trophy className="w-3 h-3" />, border: 'border-warm-400/30', gradient: 'from-warm-500 to-warm-400' };
+    }
+  };
+
+  // Status-based gradient for left border
+  const getStatusGradient = (status: string) => {
+    switch (status) {
+      case 'ongoing': return 'from-emerald-500 to-emerald-400';
+      case 'upcoming': return 'from-amber-500 to-amber-400';
+      case 'past': return 'from-warm-400 to-warm-300';
+      default: return 'from-warm-400 to-warm-300';
     }
   };
 
@@ -414,6 +894,20 @@ export default function TournamentsTab() {
     }
   };
 
+  // Count tournaments by status
+  const statusCounts = {
+    ongoing: tournaments.filter(t => t.status === 'ongoing').length,
+    upcoming: tournaments.filter(t => t.status === 'upcoming').length,
+    past: tournaments.filter(t => t.status === 'past').length,
+  };
+
+  // Host tournament steps config
+  const hostSteps = [
+    { label: 'Details', icon: Trophy },
+    { label: 'Format', icon: LayoutGrid },
+    { label: 'Review', icon: Star },
+  ];
+
   return (
     <div className="px-4 py-6 space-y-5">
       {/* Premium Upgrade Modal */}
@@ -455,106 +949,347 @@ export default function TournamentsTab() {
             )}
           </Button>
         </motion.div>
-
-        {/* Create Tournament Dialog */}
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700">
-            <DialogHeader>
-              <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
-                Create Tournament
-                <Badge className="bg-brand-gold/20 text-brand-gold text-[10px] border-0">
-                  <Crown className="w-3 h-3 mr-1" />
-                  PRO
-                </Badge>
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-2">
-              <Input
-                placeholder="Tournament name"
-                value={newTournament.name}
-                onChange={(e) => setNewTournament({ ...newTournament, name: e.target.value })}
-                className="bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-700 rounded-xl"
-              />
-              <Input
-                placeholder="Venue"
-                value={newTournament.venue}
-                onChange={(e) => setNewTournament({ ...newTournament, venue: e.target.value })}
-                className="bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-700 rounded-xl"
-              />
-              <div className="grid grid-cols-3 gap-2">
-                {(['knockout', 'league', 'hybrid'] as const).map((t) => {
-                  const badge = getTypeBadge(t);
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setNewTournament({ ...newTournament, type: t })}
-                      className={`p-2.5 rounded-xl border-2 text-xs font-bold capitalize flex flex-col items-center gap-1 transition-all ${
-                        newTournament.type === t
-                          ? `${badge.bg} ${badge.text} border-current`
-                          : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400'
-                      }`}
-                    >
-                      {badge.icon}
-                      {t}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setNewTournament({ ...newTournament, gender: 'male' })}
-                  className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
-                    newTournament.gender === 'male'
-                      ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                      : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400'
-                  }`}
-                >
-                  ♂ Boys
-                </button>
-                <button
-                  onClick={() => setNewTournament({ ...newTournament, gender: 'female' })}
-                  className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
-                    newTournament.gender === 'female'
-                      ? 'border-red-500 bg-red-500/10 text-red-600 dark:text-red-400'
-                      : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400'
-                  }`}
-                >
-                  ♀ Girls
-                </button>
-              </div>
-              <div className="bg-warm-100 dark:bg-warm-800 rounded-xl p-3 text-center">
-                <p className="text-xs text-warm-500 dark:text-warm-400">A unique tournament code will be auto-generated</p>
-                <p className="text-[10px] text-warm-400 dark:text-warm-500">Share this code so others can easily find & join</p>
-              </div>
-              <Button
-                onClick={handleCreateTournament}
-                disabled={!newTournament.name}
-                className="w-full bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold"
-              >
-                Create Tournament
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
 
-      {/* Search Tournaments by Code/Name */}
+      {/* ─── Host Tournament Dialog (Step-by-step) ─────────────────── */}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setHostStep(0); } }}>
+        <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+              Host Tournament
+              <Badge className="bg-brand-gold/20 text-brand-gold text-[10px] border-0">
+                <Crown className="w-3 h-3 mr-1" />
+                PRO
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Step Progress Indicator */}
+          <div className="flex items-center gap-2 mb-4">
+            {hostSteps.map((step, idx) => {
+              const StepIcon = step.icon;
+              const isActive = idx === hostStep;
+              const isCompleted = idx < hostStep;
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                  <motion.div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      isActive
+                        ? 'bg-brand-red text-white shadow-lg shadow-brand-red/30'
+                        : isCompleted
+                          ? 'bg-brand-green text-white'
+                          : 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+                    }`}
+                    animate={{ scale: isActive ? 1.1 : 1 }}
+                    transition={{ type: 'spring', stiffness: 300 }}
+                  >
+                    {isCompleted ? <Check className="w-4 h-4" /> : <StepIcon className="w-3.5 h-3.5" />}
+                  </motion.div>
+                  <span className={`text-[10px] font-bold ${isActive ? 'text-brand-red' : 'text-warm-400 dark:text-warm-500'}`}>
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-1 bg-warm-200 dark:bg-warm-700 rounded-full mb-4 overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-brand-red to-brand-red-light rounded-full"
+              animate={{ width: `${((hostStep + 1) / hostSteps.length) * 100}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+
+          <AnimatePresence mode="wait">
+            {/* Step 1: Details */}
+            {hostStep === 0 && (
+              <motion.div
+                key="step-0"
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block">Tournament Name</label>
+                  <Input
+                    placeholder="e.g. Inter-School Kabaddi Championship"
+                    value={newTournament.name}
+                    onChange={(e) => setNewTournament({ ...newTournament, name: e.target.value })}
+                    className="bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-700 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block">Venue</label>
+                  <Input
+                    placeholder="e.g. City Sports Arena"
+                    value={newTournament.venue}
+                    onChange={(e) => setNewTournament({ ...newTournament, venue: e.target.value })}
+                    className="bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-700 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block">Category</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setNewTournament({ ...newTournament, gender: 'male' })}
+                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
+                        newTournament.gender === 'male'
+                          ? 'border-brand-red bg-brand-red/5 text-brand-red'
+                          : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+                      }`}
+                    >
+                      ♂ Boys
+                    </button>
+                    <button
+                      onClick={() => setNewTournament({ ...newTournament, gender: 'female' })}
+                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
+                        newTournament.gender === 'female'
+                          ? 'border-brand-red bg-brand-red/5 text-brand-red'
+                          : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+                      }`}
+                    >
+                      ♀ Girls
+                    </button>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setHostStep(1)}
+                  disabled={!newTournament.name || !newTournament.venue}
+                  className="w-full bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold"
+                >
+                  Next: Choose Format
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </motion.div>
+            )}
+
+            {/* Step 2: Format */}
+            {hostStep === 1 && (
+              <motion.div
+                key="step-1"
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4"
+              >
+                <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block">Tournament Format</label>
+                <div className="space-y-2">
+                  {(['knockout', 'league', 'hybrid'] as const).map((t) => {
+                    const badge = getTypeBadge(t);
+                    const descriptions: Record<string, string> = {
+                      knockout: 'Single elimination — lose and you\'re out!',
+                      league: 'Round-robin — every team plays each other',
+                      hybrid: 'League + Knockout — best of both worlds',
+                    };
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => setNewTournament({ ...newTournament, type: t })}
+                        className={`w-full p-3 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${
+                          newTournament.type === t
+                            ? `${badge.bg} ${badge.text} border-current`
+                            : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-xl ${badge.bg} flex items-center justify-center shrink-0`}>
+                          {badge.icon}
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm capitalize">{t}</p>
+                          <p className="text-[10px] opacity-70">{descriptions[t]}</p>
+                        </div>
+                        {newTournament.type === t && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="ml-auto w-5 h-5 rounded-full bg-current flex items-center justify-center"
+                          >
+                            <Check className="w-3 h-3 text-white" style={{ color: 'white' }} />
+                          </motion.div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="bg-warm-100 dark:bg-warm-800 rounded-xl p-3 text-center">
+                  <p className="text-xs text-warm-500 dark:text-warm-400">A unique tournament code will be auto-generated</p>
+                  <p className="text-[10px] text-warm-400 dark:text-warm-500">Share this code so others can easily find &amp; join</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setHostStep(0)}
+                    className="flex-1 rounded-xl font-bold"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={() => setHostStep(2)}
+                    className="flex-1 bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold"
+                  >
+                    Next: Review
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Step 3: Review */}
+            {hostStep === 2 && (
+              <motion.div
+                key="step-2"
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4"
+              >
+                <div className="bg-white dark:bg-warm-800 rounded-xl border border-warm-200 dark:border-warm-700 overflow-hidden">
+                  <div className={`h-2 bg-gradient-to-r ${getTypeBadge(newTournament.type).gradient}`} />
+                  <div className="p-4 space-y-3">
+                    <h3 className="font-bold text-warm-800 dark:text-warm-100">{newTournament.name || 'Untitled'}</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
+                        <MapPin className="w-3.5 h-3.5 text-warm-400" />
+                        <span>{newTournament.venue || 'No venue'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
+                        <Users className="w-3.5 h-3.5 text-warm-400" />
+                        <span>{newTournament.gender === 'male' ? '♂ Boys' : '♀ Girls'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
+                        {getTypeBadge(newTournament.type).icon}
+                        <span className="capitalize">{newTournament.type} Format</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setHostStep(1)}
+                    className="flex-1 rounded-xl font-bold"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={handleCreateTournament}
+                    disabled={!newTournament.name}
+                    className="flex-1 bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold shadow-lg shadow-brand-red/20"
+                  >
+                    <Trophy className="w-4 h-4 mr-1" />
+                    Create Tournament
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Search Bar with Expansion ──────────────────────────────── */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
-        <Input
-          placeholder="Search by name or tournament code (e.g. TC3001)..."
-          value={tournamentSearch}
-          onChange={(e) => setTournamentSearch(e.target.value)}
-          className="pl-9 pr-9 h-11 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm"
-        />
-        {tournamentSearch && (
-          <button
-            onClick={() => setTournamentSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        <motion.div
+          className="relative"
+          animate={{ scale: searchFocused ? 1.02 : 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+        >
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${searchFocused ? 'text-brand-red' : 'text-warm-400'}`} />
+          <Input
+            placeholder="Search by name or code (e.g. TC3001)..."
+            value={tournamentSearch}
+            onChange={(e) => setTournamentSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+            className={`pl-9 pr-9 h-11 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm transition-all ${
+              searchFocused ? 'border-brand-red/50 ring-2 ring-brand-red/20 shadow-lg shadow-brand-red/5' : ''
+            }`}
+          />
+          {tournamentSearch ? (
+            <button
+              onClick={() => setTournamentSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          ) : (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-warm-300 dark:text-warm-600 bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded">
+              /
+            </span>
+          )}
+        </motion.div>
+
+        {/* Search suggestions / recent searches */}
+        <AnimatePresence>
+          {searchFocused && !tournamentSearch.trim() && recentSearches.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -5, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -5, height: 0 }}
+              className="absolute z-20 top-full mt-1 left-0 right-0 bg-white dark:bg-warm-800 rounded-xl border border-warm-200 dark:border-warm-700 shadow-xl overflow-hidden"
+            >
+              <div className="p-2">
+                <div className="flex items-center justify-between px-2 py-1">
+                  <span className="text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider">Recent Searches</span>
+                  <button
+                    onClick={() => { setRecentSearches([]); try { localStorage.removeItem('tournament-recent-searches'); } catch { /* ignore */ } }}
+                    className="text-[10px] text-brand-red font-bold hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+                {recentSearches.map((search, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSearchSubmit(search)}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-warm-700 dark:text-warm-300 hover:bg-warm-50 dark:hover:bg-warm-700 transition-colors"
+                  >
+                    <Clock className="w-3.5 h-3.5 text-warm-400" />
+                    <span className="flex-1 text-left">{search}</span>
+                    <ArrowRight className="w-3 h-3 text-warm-300" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ─── Filter Chips ───────────────────────────────────────────── */}
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setTypeFilter('all')}
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1 ${
+            typeFilter === 'all'
+              ? 'bg-warm-800 dark:bg-warm-200 text-white dark:text-warm-800 shadow-sm'
+              : 'bg-warm-100 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+          }`}
+        >
+          <Filter className="w-3 h-3" />
+          All Types
+        </button>
+        {(['knockout', 'league', 'hybrid'] as const).map((t) => {
+          const badge = getTypeBadge(t);
+          return (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all duration-200 flex items-center gap-1 ${
+                typeFilter === t
+                  ? `${badge.bg} ${badge.text} ring-1 ring-current shadow-sm`
+                  : 'bg-warm-100 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+              }`}
+            >
+              {badge.icon}
+              {t}
+            </button>
+          );
+        })}
       </div>
 
       {/* Premium hint for non-premium users */}
@@ -567,7 +1302,6 @@ export default function TournamentsTab() {
             className="p-4 bg-gradient-to-r from-brand-gold/10 via-brand-gold/5 to-brand-gold/10 dark:from-brand-gold/20 dark:via-brand-gold/10 dark:to-brand-gold/20 border border-brand-gold/30 cursor-pointer active:scale-[0.98] transition-transform overflow-hidden relative"
             onClick={() => setShowUpgrade(true)}
           >
-            {/* Shimmer effect */}
             <motion.div
               className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/10 to-transparent"
               animate={{ x: ['-100%', '200%'] }}
@@ -592,163 +1326,190 @@ export default function TournamentsTab() {
         </motion.div>
       )}
 
-      {/* Status Tabs */}
+      {/* ─── Status Tabs (Enhanced) ─────────────────────────────────── */}
       <div className="flex gap-1 bg-warm-100 dark:bg-warm-800 p-1 rounded-xl">
-        {(['ongoing', 'upcoming', 'past'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all duration-200 relative ${
-              statusFilter === s
-                ? 'bg-white dark:bg-warm-700 text-brand-red shadow-sm'
-                : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
-            }`}
-          >
-            {s}
-            {statusFilter === s && (
-              <motion.div
-                className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-brand-red rounded-full"
-                layoutId="statusIndicator"
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              />
-            )}
-          </button>
-        ))}
+        {(['ongoing', 'upcoming', 'past'] as const).map((s) => {
+          const count = statusCounts[s];
+          const tabConfig = {
+            ongoing: { icon: <Radio className="w-3 h-3" />, activeColor: 'text-emerald-600 dark:text-emerald-400' },
+            upcoming: { icon: <CalendarDays className="w-3 h-3" />, activeColor: 'text-amber-600 dark:text-amber-400' },
+            past: { icon: <Award className="w-3 h-3" />, activeColor: 'text-warm-600 dark:text-warm-300' },
+          }[s];
+          const isActive = statusFilter === s;
+          return (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold capitalize transition-all duration-200 relative flex items-center justify-center gap-1.5 ${
+                isActive
+                  ? `bg-white dark:bg-warm-700 shadow-sm ${tabConfig.activeColor}`
+                  : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
+              }`}
+            >
+              {tabConfig.icon}
+              <span>{s}</span>
+              {count > 0 && (
+                <span className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center ${
+                  isActive
+                    ? 'bg-brand-red/10 text-brand-red'
+                    : 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+                }`}>
+                  {count}
+                </span>
+              )}
+              {isActive && (
+                <motion.div
+                  className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-brand-red rounded-full"
+                  layoutId="statusIndicator"
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Gender Filter */}
+      {/* ─── Gender Filter (Enhanced) ───────────────────────────────── */}
       <div className="flex gap-2">
         {[
-          { id: 'all' as const, label: 'All' },
-          { id: 'male' as const, label: '♂ Boys' },
-          { id: 'female' as const, label: '♀ Girls' },
+          { id: 'all' as const, label: 'All', icon: <Users className="w-3 h-3" /> },
+          { id: 'male' as const, label: '♂ Boys', icon: <span className="text-xs">♂</span> },
+          { id: 'female' as const, label: '♀ Girls', icon: <span className="text-xs">♀</span> },
         ].map((f) => (
           <button
             key={f.id}
             onClick={() => setGenderFilter(f.id)}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
               genderFilter === f.id
-                ? 'bg-warm-800 dark:bg-warm-200 text-white dark:text-warm-800'
+                ? f.id === 'male'
+                  ? 'bg-brand-red/10 text-brand-red ring-1 ring-brand-red/30'
+                  : f.id === 'female'
+                    ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400 ring-1 ring-pink-500/30'
+                    : 'bg-warm-800 dark:bg-warm-200 text-white dark:text-warm-800'
                 : 'bg-warm-100 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
             }`}
           >
+            {f.icon}
             {f.label}
           </button>
         ))}
       </div>
 
-      {/* Tournament Cards */}
+      {/* ─── Tournament Cards ────────────────────────────────────────── */}
       {loading ? (
         <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <div key={i} className="h-36 bg-warm-100 dark:bg-warm-800 rounded-2xl animate-pulse" />
+          {[1, 2, 3].map((i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <SkeletonCard />
+            </motion.div>
           ))}
         </div>
       ) : filteredTournaments.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Card className="p-8 text-center border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50">
-            <div className="text-5xl mb-3">{getEmptyContent().icon}</div>
-            <p className="text-warm-700 dark:text-warm-200 text-base font-bold">{getEmptyContent().title}</p>
-            <p className="text-warm-400 dark:text-warm-500 text-sm mt-1">{getEmptyContent().description}</p>
-            {getEmptyContent().cta && (
-              <Button
-                onClick={handleCreateClick}
-                className="mt-4 bg-gradient-to-r from-brand-red to-brand-red-light text-white rounded-xl font-bold"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                {getEmptyContent().cta}
-              </Button>
-            )}
-          </Card>
-        </motion.div>
+        <EmptyState content={getEmptyContent()} onCta={handleCreateClick} />
       ) : (
         <div className="space-y-3">
           {filteredTournaments.map((tournament, i) => {
             const typeBadge = getTypeBadge(tournament.type);
             const teamCount = tournament.teams.length;
+            const statusGradient = getStatusGradient(tournament.status);
+            const completedMatches = tournament.teams.reduce((sum, t) => sum + t.won + t.lost + t.drawn, 0) / 2;
+            const isExpanded = expandedId === tournament.id;
+
             return (
               <motion.div
                 key={tournament.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
+                initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: i * 0.07, duration: 0.35, ease: 'easeOut' }}
+                layout
               >
-                <Card className="overflow-hidden border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50">
-                  {/* Gradient Accent Bar */}
-                  <div className={`h-1 ${
-                    tournament.gender === 'male'
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-400'
-                      : 'bg-gradient-to-r from-red-500 to-red-400'
-                  }`} />
+                <Card className="overflow-hidden border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 relative group">
+                  <ShimmerOverlay />
+
+                  {/* Gradient Left Border */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${statusGradient}`} />
 
                   <div
-                    className="p-4 cursor-pointer"
-                    onClick={() => setExpandedId(expandedId === tournament.id ? null : tournament.id)}
+                    className="p-4 pl-5 cursor-pointer"
+                    onClick={() => setExpandedId(isExpanded ? null : tournament.id)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
+                        {/* Title Row with Status */}
                         <div className="flex items-center gap-2">
+                          <StatusIndicator status={tournament.status} />
                           <h3 className="font-bold text-warm-800 dark:text-warm-100 text-sm truncate">
                             {tournament.name}
                           </h3>
-                          {/* Tournament Type Badge */}
-                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-bold capitalize ${typeBadge.bg} ${typeBadge.text} shrink-0`}>
+                        </div>
+
+                        {/* Tournament Code Badge + Type Badge Row */}
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          {/* Format Type Badge */}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold capitalize ${typeBadge.bg} ${typeBadge.text} border ${typeBadge.border}`}>
                             {typeBadge.icon}
                             {tournament.type}
                           </span>
+
+                          {/* Tournament Code */}
+                          {tournament.tournamentCode && (
+                            <div
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-teal/10 dark:bg-brand-teal/20 cursor-pointer hover:bg-brand-teal/20 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(tournament.tournamentCode!);
+                              }}
+                            >
+                              <Hash className="w-3 h-3 text-brand-teal" />
+                              <span className="text-[10px] font-mono font-bold text-brand-teal">
+                                {tournament.tournamentCode}
+                              </span>
+                              {copiedCode === tournament.tournamentCode ? (
+                                <Check className="w-3 h-3 text-brand-green" />
+                              ) : (
+                                <Copy className="w-3 h-3 text-brand-teal/60" />
+                              )}
+                            </div>
+                          )}
                         </div>
-                        {/* Tournament Code Badge */}
-                        {tournament.tournamentCode && (
-                          <div
-                            className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-brand-teal/10 dark:bg-brand-teal/20 cursor-pointer hover:bg-brand-teal/20 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyToClipboard(tournament.tournamentCode!);
-                            }}
-                          >
-                            <Hash className="w-3 h-3 text-brand-teal" />
-                            <span className="text-[10px] font-mono font-bold text-brand-teal">
-                              {tournament.tournamentCode}
-                            </span>
-                            {copiedCode === tournament.tournamentCode ? (
-                              <Check className="w-3 h-3 text-brand-green" />
-                            ) : (
-                              <Copy className="w-3 h-3 text-brand-teal/60" />
-                            )}
-                          </div>
-                        )}
+
+                        {/* Venue & Date */}
                         <div className="flex items-center gap-1 mt-1.5 text-xs text-warm-500 dark:text-warm-400">
-                          <MapPin className="w-3 h-3" />
+                          <MapPin className="w-3 h-3 shrink-0" />
                           <span className="truncate">{tournament.venue}</span>
                         </div>
                         <div className="flex items-center gap-1 mt-0.5 text-xs text-warm-500 dark:text-warm-400">
-                          <Calendar className="w-3 h-3" />
+                          <Calendar className="w-3 h-3 shrink-0" />
                           <span>{formatDate(tournament.startDate)}</span>
                         </div>
                       </div>
+
                       <div className="flex flex-col items-end gap-1.5 ml-3">
+                        {/* Gender Badge */}
                         <Badge
                           variant="secondary"
                           className={`text-[10px] font-bold ${
                             tournament.gender === 'male'
-                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                              : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                              ? 'bg-brand-red/10 text-brand-red'
+                              : 'bg-pink-500/10 text-pink-600 dark:text-pink-400'
                           }`}
                         >
                           {tournament.gender === 'male' ? '♂ Boys' : '♀ Girls'}
                         </Badge>
-                        {/* Team & Match Count */}
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-md">
+                        {/* Team Count Badge with Icon */}
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-md">
                             <Users className="w-3 h-3" />
                             <span className="font-bold">{teamCount}</span>
                           </div>
                           {tournament.matchCount > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-md">
-                              <Timer className="w-3 h-3" />
+                            <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-md">
+                              <Swords className="w-3 h-3" />
                               <span className="font-bold">{tournament.matchCount}</span>
                             </div>
                           )}
@@ -756,8 +1517,8 @@ export default function TournamentsTab() {
                       </div>
                     </div>
 
-                    {/* Team Avatars Row + Progress */}
-                    <div className="flex items-center justify-between mt-3">
+                    {/* Team Avatars Row + Match Progress */}
+                    <div className="flex items-center justify-between mt-3 gap-3">
                       <div className="flex -space-x-1.5">
                         {tournament.teams.slice(0, 5).map((team) => (
                           <div
@@ -774,30 +1535,45 @@ export default function TournamentsTab() {
                           </div>
                         )}
                       </div>
-                      {/* Progress indicator for ongoing tournaments */}
-                      {tournament.status === 'ongoing' && tournament.matchCount > 0 && (
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-16 h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-brand-green rounded-full" style={{ width: '45%' }} />
-                          </div>
-                          <span className="text-[9px] text-brand-green font-bold">Live</span>
+
+                      {/* Match progress bar for ongoing tournaments */}
+                      {tournament.status === 'ongoing' && tournament.matchCount > 0 ? (
+                        <div className="flex items-center gap-2 flex-1 max-w-[160px]">
+                          <MatchProgressBar
+                            completed={Math.round(completedMatches)}
+                            total={tournament.matchCount}
+                          />
                         </div>
-                      )}
-                      {expandedId === tournament.id ? (
-                        <ChevronUp className="w-4 h-4 text-warm-400" />
-                      ) : (
+                      ) : tournament.status === 'upcoming' ? (
+                        <div className="flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-amber-500" />
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">Upcoming</span>
+                        </div>
+                      ) : tournament.status === 'past' ? (
+                        <div className="flex items-center gap-1">
+                          <Trophy className="w-3 h-3 text-brand-gold" />
+                          <span className="text-[10px] text-brand-gold font-bold">Completed</span>
+                        </div>
+                      ) : null}
+
+                      {/* Expand/Collapse Icon */}
+                      <motion.div
+                        animate={{ rotate: isExpanded ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
                         <ChevronDown className="w-4 h-4 text-warm-400" />
-                      )}
+                      </motion.div>
                     </div>
                   </div>
 
+                  {/* ─── Expanded Detail View ──────────────────────────── */}
                   <AnimatePresence>
-                    {expandedId === tournament.id && (
+                    {isExpanded && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
                         className="overflow-hidden"
                       >
                         <div className="border-t border-warm-200 dark:border-warm-700 p-4 bg-warm-50 dark:bg-warm-800/30 space-y-4">
@@ -823,11 +1599,18 @@ export default function TournamentsTab() {
                             </div>
                           )}
 
+                          {/* ─── Bracket View for Knockout Tournaments ──── */}
+                          {tournament.type === 'knockout' && (
+                            <BracketView tournament={tournament} />
+                          )}
+
                           {/* Teams List */}
                           <div>
                             <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">Teams ({tournament.teams.length})</h4>
-                              {/* Add Team Button */}
+                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Users className="w-3 h-3" />
+                                Teams ({tournament.teams.length})
+                              </h4>
                               <Button
                                 onClick={() => openAddTeamDialog(tournament.id)}
                                 variant="outline"
@@ -838,7 +1621,7 @@ export default function TournamentsTab() {
                                 Add Team
                               </Button>
                             </div>
-                            <div className="space-y-1.5">
+                            <div className="space-y-1.5 max-h-64 overflow-y-auto">
                               {tournament.teams.map((team) => (
                                 <div key={team.id} className="flex items-center gap-2.5 text-sm text-warm-700 dark:text-warm-300 group bg-white dark:bg-warm-800/50 rounded-lg px-3 py-2 border border-warm-100 dark:border-warm-700/50">
                                   <div
@@ -858,7 +1641,6 @@ export default function TournamentsTab() {
                                       P{team.played} W{team.won} Pts{team.points}
                                     </span>
                                   )}
-                                  {/* Remove team button */}
                                   {(tournament.status === 'upcoming' || tournament.status === 'ongoing') && (
                                     <button
                                       onClick={() => setRemoveTeamId(team.id)}
@@ -883,7 +1665,10 @@ export default function TournamentsTab() {
                           {/* Standings Table */}
                           {tournament.teams.length > 0 && (
                             <div>
-                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-2">Standings</h4>
+                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <TrendingUp className="w-3 h-3" />
+                                Standings
+                              </h4>
                               <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 overflow-hidden">
                                 <div className="grid grid-cols-8 gap-1 text-[10px] text-warm-400 dark:text-warm-500 font-bold uppercase tracking-wider px-3 py-2 bg-warm-50 dark:bg-warm-800 border-b border-warm-100 dark:border-warm-700/50">
                                   <span className="col-span-3">Team</span>
@@ -893,20 +1678,22 @@ export default function TournamentsTab() {
                                   <span className="text-center">SD</span>
                                   <span className="text-center">Pts</span>
                                 </div>
-                                {[...tournament.teams].sort((a, b) => b.points - a.points).map((team, idx) => (
-                                  <div key={team.id} className={`grid grid-cols-8 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2 text-xs ${idx > 0 ? 'border-t border-warm-50 dark:border-warm-700/30' : ''}`}>
-                                    <span className="col-span-3 flex items-center gap-1.5 truncate">
-                                      <span className="text-[9px] text-warm-400 dark:text-warm-500 font-bold w-3">{idx + 1}</span>
-                                      <div className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: team.color }} />
-                                      <span className="truncate font-medium">{team.name}</span>
-                                    </span>
-                                    <span className="text-center">{team.played}</span>
-                                    <span className="text-center font-medium text-brand-green">{team.won}</span>
-                                    <span className="text-center">{team.lost}</span>
-                                    <span className="text-center">{team.scoreDiff > 0 ? '+' : ''}{team.scoreDiff}</span>
-                                    <span className="text-center font-bold text-brand-red">{team.points}</span>
-                                  </div>
-                                ))}
+                                <div className="max-h-48 overflow-y-auto">
+                                  {[...tournament.teams].sort((a, b) => b.points - a.points).map((team, idx) => (
+                                    <div key={team.id} className={`grid grid-cols-8 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2 text-xs ${idx > 0 ? 'border-t border-warm-50 dark:border-warm-700/30' : ''}`}>
+                                      <span className="col-span-3 flex items-center gap-1.5 truncate">
+                                        <span className="text-[9px] text-warm-400 dark:text-warm-500 font-bold w-3">{idx + 1}</span>
+                                        <div className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: team.color }} />
+                                        <span className="truncate font-medium">{team.name}</span>
+                                      </span>
+                                      <span className="text-center">{team.played}</span>
+                                      <span className="text-center font-medium text-brand-green">{team.won}</span>
+                                      <span className="text-center">{team.lost}</span>
+                                      <span className="text-center">{team.scoreDiff > 0 ? '+' : ''}{team.scoreDiff}</span>
+                                      <span className="text-center font-bold text-brand-red">{team.points}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           )}
@@ -921,7 +1708,7 @@ export default function TournamentsTab() {
                               {generatingBracket ? (
                                 <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
                               ) : (
-                                <><Swords className="w-3 h-3 mr-1" /> Generate Bracket & Start</>
+                                <><Swords className="w-3 h-3 mr-1" /> Generate Bracket &amp; Start</>
                               )}
                             </Button>
                           )}
@@ -941,7 +1728,7 @@ export default function TournamentsTab() {
         </div>
       )}
 
-      {/* Add Team Dialog */}
+      {/* ─── Add Team Dialog ──────────────────────────────────────────── */}
       <Dialog open={!!addTeamDialogOpen} onOpenChange={(open) => { if (!open) setAddTeamDialogOpen(null); }}>
         <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700 max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
@@ -958,7 +1745,6 @@ export default function TournamentsTab() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2 flex-1 overflow-hidden flex flex-col" ref={teamInputRef}>
-            {/* Search Input */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
               <Input
@@ -978,7 +1764,6 @@ export default function TournamentsTab() {
               )}
             </div>
 
-            {/* Search Results */}
             <div className="flex-1 overflow-y-auto min-h-0">
               {isSearchingTeams && (
                 <div className="px-3 py-2 flex items-center gap-2">
@@ -987,7 +1772,6 @@ export default function TournamentsTab() {
                 </div>
               )}
 
-              {/* Already in tournament teams */}
               {(() => {
                 const currentTournament = tournaments.find(t => t.id === addTeamDialogOpen);
                 const existingTeamIds = new Set(currentTournament?.teams.map(t => t.id) || []);
@@ -1063,7 +1847,6 @@ export default function TournamentsTab() {
               })()}
             </div>
 
-            {/* Selected Teams Chips */}
             {selectedTeamIds.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-2 border-t border-warm-200 dark:border-warm-700">
                 {selectedTeamIds.map(teamId => {
@@ -1086,7 +1869,6 @@ export default function TournamentsTab() {
               </div>
             )}
 
-            {/* Add Button */}
             <Button
               onClick={handleAddTeams}
               disabled={selectedTeamIds.length === 0 || addingTeams}
@@ -1102,7 +1884,7 @@ export default function TournamentsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Remove Team Confirmation */}
+      {/* ─── Remove Team Confirmation ─────────────────────────────────── */}
       <Dialog open={!!removeTeamId} onOpenChange={(open) => { if (!open) setRemoveTeamId(null); }}>
         <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700">
           <DialogHeader>

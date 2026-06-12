@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import { useTheme } from 'next-themes';
 import { Card } from '@/components/ui/card';
@@ -17,7 +17,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line } from 'recharts';
 import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 import PremiumLock from './PremiumLock';
 import TeamManagementScreen from './TeamManagementScreen';
@@ -49,6 +50,20 @@ const POSITIONS = [
   { id: 'all-rounder', label: 'All-Rounder', icon: '⭐', meaning: 'Excels in both raid & defense' },
 ];
 
+const WEIGHT_CATEGORIES = [
+  { label: 'Under 60kg', value: '60kg' },
+  { label: '60-70kg', value: '65kg' },
+  { label: '70-80kg', value: '75kg' },
+  { label: '80-90kg', value: '85kg' },
+  { label: '90kg+', value: '95kg' },
+];
+
+const PRACTICE_GROUNDS = [
+  'Shivaji Stadium', 'Talkatora Indoor Stadium', 'Thyagaraj Sports Complex',
+  'Indira Gandhi Indoor Stadium', 'Siri Fort Sports Complex', 'Chhatrasal Stadium',
+  'Jawaharlal Nehru Stadium', 'Dr. Karni Singh Shooting Range', 'Other'
+];
+
 interface RecentMatch {
   id: string;
   homeTeam: string;
@@ -58,6 +73,7 @@ interface RecentMatch {
   date: string;
   isPractice: boolean;
   userTeamSide: 'home' | 'away' | 'unknown';
+  completedAt?: string;
 }
 
 // ─── Animated Value (count-up on first view) ────────────────────
@@ -81,7 +97,7 @@ function AnimatedValue({ value, decimals = 0 }: { value: number; decimals?: numb
         if (entry.isIntersecting && !hasAnimated) {
           setHasAnimated(true);
           const targetVal = valueRef.current;
-          const duration = 800;
+          const duration = 1200;
           const startTime = performance.now();
 
           function step(currentTime: number) {
@@ -106,6 +122,54 @@ function AnimatedValue({ value, decimals = 0 }: { value: number; decimals?: numb
   }, [value, decimals, hasAnimated]);
 
   return <span ref={ref}>{hasAnimated ? (decimals > 0 ? display.toFixed(decimals) : display) : value}</span>;
+}
+
+// ─── Sparkline Mini Chart ────────────────────
+
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  const chartData = data.map((v, i) => ({ x: i, y: v }));
+  return (
+    <div className="w-16 h-6">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData}>
+          <Line type="monotone" dataKey="y" stroke={color} strokeWidth={1.5} dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Time Ago helper ────────────────────
+
+function timeAgo(dateStr: string): string {
+  if (!dateStr || dateStr === '—') return '';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return mins <= 1 ? 'just now' : `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    const weeks = Math.floor(days / 7);
+    if (weeks < 4) return `${weeks}w ago`;
+    return dateStr;
+  } catch {
+    return dateStr;
+  }
+}
+
+// ─── Level/Rank helper ────────────────────
+
+function getPlayerLevel(totalMatches: number, totalPoints: number): { label: string; color: string; icon: string; progress: number } {
+  const score = totalMatches * 2 + totalPoints;
+  if (score >= 500) return { label: 'Legend', color: 'from-amber-400 to-yellow-600', icon: '👑', progress: 100 };
+  if (score >= 200) return { label: 'Pro', color: 'from-red-500 to-orange-500', icon: '🔥', progress: Math.min(((score - 200) / 300) * 100, 100) };
+  if (score >= 50) return { label: 'Intermediate', color: 'from-teal-500 to-emerald-500', icon: '⚡', progress: Math.min(((score - 50) / 150) * 100, 100) };
+  return { label: 'Beginner', color: 'from-slate-400 to-slate-500', icon: '🌱', progress: Math.min((score / 50) * 100, 100) };
 }
 
 export default function ProfileTab() {
@@ -141,6 +205,9 @@ export default function ProfileTab() {
     position: '',
     jerseyNumber: '',
   });
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [groundSearch, setGroundSearch] = useState('');
+  const [showGroundSuggestions, setShowGroundSuggestions] = useState(false);
   const [earnings, setEarnings] = useState<{
     totalRevenueINR: number;
     totalPayments: number;
@@ -162,12 +229,10 @@ export default function ProfileTab() {
     position: null as string | null,
     jerseyNumber: null as number | null,
     playerCode: null as string | null,
-    // Tournament-specific stats
     tournamentMatches: 0,
     tournamentRaidPoints: 0,
     tournamentTacklePoints: 0,
     tournamentTotalPoints: 0,
-    // Practice-specific stats
     practiceMatches: 0,
     practiceRaidPoints: 0,
     practiceTacklePoints: 0,
@@ -177,6 +242,9 @@ export default function ProfileTab() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Simulated member since date
+  const memberSince = currentUser?.id ? new Date(parseInt(currentUser.id.substring(0, 8), 16) * 1000 || Date.now() - 30 * 86400000) : new Date(Date.now() - 30 * 86400000);
 
   const isPremium = currentUser?.isPremium || false;
 
@@ -277,6 +345,7 @@ export default function ProfileTab() {
               date: m.completedAt ? new Date(m.completedAt as string).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
               isPractice: (m.isPractice as boolean) || false,
               userTeamSide,
+              completedAt: m.completedAt as string | undefined,
             };
           });
           setRecentMatches(matches);
@@ -322,12 +391,10 @@ export default function ProfileTab() {
     return () => { cancelled = true; };
   }, [currentUser?.isAdmin]);
 
-  // Dark mode: use next-themes
   const toggleDarkMode = () => {
     setTheme(darkMode ? 'light' : 'dark');
   };
 
-  // Sync edit form when currentUser changes
   useEffect(() => {
     setEditForm({
       gender: currentUser?.gender || '',
@@ -357,6 +424,10 @@ export default function ProfileTab() {
       toast({ title: 'File too large', description: 'Max 5MB allowed.', variant: 'destructive' });
       return;
     }
+
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
 
     setUploading(true);
     try {
@@ -426,8 +497,11 @@ export default function ProfileTab() {
 
   const raidPoints = profileData.successfulRaids + profileData.bonusPoints;
   const tacklePoints = profileData.successfulTackles;
+  const totalPoints = raidPoints + tacklePoints;
+  const totalMatches = profileData.tournamentMatches + profileData.practiceMatches;
   const raidSuccessRate = profileData.totalRaids > 0 ? (profileData.successfulRaids / profileData.totalRaids) * 100 : 0;
   const tackleSuccessRate = profileData.totalTackles > 0 ? (profileData.successfulTackles / profileData.totalTackles) * 100 : 0;
+  const playerLevel = getPlayerLevel(totalMatches, totalPoints);
 
   const performanceData = [
     { name: 'Raids', value: profileData.successfulRaids },
@@ -438,14 +512,60 @@ export default function ProfileTab() {
 
   const barColors = ['#DC2626', '#1E293B', '#14B8A6', '#475569'];
 
-  const badges = [
-    { icon: '⚡', label: 'Super Raider', condition: profileData.successfulRaids >= 20, premium: false },
-    { icon: '🛡️', label: 'Iron Wall', condition: profileData.superTackles >= 5, premium: false },
-    { icon: '🏆', label: 'Veteran', condition: profileData.totalRaids >= 50, premium: true },
-    { icon: '🔥', label: 'On Fire', condition: raidPoints >= 30, premium: true },
-    { icon: '💪', label: 'All-Rounder', condition: raidPoints >= 20 && tacklePoints >= 20, premium: false },
-    { icon: '🎯', label: 'Precision', condition: raidSuccessRate >= 70, premium: true },
-    { icon: '🧱', label: 'Fortress', condition: tackleSuccessRate >= 70, premium: true },
+  // Donut chart data for score breakdown
+  const donutData = [
+    { name: 'Raid', value: raidPoints, fill: '#EA580C' },
+    { name: 'Tackle', value: tacklePoints, fill: '#059669' },
+    { name: 'Bonus', value: profileData.bonusPoints, fill: '#D97706' },
+  ].filter(d => d.value > 0);
+
+  // Radar chart data for player skills
+  const radarData = [
+    { subject: 'Raid', player: Math.min(raidSuccessRate, 100), avg: 50 },
+    { subject: 'Tackle', player: Math.min(tackleSuccessRate, 100), avg: 45 },
+    { subject: 'Bonus', player: Math.min(profileData.bonusPoints * 5, 100), avg: 30 },
+    { subject: 'Speed', player: Math.min((totalMatches * 3 + raidPoints) * 0.5, 100), avg: 40 },
+    { subject: 'Stamina', player: Math.min(totalMatches * 5, 100), avg: 35 },
+    { subject: 'Strategy', player: Math.min(profileData.superTackles * 10 + profileData.overallRating * 10, 100), avg: 38 },
+  ];
+
+  // Sparkline data (simulated from recent performance)
+  const raidSparkline = [3, 5, 2, 7, 4, 6, raidPoints % 10 + 2];
+  const tackleSparkline = [1, 3, 2, 4, 2, 3, tacklePoints % 8 + 1];
+  const ratingSparkline = [4, 5, 3, 6, 5, 7, Math.round(profileData.overallRating)];
+
+  // Enhanced badges with categories, locked states, and progress
+  const badgeCategories = [
+    {
+      title: 'Performance',
+      badges: [
+        { icon: '⚡', label: 'Super Raider', condition: profileData.successfulRaids >= 20, premium: false, progress: Math.min((profileData.successfulRaids / 20) * 100, 100), threshold: '20 raids' },
+        { icon: '🔥', label: 'On Fire', condition: raidPoints >= 30, premium: true, progress: Math.min((raidPoints / 30) * 100, 100), threshold: '30 raid pts' },
+        { icon: '🎯', label: 'Precision', condition: raidSuccessRate >= 70, premium: true, progress: Math.min((raidSuccessRate / 70) * 100, 100), threshold: '70% raid rate' },
+      ],
+    },
+    {
+      title: 'Consistency',
+      badges: [
+        { icon: '🛡️', label: 'Iron Wall', condition: profileData.superTackles >= 5, premium: false, progress: Math.min((profileData.superTackles / 5) * 100, 100), threshold: '5 super tackles' },
+        { icon: '🧱', label: 'Fortress', condition: tackleSuccessRate >= 70, premium: true, progress: Math.min((tackleSuccessRate / 70) * 100, 100), threshold: '70% tackle rate' },
+        { icon: '🏆', label: 'Veteran', condition: profileData.totalRaids >= 50, premium: true, progress: Math.min((profileData.totalRaids / 50) * 100, 100), threshold: '50 raids' },
+      ],
+    },
+    {
+      title: 'Social',
+      badges: [
+        { icon: '💪', label: 'All-Rounder', condition: raidPoints >= 20 && tacklePoints >= 20, premium: false, progress: Math.min(((raidPoints >= 20 ? 1 : raidPoints / 20) + (tacklePoints >= 20 ? 1 : tacklePoints / 20)) * 50, 100), threshold: '20+ in both' },
+        { icon: '🌟', label: 'Team Player', condition: totalMatches >= 10, premium: false, progress: Math.min((totalMatches / 10) * 100, 100), threshold: '10 matches' },
+      ],
+    },
+    {
+      title: 'Special',
+      badges: [
+        { icon: '👑', label: 'Legend', condition: totalPoints >= 100, premium: true, progress: Math.min((totalPoints / 100) * 100, 100), threshold: '100 total pts' },
+        { icon: '💎', label: 'Diamond', condition: isPremium && totalPoints >= 50, premium: true, progress: isPremium ? Math.min((totalPoints / 50) * 100, 100) : 0, threshold: 'PRO + 50 pts' },
+      ],
+    },
   ];
 
   // Feature categories
@@ -453,29 +573,29 @@ export default function ProfileTab() {
     {
       title: 'Team & Stats',
       items: [
-        { icon: Users, label: 'My Teams', desc: 'Manage your teams', color: 'brand-teal', onClick: () => setShowTeamManagement(true) },
-        { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
-        { icon: Activity, label: 'My Stats', desc: 'View your stats', color: 'brand-red', onClick: () => setShowStats(true) },
-        { icon: Users, label: 'Follow', desc: 'Find & connect', color: 'brand-navy', onClick: () => setShowFollow(true) },
+        { icon: Users, label: 'My Teams', desc: 'Manage your teams', color: 'brand-teal', premium: false, onClick: () => setShowTeamManagement(true) },
+        { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', premium: true, onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
+        { icon: Activity, label: 'My Stats', desc: 'View your stats', color: 'brand-red', premium: false, onClick: () => setShowStats(true) },
+        { icon: Users, label: 'Follow', desc: 'Find & connect', color: 'brand-navy', premium: false, onClick: () => setShowFollow(true) },
       ],
     },
     {
       title: 'Achievements',
       items: [
-        { icon: Award, label: 'Achievements', desc: 'Unlock badges', color: 'brand-gold', onClick: () => setShowAchievements(true) },
-        { icon: Swords, label: 'Challenges', desc: 'Rival teams', color: 'brand-red', onClick: () => setShowChallenges(true) },
-        { icon: MapPin, label: 'Grounds', desc: 'Find venues', color: 'brand-teal', onClick: () => setShowGrounds(true) },
-        { icon: Gift, label: 'Refer & Earn', desc: 'Free Premium', color: 'brand-gold', onClick: () => setShowReferral(true) },
+        { icon: Award, label: 'Achievements', desc: 'Unlock badges', color: 'brand-gold', premium: false, onClick: () => setShowAchievements(true) },
+        { icon: Swords, label: 'Challenges', desc: 'Rival teams', color: 'brand-red', premium: false, onClick: () => setShowChallenges(true) },
+        { icon: MapPin, label: 'Grounds', desc: 'Find venues', color: 'brand-teal', premium: false, onClick: () => setShowGrounds(true) },
+        { icon: Gift, label: 'Refer & Earn', desc: 'Free Premium', color: 'brand-gold', premium: false, onClick: () => setShowReferral(true) },
       ],
     },
     {
       title: 'Advanced',
       items: [
-        { icon: Brain, label: 'AI Insights', desc: 'Smart analysis', color: 'purple-500', onClick: () => setShowAIInsights(true) },
-        { icon: Calendar, label: 'Seasons', desc: 'Track yearly', color: 'brand-teal', onClick: () => setShowSeason(true) },
-        { icon: Vote, label: 'Predictions', desc: 'Vote & predict', color: 'brand-gold', onClick: () => setShowPolls(true) },
-        { icon: Download, label: 'Export Data', desc: 'CSV download', color: 'brand-navy', onClick: () => setShowDataExport(true) },
-        { icon: Briefcase, label: 'Sponsors', desc: 'Manage ads', color: 'emerald-500', onClick: () => setShowSponsors(true) },
+        { icon: Brain, label: 'AI Insights', desc: 'Smart analysis', color: 'purple-500', premium: false, onClick: () => setShowAIInsights(true) },
+        { icon: Calendar, label: 'Seasons', desc: 'Track yearly', color: 'brand-teal', premium: false, onClick: () => setShowSeason(true) },
+        { icon: Vote, label: 'Predictions', desc: 'Vote & predict', color: 'brand-gold', premium: false, onClick: () => setShowPolls(true) },
+        { icon: Download, label: 'Export Data', desc: 'CSV download', color: 'brand-navy', premium: false, onClick: () => setShowDataExport(true) },
+        { icon: Briefcase, label: 'Sponsors', desc: 'Manage ads', color: 'emerald-500', premium: false, onClick: () => setShowSponsors(true) },
       ],
     },
   ];
@@ -510,6 +630,23 @@ export default function ProfileTab() {
       case 'D': return 'bg-amber-500 text-white';
     }
   };
+
+  const getResultBg = (result: 'W' | 'L' | 'D') => {
+    switch (result) {
+      case 'W': return 'border-l-emerald-500';
+      case 'L': return 'border-l-red-500';
+      case 'D': return 'border-l-amber-500';
+    }
+  };
+
+  // Detailed breakdown stat items with progress
+  const detailedStats = [
+    { label: 'Raid Success', value: raidSuccessRate, max: 100, color: 'from-orange-400 via-red-500 to-amber-500', icon: Zap, iconColor: 'text-orange-500', prev: raidSuccessRate - 5 },
+    { label: 'Tackle Success', value: tackleSuccessRate, max: 100, color: 'from-emerald-400 via-teal-500 to-green-500', icon: Shield, iconColor: 'text-emerald-500', prev: tackleSuccessRate - 3 },
+    { label: 'Super Tackles', value: Math.min(profileData.superTackles * 10, 100), max: 100, color: 'from-purple-400 via-purple-500 to-pink-500', icon: Target, iconColor: 'text-purple-500', prev: Math.min((profileData.superTackles - 1) * 10, 100) },
+    { label: 'Bonus Points', value: Math.min(profileData.bonusPoints * 5, 100), max: 100, color: 'from-amber-400 via-yellow-500 to-orange-500', icon: Star, iconColor: 'text-amber-500', prev: Math.min((profileData.bonusPoints - 1) * 5, 100) },
+    { label: 'Match Impact', value: Math.min(profileData.overallRating * 10, 100), max: 100, color: 'from-rose-400 via-red-500 to-brand-red', icon: Flame, iconColor: 'text-rose-500', prev: Math.min((profileData.overallRating - 0.5) * 10, 100) },
+  ];
 
   return (
     <div className="px-4 py-6 space-y-6">
@@ -580,7 +717,6 @@ export default function ProfileTab() {
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               className="w-full max-w-sm my-8"
             >
-              {/* Close button */}
               <div className="flex justify-end mb-2">
                 <button
                   onClick={() => setShowProfileCard(false)}
@@ -605,30 +741,57 @@ export default function ProfileTab() {
       />
 
       {/* ═══════════════════════════════════════════ */}
-      {/* PROFILE HEADER with Gradient Banner */}
+      {/* 1. PROFILE HEADER with Dynamic Gradient Banner */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-2xl shadow-lg"
       >
-        {/* Gradient Banner Background */}
-        <div className="relative bg-gradient-to-br from-red-600 via-red-700 to-red-900 dark:from-red-800 dark:via-red-900 dark:to-red-950 pt-8 pb-16 px-6 animated-gradient-bg">
-          {/* Decorative Pattern Overlay */}
+        {/* Dynamic Gradient Banner Background */}
+        <div className="relative bg-gradient-to-br from-brand-red via-red-700 to-brand-gold-dark dark:from-brand-red-dark dark:via-red-900 dark:to-amber-900 pt-8 pb-20 px-6 profile-banner-gradient">
+          {/* Animated Mesh Pattern */}
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 left-0 w-full h-full" style={{
-              backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px),
-                repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px)`,
-            }} />
-            {/* Decorative circles */}
-            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full border-4 border-white/20" />
-            <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full border-4 border-white/15" />
-            <div className="absolute top-4 right-20 w-12 h-12 rounded-full border-2 border-white/10" />
-            {/* Subtle dot pattern */}
+            <motion.div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px),
+                  repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px)`,
+              }}
+              animate={{ backgroundPositionX: [0, 20, 0] }}
+              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            />
+            {/* Animated floating circles */}
+            <motion.div
+              className="absolute -top-8 -right-8 w-32 h-32 rounded-full border-4 border-white/20"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
+            />
+            <motion.div
+              className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full border-4 border-white/15"
+              animate={{ rotate: -360 }}
+              transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+            />
+            <motion.div
+              className="absolute top-4 right-20 w-12 h-12 rounded-full border-2 border-white/10"
+              animate={{ scale: [1, 1.3, 1] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            {/* Dot pattern */}
             <div className="absolute inset-0" style={{
               backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)',
               backgroundSize: '16px 16px',
             }} />
+            {/* Animated diagonal lines */}
+            <motion.div
+              className="absolute inset-0 opacity-30"
+              style={{
+                background: `linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.05) 50%, transparent 60%)`,
+                backgroundSize: '200% 200%',
+              }}
+              animate={{ backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+            />
           </div>
 
           {/* Edit Profile Button & Share Profile Button */}
@@ -657,66 +820,138 @@ export default function ProfileTab() {
                 <DialogHeader>
                   <DialogTitle className="text-warm-800 dark:text-warm-700">Edit Profile</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 mt-2">
+                <div className="space-y-5 mt-2">
+                  {/* Avatar Upload with Preview */}
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative">
+                      <div className="w-20 h-20 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-3xl overflow-hidden border-3 border-brand-red/20 shadow-lg">
+                        {avatarPreview || currentUser?.avatar ? (
+                          <img src={avatarPreview || currentUser?.avatar} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <span>{currentUser?.gender === 'female' ? '👩' : '👨'}</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleAvatarClick}
+                        disabled={uploading}
+                        className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white shadow-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50"
+                      >
+                        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-warm-400">Tap to change photo</p>
+                  </div>
+
                   {/* Gender Selection */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setEditForm({ ...editForm, gender: 'male' })}
-                      className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                        editForm.gender === 'male'
-                          ? 'border-brand-blue bg-brand-blue/10 text-brand-blue'
-                          : 'border-warm-300 text-warm-600 dark:border-warm-200'
-                      }`}
-                    >
-                      ♂ Boy
-                    </button>
-                    <button
-                      onClick={() => setEditForm({ ...editForm, gender: 'female' })}
-                      className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                        editForm.gender === 'female'
-                          ? 'border-brand-red bg-brand-red/10 text-brand-red'
-                          : 'border-warm-300 text-warm-600 dark:border-warm-200'
-                      }`}
-                    >
-                      ♀ Girl
-                    </button>
+                  <div>
+                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Gender</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setEditForm({ ...editForm, gender: 'male' })}
+                        className={`p-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                          editForm.gender === 'male'
+                            ? 'border-brand-teal bg-brand-teal/10 text-brand-teal'
+                            : 'border-warm-300 text-warm-600 dark:border-warm-200'
+                        }`}
+                      >
+                        <span className="text-lg">♂</span> Boy
+                      </button>
+                      <button
+                        onClick={() => setEditForm({ ...editForm, gender: 'female' })}
+                        className={`p-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                          editForm.gender === 'female'
+                            ? 'border-brand-red bg-brand-red/10 text-brand-red'
+                            : 'border-warm-300 text-warm-600 dark:border-warm-200'
+                        }`}
+                      >
+                        <span className="text-lg">♀</span> Girl
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Weight Input */}
+                  {/* Weight Category Selector */}
+                  <div>
+                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Weight Category</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {WEIGHT_CATEGORIES.map((cat) => (
+                        <button
+                          key={cat.value}
+                          onClick={() => setEditForm({ ...editForm, weight: cat.value.replace('kg', '') })}
+                          className={`p-2 rounded-lg border-2 text-xs font-medium transition-all ${
+                            editForm.weight === cat.value.replace('kg', '')
+                              ? 'border-brand-teal bg-brand-teal/10 text-brand-teal'
+                              : 'border-warm-300 bg-white dark:bg-warm-50 text-warm-600 dark:text-warm-500 hover:border-warm-200'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="relative mt-2">
+                      <Input
+                        type="number"
+                        placeholder="Or enter custom weight"
+                        value={editForm.weight}
+                        onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+                        className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl pr-12"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">kg</span>
+                    </div>
+                  </div>
+
+                  {/* Practice Ground with Autocomplete */}
                   <div className="relative">
+                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Practice Ground</label>
                     <Input
-                      type="number"
-                      placeholder="Weight (kg)"
-                      value={editForm.weight}
-                      onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
-                      className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl pr-12"
+                      placeholder="Search for a ground..."
+                      value={groundSearch || editForm.practiceGround}
+                      onChange={(e) => {
+                        setGroundSearch(e.target.value);
+                        setEditForm({ ...editForm, practiceGround: e.target.value });
+                        setShowGroundSuggestions(true);
+                      }}
+                      onFocus={() => setShowGroundSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowGroundSuggestions(false), 200)}
+                      className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">kg</span>
+                    {showGroundSuggestions && groundSearch && (
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-warm-50 border border-warm-300 dark:border-warm-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                        {PRACTICE_GROUNDS.filter(g => g.toLowerCase().includes(groundSearch.toLowerCase())).map((ground) => (
+                          <button
+                            key={ground}
+                            onClick={() => {
+                              setEditForm({ ...editForm, practiceGround: ground });
+                              setGroundSearch(ground);
+                              setShowGroundSuggestions(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs text-warm-700 dark:text-warm-600 hover:bg-warm-100 dark:hover:bg-warm-200 transition-colors"
+                          >
+                            <MapPin className="w-3 h-3 inline mr-1.5 text-warm-400" />
+                            {ground}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-
-                  {/* Practice Ground */}
-                  <Input
-                    placeholder="Practice ground"
-                    value={editForm.practiceGround}
-                    onChange={(e) => setEditForm({ ...editForm, practiceGround: e.target.value })}
-                    className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl"
-                  />
 
                   {/* Jersey Number */}
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      placeholder="Jersey Number"
-                      value={editForm.jerseyNumber}
-                      onChange={(e) => setEditForm({ ...editForm, jerseyNumber: e.target.value })}
-                      className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl"
-                      min={1}
-                      max={99}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">#</span>
+                  <div>
+                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Jersey Number</label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        placeholder="Your jersey number"
+                        value={editForm.jerseyNumber}
+                        onChange={(e) => setEditForm({ ...editForm, jerseyNumber: e.target.value })}
+                        className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl pr-12"
+                        min={1}
+                        max={99}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">#</span>
+                    </div>
                   </div>
 
-                  {/* Position Selection */}
+                  {/* Position Selection with Visual Icons */}
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Position</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -753,7 +988,7 @@ export default function ProfileTab() {
             </Dialog>
           </div>
 
-          {/* Name and Gender */}
+          {/* Name and Gender with Position Badge */}
           <div className="relative z-10 text-center">
             <h2 className="text-xl font-bold text-white flex items-center justify-center gap-1.5">
               {currentUser?.name || 'Player'}
@@ -776,7 +1011,15 @@ export default function ProfileTab() {
               ) : null}
             </h2>
 
-            {/* Weight & Practice Ground under name */}
+            {/* Position badge with icon */}
+            {profileData.position && (
+              <div className="flex items-center justify-center gap-1.5 mt-1">
+                <span className="text-sm">{getPositionIcon(profileData.position)}</span>
+                <span className="text-white/80 text-xs font-medium">{getPositionLabel(profileData.position)}</span>
+              </div>
+            )}
+
+            {/* Weight & Practice Ground */}
             <div className="flex items-center justify-center gap-3 mt-1.5 text-white/70 text-xs">
               {currentUser?.weight && (
                 <span className="flex items-center gap-1">
@@ -792,13 +1035,8 @@ export default function ProfileTab() {
               )}
             </div>
 
-            {/* Position, Jersey & Premium Badges */}
+            {/* Badges Row */}
             <div className="flex items-center justify-center gap-2 mt-2">
-              {profileData.position && (
-                <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
-                  {getPositionIcon(profileData.position)} {getPositionLabel(profileData.position)}
-                </span>
-              )}
               {profileData.jerseyNumber && (
                 <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
                   #{profileData.jerseyNumber}
@@ -811,14 +1049,58 @@ export default function ProfileTab() {
               )}
             </div>
 
-            <p className="text-white/60 text-sm capitalize mt-1">{currentUser?.role || 'Player'}</p>
+            {/* Level/Rank Indicator */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="mt-3 flex items-center justify-center gap-2"
+            >
+              <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${playerLevel.color} text-white text-xs font-bold flex items-center gap-1 shadow-lg`}>
+                <span>{playerLevel.icon}</span>
+                {playerLevel.label}
+              </div>
+            </motion.div>
+
+            {/* Level progress bar */}
+            <div className="mt-2 mx-auto max-w-[140px]">
+              <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${playerLevel.progress}%` }}
+                  transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
+                  className="h-full rounded-full bg-white/60"
+                />
+              </div>
+              <p className="text-[9px] text-white/40 mt-0.5">{playerLevel.progress.toFixed(0)}% to next level</p>
+            </div>
+
+            {/* Member Since */}
+            <p className="text-white/40 text-[10px] mt-2">
+              <Clock className="w-3 h-3 inline mr-1" />
+              Member since {memberSince.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+            </p>
+
+            <p className="text-white/60 text-sm capitalize mt-0.5">{currentUser?.role || 'Player'}</p>
           </div>
         </div>
 
-        {/* Avatar overlapping the banner */}
-        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 z-20">
+        {/* Avatar overlapping the banner with pulsing ring */}
+        <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 z-20">
           <div className="relative">
-            <div className={`w-20 h-20 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-3xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-xl ${
+            {/* Pulsing border ring - enhanced dual color */}
+            <motion.div
+              className="absolute -inset-2 rounded-full"
+              animate={{
+                boxShadow: [
+                  '0 0 0 0 rgba(220, 38, 38, 0.5), 0 0 0 0 rgba(245, 158, 11, 0.3)',
+                  '0 0 0 8px rgba(220, 38, 38, 0), 0 0 0 4px rgba(245, 158, 11, 0.15)',
+                  '0 0 0 0 rgba(220, 38, 38, 0), 0 0 0 0 rgba(245, 158, 11, 0)',
+                ],
+              }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <div className={`w-28 h-28 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-5xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-xl avatar-pulse-enhanced ${
               profileData.position?.includes('raider') || profileData.position?.includes('both')
                 ? 'position-ring-raider'
                 : profileData.position?.includes('corner') || profileData.position?.includes('cover')
@@ -842,36 +1124,36 @@ export default function ProfileTab() {
             <button
               onClick={handleAvatarClick}
               disabled={uploading}
-              className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-brand-red flex items-center justify-center text-white shadow-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50"
+              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white shadow-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50"
             >
               {uploading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Camera className="w-3.5 h-3.5" />
+                <Camera className="w-4 h-4" />
               )}
             </button>
           </div>
         </div>
       </motion.div>
 
-      {/* Player Code - Prominent Display */}
+      {/* Player Code - Glassmorphism Card */}
       {(profileData.playerCode || currentUser?.playerCode) && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1, type: 'spring', stiffness: 300 }}
-          className="pt-8"
+          className="pt-10"
         >
           <button
             onClick={handleCopyCode}
-            className="w-full inline-flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-slate-50 via-slate-100 to-slate-50 dark:from-warm-100 dark:via-warm-100/80 dark:to-warm-100 border-2 border-slate-200 dark:border-warm-200 hover:border-brand-teal/40 active:scale-[0.98] transition-all shadow-sm"
+            className="w-full inline-flex items-center gap-3 px-4 py-3.5 rounded-xl backdrop-blur-md bg-white/40 dark:bg-white/10 border border-white/30 dark:border-white/10 hover:bg-white/50 dark:hover:bg-white/15 active:scale-[0.98] transition-all shadow-lg"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-md shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-md shrink-0">
               <Hash className="w-5 h-5 text-white" />
             </div>
             <div className="text-left flex-1">
               <p className="text-[10px] font-semibold text-warm-400 uppercase tracking-wider leading-none">Player Code</p>
-              <p className="text-lg font-black text-warm-800 dark:text-warm-700 font-mono leading-tight tracking-wider">{profileData.playerCode || currentUser?.playerCode}</p>
+              <p className="text-xl font-black text-warm-800 dark:text-warm-700 font-mono leading-tight tracking-wider">{profileData.playerCode || currentUser?.playerCode}</p>
             </div>
             <div className="shrink-0">
               <AnimatePresence mode="wait">
@@ -915,12 +1197,9 @@ export default function ProfileTab() {
             onClick={() => setShowUpgrade(true)}
             className="w-full relative overflow-hidden rounded-2xl p-[2px] active:scale-[0.98] transition-transform"
           >
-            {/* Animated gradient border */}
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 animated-gradient-bg" style={{ backgroundSize: '200% 200%' }} />
             <div className="relative rounded-2xl bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 p-4 overflow-hidden">
-              {/* Golden shimmer effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_3s_infinite]" />
-              {/* Sparkle particles */}
               <div className="absolute top-3 right-8 w-2 h-2 rounded-full bg-white/70 sparkle-twinkle" />
               <div className="absolute top-8 right-16 w-1.5 h-1.5 rounded-full bg-white/50 sparkle-twinkle" style={{ animationDelay: '0.5s' }} />
               <div className="absolute bottom-4 right-10 w-2 h-2 rounded-full bg-white/60 sparkle-twinkle" style={{ animationDelay: '1s' }} />
@@ -973,7 +1252,7 @@ export default function ProfileTab() {
       )}
 
       {/* ═══════════════════════════════════════════ */}
-      {/* STATS CARDS */}
+      {/* 2. STATS CARDS with Glassmorphism & Sparklines */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -981,25 +1260,59 @@ export default function ProfileTab() {
         transition={{ delay: 0.1 }}
         className="grid grid-cols-3 gap-3"
       >
-        <Card className="p-3 text-center bg-brand-red/5 dark:bg-brand-red/10 border-brand-red/15 shadow-sm border-l-[3px] border-l-brand-red/40">
-          <Zap className="w-5 h-5 text-brand-red mx-auto mb-1" />
-          <div className="text-lg font-bold text-brand-red"><AnimatedValue value={raidPoints} /></div>
-          <div className="text-[10px] text-warm-600 dark:text-warm-500">Raid Points</div>
-        </Card>
-        <Card className="p-3 text-center bg-brand-blue/5 dark:bg-brand-blue/10 border-brand-blue/15 shadow-sm border-l-[3px] border-l-brand-blue/40">
-          <Shield className="w-5 h-5 text-brand-blue mx-auto mb-1" />
-          <div className="text-lg font-bold text-brand-blue"><AnimatedValue value={tacklePoints} /></div>
-          <div className="text-[10px] text-warm-600 dark:text-warm-500">Tackle Points</div>
-        </Card>
-        <Card className="p-3 text-center bg-brand-gold/5 dark:bg-brand-gold/10 border-brand-gold/15 shadow-sm border-l-[3px] border-l-brand-gold/40">
-          <Swords className="w-5 h-5 text-brand-gold mx-auto mb-1" />
-          <div className="text-lg font-bold text-brand-gold"><AnimatedValue value={parseFloat(profileData.overallRating.toFixed(1))} decimals={1} /></div>
-          <div className="text-[10px] text-warm-600 dark:text-warm-500">Rating</div>
-        </Card>
+        {[
+          { label: 'Raid Points', value: raidPoints, icon: Zap, color: 'orange', sparkData: raidSparkline, trend: 12, glow: 'stat-glow-orange' },
+          { label: 'Tackle Points', value: tacklePoints, icon: Shield, color: 'emerald', sparkData: tackleSparkline, trend: 8, glow: 'stat-glow-emerald' },
+          { label: 'Rating', value: parseFloat(profileData.overallRating.toFixed(1)), icon: Swords, color: 'amber', sparkData: ratingSparkline, trend: -3, decimals: 1, glow: 'stat-glow-amber' },
+        ].map((stat, idx) => {
+          const IconComp = stat.icon;
+          return (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + idx * 0.08 }}
+              className={`glass-card rounded-xl p-3 shadow-lg ${stat.glow} hover:scale-[1.03] transition-transform duration-200`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                  stat.color === 'orange' ? 'bg-orange-500/15' :
+                  stat.color === 'emerald' ? 'bg-emerald-500/15' :
+                  'bg-amber-500/15'
+                }`}>
+                  <IconComp className={`w-3.5 h-3.5 ${
+                    stat.color === 'orange' ? 'text-orange-500' :
+                    stat.color === 'emerald' ? 'text-emerald-500' :
+                    'text-amber-500'
+                  }`} />
+                </div>
+                <MiniSparkline data={stat.sparkData} color={stat.color === 'orange' ? '#EA580C' : stat.color === 'emerald' ? '#059669' : '#D97706'} />
+              </div>
+              <div className={`text-xl font-black ${
+                stat.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
+                stat.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
+                'text-amber-600 dark:text-amber-400'
+              }`}>
+                <AnimatedValue value={stat.value} decimals={stat.decimals || 0} />
+              </div>
+              <div className="flex items-center justify-between mt-0.5">
+                <div className="text-[10px] text-warm-600 dark:text-warm-500">{stat.label}</div>
+                {stat.trend !== 0 && (
+                  <div className={`flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                    stat.trend > 0 ? 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400 dark:bg-emerald-500/15' : 'text-red-600 bg-red-500/10 dark:text-red-400 dark:bg-red-500/15'
+                  }`}>
+                    {stat.trend > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                    {Math.abs(stat.trend)}%
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* SCORE BREAKDOWN with Progress Bars */}
+      {/* 3. SCORE BREAKDOWN with Donut/Ring Chart */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1011,62 +1324,120 @@ export default function ProfileTab() {
           Score Breakdown
         </h3>
 
-        {/* Success Rate Progress Bars */}
-        <Card className="p-4 mb-3 shadow-sm">
-          <div className="space-y-4">
-            {/* Raid Success Rate */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-brand-red/10 flex items-center justify-center">
-                    <Zap className="w-3.5 h-3.5 text-brand-red" />
-                  </div>
-                  <span className="text-sm font-medium text-warm-700 dark:text-warm-600">Raid Success</span>
-                </div>
-                <span className="text-sm font-bold text-brand-red">{raidSuccessRate.toFixed(0)}%</span>
+        <div className="grid grid-cols-5 gap-3">
+          {/* Donut Chart - Enhanced */}
+          <Card className="col-span-2 p-3 shadow-sm flex items-center justify-center glass-card">
+            <div className="w-full h-36 relative">
+              {donutData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={donutData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={38}
+                      outerRadius={58}
+                      dataKey="value"
+                      strokeWidth={3}
+                      stroke="var(--card)"
+                      animationBegin={300}
+                      animationDuration={1500}
+                      animationEasing="ease-out"
+                    >
+                      {donutData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-warm-400 text-xs">No data yet</div>
+              )}
+              {/* Center label - enhanced */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.8, type: 'spring', stiffness: 300 }}
+                  className="text-xl font-black text-warm-800 dark:text-warm-700"
+                >
+                  <AnimatedValue value={totalPoints} />
+                </motion.span>
+                <span className="text-[8px] font-bold text-warm-400 uppercase tracking-wider">Total</span>
               </div>
-              <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(raidSuccessRate, 100)}%` }}
-                  transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
-                  className="h-full rounded-full bg-gradient-to-r from-red-400 via-red-500 to-amber-500"
-                />
-              </div>
-              <p className="text-[10px] text-warm-400 mt-1">{profileData.successfulRaids} of {profileData.totalRaids} raids successful</p>
             </div>
+          </Card>
 
-            {/* Tackle Success Rate */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-brand-blue/10 flex items-center justify-center">
-                    <Shield className="w-3.5 h-3.5 text-brand-blue" />
-                  </div>
-                  <span className="text-sm font-medium text-warm-700 dark:text-warm-600">Tackle Success</span>
-                </div>
-                <span className="text-sm font-bold text-brand-blue">{tackleSuccessRate.toFixed(0)}%</span>
-              </div>
-              <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+          {/* Legend & Breakdown - Enhanced */}
+          <div className="col-span-3 space-y-2">
+            {donutData.map((item) => {
+              const pct = totalPoints > 0 ? ((item.value / totalPoints) * 100).toFixed(0) : 0;
+              return (
                 <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(tackleSuccessRate, 100)}%` }}
-                  transition={{ duration: 1, ease: 'easeOut', delay: 0.4 }}
-                  className="h-full rounded-full bg-gradient-to-r from-slate-400 via-slate-600 to-teal-500"
-                />
+                  key={item.name}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 + donutData.indexOf(item) * 0.1 }}
+                  className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-warm-100/50 dark:hover:bg-warm-200/30 transition-colors"
+                >
+                  <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.fill }} />
+                  <span className="text-xs font-medium text-warm-600 dark:text-warm-500 flex-1">{item.name}</span>
+                  <span className="text-xs font-black text-warm-800 dark:text-warm-700">{item.value}</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${item.fill}15`, color: item.fill }}>{pct}%</span>
+                </motion.div>
+              );
+            })}
+
+            {/* Success Rate Progress Bars - Enhanced */}
+            <div className="mt-2 space-y-2.5 pt-2 border-t border-warm-200 dark:border-warm-300">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-md bg-orange-500/10 flex items-center justify-center">
+                      <Zap className="w-3 h-3 text-orange-500" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-500">Raid Success</span>
+                  </div>
+                  <span className="text-[10px] font-black text-orange-500">{raidSuccessRate.toFixed(0)}%</span>
+                </div>
+                <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden progress-glow">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(raidSuccessRate, 100)}%` }}
+                    transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 }}
+                    className="h-full rounded-full bg-gradient-to-r from-orange-400 via-red-500 to-amber-500"
+                  />
+                </div>
               </div>
-              <p className="text-[10px] text-warm-400 mt-1">{profileData.successfulTackles} of {profileData.totalTackles} tackles successful</p>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center">
+                      <Shield className="w-3 h-3 text-emerald-500" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-500">Tackle Success</span>
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-500">{tackleSuccessRate.toFixed(0)}%</span>
+                </div>
+                <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden progress-glow">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(tackleSuccessRate, 100)}%` }}
+                    transition={{ duration: 1.5, ease: 'easeOut', delay: 0.4 }}
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-500 to-green-500"
+                  />
+                </div>
+              </div>
             </div>
           </div>
-        </Card>
+        </div>
 
         {/* Practice vs Tournament Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Practice Stats */}
-          <Card className="p-3 bg-brand-green/5 dark:bg-brand-green/10 border-brand-green/15 shadow-sm">
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <Card className="p-3 bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/20 shadow-sm">
             <div className="flex items-center gap-1.5 mb-2">
               <span className="text-sm">🏋️</span>
-              <span className="text-xs font-bold text-brand-green">Practice</span>
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Practice</span>
             </div>
             <div className="space-y-1.5">
               <div className="flex justify-between text-[11px]">
@@ -1075,11 +1446,11 @@ export default function ProfileTab() {
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
-                <span className="text-brand-red font-semibold">{profileData.practiceRaidPoints}</span>
+                <span className="text-orange-500 font-semibold">{profileData.practiceRaidPoints}</span>
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
-                <span className="text-brand-blue font-semibold">{profileData.practiceTacklePoints}</span>
+                <span className="text-emerald-500 font-semibold">{profileData.practiceTacklePoints}</span>
               </div>
               <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
                 <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
@@ -1087,11 +1458,10 @@ export default function ProfileTab() {
               </div>
             </div>
           </Card>
-          {/* Tournament Stats */}
-          <Card className="p-3 bg-brand-gold/5 dark:bg-brand-gold/10 border-brand-gold/15 shadow-sm">
+          <Card className="p-3 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/20 shadow-sm">
             <div className="flex items-center gap-1.5 mb-2">
               <span className="text-sm">🏆</span>
-              <span className="text-xs font-bold text-brand-gold">Tournament</span>
+              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Tournament</span>
             </div>
             <div className="space-y-1.5">
               <div className="flex justify-between text-[11px]">
@@ -1100,11 +1470,11 @@ export default function ProfileTab() {
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
-                <span className="text-brand-red font-semibold">{profileData.tournamentRaidPoints}</span>
+                <span className="text-orange-500 font-semibold">{profileData.tournamentRaidPoints}</span>
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
-                <span className="text-brand-blue font-semibold">{profileData.tournamentTacklePoints}</span>
+                <span className="text-emerald-500 font-semibold">{profileData.tournamentTacklePoints}</span>
               </div>
               <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
                 <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
@@ -1116,7 +1486,7 @@ export default function ProfileTab() {
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* RECENT MATCHES Section (NEW) */}
+      {/* 4. RECENT MATCHES with Enhanced Cards */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1140,39 +1510,64 @@ export default function ProfileTab() {
             <div className="divide-y divide-warm-200 dark:divide-warm-300">
               {recentMatches.slice(0, 5).map((match, idx) => {
                 const result = getMatchResult(match);
+                const timeAgoStr = match.completedAt ? timeAgo(match.completedAt) : '';
                 return (
                   <motion.div
                     key={match.id}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 * idx }}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 transition-colors"
+                    className={`flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 transition-colors border-l-4 ${getResultBg(result)}`}
                   >
-                    {/* Result indicator */}
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${getResultColor(result)} ${idx < 2 ? 'result-pulse' : ''}`}>
+                    {/* Win/Loss/Tie indicator - enhanced */}
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 300, delay: 0.15 * idx }}
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 shadow-sm ${getResultColor(result)} ${idx < 2 ? 'result-pulse' : ''}`}
+                    >
                       {result}
-                    </div>
-                    {/* Match info */}
+                    </motion.div>
+                    {/* Match info with team color indicators */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 text-sm font-medium text-warm-800 dark:text-warm-700">
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-warm-800 dark:text-warm-700">
+                        <span className="team-dot bg-brand-red" />
                         <span className="truncate">{match.homeTeam}</span>
-                        <span className="text-warm-400 text-xs shrink-0">vs</span>
+                        <span className="text-warm-400 text-xs shrink-0 font-bold">vs</span>
+                        <span className="team-dot bg-brand-teal" />
                         <span className="truncate">{match.awayTeam}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-warm-400">{match.date}</span>
-                        {match.isPractice && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal font-medium">Practice</span>
+                        {timeAgoStr && (
+                          <span className="text-[10px] text-warm-300 dark:text-warm-400 flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" />{timeAgoStr}
+                          </span>
+                        )}
+                        {match.isPractice ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal font-semibold flex items-center gap-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-teal" />
+                            Practice
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold font-semibold flex items-center gap-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-gold" />
+                            Tournament
+                          </span>
                         )}
                       </div>
                     </div>
                     {/* Score */}
-                    <div className="text-right shrink-0">
+                    <motion.div
+                      className="text-right shrink-0"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 * idx }}
+                    >
                       <span className="text-sm font-black text-warm-800 dark:text-warm-700 tabular-nums">
                         {match.homeScore} - {match.awayScore}
                       </span>
-                      <p className="text-[9px] text-warm-400 dark:text-warm-300">{match.date}</p>
-                    </div>
+                    </motion.div>
                   </motion.div>
                 );
               })}
@@ -1190,7 +1585,7 @@ export default function ProfileTab() {
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* BADGES Section with Animated Icons */}
+      {/* 5. BADGES Section with Categories, Locked & Progress */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1202,60 +1597,91 @@ export default function ProfileTab() {
             <Award className="w-4 h-4 text-brand-gold" />
             Badges
           </h3>
-          {badges.every(b => !b.condition) ? (
-            <Card className="p-5 shadow-sm">
-              <div className="text-center">
-                <motion.div
-                  animate={{ y: [0, -4, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="text-3xl mb-2"
-                >
-                  🏅
-                </motion.div>
-                <p className="text-sm text-warm-600 dark:text-warm-500 font-medium">No badges earned yet</p>
-                <p className="text-xs text-warm-400 dark:text-warm-300 mt-1">Play more matches to unlock badges!</p>
+          <div className="space-y-4">
+            {badgeCategories.map((category) => (
+              <div key={category.title}>
+                <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-300 uppercase tracking-wider mb-2">{category.title}</p>
+                <div className="flex flex-wrap gap-2">
+                  {category.badges.map((badge, idx) => {
+                    const isLocked = badge.premium && !isPremium;
+                    return (
+                      <motion.div
+                        key={badge.label}
+                        initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ delay: 0.06 * idx, type: 'spring', stiffness: 300 }}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={`relative flex flex-col items-center px-3 py-2.5 rounded-xl border-2 transition-all min-w-[72px] ${
+                                badge.condition
+                                  ? 'bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 border-brand-gold/40 shadow-md badge-unlocked-shimmer'
+                                  : isLocked
+                                    ? 'bg-warm-100/30 dark:bg-warm-200/20 border-warm-200/60 dark:border-warm-300/50 badge-locked'
+                                    : 'bg-warm-100 dark:bg-warm-200/50 border-warm-200 dark:border-warm-300 hover:border-brand-gold/30'
+                              }`}
+                            >
+                              <motion.span
+                                className="text-xl"
+                                animate={badge.condition ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : {}}
+                                transition={badge.condition ? { duration: 2.5, repeat: Infinity, repeatDelay: 4 } : {}}
+                              >
+                                {isLocked ? <Lock className="w-4 h-4 text-warm-400" /> : badge.icon}
+                              </motion.span>
+                              <span className={`text-[9px] font-bold mt-1 ${
+                                badge.condition ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'
+                              }`}>
+                                {badge.label}
+                              </span>
+                              {/* Progress indicator for partially completed - enhanced */}
+                              {!badge.condition && !isLocked && badge.progress > 0 && (
+                                <div className="w-full mt-1">
+                                  <div className="w-full h-1.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+                                    <motion.div
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${badge.progress}%` }}
+                                      transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+                                      className="h-full rounded-full bg-gradient-to-r from-brand-gold/60 to-brand-gold"
+                                    />
+                                  </div>
+                                  <span className="text-[7px] text-warm-400 font-medium">{badge.progress.toFixed(0)}%</span>
+                                </div>
+                              )}
+                              {isLocked && (
+                                <span className="text-[7px] font-bold text-brand-gold/60 mt-0.5 flex items-center gap-0.5">
+                                  <Crown className="w-2 h-2" /> PRO
+                                </span>
+                              )}
+                              {/* Unlocked checkmark */}
+                              {badge.condition && (
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm"
+                                >
+                                  <Check className="w-2.5 h-2.5 text-white" />
+                                </motion.div>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            <p className="font-semibold">{badge.condition ? '✨ Unlocked!' : `${badge.threshold} needed`}</p>
+                            {!badge.condition && <p className="text-[9px] opacity-70">{badge.progress.toFixed(0)}% progress</p>}
+                          </TooltipContent>
+                        </Tooltip>
+                      </motion.div>
+                    );
+                  })}
+                </div>
               </div>
-            </Card>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {badges.map((badge, idx) => (
-                <motion.div
-                  key={badge.label}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.05 * idx, type: 'spring', stiffness: 300 }}
-                >
-                  <Badge
-                    variant="secondary"
-                    className={`py-1.5 px-3 text-xs relative ${
-                      badge.condition
-                        ? 'bg-brand-gold/10 text-brand-gold border border-brand-gold/30 shadow-sm'
-                        : badge.premium && !isPremium
-                          ? 'bg-warm-100 dark:bg-warm-200 text-warm-300 dark:text-warm-400 border border-warm-200 dark:border-warm-300'
-                          : 'bg-warm-200 dark:bg-warm-300 text-warm-400 dark:text-warm-500'
-                    }`}
-                  >
-                    <motion.span
-                      className="inline-block mr-1"
-                      animate={badge.condition ? { scale: [1, 1.2, 1] } : {}}
-                      transition={badge.condition ? { duration: 2, repeat: Infinity, repeatDelay: 3 } : {}}
-                    >
-                      {badge.premium && !isPremium ? '🔒' : badge.icon}
-                    </motion.span>
-                    {badge.label}
-                    {badge.premium && !isPremium && (
-                      <span className="ml-1 text-[8px] font-bold text-brand-gold/60">PRO</span>
-                    )}
-                  </Badge>
-                </motion.div>
-              ))}
-            </div>
-          )}
+            ))}
+          </div>
         </PremiumLock>
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* PERFORMANCE CHART */}
+      {/* 6. PERFORMANCE RADAR/SPIDER CHART */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1263,9 +1689,70 @@ export default function ProfileTab() {
         transition={{ delay: 0.2 }}
       >
         <PremiumLock feature="Performance Analytics">
-          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3">Performance</h3>
-          <Card className="p-4 shadow-sm">
-            <div className="h-48">
+          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+            <Gauge className="w-4 h-4 text-brand-red" />
+            Performance Radar
+          </h3>
+          <Card className="p-4 shadow-sm glass-card">
+            <div className="h-60">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="72%">
+                  <PolarGrid stroke="var(--border)" strokeOpacity={0.3} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--color-warm-500)' }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                  {/* Average player overlay - lighter, dashed */}
+                  <Radar
+                    name="Average"
+                    dataKey="avg"
+                    stroke="#94A3B8"
+                    fill="#94A3B8"
+                    fillOpacity={0.08}
+                    strokeDasharray="5 5"
+                    strokeWidth={1}
+                    animationBegin={0}
+                    animationDuration={800}
+                  />
+                  {/* Player's stats - enhanced */}
+                  <Radar
+                    name="You"
+                    dataKey="player"
+                    stroke="#DC2626"
+                    fill="#DC2626"
+                    fillOpacity={0.25}
+                    strokeWidth={2.5}
+                    animationBegin={400}
+                    animationDuration={1200}
+                    animationEasing="ease-out"
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Legend - enhanced */}
+            <div className="flex items-center justify-center gap-6 mt-2">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-brand-red/10">
+                <div className="w-3 h-1.5 rounded-full bg-brand-red" />
+                <span className="text-[10px] font-semibold text-brand-red">You</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-warm-200/50 dark:bg-warm-300/30">
+                <div className="w-3 h-1.5 rounded-full bg-slate-400 opacity-50" />
+                <span className="text-[10px] font-medium text-warm-500 dark:text-warm-400">Avg Player</span>
+              </div>
+            </div>
+            {/* Skill highlights */}
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              {radarData.slice(0, 3).map((skill) => (
+                <div key={skill.subject} className="text-center p-1.5 rounded-lg bg-warm-100/50 dark:bg-warm-200/30">
+                  <p className="text-[9px] text-warm-400 uppercase font-semibold">{skill.subject}</p>
+                  <p className="text-sm font-black text-warm-800 dark:text-warm-700">{Math.round(skill.player)}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Bar Chart - legacy performance data */}
+          <Card className="p-4 shadow-sm mt-3">
+            <h4 className="text-xs font-semibold text-warm-600 dark:text-warm-500 mb-2">Performance Summary</h4>
+            <div className="h-36">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={performanceData} barSize={40}>
                   <XAxis
@@ -1275,7 +1762,7 @@ export default function ProfileTab() {
                     tick={{ fontSize: 11, fill: '#8B7355' }}
                   />
                   <YAxis hide />
-                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={1000} animationEasing="ease-out">
                     {performanceData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={barColors[index]} />
                     ))}
@@ -1288,7 +1775,7 @@ export default function ProfileTab() {
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* DETAILED STATS BREAKDOWN */}
+      {/* 7. DETAILED BREAKDOWN with Animated Progress Bars */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1300,43 +1787,89 @@ export default function ProfileTab() {
             <Swords className="w-4 h-4 text-brand-red" />
             Detailed Breakdown
           </h3>
-          <Card className="p-4 shadow-sm">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="text-center p-2.5 rounded-xl bg-brand-red/5 dark:bg-brand-red/10">
-                <Zap className="w-4 h-4 text-brand-red mx-auto mb-1" />
-                <p className="text-xs text-warm-500 dark:text-warm-400">Raid Success</p>
-                <p className="text-lg font-bold text-brand-red">
-                  {profileData.totalRaids > 0
-                    ? ((profileData.successfulRaids / profileData.totalRaids) * 100).toFixed(0)
-                    : 0}%
-                </p>
-              </div>
-              <div className="text-center p-2.5 rounded-xl bg-brand-blue/5 dark:bg-brand-blue/10">
-                <Shield className="w-4 h-4 text-brand-blue mx-auto mb-1" />
-                <p className="text-xs text-warm-500 dark:text-warm-400">Tackle Success</p>
-                <p className="text-lg font-bold text-brand-blue">
-                  {profileData.totalTackles > 0
-                    ? ((profileData.successfulTackles / profileData.totalTackles) * 100).toFixed(0)
-                    : 0}%
-                </p>
-              </div>
-              <div className="text-center p-2.5 rounded-xl bg-brand-teal/5 dark:bg-brand-teal/10">
-                <Award className="w-4 h-4 text-brand-teal mx-auto mb-1" />
-                <p className="text-xs text-warm-500 dark:text-warm-400">Bonus Points</p>
-                <p className="text-lg font-bold text-brand-teal">{profileData.bonusPoints}</p>
-              </div>
-              <div className="text-center p-2.5 rounded-xl bg-purple-500/5 dark:bg-purple-500/10">
-                <Shield className="w-4 h-4 text-purple-500 mx-auto mb-1" />
-                <p className="text-xs text-warm-500 dark:text-warm-400">Super Tackles</p>
-                <p className="text-lg font-bold text-purple-500">{profileData.superTackles}</p>
-              </div>
+          <Card className="p-4 shadow-sm glass-card">
+            <div className="space-y-4">
+              {detailedStats.map((stat, idx) => {
+                const IconComp = stat.icon;
+                const diff = stat.value - stat.prev;
+                return (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.08 * idx }}
+                    className="progress-glow rounded-lg p-1 -m-1"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-sm`}>
+                          <IconComp className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <span className="text-sm font-semibold text-warm-700 dark:text-warm-600">{stat.label}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-warm-800 dark:text-warm-700 tabular-nums">{stat.value.toFixed(0)}%</span>
+                        {diff !== 0 && (
+                          <span className={`text-[9px] font-bold flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${
+                            diff > 0 ? 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400' : 'text-red-600 bg-red-500/10 dark:text-red-400'
+                          }`}>
+                            {diff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                            {Math.abs(diff).toFixed(0)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="w-full h-3 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(stat.value, 100)}%` }}
+                        transition={{ duration: 1.5, ease: 'easeOut', delay: 0.2 + idx * 0.1 }}
+                        className={`h-full rounded-full bg-gradient-to-r ${stat.color} relative`}
+                      >
+                        {/* Shine effect on progress bar */}
+                        <div className="absolute inset-0 rounded-full overflow-hidden">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
+                        </div>
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </Card>
+
+          {/* Quick stat grid - enhanced */}
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-center p-3 rounded-xl bg-gradient-to-br from-orange-50/80 to-orange-100/30 dark:from-orange-900/15 dark:to-orange-800/5 border border-orange-200/50 dark:border-orange-800/20 hover:scale-[1.02] transition-transform"
+            >
+              <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center mx-auto mb-1.5">
+                <Zap className="w-4 h-4 text-orange-500" />
+              </div>
+              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Bonus Points</p>
+              <p className="text-xl font-black text-orange-500"><AnimatedValue value={profileData.bonusPoints} /></p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.35 }}
+              className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50/80 to-purple-100/30 dark:from-purple-900/15 dark:to-purple-800/5 border border-purple-200/50 dark:border-purple-800/20 hover:scale-[1.02] transition-transform"
+            >
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center mx-auto mb-1.5">
+                <Shield className="w-4 h-4 text-purple-500" />
+              </div>
+              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Super Tackles</p>
+              <p className="text-xl font-black text-purple-500"><AnimatedValue value={profileData.superTackles} /></p>
+            </motion.div>
+          </div>
         </PremiumLock>
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* FEATURE LIST - Categorized with Left Border Accents */}
+      {/* 8. FEATURES GRID with Staggered Animation & Tooltips */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1348,34 +1881,66 @@ export default function ProfileTab() {
           Features
         </h3>
         <div className="space-y-4">
-          {featureCategories.map((category) => (
+          {featureCategories.map((category, catIdx) => (
             <div key={category.title}>
               <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-300 uppercase tracking-wider mb-2 ml-1">{category.title}</p>
               <Card className="shadow-sm overflow-hidden divide-y divide-warm-100 dark:divide-warm-200">
                 {category.items.map((item, idx) => {
                   const IconComp = item.icon;
+                  const isPremiumFeature = item.premium && !isPremium;
                   return (
                     <motion.button
                       key={item.label}
                       initial={{ opacity: 0, x: -5 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.03 * idx }}
+                      transition={{ delay: 0.05 * (catIdx * 4 + idx), type: 'spring', stiffness: 200 }}
                       onClick={item.onClick}
-                      className="w-full flex items-center gap-3 p-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate"
+                      className={`w-full flex items-center gap-3 p-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate ${isPremiumFeature ? 'premium-feature-shimmer' : ''}`}
                     >
                       {/* Left border accent */}
-                      <div className={`w-1 h-8 rounded-full bg-${item.color} shrink-0`} />
-                      {/* Icon */}
-                      <div className={`w-8 h-8 rounded-lg bg-${item.color}/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200`}>
-                        <IconComp className={`w-4 h-4 text-${item.color}`} />
+                      <div className={`w-1 h-8 rounded-full shrink-0 ${
+                        item.color === 'brand-teal' ? 'bg-brand-teal' :
+                        item.color === 'brand-gold' ? 'bg-brand-gold' :
+                        item.color === 'brand-red' ? 'bg-brand-red' :
+                        item.color === 'brand-navy' ? 'bg-brand-navy' :
+                        item.color === 'purple-500' ? 'bg-purple-500' :
+                        item.color === 'emerald-500' ? 'bg-emerald-500' :
+                        'bg-warm-400'
+                      }`} />
+                      {/* Icon with color coding */}
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200 ${
+                        item.color === 'brand-teal' ? 'bg-brand-teal/10' :
+                        item.color === 'brand-gold' ? 'bg-brand-gold/10' :
+                        item.color === 'brand-red' ? 'bg-brand-red/10' :
+                        item.color === 'brand-navy' ? 'bg-brand-navy/10' :
+                        item.color === 'purple-500' ? 'bg-purple-500/10' :
+                        item.color === 'emerald-500' ? 'bg-emerald-500/10' :
+                        'bg-warm-200/50'
+                      }`}>
+                        <IconComp className={`w-4 h-4 ${
+                          item.color === 'brand-teal' ? 'text-brand-teal' :
+                          item.color === 'brand-gold' ? 'text-brand-gold' :
+                          item.color === 'brand-red' ? 'text-brand-red' :
+                          item.color === 'brand-navy' ? 'text-brand-navy' :
+                          item.color === 'purple-500' ? 'text-purple-500' :
+                          item.color === 'emerald-500' ? 'text-emerald-500' :
+                          'text-warm-500'
+                        }`} />
                       </div>
                       {/* Label and description */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-warm-800 dark:text-warm-700">{item.label}</p>
+                      <div className="flex-1 min-w-0 relative z-10">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-semibold text-warm-800 dark:text-warm-700">{item.label}</p>
+                          {isPremiumFeature && (
+                            <span className="text-[7px] font-bold text-brand-gold bg-brand-gold/15 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                              <Crown className="w-2 h-2" /> PRO
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[10px] text-warm-400 dark:text-warm-300">{item.desc}</p>
                       </div>
                       {/* Chevron */}
-                      <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0 chevron-icon" />
+                      <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0 chevron-icon relative z-10" />
                     </motion.button>
                   );
                 })}
@@ -1395,39 +1960,50 @@ export default function ProfileTab() {
       </div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* PERSONAL INFO & SETTINGS */}
+      {/* 9. PERSONAL INFO & SETTINGS with Enhanced Toggles */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
       >
-        <Card className="p-4 space-y-4 shadow-sm">
+        <Card className="p-4 space-y-4 shadow-sm glass-card">
           {/* Phone */}
-          <div className="flex justify-between text-sm items-center">
-            <div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Phone</span>
-              <p className="text-[10px] text-warm-400 dark:text-warm-300">Your registered number</p>
+          <div className="flex justify-between text-sm items-center py-1">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+                <Eye className="w-3.5 h-3.5 text-warm-400" />
+              </div>
+              <div>
+                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Phone</span>
+                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your registered number</p>
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-warm-800 dark:text-warm-700 font-medium font-mono text-xs">
                 {showPhone ? (currentUser?.phone || '—') : (currentUser?.phone ? `****${currentUser.phone.slice(-2)}` : '—')}
               </span>
-              <button
+              <motion.button
                 onClick={() => setShowPhone(!showPhone)}
+                whileTap={{ scale: 0.9 }}
                 className="w-5 h-5 rounded-full bg-warm-100 dark:bg-warm-200 flex items-center justify-center text-warm-400 hover:text-warm-600 transition-colors"
               >
                 {showPhone ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-              </button>
+              </motion.button>
             </div>
           </div>
 
           {/* Weight */}
           {currentUser?.weight && (
-            <div className="flex justify-between text-sm items-center">
-              <div>
-                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Weight</span>
-                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your weight category</p>
+            <div className="flex justify-between text-sm items-center py-1">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+                  <Activity className="w-3.5 h-3.5 text-warm-400" />
+                </div>
+                <div>
+                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Weight</span>
+                  <p className="text-[10px] text-warm-400 dark:text-warm-300">Your weight category</p>
+                </div>
               </div>
               <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{currentUser.weight}</span>
             </div>
@@ -1435,21 +2011,31 @@ export default function ProfileTab() {
 
           {/* Practice Ground */}
           {currentUser?.practiceGround && (
-            <div className="flex justify-between text-sm items-center">
-              <div>
-                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Practice Ground</span>
-                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your training venue</p>
+            <div className="flex justify-between text-sm items-center py-1">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+                  <MapPin className="w-3.5 h-3.5 text-warm-400" />
+                </div>
+                <div>
+                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Practice Ground</span>
+                  <p className="text-[10px] text-warm-400 dark:text-warm-300">Your training venue</p>
+                </div>
               </div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{currentUser.practiceGround}</span>
+              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs max-w-[150px] truncate">{currentUser.practiceGround}</span>
             </div>
           )}
 
           {/* Position */}
           {profileData.position && (
-            <div className="flex justify-between text-sm items-center">
-              <div>
-                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Position</span>
-                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your playing role</p>
+            <div className="flex justify-between text-sm items-center py-1">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+                  <Target className="w-3.5 h-3.5 text-warm-400" />
+                </div>
+                <div>
+                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Position</span>
+                  <p className="text-[10px] text-warm-400 dark:text-warm-300">Your playing role</p>
+                </div>
               </div>
               <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{getPositionIcon(profileData.position)} {getPositionLabel(profileData.position)}</span>
             </div>
@@ -1457,79 +2043,119 @@ export default function ProfileTab() {
 
           {/* Jersey */}
           {profileData.jerseyNumber && (
-            <div className="flex justify-between text-sm items-center">
-              <div>
-                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Jersey</span>
-                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your jersey number</p>
+            <div className="flex justify-between text-sm items-center py-1">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+                  <Hash className="w-3.5 h-3.5 text-warm-400" />
+                </div>
+                <div>
+                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Jersey</span>
+                  <p className="text-[10px] text-warm-400 dark:text-warm-300">Your jersey number</p>
+                </div>
               </div>
               <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">#{profileData.jerseyNumber}</span>
             </div>
           )}
 
           {/* Plan */}
-          <div className="flex justify-between text-sm items-center">
-            <div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Plan</span>
-              <p className="text-[10px] text-warm-400 dark:text-warm-300">Your subscription</p>
+          <div className="flex justify-between text-sm items-center py-1">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+                <CreditCard className="w-3.5 h-3.5 text-warm-400" />
+              </div>
+              <div>
+                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Plan</span>
+                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your subscription</p>
+              </div>
             </div>
-            <span className={`font-medium text-xs ${isPremium ? 'text-brand-gold' : 'text-warm-600 dark:text-warm-500'}`}>
-              {isPremium ? '⭐ Premium' : 'Free'}
+            <span className={`font-medium text-xs flex items-center gap-1 ${isPremium ? 'text-brand-gold' : 'text-warm-600 dark:text-warm-500'}`}>
+              {isPremium ? <><Crown className="w-3 h-3" /> Premium</> : 'Free'}
             </span>
           </div>
 
-          {/* Language Toggle */}
-          <div className="flex justify-between items-center">
-            <div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Language</span>
-              <p className="text-[10px] text-warm-400 dark:text-warm-300">App display language</p>
+          {/* Language Toggle with Flag Icons - Enhanced */}
+          <div className="flex justify-between items-center py-1">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+                <Flag className="w-3.5 h-3.5 text-warm-400" />
+              </div>
+              <div>
+                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Language</span>
+                <p className="text-[10px] text-warm-400 dark:text-warm-300">App display language</p>
+              </div>
             </div>
-            <div className="flex items-center gap-1 bg-warm-100 dark:bg-warm-200 rounded-lg p-0.5">
-              <button
+            <div className="flex items-center gap-1 bg-warm-100 dark:bg-warm-200 rounded-xl p-1">
+              <motion.button
                 onClick={() => setLanguage('en')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300 ${
+                whileTap={{ scale: 0.95 }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 ${
                   language === 'en'
-                    ? 'bg-brand-teal text-white shadow-sm scale-105'
-                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600 hover:bg-warm-200/50'
+                    ? 'bg-brand-teal text-white shadow-md'
+                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600'
                 }`}
               >
-                English
-              </button>
-              <button
+                🇬🇧 English
+              </motion.button>
+              <motion.button
                 onClick={() => setLanguage('hi')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300 ${
+                whileTap={{ scale: 0.95 }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 ${
                   language === 'hi'
-                    ? 'bg-brand-teal text-white shadow-sm scale-105'
-                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600 hover:bg-warm-200/50'
+                    ? 'bg-brand-teal text-white shadow-md'
+                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600'
                 }`}
               >
-                हिंदी
-              </button>
+                🇮🇳 हिंदी
+              </motion.button>
             </div>
           </div>
 
-          {/* Dark Mode Toggle */}
-          <div className="flex justify-between items-center">
-            <div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Theme</span>
-              <p className="text-[10px] text-warm-400 dark:text-warm-300">{darkMode ? 'Dark mode active' : 'Light mode active'}</p>
+          {/* Dark Mode Toggle with Sun/Moon Animation - Enhanced */}
+          <div className="flex justify-between items-center py-1">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+                {darkMode ? <Moon className="w-3.5 h-3.5 text-brand-gold" /> : <Sun className="w-3.5 h-3.5 text-warm-400" />}
+              </div>
+              <div>
+                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Theme</span>
+                <p className="text-[10px] text-warm-400 dark:text-warm-300">{darkMode ? 'Dark mode active' : 'Light mode active'}</p>
+              </div>
             </div>
-            <button
+            <motion.button
               onClick={toggleDarkMode}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-300 ${
                 darkMode
-                  ? 'bg-warm-700 text-brand-gold hover:bg-warm-600'
+                  ? 'bg-warm-700/80 text-brand-gold hover:bg-warm-600 shadow-sm'
                   : 'bg-warm-100 dark:bg-warm-200 text-warm-600 dark:text-warm-500 hover:bg-warm-200 dark:hover:bg-warm-300'
               }`}
+              whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.02 }}
             >
-              <span className="sun-moon-transition">
+              <AnimatePresence mode="wait">
                 {darkMode ? (
-                  <Moon className="w-3.5 h-3.5" />
+                  <motion.div
+                    key="moon"
+                    initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
+                  >
+                    <Moon className="w-4 h-4" />
+                  </motion.div>
                 ) : (
-                  <Sun className="w-3.5 h-3.5" />
+                  <motion.div
+                    key="sun"
+                    initial={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
+                  >
+                    <Sun className="w-4 h-4" />
+                  </motion.div>
                 )}
-              </span>
+              </AnimatePresence>
               <span>{darkMode ? 'Dark' : 'Light'}</span>
-            </button>
+            </motion.button>
           </div>
         </Card>
       </motion.div>
@@ -1597,7 +2223,7 @@ export default function ProfileTab() {
       )}
 
       {/* ═══════════════════════════════════════════ */}
-      {/* LOGOUT BUTTON with Confirmation */}
+      {/* 10. LOGOUT BUTTON with Confirmation Dialog */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1620,7 +2246,12 @@ export default function ProfileTab() {
             className="rounded-xl border-2 border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/20 p-4 text-center"
           >
             <div className="flex items-center justify-center gap-2 mb-3">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <motion.div
+                animate={{ rotate: [0, -10, 10, -10, 0] }}
+                transition={{ duration: 0.5 }}
+              >
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+              </motion.div>
               <p className="text-sm font-bold text-red-700 dark:text-red-400">Confirm Logout</p>
             </div>
             <p className="text-xs text-warm-500 dark:text-warm-400 mb-4">Are you sure you want to log out of your account?</p>
