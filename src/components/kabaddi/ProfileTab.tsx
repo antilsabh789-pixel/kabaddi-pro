@@ -34,6 +34,7 @@ import DataExportScreen from './DataExportScreen';
 import SeasonScreen from './SeasonScreen';
 import PollsScreen from './PollsScreen';
 import SponsorScreen from './SponsorScreen';
+import PlayerStatsScreen from './PlayerStatsScreen';
 import { t } from '@/lib/i18n';
 
 const POSITIONS = [
@@ -80,6 +81,7 @@ export default function ProfileTab() {
   const [showSeason, setShowSeason] = useState(false);
   const [showPolls, setShowPolls] = useState(false);
   const [showSponsors, setShowSponsors] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const { theme, setTheme } = useTheme();
   const darkMode = theme === 'dark';
   const [editForm, setEditForm] = useState({
@@ -403,7 +405,7 @@ export default function ProfileTab() {
       items: [
         { icon: Users, label: 'My Teams', desc: 'Manage your teams', color: 'brand-teal', onClick: () => setShowTeamManagement(true) },
         { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
-        { icon: Activity, label: 'My Stats', desc: isPremium ? 'Advanced analytics' : 'PRO only', color: 'brand-red', onClick: () => setShowAdvancedStats(true) },
+        { icon: Activity, label: 'My Stats', desc: 'View your stats', color: 'brand-red', onClick: () => setShowStats(true) },
         { icon: Users, label: 'Follow', desc: 'Find & connect', color: 'brand-navy', onClick: () => setShowFollow(true) },
       ],
     },
@@ -494,6 +496,9 @@ export default function ProfileTab() {
       )}
       {showAIInsights && (
         <AIInsightsScreen onClose={() => setShowAIInsights(false)} />
+      )}
+      {showStats && currentUser?.id && (
+        <PlayerStatsScreen userId={currentUser.id} onClose={() => setShowStats(false)} />
       )}
       {showDataExport && (
         <DataExportScreen onClose={() => setShowDataExport(false)} />

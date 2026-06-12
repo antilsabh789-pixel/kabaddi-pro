@@ -1,0 +1,1544 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle } from 'lucide-react';
+     6→import { useKabaddiStore, type Language } from '@/lib/store';
+     7→import { useTheme } from 'next-themes';
+     8→import { Card } from '@/components/ui/card';
+     9→import { Button } from '@/components/ui/button';
+    10→import { Input } from '@/components/ui/input';
+    11→import { Badge } from '@/components/ui/badge';
+    12→import { useToast } from '@/hooks/use-toast';
+    13→import {
+    14→  Dialog,
+    15→  DialogContent,
+    16→  DialogHeader,
+    17→  DialogTitle,
+    18→  DialogTrigger,
+    19→} from '@/components/ui/dialog';
+    20→import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
+    21→import PremiumUpgradeScreen from './PremiumUpgradeScreen';
+    22→import PremiumLock from './PremiumLock';
+    23→import TeamManagementScreen from './TeamManagementScreen';
+    24→import PlayerComparisonScreen from './PlayerComparisonScreen';
+    25→import AdvancedStatsScreen from './AdvancedStatsScreen';
+    26→import FollowScreen from './FollowScreen';
+    27→import AchievementsScreen from './AchievementsScreen';
+    28→import ChallengeScreen from './ChallengeScreen';
+    29→import GroundsScreen from './GroundsScreen';
+    30→import ReferralScreen from './ReferralScreen';
+    31→import AIInsightsScreen from './AIInsightsScreen';
+    32→import BroadcastScreen from './BroadcastScreen';
+    33→import DataExportScreen from './DataExportScreen';
+    34→import SeasonScreen from './SeasonScreen';
+    35→import PollsScreen from './PollsScreen';
+    36→import SponsorScreen from './SponsorScreen';
+    37→import { t } from '@/lib/i18n';
+    38→
+    39→const POSITIONS = [
+    40→  { id: 'left-raider', label: 'Left Raider', icon: '⬅️', meaning: 'Attacks from left side' },
+    41→  { id: 'right-raider', label: 'Right Raider', icon: '➡️', meaning: 'Attacks from right side' },
+    42→  { id: 'both-raider', label: 'Both Raider', icon: '↔️', meaning: 'Raids from both sides' },
+    43→  { id: 'left-corner', label: 'Left Corner', icon: '🛡️', meaning: 'Defends left corner' },
+    44→  { id: 'right-corner', label: 'Right Corner', icon: '🛡️', meaning: 'Defends right corner' },
+    45→  { id: 'left-cover', label: 'Left Cover', icon: '🧱', meaning: 'Cover defender left side' },
+    46→  { id: 'right-cover', label: 'Right Cover', icon: '🧱', meaning: 'Cover defender right side' },
+    47→  { id: 'all-rounder', label: 'All-Rounder', icon: '⭐', meaning: 'Excels in both raid & defense' },
+    48→];
+    49→
+    50→interface RecentMatch {
+    51→  id: string;
+    52→  homeTeam: string;
+    53→  awayTeam: string;
+    54→  homeScore: number;
+    55→  awayScore: number;
+    56→  date: string;
+    57→  isPractice: boolean;
+    58→  userTeamSide: 'home' | 'away' | 'unknown';
+    59→}
+    60→
+    61→export default function ProfileTab() {
+    62→  const { currentUser, updateUser, logout } = useKabaddiStore();
+    63→  const language = useKabaddiStore((s) => s.language);
+    64→  const setLanguage = useKabaddiStore((s) => s.setLanguage);
+    65→  const { toast } = useToast();
+    66→  const fileInputRef = useRef<HTMLInputElement>(null);
+    67→  const [uploading, setUploading] = useState(false);
+    68→  const [editOpen, setEditOpen] = useState(false);
+    69→  const [showUpgrade, setShowUpgrade] = useState(false);
+    70→  const [showTeamManagement, setShowTeamManagement] = useState(false);
+    71→  const [showPlayerComparison, setShowPlayerComparison] = useState(false);
+    72→  const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+    73→  const [showFollow, setShowFollow] = useState(false);
+    74→  const [showAchievements, setShowAchievements] = useState(false);
+    75→  const [showChallenges, setShowChallenges] = useState(false);
+    76→  const [showGrounds, setShowGrounds] = useState(false);
+    77→  const [showReferral, setShowReferral] = useState(false);
+    78→  const [showAIInsights, setShowAIInsights] = useState(false);
+    79→  const [showDataExport, setShowDataExport] = useState(false);
+    80→  const [showSeason, setShowSeason] = useState(false);
+    81→  const [showPolls, setShowPolls] = useState(false);
+    82→  const [showSponsors, setShowSponsors] = useState(false);
+    83→  const { theme, setTheme } = useTheme();
+    84→  const darkMode = theme === 'dark';
+    85→  const [editForm, setEditForm] = useState({
+    86→    gender: currentUser?.gender || '',
+    87→    weight: currentUser?.weight?.replace('kg', '') || '',
+    88→    practiceGround: currentUser?.practiceGround || '',
+    89→    position: '',
+    90→    jerseyNumber: '',
+    91→  });
+    92→  const [earnings, setEarnings] = useState<{
+    93→    totalRevenueINR: number;
+    94→    totalPayments: number;
+    95→    monthlyCount: number;
+    96→    yearlyCount: number;
+    97→    lifetimeCount: number;
+    98→    recentRevenueINR: number;
+    99→    recentPaymentsCount: number;
+   100→  } | null>(null);
+   101→
+   102→  const [profileData, setProfileData] = useState({
+   103→    totalRaids: 0,
+   104→    successfulRaids: 0,
+   105→    totalTackles: 0,
+   106→    successfulTackles: 0,
+   107→    bonusPoints: 0,
+   108→    superTackles: 0,
+   109→    overallRating: 0,
+   110→    position: null as string | null,
+   111→    jerseyNumber: null as number | null,
+   112→    playerCode: null as string | null,
+   113→    // Tournament-specific stats
+   114→    tournamentMatches: 0,
+   115→    tournamentRaidPoints: 0,
+   116→    tournamentTacklePoints: 0,
+   117→    tournamentTotalPoints: 0,
+   118→    // Practice-specific stats
+   119→    practiceMatches: 0,
+   120→    practiceRaidPoints: 0,
+   121→    practiceTacklePoints: 0,
+   122→    practiceTotalPoints: 0,
+   123→  });
+   124→  const [showPhone, setShowPhone] = useState(false);
+   125→  const [codeCopied, setCodeCopied] = useState(false);
+   126→  const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
+   127→  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+   128→
+   129→  const isPremium = currentUser?.isPremium || false;
+   130→
+   131→  const handleCopyCode = () => {
+   132→    const code = profileData.playerCode || currentUser?.playerCode;
+   133→    if (code) {
+   134→      navigator.clipboard.writeText(code).then(() => {
+   135→        setCodeCopied(true);
+   136→        setTimeout(() => setCodeCopied(false), 2000);
+   137→      }).catch(() => {
+   138→        toast({ title: 'Code: ' + code });
+   139→      });
+   140→    }
+   141→  };
+   142→
+   143→  // Load profile data from API
+   144→  const loadProfile = useCallback(async (userId: string) => {
+   145→    try {
+   146→      const res = await fetch(`/api/players/${userId}`);
+   147→      if (res.ok) {
+   148→        const data = await res.json();
+   149→        const fetchedPlayerCode = data.player?.playerCode || null;
+   150→
+   151→        if (data.profile) {
+   152→          return {
+   153→            totalRaids: data.profile.totalRaids || 0,
+   154→            successfulRaids: data.profile.successfulRaids || 0,
+   155→            totalTackles: data.profile.totalTackles || 0,
+   156→            successfulTackles: data.profile.successfulTackles || 0,
+   157→            bonusPoints: data.profile.bonusPoints || 0,
+   158→            superTackles: data.profile.superTackles || 0,
+   159→            overallRating: data.profile.overallRating || 0,
+   160→            position: data.profile.position || null,
+   161→            jerseyNumber: data.profile.jerseyNumber || null,
+   162→            playerCode: fetchedPlayerCode,
+   163→            tournamentMatches: data.profile.tournamentMatches || 0,
+   164→            tournamentRaidPoints: data.profile.tournamentRaidPoints || 0,
+   165→            tournamentTacklePoints: data.profile.tournamentTacklePoints || 0,
+   166→            tournamentTotalPoints: data.profile.tournamentTotalPoints || 0,
+   167→            practiceMatches: data.profile.practiceMatches || 0,
+   168→            practiceRaidPoints: data.profile.practiceRaidPoints || 0,
+   169→            practiceTacklePoints: data.profile.practiceTacklePoints || 0,
+   170→            practiceTotalPoints: data.profile.practiceTotalPoints || 0,
+   171→          };
+   172→        } else {
+   173→          return {
+   174→            totalRaids: 0,
+   175→            successfulRaids: 0,
+   176→            totalTackles: 0,
+   177→            successfulTackles: 0,
+   178→            bonusPoints: 0,
+   179→            superTackles: 0,
+   180→            overallRating: 0,
+   181→            position: null,
+   182→            jerseyNumber: null,
+   183→            playerCode: fetchedPlayerCode,
+   184→            tournamentMatches: 0,
+   185→            tournamentRaidPoints: 0,
+   186→            tournamentTacklePoints: 0,
+   187→            tournamentTotalPoints: 0,
+   188→            practiceMatches: 0,
+   189→            practiceRaidPoints: 0,
+   190→            practiceTacklePoints: 0,
+   191→            practiceTotalPoints: 0,
+   192→          };
+   193→        }
+   194→      }
+   195→    } catch {
+   196→      // Return fallback data
+   197→    }
+   198→    return null;
+   199→  }, []);
+   200→
+   201→  // Load recent matches from API
+   202→  const loadRecentMatches = useCallback(async (userId: string) => {
+   203→    try {
+   204→      const res = await fetch('/api/matches?limit=5');
+   205→      if (res.ok) {
+   206→        const data = await res.json();
+   207→        if (data.matches && Array.isArray(data.matches)) {
+   208→          const matches: RecentMatch[] = data.matches.map((m: Record<string, unknown>) => {
+   209→            const homeTeam = (m.homeTeam as Record<string, string>)?.name || 'Team A';
+   210→            const awayTeam = (m.awayTeam as Record<string, string>)?.name || 'Team B';
+   211→            const scorers = m.scorers as Array<Record<string, string>> | undefined;
+   212→            const userScored = scorers?.some((s) => s.userId === userId);
+   213→            let userTeamSide: 'home' | 'away' | 'unknown' = 'unknown';
+   214→            if (userScored) {
+   215→              const userScorer = scorers?.find((s) => s.userId === userId);
+   216→              if (userScorer?.teamId === m.homeTeamId) userTeamSide = 'home';
+   217→              else if (userScorer?.teamId === m.awayTeamId) userTeamSide = 'away';
+   218→            }
+   219→            return {
+   220→              id: m.id as string,
+   221→              homeTeam,
+   222→              awayTeam,
+   223→              homeScore: (m.homeScore as number) || 0,
+   224→              awayScore: (m.awayScore as number) || 0,
+   225→              date: m.completedAt ? new Date(m.completedAt as string).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
+   226→              isPractice: (m.isPractice as boolean) || false,
+   227→              userTeamSide,
+   228→            };
+   229→          });
+   230→          setRecentMatches(matches);
+   231→        }
+   232→      }
+   233→    } catch {
+   234→      // Silently fail
+   235→    }
+   236→  }, []);
+   237→
+   238→  useEffect(() => {
+   239→    if (!currentUser?.id) return;
+   240→    let cancelled = false;
+   241→    loadProfile(currentUser.id).then((data) => {
+   242→      if (data && !cancelled) {
+   243→        setProfileData(data);
+   244→        setEditForm(prev => ({
+   245→          ...prev,
+   246→          position: data.position || '',
+   247→          jerseyNumber: data.jerseyNumber?.toString() || '',
+   248→        }));
+   249→        if (data.playerCode && !currentUser?.playerCode) {
+   250→          updateUser({ playerCode: data.playerCode });
+   251→        }
+   252→      }
+   253→    });
+   254→    loadRecentMatches(currentUser.id);
+   255→    return () => { cancelled = true; };
+   256→  }, [currentUser?.id, loadProfile, loadRecentMatches, updateUser, currentUser?.playerCode]);
+   257→
+   258→  // Load earnings data for admin users
+   259→  useEffect(() => {
+   260→    if (!currentUser?.isAdmin) return;
+   261→    let cancelled = false;
+   262→    fetch('/api/payments?status=paid')
+   263→      .then(res => res.json())
+   264→      .then(data => {
+   265→        if (!cancelled && data.summary) {
+   266→          setEarnings(data.summary);
+   267→        }
+   268→      })
+   269→      .catch(() => {});
+   270→    return () => { cancelled = true; };
+   271→  }, [currentUser?.isAdmin]);
+   272→
+   273→  // Dark mode: use next-themes
+   274→  const toggleDarkMode = () => {
+   275→    setTheme(darkMode ? 'light' : 'dark');
+   276→  };
+   277→
+   278→  // Sync edit form when currentUser changes
+   279→  useEffect(() => {
+   280→    setEditForm({
+   281→      gender: currentUser?.gender || '',
+   282→      weight: currentUser?.weight?.replace('kg', '') || '',
+   283→      practiceGround: currentUser?.practiceGround || '',
+   284→      position: profileData.position || '',
+   285→      jerseyNumber: profileData.jerseyNumber?.toString() || '',
+   286→    });
+   287→  }, [currentUser, profileData.position, profileData.jerseyNumber, editOpen]);
+   288→
+   289→  // ─── Avatar Upload ───
+   290→  const handleAvatarClick = () => {
+   291→    fileInputRef.current?.click();
+   292→  };
+   293→
+   294→  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   295→    const file = e.target.files?.[0];
+   296→    if (!file || !currentUser?.id) return;
+   297→
+   298→    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+   299→    if (!allowedTypes.includes(file.type)) {
+   300→      toast({ title: 'Invalid file type', description: 'Only JPEG, PNG, WebP, GIF allowed.', variant: 'destructive' });
+   301→      return;
+   302→    }
+   303→
+   304→    if (file.size > 5 * 1024 * 1024) {
+   305→      toast({ title: 'File too large', description: 'Max 5MB allowed.', variant: 'destructive' });
+   306→      return;
+   307→    }
+   308→
+   309→    setUploading(true);
+   310→    try {
+   311→      const reader = new FileReader();
+   312→      const base64Promise = new Promise<string>((resolve, reject) => {
+   313→        reader.onload = () => resolve(reader.result as string);
+   314→        reader.onerror = reject;
+   315→      });
+   316→      reader.readAsDataURL(file);
+   317→      const fileData = await base64Promise;
+   318→
+   319→      const res = await fetch('/api/upload', {
+   320→        method: 'POST',
+   321→        headers: { 'Content-Type': 'application/json' },
+   322→        body: JSON.stringify({
+   323→          fileData,
+   324→          fileName: file.name,
+   325→          fileType: file.type,
+   326→          userId: currentUser.id,
+   327→        }),
+   328→      });
+   329→
+   330→      if (res.ok) {
+   331→        const data = await res.json();
+   332→        const avatarUrl = data.url;
+   333→        updateUser({ avatar: avatarUrl });
+   334→        toast({ title: 'Profile picture updated!' });
+   335→      } else {
+   336→        const data = await res.json();
+   337→        toast({ title: 'Upload failed', description: data.error || 'Please try again.', variant: 'destructive' });
+   338→      }
+   339→    } catch {
+   340→      toast({ title: 'Upload failed', description: 'Please try again.', variant: 'destructive' });
+   341→    } finally {
+   342→      setUploading(false);
+   343→      if (fileInputRef.current) fileInputRef.current.value = '';
+   344→    }
+   345→  };
+   346→
+   347→  // ─── Save Profile ───
+   348→  const handleSaveProfile = async () => {
+   349→    try {
+   350→      const updateBody: Record<string, unknown> = {
+   351→        gender: editForm.gender,
+   352→        weight: editForm.weight ? `${editForm.weight}kg` : undefined,
+   353→        practiceGround: editForm.practiceGround || undefined,
+   354→        position: editForm.position || undefined,
+   355→        jerseyNumber: editForm.jerseyNumber ? parseInt(editForm.jerseyNumber) : undefined,
+   356→      };
+   357→
+   358→      await fetch(`/api/players/${currentUser?.id}`, {
+   359→        method: 'PUT',
+   360→        headers: { 'Content-Type': 'application/json' },
+   361→        body: JSON.stringify(updateBody),
+   362→      });
+   363→    } catch {
+   364→      // Local update still works
+   365→    }
+   366→    updateUser({
+   367→      gender: editForm.gender || undefined,
+   368→      weight: editForm.weight ? `${editForm.weight}kg` : undefined,
+   369→      practiceGround: editForm.practiceGround || undefined,
+   370→    });
+   371→    setEditOpen(false);
+   372→    toast({ title: 'Profile updated!' });
+   373→  };
+   374→
+   375→  const raidPoints = profileData.successfulRaids + profileData.bonusPoints;
+   376→  const tacklePoints = profileData.successfulTackles;
+   377→  const raidSuccessRate = profileData.totalRaids > 0 ? (profileData.successfulRaids / profileData.totalRaids) * 100 : 0;
+   378→  const tackleSuccessRate = profileData.totalTackles > 0 ? (profileData.successfulTackles / profileData.totalTackles) * 100 : 0;
+   379→
+   380→  const performanceData = [
+   381→    { name: 'Raids', value: profileData.successfulRaids },
+   382→    { name: 'Tackles', value: profileData.successfulTackles },
+   383→    { name: 'Bonus', value: profileData.bonusPoints * 10 },
+   384→    { name: 'S.Tkl', value: profileData.superTackles * 10 },
+   385→  ];
+   386→
+   387→  const barColors = ['#DC2626', '#1E293B', '#14B8A6', '#475569'];
+   388→
+   389→  const badges = [
+   390→    { icon: '⚡', label: 'Super Raider', condition: profileData.successfulRaids >= 20, premium: false },
+   391→    { icon: '🛡️', label: 'Iron Wall', condition: profileData.superTackles >= 5, premium: false },
+   392→    { icon: '🏆', label: 'Veteran', condition: profileData.totalRaids >= 50, premium: true },
+   393→    { icon: '🔥', label: 'On Fire', condition: raidPoints >= 30, premium: true },
+   394→    { icon: '💪', label: 'All-Rounder', condition: raidPoints >= 20 && tacklePoints >= 20, premium: false },
+   395→    { icon: '🎯', label: 'Precision', condition: raidSuccessRate >= 70, premium: true },
+   396→    { icon: '🧱', label: 'Fortress', condition: tackleSuccessRate >= 70, premium: true },
+   397→  ];
+   398→
+   399→  // Feature categories
+   400→  const featureCategories = [
+   401→    {
+   402→      title: 'Team & Stats',
+   403→      items: [
+   404→        { icon: Users, label: 'My Teams', desc: 'Manage your teams', color: 'brand-teal', onClick: () => setShowTeamManagement(true) },
+   405→        { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
+   406→        { icon: Activity, label: 'My Stats', desc: isPremium ? 'Advanced analytics' : 'PRO only', color: 'brand-red', onClick: () => setShowAdvancedStats(true) },
+   407→        { icon: Users, label: 'Follow', desc: 'Find & connect', color: 'brand-navy', onClick: () => setShowFollow(true) },
+   408→      ],
+   409→    },
+   410→    {
+   411→      title: 'Achievements',
+   412→      items: [
+   413→        { icon: Award, label: 'Achievements', desc: 'Unlock badges', color: 'brand-gold', onClick: () => setShowAchievements(true) },
+   414→        { icon: Swords, label: 'Challenges', desc: 'Rival teams', color: 'brand-red', onClick: () => setShowChallenges(true) },
+   415→        { icon: MapPin, label: 'Grounds', desc: 'Find venues', color: 'brand-teal', onClick: () => setShowGrounds(true) },
+   416→        { icon: Gift, label: 'Refer & Earn', desc: 'Free Premium', color: 'brand-gold', onClick: () => setShowReferral(true) },
+   417→      ],
+   418→    },
+   419→    {
+   420→      title: 'Advanced',
+   421→      items: [
+   422→        { icon: Brain, label: 'AI Insights', desc: 'Smart analysis', color: 'purple-500', onClick: () => setShowAIInsights(true) },
+   423→        { icon: Calendar, label: 'Seasons', desc: 'Track yearly', color: 'brand-teal', onClick: () => setShowSeason(true) },
+   424→        { icon: Vote, label: 'Predictions', desc: 'Vote & predict', color: 'brand-gold', onClick: () => setShowPolls(true) },
+   425→        { icon: Download, label: 'Export Data', desc: 'CSV download', color: 'brand-navy', onClick: () => setShowDataExport(true) },
+   426→        { icon: Briefcase, label: 'Sponsors', desc: 'Manage ads', color: 'emerald-500', onClick: () => setShowSponsors(true) },
+   427→      ],
+   428→    },
+   429→  ];
+   430→
+   431→  const getPositionLabel = (pos: string | null) => {
+   432→    if (!pos) return null;
+   433→    const found = POSITIONS.find(p => p.id === pos);
+   434→    return found ? found.label : pos;
+   435→  };
+   436→
+   437→  const getPositionIcon = (pos: string | null) => {
+   438→    if (!pos) return null;
+   439→    const found = POSITIONS.find(p => p.id === pos);
+   440→    return found ? found.icon : '🏅';
+   441→  };
+   442→
+   443→  const getMatchResult = (match: RecentMatch): 'W' | 'L' | 'D' => {
+   444→    if (match.userTeamSide === 'unknown') {
+   445→      return match.homeScore === match.awayScore ? 'D' : 'D';
+   446→    }
+   447→    const myScore = match.userTeamSide === 'home' ? match.homeScore : match.awayScore;
+   448→    const oppScore = match.userTeamSide === 'home' ? match.awayScore : match.homeScore;
+   449→    if (myScore > oppScore) return 'W';
+   450→    if (myScore < oppScore) return 'L';
+   451→    return 'D';
+   452→  };
+   453→
+   454→  const getResultColor = (result: 'W' | 'L' | 'D') => {
+   455→    switch (result) {
+   456→      case 'W': return 'bg-emerald-500 text-white';
+   457→      case 'L': return 'bg-red-500 text-white';
+   458→      case 'D': return 'bg-amber-500 text-white';
+   459→    }
+   460→  };
+   461→
+   462→  return (
+   463→    <div className="px-4 py-6 space-y-6">
+   464→      {/* Premium Upgrade Modal */}
+   465→      {showUpgrade && (
+   466→        <PremiumUpgradeScreen
+   467→          onClose={() => setShowUpgrade(false)}
+   468→          feature="Premium Features"
+   469→        />
+   470→      )}
+   471→      {showTeamManagement && (
+   472→        <TeamManagementScreen onClose={() => setShowTeamManagement(false)} />
+   473→      )}
+   474→      {showPlayerComparison && (
+   475→        <PlayerComparisonScreen onClose={() => setShowPlayerComparison(false)} />
+   476→      )}
+   477→      {showAdvancedStats && currentUser?.id && (
+   478→        <AdvancedStatsScreen userId={currentUser.id} onClose={() => setShowAdvancedStats(false)} />
+   479→      )}
+   480→      {showFollow && (
+   481→        <FollowScreen onClose={() => setShowFollow(false)} />
+   482→      )}
+   483→      {showAchievements && (
+   484→        <AchievementsScreen onClose={() => setShowAchievements(false)} />
+   485→      )}
+   486→      {showChallenges && (
+   487→        <ChallengeScreen onClose={() => setShowChallenges(false)} />
+   488→      )}
+   489→      {showGrounds && (
+   490→        <GroundsScreen onClose={() => setShowGrounds(false)} />
+   491→      )}
+   492→      {showReferral && (
+   493→        <ReferralScreen onClose={() => setShowReferral(false)} />
+   494→      )}
+   495→      {showAIInsights && (
+   496→        <AIInsightsScreen onClose={() => setShowAIInsights(false)} />
+   497→      )}
+   498→      {showDataExport && (
+   499→        <DataExportScreen onClose={() => setShowDataExport(false)} />
+   500→      )}
+   501→      {showSeason && (
+   502→        <SeasonScreen onClose={() => setShowSeason(false)} />
+   503→      )}
+   504→      {showPolls && (
+   505→        <PollsScreen onClose={() => setShowPolls(false)} />
+   506→      )}
+   507→      {showSponsors && (
+   508→        <SponsorScreen onClose={() => setShowSponsors(false)} />
+   509→      )}
+   510→
+   511→      {/* Hidden file input for avatar upload */}
+   512→      <input
+   513→        ref={fileInputRef}
+   514→        type="file"
+   515→        accept="image/jpeg,image/png,image/webp,image/gif"
+   516→        className="hidden"
+   517→        onChange={handleFileChange}
+   518→      />
+   519→
+   520→      {/* ═══════════════════════════════════════════ */}
+   521→      {/* PROFILE HEADER with Gradient Banner */}
+   522→      {/* ═══════════════════════════════════════════ */}
+   523→      <motion.div
+   524→        initial={{ opacity: 0, y: 10 }}
+   525→        animate={{ opacity: 1, y: 0 }}
+   526→        className="relative overflow-hidden rounded-2xl shadow-lg"
+   527→      >
+   528→        {/* Gradient Banner Background */}
+   529→        <div className="relative bg-gradient-to-br from-red-600 via-red-700 to-red-900 dark:from-red-800 dark:via-red-900 dark:to-red-950 pt-8 pb-16 px-6">
+   530→          {/* Decorative Pattern Overlay */}
+   531→          <div className="absolute inset-0 opacity-10">
+   532→            <div className="absolute top-0 left-0 w-full h-full" style={{
+   533→              backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px),
+   534→                repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px)`,
+   535→            }} />
+   536→            {/* Decorative circles */}
+   537→            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full border-4 border-white/20" />
+   538→            <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full border-4 border-white/15" />
+   539→            <div className="absolute top-4 right-20 w-12 h-12 rounded-full border-2 border-white/10" />
+   540→          </div>
+   541→
+   542→          {/* Edit Profile Button */}
+   543→          <div className="relative z-10 flex justify-end mb-2">
+   544→            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+   545→              <DialogTrigger asChild>
+   546→                <Button
+   547→                  variant="ghost"
+   548→                  size="sm"
+   549→                  className="text-white/80 hover:text-white hover:bg-white/10 rounded-full px-3 h-8 text-xs gap-1.5"
+   550→                >
+   551→                  <Edit3 className="w-3.5 h-3.5" />
+   552→                  Edit
+   553→                </Button>
+   554→              </DialogTrigger>
+   555→              <DialogContent className="bg-warm-50 dark:bg-warm-100 border-warm-300 max-h-[85vh] overflow-y-auto">
+   556→                <DialogHeader>
+   557→                  <DialogTitle className="text-warm-800 dark:text-warm-700">Edit Profile</DialogTitle>
+   558→                </DialogHeader>
+   559→                <div className="space-y-4 mt-2">
+   560→                  {/* Gender Selection */}
+   561→                  <div className="grid grid-cols-2 gap-3">
+   562→                    <button
+   563→                      onClick={() => setEditForm({ ...editForm, gender: 'male' })}
+   564→                      className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+   565→                        editForm.gender === 'male'
+   566→                          ? 'border-brand-blue bg-brand-blue/10 text-brand-blue'
+   567→                          : 'border-warm-300 text-warm-600 dark:border-warm-200'
+   568→                      }`}
+   569→                    >
+   570→                      ♂ Boy
+   571→                    </button>
+   572→                    <button
+   573→                      onClick={() => setEditForm({ ...editForm, gender: 'female' })}
+   574→                      className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+   575→                        editForm.gender === 'female'
+   576→                          ? 'border-brand-red bg-brand-red/10 text-brand-red'
+   577→                          : 'border-warm-300 text-warm-600 dark:border-warm-200'
+   578→                      }`}
+   579→                    >
+   580→                      ♀ Girl
+   581→                    </button>
+   582→                  </div>
+   583→
+   584→                  {/* Weight Input */}
+   585→                  <div className="relative">
+   586→                    <Input
+   587→                      type="number"
+   588→                      placeholder="Weight (kg)"
+   589→                      value={editForm.weight}
+   590→                      onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+   591→                      className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl pr-12"
+   592→                    />
+   593→                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">kg</span>
+   594→                  </div>
+   595→
+   596→                  {/* Practice Ground */}
+   597→                  <Input
+   598→                    placeholder="Practice ground"
+   599→                    value={editForm.practiceGround}
+   600→                    onChange={(e) => setEditForm({ ...editForm, practiceGround: e.target.value })}
+   601→                    className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl"
+   602→                  />
+   603→
+   604→                  {/* Jersey Number */}
+   605→                  <div className="relative">
+   606→                    <Input
+   607→                      type="number"
+   608→                      placeholder="Jersey Number"
+   609→                      value={editForm.jerseyNumber}
+   610→                      onChange={(e) => setEditForm({ ...editForm, jerseyNumber: e.target.value })}
+   611→                      className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl"
+   612→                      min={1}
+   613→                      max={99}
+   614→                    />
+   615→                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">#</span>
+   616→                  </div>
+   617→
+   618→                  {/* Position Selection */}
+   619→                  <div>
+   620→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Position</label>
+   621→                    <div className="grid grid-cols-2 gap-2">
+   622→                      {POSITIONS.map((pos) => (
+   623→                        <button
+   624→                          key={pos.id}
+   625→                          onClick={() => setEditForm({ ...editForm, position: editForm.position === pos.id ? '' : pos.id })}
+   626→                          className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+   627→                            editForm.position === pos.id
+   628→                              ? 'border-brand-teal bg-brand-teal/10'
+   629→                              : 'border-warm-300 bg-white dark:bg-warm-50 hover:border-warm-200'
+   630→                          }`}
+   631→                        >
+   632→                          <div className="flex items-center gap-1.5">
+   633→                            <span className="text-base">{pos.icon}</span>
+   634→                            <span className={`text-xs font-semibold ${editForm.position === pos.id ? 'text-brand-teal' : 'text-warm-700 dark:text-warm-600'}`}>
+   635→                              {pos.label}
+   636→                            </span>
+   637→                          </div>
+   638→                          <p className="text-[9px] text-warm-400 mt-0.5 ml-6">{pos.meaning}</p>
+   639→                        </button>
+   640→                      ))}
+   641→                    </div>
+   642→                  </div>
+   643→
+   644→                  <Button
+   645→                    onClick={handleSaveProfile}
+   646→                    className="w-full bg-brand-red hover:bg-brand-red-dark text-white rounded-xl"
+   647→                  >
+   648→                    Save Changes
+   649→                  </Button>
+   650→                </div>
+   651→              </DialogContent>
+   652→            </Dialog>
+   653→          </div>
+   654→
+   655→          {/* Name and Gender */}
+   656→          <div className="relative z-10 text-center">
+   657→            <h2 className="text-xl font-bold text-white flex items-center justify-center gap-1.5">
+   658→              {currentUser?.name || 'Player'}
+   659→              {currentUser?.gender === 'male' ? (
+   660→                <span className="text-blue-300">♂</span>
+   661→              ) : currentUser?.gender === 'female' ? (
+   662→                <span className="text-pink-300">♀</span>
+   663→              ) : null}
+   664→              {isPremium ? (
+   665→                <motion.div
+   666→                  initial={{ scale: 0, rotate: -180 }}
+   667→                  animate={{ scale: 1, rotate: 0 }}
+   668→                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+   669→                  className="inline-flex items-center"
+   670→                >
+   671→                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md">
+   672→                    <Crown className="w-3.5 h-3.5 text-white" />
+   673→                  </div>
+   674→                </motion.div>
+   675→              ) : null}
+   676→            </h2>
+   677→
+   678→            {/* Weight & Practice Ground under name */}
+   679→            <div className="flex items-center justify-center gap-3 mt-1.5 text-white/70 text-xs">
+   680→              {currentUser?.weight && (
+   681→                <span className="flex items-center gap-1">
+   682→                  <Activity className="w-3 h-3" />
+   683→                  {currentUser.weight}
+   684→                </span>
+   685→              )}
+   686→              {currentUser?.practiceGround && (
+   687→                <span className="flex items-center gap-1">
+   688→                  <MapPin className="w-3 h-3" />
+   689→                  {currentUser.practiceGround}
+   690→                </span>
+   691→              )}
+   692→            </div>
+   693→
+   694→            {/* Position, Jersey & Premium Badges */}
+   695→            <div className="flex items-center justify-center gap-2 mt-2">
+   696→              {profileData.position && (
+   697→                <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
+   698→                  {getPositionIcon(profileData.position)} {getPositionLabel(profileData.position)}
+   699→                </span>
+   700→              )}
+   701→              {profileData.jerseyNumber && (
+   702→                <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
+   703→                  #{profileData.jerseyNumber}
+   704→                </span>
+   705→              )}
+   706→              {isPremium && (
+   707→                <span className="px-2.5 py-1 rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-xs font-bold">
+   708→                  PRO
+   709→                </span>
+   710→              )}
+   711→            </div>
+   712→
+   713→            <p className="text-white/60 text-sm capitalize mt-1">{currentUser?.role || 'Player'}</p>
+   714→          </div>
+   715→        </div>
+   716→
+   717→        {/* Avatar overlapping the banner */}
+   718→        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 z-20">
+   719→          <div className="relative">
+   720→            <div className="w-20 h-20 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-3xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-xl">
+   721→              {currentUser?.avatar ? (
+   722→                <img
+   723→                  src={currentUser.avatar}
+   724→                  alt={currentUser.name || 'Player'}
+   725→                  className="w-full h-full object-cover"
+   726→                />
+   727→              ) : (
+   728→                <span>
+   729→                  {currentUser?.gender === 'female' ? '👩' : '👨'}
+   730→                </span>
+   731→              )}
+   732→            </div>
+   733→            <button
+   734→              onClick={handleAvatarClick}
+   735→              disabled={uploading}
+   736→              className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-brand-red flex items-center justify-center text-white shadow-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50"
+   737→            >
+   738→              {uploading ? (
+   739→                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+   740→              ) : (
+   741→                <Camera className="w-3.5 h-3.5" />
+   742→              )}
+   743→            </button>
+   744→          </div>
+   745→        </div>
+   746→      </motion.div>
+   747→
+   748→      {/* Player Code - Prominent Display */}
+   749→      {(profileData.playerCode || currentUser?.playerCode) && (
+   750→        <motion.div
+   751→          initial={{ opacity: 0, scale: 0.9 }}
+   752→          animate={{ opacity: 1, scale: 1 }}
+   753→          transition={{ delay: 0.1, type: 'spring', stiffness: 300 }}
+   754→          className="pt-8"
+   755→        >
+   756→          <button
+   757→            onClick={handleCopyCode}
+   758→            className="w-full inline-flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-slate-50 via-slate-100 to-slate-50 dark:from-warm-100 dark:via-warm-100/80 dark:to-warm-100 border-2 border-slate-200 dark:border-warm-200 hover:border-brand-teal/40 active:scale-[0.98] transition-all shadow-sm"
+   759→          >
+   760→            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-md shrink-0">
+   761→              <Hash className="w-5 h-5 text-white" />
+   762→            </div>
+   763→            <div className="text-left flex-1">
+   764→              <p className="text-[10px] font-semibold text-warm-400 uppercase tracking-wider leading-none">Player Code</p>
+   765→              <p className="text-lg font-black text-warm-800 dark:text-warm-700 font-mono leading-tight tracking-wider">{profileData.playerCode || currentUser?.playerCode}</p>
+   766→            </div>
+   767→            <div className="shrink-0">
+   768→              <AnimatePresence mode="wait">
+   769→                {codeCopied ? (
+   770→                  <motion.div
+   771→                    key="check"
+   772→                    initial={{ scale: 0 }}
+   773→                    animate={{ scale: 1 }}
+   774→                    exit={{ scale: 0 }}
+   775→                    className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center"
+   776→                  >
+   777→                    <Check className="w-4 h-4 text-white" />
+   778→                  </motion.div>
+   779→                ) : (
+   780→                  <motion.div
+   781→                    key="copy"
+   782→                    initial={{ scale: 0 }}
+   783→                    animate={{ scale: 1 }}
+   784→                    exit={{ scale: 0 }}
+   785→                    className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center"
+   786→                  >
+   787→                    <Copy className="w-3.5 h-3.5 text-warm-400" />
+   788→                  </motion.div>
+   789→                )}
+   790→              </AnimatePresence>
+   791→            </div>
+   792→          </button>
+   793→        </motion.div>
+   794→      )}
+   795→
+   796→      {/* ═══════════════════════════════════════════ */}
+   797→      {/* PREMIUM CARD */}
+   798→      {/* ═══════════════════════════════════════════ */}
+   799→      {!isPremium && (
+   800→        <motion.div
+   801→          initial={{ opacity: 0, y: 10 }}
+   802→          animate={{ opacity: 1, y: 0 }}
+   803→          transition={{ delay: 0.15 }}
+   804→        >
+   805→          <button
+   806→            onClick={() => setShowUpgrade(true)}
+   807→            className="w-full relative overflow-hidden rounded-2xl p-[2px] active:scale-[0.98] transition-transform"
+   808→          >
+   809→            {/* Animated gradient border */}
+   810→            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 animate-[borderRotate_3s_linear_infinite]" style={{ backgroundSize: '200% 200%' }} />
+   811→            <div className="relative rounded-2xl bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 p-4 overflow-hidden">
+   812→              {/* Golden shimmer effect */}
+   813→              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_3s_infinite]" />
+   814→              {/* Sparkle dots */}
+   815→              <div className="absolute top-3 right-8 w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+   816→              <div className="absolute top-8 right-16 w-1 h-1 rounded-full bg-white/40 animate-pulse" style={{ animationDelay: '0.5s' }} />
+   817→              <div className="absolute bottom-4 right-10 w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse" style={{ animationDelay: '1s' }} />
+   818→              <div className="relative z-10 flex items-center justify-between">
+   819→                <div className="flex items-center gap-3">
+   820→                  <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-md">
+   821→                    <Crown className="w-7 h-7 text-white" />
+   822→                  </div>
+   823→                  <div className="text-left">
+   824→                    <p className="text-white font-bold text-base">Go Premium</p>
+   825→                    <p className="text-white/80 text-xs">Unlock stats, host tournaments & more</p>
+   826→                  </div>
+   827→                </div>
+   828→                <div className="bg-white/25 backdrop-blur-sm rounded-xl px-4 py-2">
+   829→                  <span className="text-white text-sm font-black">₹149</span>
+   830→                  <span className="text-white/80 text-xs">/mo</span>
+   831→                </div>
+   832→              </div>
+   833→            </div>
+   834→          </button>
+   835→        </motion.div>
+   836→      )}
+   837→
+   838→      {/* Premium Active Card */}
+   839→      {isPremium && (
+   840→        <motion.div
+   841→          initial={{ opacity: 0, y: 10 }}
+   842→          animate={{ opacity: 1, y: 0 }}
+   843→          transition={{ delay: 0.15 }}
+   844→        >
+   845→          <Card className="p-4 bg-gradient-to-r from-brand-gold/10 to-brand-gold/5 border border-brand-gold/20 dark:from-brand-gold/20 dark:to-brand-gold/10">
+   846→            <div className="flex items-center justify-between">
+   847→              <div className="flex items-center gap-3">
+   848→                <div className="w-10 h-10 rounded-xl bg-brand-gold/20 flex items-center justify-center">
+   849→                  <Crown className="w-5 h-5 text-brand-gold" />
+   850→                </div>
+   851→                <div className="text-left">
+   852→                  <p className="text-warm-800 dark:text-warm-700 font-bold text-sm">Premium Active</p>
+   853→                  <p className="text-warm-500 text-xs">All features unlocked</p>
+   854→                </div>
+   855→              </div>
+   856→              <Badge className="bg-brand-gold/20 text-brand-gold border-0 text-xs font-bold">
+   857→                <Crown className="w-3 h-3 mr-1" />
+   858→                PRO
+   859→              </Badge>
+   860→            </div>
+   861→          </Card>
+   862→        </motion.div>
+   863→      )}
+   864→
+   865→      {/* ═══════════════════════════════════════════ */}
+   866→      {/* STATS CARDS */}
+   867→      {/* ═══════════════════════════════════════════ */}
+   868→      <motion.div
+   869→        initial={{ opacity: 0, y: 10 }}
+   870→        animate={{ opacity: 1, y: 0 }}
+   871→        transition={{ delay: 0.1 }}
+   872→        className="grid grid-cols-3 gap-3"
+   873→      >
+   874→        <Card className="p-3 text-center bg-brand-red/5 dark:bg-brand-red/10 border-brand-red/15 shadow-sm">
+   875→          <Zap className="w-5 h-5 text-brand-red mx-auto mb-1" />
+   876→          <div className="text-lg font-bold text-brand-red">{raidPoints}</div>
+   877→          <div className="text-[10px] text-warm-600 dark:text-warm-500">Raid Points</div>
+   878→        </Card>
+   879→        <Card className="p-3 text-center bg-brand-blue/5 dark:bg-brand-blue/10 border-brand-blue/15 shadow-sm">
+   880→          <Shield className="w-5 h-5 text-brand-blue mx-auto mb-1" />
+   881→          <div className="text-lg font-bold text-brand-blue">{tacklePoints}</div>
+   882→          <div className="text-[10px] text-warm-600 dark:text-warm-500">Tackle Points</div>
+   883→        </Card>
+   884→        <Card className="p-3 text-center bg-brand-gold/5 dark:bg-brand-gold/10 border-brand-gold/15 shadow-sm">
+   885→          <Swords className="w-5 h-5 text-brand-gold mx-auto mb-1" />
+   886→          <div className="text-lg font-bold text-brand-gold">{profileData.overallRating.toFixed(1)}</div>
+   887→          <div className="text-[10px] text-warm-600 dark:text-warm-500">Rating</div>
+   888→        </Card>
+   889→      </motion.div>
+   890→
+   891→      {/* ═══════════════════════════════════════════ */}
+   892→      {/* SCORE BREAKDOWN with Progress Bars */}
+   893→      {/* ═══════════════════════════════════════════ */}
+   894→      <motion.div
+   895→        initial={{ opacity: 0, y: 10 }}
+   896→        animate={{ opacity: 1, y: 0 }}
+   897→        transition={{ delay: 0.12 }}
+   898→      >
+   899→        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+   900→          <Trophy className="w-4 h-4 text-brand-gold" />
+   901→          Score Breakdown
+   902→        </h3>
+   903→
+   904→        {/* Success Rate Progress Bars */}
+   905→        <Card className="p-4 mb-3 shadow-sm">
+   906→          <div className="space-y-4">
+   907→            {/* Raid Success Rate */}
+   908→            <div>
+   909→              <div className="flex items-center justify-between mb-1.5">
+   910→                <div className="flex items-center gap-2">
+   911→                  <div className="w-6 h-6 rounded-md bg-brand-red/10 flex items-center justify-center">
+   912→                    <Zap className="w-3.5 h-3.5 text-brand-red" />
+   913→                  </div>
+   914→                  <span className="text-sm font-medium text-warm-700 dark:text-warm-600">Raid Success</span>
+   915→                </div>
+   916→                <span className="text-sm font-bold text-brand-red">{raidSuccessRate.toFixed(0)}%</span>
+   917→              </div>
+   918→              <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+   919→                <motion.div
+   920→                  initial={{ width: 0 }}
+   921→                  animate={{ width: `${Math.min(raidSuccessRate, 100)}%` }}
+   922→                  transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+   923→                  className="h-full rounded-full bg-gradient-to-r from-red-400 via-red-500 to-red-600"
+   924→                />
+   925→              </div>
+   926→              <p className="text-[10px] text-warm-400 mt-1">{profileData.successfulRaids} of {profileData.totalRaids} raids successful</p>
+   927→            </div>
+   928→
+   929→            {/* Tackle Success Rate */}
+   930→            <div>
+   931→              <div className="flex items-center justify-between mb-1.5">
+   932→                <div className="flex items-center gap-2">
+   933→                  <div className="w-6 h-6 rounded-md bg-brand-blue/10 flex items-center justify-center">
+   934→                    <Shield className="w-3.5 h-3.5 text-brand-blue" />
+   935→                  </div>
+   936→                  <span className="text-sm font-medium text-warm-700 dark:text-warm-600">Tackle Success</span>
+   937→                </div>
+   938→                <span className="text-sm font-bold text-brand-blue">{tackleSuccessRate.toFixed(0)}%</span>
+   939→              </div>
+   940→              <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+   941→                <motion.div
+   942→                  initial={{ width: 0 }}
+   943→                  animate={{ width: `${Math.min(tackleSuccessRate, 100)}%` }}
+   944→                  transition={{ duration: 1, ease: 'easeOut', delay: 0.4 }}
+   945→                  className="h-full rounded-full bg-gradient-to-r from-slate-400 via-slate-600 to-slate-800"
+   946→                />
+   947→              </div>
+   948→              <p className="text-[10px] text-warm-400 mt-1">{profileData.successfulTackles} of {profileData.totalTackles} tackles successful</p>
+   949→            </div>
+   950→          </div>
+   951→        </Card>
+   952→
+   953→        {/* Practice vs Tournament Stats */}
+   954→        <div className="grid grid-cols-2 gap-3">
+   955→          {/* Practice Stats */}
+   956→          <Card className="p-3 bg-brand-green/5 dark:bg-brand-green/10 border-brand-green/15 shadow-sm">
+   957→            <div className="flex items-center gap-1.5 mb-2">
+   958→              <span className="text-sm">🏋️</span>
+   959→              <span className="text-xs font-bold text-brand-green">Practice</span>
+   960→            </div>
+   961→            <div className="space-y-1.5">
+   962→              <div className="flex justify-between text-[11px]">
+   963→                <span className="text-warm-500 dark:text-warm-400">Matches</span>
+   964→                <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.practiceMatches}</span>
+   965→              </div>
+   966→              <div className="flex justify-between text-[11px]">
+   967→                <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+   968→                <span className="text-brand-red font-semibold">{profileData.practiceRaidPoints}</span>
+   969→              </div>
+   970→              <div className="flex justify-between text-[11px]">
+   971→                <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+   972→                <span className="text-brand-blue font-semibold">{profileData.practiceTacklePoints}</span>
+   973→              </div>
+   974→              <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+   975→                <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+   976→                <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.practiceTotalPoints}</span>
+   977→              </div>
+   978→            </div>
+   979→          </Card>
+   980→          {/* Tournament Stats */}
+   981→          <Card className="p-3 bg-brand-gold/5 dark:bg-brand-gold/10 border-brand-gold/15 shadow-sm">
+   982→            <div className="flex items-center gap-1.5 mb-2">
+   983→              <span className="text-sm">🏆</span>
+   984→              <span className="text-xs font-bold text-brand-gold">Tournament</span>
+   985→            </div>
+   986→            <div className="space-y-1.5">
+   987→              <div className="flex justify-between text-[11px]">
+   988→                <span className="text-warm-500 dark:text-warm-400">Matches</span>
+   989→                <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.tournamentMatches}</span>
+   990→              </div>
+   991→              <div className="flex justify-between text-[11px]">
+   992→                <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+   993→                <span className="text-brand-red font-semibold">{profileData.tournamentRaidPoints}</span>
+   994→              </div>
+   995→              <div className="flex justify-between text-[11px]">
+   996→                <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+   997→                <span className="text-brand-blue font-semibold">{profileData.tournamentTacklePoints}</span>
+   998→              </div>
+   999→              <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+  1000→                <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+  1001→                <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.tournamentTotalPoints}</span>
+  1002→              </div>
+  1003→            </div>
+  1004→          </Card>
+  1005→        </div>
+  1006→      </motion.div>
+  1007→
+  1008→      {/* ═══════════════════════════════════════════ */}
+  1009→      {/* RECENT MATCHES Section (NEW) */}
+  1010→      {/* ═══════════════════════════════════════════ */}
+  1011→      <motion.div
+  1012→        initial={{ opacity: 0, y: 10 }}
+  1013→        animate={{ opacity: 1, y: 0 }}
+  1014→        transition={{ delay: 0.14 }}
+  1015→      >
+  1016→        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1017→          <Calendar className="w-4 h-4 text-brand-teal" />
+  1018→          Recent Matches
+  1019→        </h3>
+  1020→        <Card className="shadow-sm overflow-hidden">
+  1021→          {recentMatches.length === 0 ? (
+  1022→            <div className="p-6 text-center">
+  1023→              <div className="w-12 h-12 rounded-full bg-warm-100 dark:bg-warm-200 flex items-center justify-center mx-auto mb-3">
+  1024→                <Swords className="w-6 h-6 text-warm-300 dark:text-warm-400" />
+  1025→              </div>
+  1026→              <p className="text-sm text-warm-500 dark:text-warm-400">No matches yet</p>
+  1027→              <p className="text-xs text-warm-400 dark:text-warm-300 mt-1">Start scoring to see your match history</p>
+  1028→            </div>
+  1029→          ) : (
+  1030→            <div className="divide-y divide-warm-200 dark:divide-warm-300">
+  1031→              {recentMatches.slice(0, 5).map((match, idx) => {
+  1032→                const result = getMatchResult(match);
+  1033→                return (
+  1034→                  <motion.div
+  1035→                    key={match.id}
+  1036→                    initial={{ opacity: 0, x: -10 }}
+  1037→                    animate={{ opacity: 1, x: 0 }}
+  1038→                    transition={{ delay: 0.1 * idx }}
+  1039→                    className="flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 transition-colors"
+  1040→                  >
+  1041→                    {/* Result indicator */}
+  1042→                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${getResultColor(result)}`}>
+  1043→                      {result}
+  1044→                    </div>
+  1045→                    {/* Match info */}
+  1046→                    <div className="flex-1 min-w-0">
+  1047→                      <div className="flex items-center gap-1 text-sm font-medium text-warm-800 dark:text-warm-700">
+  1048→                        <span className="truncate">{match.homeTeam}</span>
+  1049→                        <span className="text-warm-400 text-xs shrink-0">vs</span>
+  1050→                        <span className="truncate">{match.awayTeam}</span>
+  1051→                      </div>
+  1052→                      <div className="flex items-center gap-2 mt-0.5">
+  1053→                        <span className="text-xs text-warm-400">{match.date}</span>
+  1054→                        {match.isPractice && (
+  1055→                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal font-medium">Practice</span>
+  1056→                        )}
+  1057→                      </div>
+  1058→                    </div>
+  1059→                    {/* Score */}
+  1060→                    <div className="text-right shrink-0">
+  1061→                      <span className="text-sm font-bold text-warm-800 dark:text-warm-700">
+  1062→                        {match.homeScore} - {match.awayScore}
+  1063→                      </span>
+  1064→                    </div>
+  1065→                  </motion.div>
+  1066→                );
+  1067→              })}
+  1068→            </div>
+  1069→          )}
+  1070→          {recentMatches.length > 0 && (
+  1071→            <div className="px-4 py-2.5 border-t border-warm-200 dark:border-warm-300">
+  1072→              <button className="w-full text-center text-xs font-semibold text-brand-teal hover:text-brand-teal-dark transition-colors flex items-center justify-center gap-1">
+  1073→                View All Matches
+  1074→                <ChevronRight className="w-3.5 h-3.5" />
+  1075→              </button>
+  1076→            </div>
+  1077→          )}
+  1078→        </Card>
+  1079→      </motion.div>
+  1080→
+  1081→      {/* ═══════════════════════════════════════════ */}
+  1082→      {/* BADGES Section with Animated Icons */}
+  1083→      {/* ═══════════════════════════════════════════ */}
+  1084→      <motion.div
+  1085→        initial={{ opacity: 0, y: 10 }}
+  1086→        animate={{ opacity: 1, y: 0 }}
+  1087→        transition={{ delay: 0.15 }}
+  1088→      >
+  1089→        <PremiumLock feature="Detailed Badges">
+  1090→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1091→            <Award className="w-4 h-4 text-brand-gold" />
+  1092→            Badges
+  1093→          </h3>
+  1094→          {badges.every(b => !b.condition) ? (
+  1095→            <Card className="p-5 shadow-sm">
+  1096→              <div className="text-center">
+  1097→                <motion.div
+  1098→                  animate={{ y: [0, -4, 0] }}
+  1099→                  transition={{ duration: 2, repeat: Infinity }}
+  1100→                  className="text-3xl mb-2"
+  1101→                >
+  1102→                  🏅
+  1103→                </motion.div>
+  1104→                <p className="text-sm text-warm-600 dark:text-warm-500 font-medium">No badges earned yet</p>
+  1105→                <p className="text-xs text-warm-400 dark:text-warm-300 mt-1">Play more matches to unlock badges!</p>
+  1106→              </div>
+  1107→            </Card>
+  1108→          ) : (
+  1109→            <div className="flex flex-wrap gap-2">
+  1110→              {badges.map((badge, idx) => (
+  1111→                <motion.div
+  1112→                  key={badge.label}
+  1113→                  initial={{ opacity: 0, scale: 0.8 }}
+  1114→                  animate={{ opacity: 1, scale: 1 }}
+  1115→                  transition={{ delay: 0.05 * idx, type: 'spring', stiffness: 300 }}
+  1116→                >
+  1117→                  <Badge
+  1118→                    variant="secondary"
+  1119→                    className={`py-1.5 px-3 text-xs relative ${
+  1120→                      badge.condition
+  1121→                        ? 'bg-brand-gold/10 text-brand-gold border border-brand-gold/30 shadow-sm'
+  1122→                        : badge.premium && !isPremium
+  1123→                          ? 'bg-warm-100 dark:bg-warm-200 text-warm-300 dark:text-warm-400 border border-warm-200 dark:border-warm-300'
+  1124→                          : 'bg-warm-200 dark:bg-warm-300 text-warm-400 dark:text-warm-500'
+  1125→                    }`}
+  1126→                  >
+  1127→                    <motion.span
+  1128→                      className="inline-block mr-1"
+  1129→                      animate={badge.condition ? { scale: [1, 1.2, 1] } : {}}
+  1130→                      transition={badge.condition ? { duration: 2, repeat: Infinity, repeatDelay: 3 } : {}}
+  1131→                    >
+  1132→                      {badge.premium && !isPremium ? '🔒' : badge.icon}
+  1133→                    </motion.span>
+  1134→                    {badge.label}
+  1135→                    {badge.premium && !isPremium && (
+  1136→                      <span className="ml-1 text-[8px] font-bold text-brand-gold/60">PRO</span>
+  1137→                    )}
+  1138→                  </Badge>
+  1139→                </motion.div>
+  1140→              ))}
+  1141→            </div>
+  1142→          )}
+  1143→        </PremiumLock>
+  1144→      </motion.div>
+  1145→
+  1146→      {/* ═══════════════════════════════════════════ */}
+  1147→      {/* PERFORMANCE CHART */}
+  1148→      {/* ═══════════════════════════════════════════ */}
+  1149→      <motion.div
+  1150→        initial={{ opacity: 0, y: 10 }}
+  1151→        animate={{ opacity: 1, y: 0 }}
+  1152→        transition={{ delay: 0.2 }}
+  1153→      >
+  1154→        <PremiumLock feature="Performance Analytics">
+  1155→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3">Performance</h3>
+  1156→          <Card className="p-4 shadow-sm">
+  1157→            <div className="h-48">
+  1158→              <ResponsiveContainer width="100%" height="100%">
+  1159→                <BarChart data={performanceData} barSize={40}>
+  1160→                  <XAxis
+  1161→                    dataKey="name"
+  1162→                    axisLine={false}
+  1163→                    tickLine={false}
+  1164→                    tick={{ fontSize: 11, fill: '#8B7355' }}
+  1165→                  />
+  1166→                  <YAxis hide />
+  1167→                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+  1168→                    {performanceData.map((_, index) => (
+  1169→                      <Cell key={`cell-${index}`} fill={barColors[index]} />
+  1170→                    ))}
+  1171→                  </Bar>
+  1172→                </BarChart>
+  1173→              </ResponsiveContainer>
+  1174→            </div>
+  1175→          </Card>
+  1176→        </PremiumLock>
+  1177→      </motion.div>
+  1178→
+  1179→      {/* ═══════════════════════════════════════════ */}
+  1180→      {/* DETAILED STATS BREAKDOWN */}
+  1181→      {/* ═══════════════════════════════════════════ */}
+  1182→      <motion.div
+  1183→        initial={{ opacity: 0, y: 10 }}
+  1184→        animate={{ opacity: 1, y: 0 }}
+  1185→        transition={{ delay: 0.22 }}
+  1186→      >
+  1187→        <PremiumLock feature="Detailed Stats" compact>
+  1188→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1189→            <Swords className="w-4 h-4 text-brand-red" />
+  1190→            Detailed Breakdown
+  1191→          </h3>
+  1192→          <Card className="p-4 shadow-sm">
+  1193→            <div className="grid grid-cols-2 gap-3">
+  1194→              <div className="text-center p-2.5 rounded-xl bg-brand-red/5 dark:bg-brand-red/10">
+  1195→                <Zap className="w-4 h-4 text-brand-red mx-auto mb-1" />
+  1196→                <p className="text-xs text-warm-500 dark:text-warm-400">Raid Success</p>
+  1197→                <p className="text-lg font-bold text-brand-red">
+  1198→                  {profileData.totalRaids > 0
+  1199→                    ? ((profileData.successfulRaids / profileData.totalRaids) * 100).toFixed(0)
+  1200→                    : 0}%
+  1201→                </p>
+  1202→              </div>
+  1203→              <div className="text-center p-2.5 rounded-xl bg-brand-blue/5 dark:bg-brand-blue/10">
+  1204→                <Shield className="w-4 h-4 text-brand-blue mx-auto mb-1" />
+  1205→                <p className="text-xs text-warm-500 dark:text-warm-400">Tackle Success</p>
+  1206→                <p className="text-lg font-bold text-brand-blue">
+  1207→                  {profileData.totalTackles > 0
+  1208→                    ? ((profileData.successfulTackles / profileData.totalTackles) * 100).toFixed(0)
+  1209→                    : 0}%
+  1210→                </p>
+  1211→              </div>
+  1212→              <div className="text-center p-2.5 rounded-xl bg-brand-teal/5 dark:bg-brand-teal/10">
+  1213→                <Award className="w-4 h-4 text-brand-teal mx-auto mb-1" />
+  1214→                <p className="text-xs text-warm-500 dark:text-warm-400">Bonus Points</p>
+  1215→                <p className="text-lg font-bold text-brand-teal">{profileData.bonusPoints}</p>
+  1216→              </div>
+  1217→              <div className="text-center p-2.5 rounded-xl bg-purple-500/5 dark:bg-purple-500/10">
+  1218→                <Shield className="w-4 h-4 text-purple-500 mx-auto mb-1" />
+  1219→                <p className="text-xs text-warm-500 dark:text-warm-400">Super Tackles</p>
+  1220→                <p className="text-lg font-bold text-purple-500">{profileData.superTackles}</p>
+  1221→              </div>
+  1222→            </div>
+  1223→          </Card>
+  1224→        </PremiumLock>
+  1225→      </motion.div>
+  1226→
+  1227→      {/* ═══════════════════════════════════════════ */}
+  1228→      {/* FEATURE LIST - Categorized with Left Border Accents */}
+  1229→      {/* ═══════════════════════════════════════════ */}
+  1230→      <motion.div
+  1231→        initial={{ opacity: 0, y: 10 }}
+  1232→        animate={{ opacity: 1, y: 0 }}
+  1233→        transition={{ delay: 0.26 }}
+  1234→      >
+  1235→        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1236→          <Settings className="w-4 h-4 text-warm-500" />
+  1237→          Features
+  1238→        </h3>
+  1239→        <div className="space-y-4">
+  1240→          {featureCategories.map((category) => (
+  1241→            <div key={category.title}>
+  1242→              <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-300 uppercase tracking-wider mb-2 ml-1">{category.title}</p>
+  1243→              <Card className="shadow-sm overflow-hidden divide-y divide-warm-100 dark:divide-warm-200">
+  1244→                {category.items.map((item, idx) => {
+  1245→                  const IconComp = item.icon;
+  1246→                  return (
+  1247→                    <motion.button
+  1248→                      key={item.label}
+  1249→                      initial={{ opacity: 0, x: -5 }}
+  1250→                      animate={{ opacity: 1, x: 0 }}
+  1251→                      transition={{ delay: 0.03 * idx }}
+  1252→                      onClick={item.onClick}
+  1253→                      className="w-full flex items-center gap-3 p-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-colors text-left group"
+  1254→                    >
+  1255→                      {/* Left border accent */}
+  1256→                      <div className={`w-1 h-8 rounded-full bg-${item.color} shrink-0`} />
+  1257→                      {/* Icon */}
+  1258→                      <div className={`w-8 h-8 rounded-lg bg-${item.color}/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+  1259→                        <IconComp className={`w-4 h-4 text-${item.color}`} />
+  1260→                      </div>
+  1261→                      {/* Label and description */}
+  1262→                      <div className="flex-1 min-w-0">
+  1263→                        <p className="text-xs font-semibold text-warm-800 dark:text-warm-700">{item.label}</p>
+  1264→                        <p className="text-[10px] text-warm-400 dark:text-warm-300">{item.desc}</p>
+  1265→                      </div>
+  1266→                      {/* Chevron */}
+  1267→                      <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0" />
+  1268→                    </motion.button>
+  1269→                  );
+  1270→                })}
+  1271→              </Card>
+  1272→            </div>
+  1273→          ))}
+  1274→        </div>
+  1275→      </motion.div>
+  1276→
+  1277→      {/* ═══════════════════════════════════════════ */}
+  1278→      {/* SECTION DIVIDER */}
+  1279→      {/* ═══════════════════════════════════════════ */}
+  1280→      <div className="flex items-center gap-3 my-2">
+  1281→        <div className="flex-1 h-px bg-warm-200 dark:bg-warm-300" />
+  1282→        <span className="text-[10px] font-medium text-warm-300 dark:text-warm-400 uppercase tracking-wider">Info & Settings</span>
+  1283→        <div className="flex-1 h-px bg-warm-200 dark:bg-warm-300" />
+  1284→      </div>
+  1285→
+  1286→      {/* ═══════════════════════════════════════════ */}
+  1287→      {/* PERSONAL INFO & SETTINGS */}
+  1288→      {/* ═══════════════════════════════════════════ */}
+  1289→      <motion.div
+  1290→        initial={{ opacity: 0, y: 10 }}
+  1291→        animate={{ opacity: 1, y: 0 }}
+  1292→        transition={{ delay: 0.25 }}
+  1293→      >
+  1294→        <Card className="p-4 space-y-4 shadow-sm">
+  1295→          {/* Phone */}
+  1296→          <div className="flex justify-between text-sm items-center">
+  1297→            <div>
+  1298→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Phone</span>
+  1299→              <p className="text-[10px] text-warm-400 dark:text-warm-300">Your registered number</p>
+  1300→            </div>
+  1301→            <div className="flex items-center gap-1.5">
+  1302→              <span className="text-warm-800 dark:text-warm-700 font-medium font-mono text-xs">
+  1303→                {showPhone ? (currentUser?.phone || '—') : (currentUser?.phone ? `****${currentUser.phone.slice(-2)}` : '—')}
+  1304→              </span>
+  1305→              <button
+  1306→                onClick={() => setShowPhone(!showPhone)}
+  1307→                className="w-5 h-5 rounded-full bg-warm-100 dark:bg-warm-200 flex items-center justify-center text-warm-400 hover:text-warm-600 transition-colors"
+  1308→              >
+  1309→                {showPhone ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+  1310→              </button>
+  1311→            </div>
+  1312→          </div>
+  1313→
+  1314→          {/* Weight */}
+  1315→          {currentUser?.weight && (
+  1316→            <div className="flex justify-between text-sm items-center">
+  1317→              <div>
+  1318→                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Weight</span>
+  1319→                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your weight category</p>
+  1320→              </div>
+  1321→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{currentUser.weight}</span>
+  1322→            </div>
+  1323→          )}
+  1324→
+  1325→          {/* Practice Ground */}
+  1326→          {currentUser?.practiceGround && (
+  1327→            <div className="flex justify-between text-sm items-center">
+  1328→              <div>
+  1329→                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Practice Ground</span>
+  1330→                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your training venue</p>
+  1331→              </div>
+  1332→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{currentUser.practiceGround}</span>
+  1333→            </div>
+  1334→          )}
+  1335→
+  1336→          {/* Position */}
+  1337→          {profileData.position && (
+  1338→            <div className="flex justify-between text-sm items-center">
+  1339→              <div>
+  1340→                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Position</span>
+  1341→                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your playing role</p>
+  1342→              </div>
+  1343→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{getPositionIcon(profileData.position)} {getPositionLabel(profileData.position)}</span>
+  1344→            </div>
+  1345→          )}
+  1346→
+  1347→          {/* Jersey */}
+  1348→          {profileData.jerseyNumber && (
+  1349→            <div className="flex justify-between text-sm items-center">
+  1350→              <div>
+  1351→                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Jersey</span>
+  1352→                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your jersey number</p>
+  1353→              </div>
+  1354→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">#{profileData.jerseyNumber}</span>
+  1355→            </div>
+  1356→          )}
+  1357→
+  1358→          {/* Plan */}
+  1359→          <div className="flex justify-between text-sm items-center">
+  1360→            <div>
+  1361→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Plan</span>
+  1362→              <p className="text-[10px] text-warm-400 dark:text-warm-300">Your subscription</p>
+  1363→            </div>
+  1364→            <span className={`font-medium text-xs ${isPremium ? 'text-brand-gold' : 'text-warm-600 dark:text-warm-500'}`}>
+  1365→              {isPremium ? '⭐ Premium' : 'Free'}
+  1366→            </span>
+  1367→          </div>
+  1368→
+  1369→          {/* Language Toggle */}
+  1370→          <div className="flex justify-between items-center">
+  1371→            <div>
+  1372→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Language</span>
+  1373→              <p className="text-[10px] text-warm-400 dark:text-warm-300">App display language</p>
+  1374→            </div>
+  1375→            <div className="flex items-center gap-1 bg-warm-100 dark:bg-warm-200 rounded-lg p-0.5">
+  1376→              <button
+  1377→                onClick={() => setLanguage('en')}
+  1378→                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+  1379→                  language === 'en'
+  1380→                    ? 'bg-brand-teal text-white shadow-sm'
+  1381→                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600'
+  1382→                }`}
+  1383→              >
+  1384→                English
+  1385→              </button>
+  1386→              <button
+  1387→                onClick={() => setLanguage('hi')}
+  1388→                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+  1389→                  language === 'hi'
+  1390→                    ? 'bg-brand-teal text-white shadow-sm'
+  1391→                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600'
+  1392→                }`}
+  1393→              >
+  1394→                हिंदी
+  1395→              </button>
+  1396→            </div>
+  1397→          </div>
+  1398→
+  1399→          {/* Dark Mode Toggle */}
+  1400→          <div className="flex justify-between items-center">
+  1401→            <div>
+  1402→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Theme</span>
+  1403→              <p className="text-[10px] text-warm-400 dark:text-warm-300">{darkMode ? 'Dark mode active' : 'Light mode active'}</p>
+  1404→            </div>
+  1405→            <button
+  1406→              onClick={toggleDarkMode}
+  1407→              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+  1408→                darkMode
+  1409→                  ? 'bg-warm-700 text-brand-gold hover:bg-warm-600'
+  1410→                  : 'bg-warm-100 dark:bg-warm-200 text-warm-600 dark:text-warm-500 hover:bg-warm-200 dark:hover:bg-warm-300'
+  1411→              }`}
+  1412→            >
+  1413→              {darkMode ? (
+  1414→                <>
+  1415→                  <Moon className="w-3.5 h-3.5" />
+  1416→                  Dark
+  1417→                </>
+  1418→              ) : (
+  1419→                <>
+  1420→                  <Sun className="w-3.5 h-3.5" />
+  1421→                  Light
+  1422→                </>
+  1423→              )}
+  1424→            </button>
+  1425→          </div>
+  1426→        </Card>
+  1427→      </motion.div>
+  1428→
+  1429→      {/* ═══════════════════════════════════════════ */}
+  1430→      {/* EARNINGS DASHBOARD - Admin Only */}
+  1431→      {/* ═══════════════════════════════════════════ */}
+  1432→      {currentUser?.isAdmin && (
+  1433→        <motion.div
+  1434→          initial={{ opacity: 0, y: 10 }}
+  1435→          animate={{ opacity: 1, y: 0 }}
+  1436→          transition={{ delay: 0.28 }}
+  1437→        >
+  1438→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1439→            <IndianRupee className="w-4 h-4 text-emerald-500" />
+  1440→            Earnings Dashboard
+  1441→          </h3>
+  1442→          <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30">
+  1443→            <div className="grid grid-cols-2 gap-3 mb-3">
+  1444→              <div className="p-3 rounded-xl bg-white/80 dark:bg-warm-100/50 border border-emerald-100 dark:border-emerald-800/20">
+  1445→                <div className="flex items-center gap-1.5 mb-1">
+  1446→                  <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+  1447→                  <span className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wide">Total Revenue</span>
+  1448→                </div>
+  1449→                <p className="text-xl font-black text-emerald-700 dark:text-emerald-400">
+  1450→                  ₹{earnings?.totalRevenueINR?.toLocaleString() || '0'}
+  1451→                </p>
+  1452→              </div>
+  1453→              <div className="p-3 rounded-xl bg-white/80 dark:bg-warm-100/50 border border-emerald-100 dark:border-emerald-800/20">
+  1454→                <div className="flex items-center gap-1.5 mb-1">
+  1455→                  <TrendingUp className="w-3.5 h-3.5 text-teal-600" />
+  1456→                  <span className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wide">Last 30 Days</span>
+  1457→                </div>
+  1458→                <p className="text-xl font-black text-teal-700 dark:text-teal-400">
+  1459→                  ₹{earnings?.recentRevenueINR?.toLocaleString() || '0'}
+  1460→                </p>
+  1461→              </div>
+  1462→            </div>
+  1463→            <div className="grid grid-cols-3 gap-2">
+  1464→              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
+  1465→                <p className="text-xs text-warm-500 dark:text-warm-400">Monthly</p>
+  1466→                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.monthlyCount || 0}</p>
+  1467→              </div>
+  1468→              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
+  1469→                <p className="text-xs text-warm-500 dark:text-warm-400">Yearly</p>
+  1470→                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.yearlyCount || 0}</p>
+  1471→              </div>
+  1472→              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
+  1473→                <p className="text-xs text-warm-500 dark:text-warm-400">Lifetime</p>
+  1474→                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.lifetimeCount || 0}</p>
+  1475→              </div>
+  1476→            </div>
+  1477→            <div className="mt-3 flex items-center justify-between text-xs text-warm-500 dark:text-warm-400">
+  1478→              <span className="flex items-center gap-1">
+  1479→                <Users className="w-3 h-3" />
+  1480→                {earnings?.totalPayments || 0} premium subscribers
+  1481→              </span>
+  1482→              <span className="flex items-center gap-1">
+  1483→                <CreditCard className="w-3 h-3" />
+  1484→                Razorpay
+  1485→              </span>
+  1486→            </div>
+  1487→          </Card>
+  1488→        </motion.div>
+  1489→      )}
+  1490→
+  1491→      {/* ═══════════════════════════════════════════ */}
+  1492→      {/* LOGOUT BUTTON with Confirmation */}
+  1493→      {/* ═══════════════════════════════════════════ */}
+  1494→      <motion.div
+  1495→        initial={{ opacity: 0, y: 10 }}
+  1496→        animate={{ opacity: 1, y: 0 }}
+  1497→        transition={{ delay: 0.3 }}
+  1498→      >
+  1499→        {!showLogoutConfirm ? (
+  1500→          <Button
+  1501→            variant="outline"
+  1502→            onClick={() => setShowLogoutConfirm(true)}
+  1503→            className="w-full rounded-xl border-warm-300 dark:border-warm-200 text-brand-red hover:bg-brand-red/5 hover:text-brand-red h-11 gap-2"
+  1504→          >
+  1505→            <LogOut className="w-4 h-4" />
+  1506→            Logout
+  1507→          </Button>
+  1508→        ) : (
+  1509→          <motion.div
+  1510→            initial={{ opacity: 0, scale: 0.95 }}
+  1511→            animate={{ opacity: 1, scale: 1 }}
+  1512→            className="rounded-xl border-2 border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/20 p-4 text-center"
+  1513→          >
+  1514→            <div className="flex items-center justify-center gap-2 mb-3">
+  1515→              <AlertTriangle className="w-5 h-5 text-red-500" />
+  1516→              <p className="text-sm font-bold text-red-700 dark:text-red-400">Confirm Logout</p>
+  1517→            </div>
+  1518→            <p className="text-xs text-warm-500 dark:text-warm-400 mb-4">Are you sure you want to log out of your account?</p>
+  1519→            <div className="flex gap-3">
+  1520→              <Button
+  1521→                variant="outline"
+  1522→                onClick={() => setShowLogoutConfirm(false)}
+  1523→                className="flex-1 rounded-xl border-warm-300 dark:border-warm-200 h-9 text-xs"
+  1524→              >
+  1525→                Cancel
+  1526→              </Button>
+  1527→              <Button
+  1528→                onClick={() => {
+  1529→                  logout();
+  1530→                  toast({ title: 'Logged out successfully' });
+  1531→                }}
+  1532→                className="flex-1 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white h-9 text-xs"
+  1533→              >
+  1534→                <LogOut className="w-3.5 h-3.5 mr-1.5" />
+  1535→                Logout
+  1536→              </Button>
+  1537→            </div>
+  1538→          </motion.div>
+  1539→        )}
+  1540→      </motion.div>
+  1541→    </div>
+  1542→  );
+  1543→}
+  1544→

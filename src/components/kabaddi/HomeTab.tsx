@@ -35,6 +35,8 @@ import {
   Target,
   Flame,
   TrendingUp,
+  RefreshCw,
+  ArrowDown,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -61,6 +63,7 @@ import DataExportScreen from './DataExportScreen';
 import SeasonScreen from './SeasonScreen';
 import PollsScreen from './PollsScreen';
 import SponsorScreen from './SponsorScreen';
+import PlayerStatsScreen from './PlayerStatsScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -307,6 +310,96 @@ function AwardSkeleton() {
   );
 }
 
+// ─── Countdown Timer ────────────────────────────────────────────────
+
+function CountdownTimer({ targetDate }: { targetDate: string | null }) {
+  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+  const [expired, setExpired] = useState(!targetDate);
+
+  useEffect(() => {
+    if (!targetDate) {
+      return;
+    }
+
+    function calculate() {
+      const diff = Math.max(0, new Date(targetDate).getTime() - Date.now());
+      if (diff === 0) {
+        setExpired(true);
+        setTimeLeft({ d: 0, h: 0, m: 0, s: 0 });
+        return true;
+      }
+      setExpired(false);
+      setTimeLeft({
+        d: Math.floor(diff / 86400000),
+        h: Math.floor((diff % 86400000) / 3600000),
+        m: Math.floor((diff % 3600000) / 60000),
+        s: Math.floor((diff % 60000) / 1000),
+      });
+      return false;
+    }
+
+    const done = calculate();
+    if (done) return;
+
+    const id = setInterval(() => {
+      const finished = calculate();
+      if (finished) clearInterval(id);
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [targetDate]);
+
+  if (expired) {
+    return (
+      <motion.div
+        className="flex items-center justify-center gap-1.5 py-1"
+        animate={{ opacity: [1, 0.5, 1] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <span className="text-xs font-bold text-brand-red dark:text-brand-red-light">Starting Soon!</span>
+        <Zap className="w-3 h-3 text-brand-red dark:text-brand-red-light" />
+      </motion.div>
+    );
+  }
+
+  if (!timeLeft) return null;
+
+  const units = [
+    { value: timeLeft.d, label: 'D' },
+    { value: timeLeft.h, label: 'H' },
+    { value: timeLeft.m, label: 'M' },
+    { value: timeLeft.s, label: 'S' },
+  ];
+
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      {units.map((unit, idx) => (
+        <div key={unit.label} className="flex items-center gap-1.5">
+          <div className="flex flex-col items-center">
+            <motion.div
+              className="w-9 h-9 rounded-md bg-warm-800/80 dark:bg-warm-100/90 flex items-center justify-center shadow-sm"
+              key={`${unit.label}-${unit.value}`}
+              initial={{ rotateX: -90, opacity: 0 }}
+              animate={{ rotateX: 0, opacity: 1 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <span className="text-sm font-black text-white dark:text-warm-900 tabular-nums">
+                {String(unit.value).padStart(2, '0')}
+              </span>
+            </motion.div>
+            <span className="text-[8px] font-semibold text-warm-500 dark:text-warm-400 mt-0.5">
+              {unit.label}
+            </span>
+          </div>
+          {idx < units.length - 1 && (
+            <span className="text-warm-400 dark:text-warm-500 font-bold text-xs mb-3">:</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────
 
 type GenderFilter = 'all' | 'boys' | 'girls';
@@ -356,6 +449,13 @@ export default function HomeTab() {
   const [showPolls, setShowPolls] = useState(false);
   const [showSponsors, setShowSponsors] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+
+  // ─── Pull-to-Refresh State ───
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartY = useRef(0);
+  const pullThreshold = 80;
 
   const unreadNotificationCount = notifications.filter((n) => !n.read).length;
 
@@ -540,6 +640,72 @@ export default function HomeTab() {
       .finally(() => setLoading(false));
   };
 
+  // ─── Pull-to-Refresh Handlers ───
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (isRefreshing) return;
+    touchStartY.current = e.touches[0].clientY;
+  }, [isRefreshing]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (isRefreshing) return;
+    const diff = e.touches[0].clientY - touchStartY.current;
+    if (diff > 0) {
+      // Apply rubber-band effect: distance grows slower as you pull more
+      const rubberBanded = diff * 0.4;
+      setPullDistance(Math.min(rubberBanded, pullThreshold * 1.8));
+    }
+  }, [isRefreshing, pullThreshold]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (isRefreshing) return;
+    if (pullDistance >= pullThreshold) {
+      // Trigger refresh
+      setIsRefreshing(true);
+      setPullDistance(pullThreshold);
+
+      useKabaddiStore.setState({ homeData: null });
+      fetchHomeData()
+        .then((data) => {
+          if (data) {
+            const matches: LiveMatch[] = Array.isArray(data.liveMatches)
+              ? data.liveMatches
+              : [];
+            setLiveMatches(matches);
+            const recent: CompletedMatch[] = Array.isArray(data.recentMatches)
+              ? data.recentMatches
+              : [];
+            setRecentMatches(recent);
+            const upcoming: UpcomingMatch[] = Array.isArray(data.upcomingMatches)
+              ? data.upcomingMatches
+              : [];
+            setUpcomingMatches(upcoming);
+            const topRaiders = Array.isArray(data.topRaiders) ? data.topRaiders : [];
+            const topDefenders = Array.isArray(data.topDefenders)
+              ? data.topDefenders
+              : [];
+            setAwardPlayers(buildAwardPlayers(topRaiders, topDefenders));
+            const motm = Array.isArray(data.recentMotmAwards) ? data.recentMotmAwards : [];
+            setMotmAwards(motm);
+            toast({ title: 'Refreshed!', description: 'Data updated successfully' });
+          }
+        })
+        .catch(() => {
+          setError('Failed to refresh data.');
+        })
+        .finally(() => {
+          setIsRefreshing(false);
+          setPullDistance(0);
+        });
+    } else {
+      // Snap back without refreshing
+      setPullDistance(0);
+    }
+  }, [isRefreshing, pullDistance, pullThreshold, fetchHomeData, buildAwardPlayers, toast]);
+
+  // Progress for the pull indicator (0 to 1)
+  const pullProgress = Math.min(pullDistance / pullThreshold, 1);
+  const isPastThreshold = pullDistance >= pullThreshold;
+
   const getTeamShortName = (team: TeamBasic | CompletedMatch['homeTeam'] | UpcomingMatch['homeTeam']): string => {
     if ('shortName' in team && team.shortName) return team.shortName;
     return team.name
@@ -599,7 +765,77 @@ export default function HomeTab() {
   const totalMatches = statsData?.stats?.totalMatches ?? 0;
 
   return (
-    <div className="min-h-screen bg-warm-50 dark:bg-warm-900 pb-6">
+    <div
+      className="min-h-screen bg-warm-50 dark:bg-warm-900 pb-6"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* ─── Pull-to-Refresh Indicator ─── */}
+      <AnimatePresence>
+        {(pullDistance > 0 || isRefreshing) && (
+          <motion.div
+            className="flex flex-col items-center justify-center py-3 overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: Math.max(pullDistance * 0.6, isRefreshing ? 48 : 0), opacity: pullDistance > 0 || isRefreshing ? 1 : 0 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          >
+            <div className="flex flex-col items-center gap-1">
+              {/* Animated icon */}
+              {isRefreshing ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                >
+                  <RefreshCw className="w-5 h-5 text-brand-red" />
+                </motion.div>
+              ) : (
+                <motion.div
+                  animate={{
+                    rotate: isPastThreshold ? 180 : pullProgress * 180,
+                    scale: isPastThreshold ? 1.1 : 1,
+                  }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                >
+                  <ArrowDown className="w-5 h-5 text-brand-red" />
+                </motion.div>
+              )}
+              {/* Progress arc / indicator */}
+              {!isRefreshing && (
+                <div className="relative w-8 h-8">
+                  <svg className="w-8 h-8 -rotate-90" viewBox="0 0 32 32">
+                    <circle
+                      cx="16" cy="16" r="13"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      className="text-warm-200 dark:text-warm-700"
+                    />
+                    <circle
+                      cx="16" cy="16" r="13"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      className="text-brand-red"
+                      strokeDasharray={`${pullProgress * 81.68} 81.68`}
+                    />
+                  </svg>
+                </div>
+              )}
+              <span className="text-[10px] font-semibold text-brand-red">
+                {isRefreshing
+                  ? 'Refreshing...'
+                  : isPastThreshold
+                    ? 'Release to refresh'
+                    : 'Pull to refresh'}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Overlays */}
       {showUpgrade && (
         <PremiumUpgradeScreen
@@ -709,6 +945,9 @@ export default function HomeTab() {
       )}
       {showSponsors && (
         <SponsorScreen onClose={() => setShowSponsors(false)} />
+      )}
+      {showStats && currentUser?.id && (
+        <PlayerStatsScreen userId={currentUser.id} onClose={() => setShowStats(false)} />
       )}
 
       {/* ─── Header ─── */}
@@ -1205,73 +1444,106 @@ export default function HomeTab() {
             initial="hidden"
             animate="show"
           >
-            {upcomingMatches.slice(0, 5).map((match) => (
-              <motion.div key={match.id} variants={fadeUp}>
-                <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge className="bg-brand-teal/10 text-brand-teal text-[10px] font-semibold border-0 px-2 py-0.5">
-                        📅 UPCOMING
-                      </Badge>
-                      <span className="text-[10px] text-warm-400 dark:text-warm-500">
-                        {formatDate(match.startedAt)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
-                          style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
-                        >
-                          {getTeamShortName(match.homeTeam)}
+            {upcomingMatches.slice(0, 5).map((match) => {
+              const isFemale = match.gender?.toLowerCase() === 'female' || match.gender?.toLowerCase() === 'girls';
+              const gradientFrom = match.homeTeam.color || '#DC2626';
+              const gradientTo = match.awayTeam.color || '#1E293B';
+              return (
+                <motion.div key={match.id} variants={fadeUp}>
+                  <Card className="py-0 gap-0 overflow-hidden relative border-0">
+                    {/* Gradient background layer */}
+                    <div
+                      className="absolute inset-0 opacity-[0.07] dark:opacity-[0.12]"
+                      style={{
+                        background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})`,
+                      }}
+                    />
+                    <CardContent className="p-4 relative z-10">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Badge className="bg-brand-teal/10 text-brand-teal text-[10px] font-semibold border-0 px-2 py-0.5">
+                            📅 UPCOMING
+                          </Badge>
+                          {match.gender && (
+                            <Badge
+                              className={`text-[9px] font-bold border-0 px-1.5 py-0.5 ${
+                                isFemale
+                                  ? 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400'
+                                  : 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400'
+                              }`}
+                            >
+                              {isFemale ? '♀' : '♂'}
+                            </Badge>
+                          )}
                         </div>
-                        <span className="text-sm font-semibold text-warm-700 dark:text-warm-300 truncate">
-                          {match.homeTeam.name}
+                        <span className="text-[10px] text-warm-400 dark:text-warm-500">
+                          {formatDate(match.startedAt)}
                         </span>
                       </div>
-                      <span className="text-warm-400 text-xs font-medium px-2">vs</span>
-                      <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                        <span className="text-sm font-semibold text-warm-700 dark:text-warm-300 truncate">
-                          {match.awayTeam.name}
-                        </span>
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
-                          style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
-                        >
-                          {getTeamShortName(match.awayTeam)}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm ring-2 ring-white/30"
+                            style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+                          >
+                            {getTeamShortName(match.homeTeam)}
+                          </div>
+                          <span className="text-sm font-semibold text-warm-700 dark:text-warm-300 truncate">
+                            {match.homeTeam.name}
+                          </span>
+                        </div>
+                        <span className="text-warm-400 text-xs font-medium px-2">vs</span>
+                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                          <span className="text-sm font-semibold text-warm-700 dark:text-warm-300 truncate">
+                            {match.awayTeam.name}
+                          </span>
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm ring-2 ring-white/30"
+                            style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+                          >
+                            {getTeamShortName(match.awayTeam)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    {match.tournament && (
-                      <p className="text-[10px] text-warm-400 dark:text-warm-500 text-center mt-2">
-                        {match.tournament.name}
-                      </p>
-                    )}
-                    <div className="flex justify-end mt-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-[11px] text-brand-teal hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
-                        onClick={() => {
-                          addNotification({
-                            type: 'general',
-                            title: 'Reminder Set',
-                            description: `${match.homeTeam.name} vs ${match.awayTeam.name} - ${formatDate(match.startedAt)}`,
-                          });
-                          toast({
-                            title: 'Reminder Set',
-                            description: `You'll be notified before ${match.homeTeam.name} vs ${match.awayTeam.name}`,
-                          });
-                        }}
-                      >
-                        <Bell className="w-3 h-3 mr-1" />
-                        Set Reminder
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                      {/* Venue info */}
+                      {(match.tournament || match.startedAt) && (
+                        <div className="flex items-center justify-center gap-1 mt-2">
+                          <MapPin className="w-3 h-3 text-warm-400 dark:text-warm-500" />
+                          <p className="text-[10px] text-warm-400 dark:text-warm-500">
+                            {match.tournament?.name || 'Kabaddi Arena'}
+                          </p>
+                        </div>
+                      )}
+                      {/* Countdown Timer */}
+                      <div className="mt-3 py-2 px-3 rounded-lg bg-warm-50/80 dark:bg-warm-900/50 border border-warm-200/60 dark:border-warm-700/40">
+                        <CountdownTimer targetDate={match.startedAt} />
+                      </div>
+                      <div className="flex justify-end mt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-[11px] text-brand-teal hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
+                          onClick={() => {
+                            addNotification({
+                              type: 'general',
+                              title: 'Reminder Set',
+                              description: `${match.homeTeam.name} vs ${match.awayTeam.name} - ${formatDate(match.startedAt)}`,
+                            });
+                            toast({
+                              title: 'Reminder Set',
+                              description: `You'll be notified before ${match.homeTeam.name} vs ${match.awayTeam.name}`,
+                            });
+                          }}
+                        >
+                          <Bell className="w-3 h-3 mr-1" />
+                          Set Reminder
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </motion.div>
         </section>
       )}
@@ -1574,8 +1846,7 @@ export default function HomeTab() {
               className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:shadow-md hover:shadow-brand-red/5 bg-gradient-to-br from-warm-50 to-warm-100 dark:from-warm-800 dark:to-warm-900 border-warm-200 dark:border-warm-700"
               onClick={() => {
                 if (currentUser?.id) {
-                  setStatsUserId(currentUser.id);
-                  setShowAdvancedStats(true);
+                  setShowStats(true);
                 }
               }}
             >
@@ -1585,7 +1856,7 @@ export default function HomeTab() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">My Stats</p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">{isPremium ? 'Analytics' : 'PRO only'}</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">View your stats</p>
                 </div>
               </div>
             </Card>

@@ -232,6 +232,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || '';
     const tournamentId = searchParams.get('tournamentId') || '';
     const matchId = searchParams.get('id') || '';
+    const userId = searchParams.get('userId') || '';
     const limit = parseInt(searchParams.get('limit') || '50');
 
     // Single match detail
@@ -267,6 +268,11 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (tournamentId) where.tournamentId = tournamentId;
+
+    // Filter by userId (matches where user was a scorer)
+    if (userId) {
+      where.scorers = { some: { userId } };
+    }
 
     const matches = await db.match.findMany({
       where,
