@@ -37,6 +37,8 @@ import {
   TrendingUp,
   RefreshCw,
   ArrowDown,
+  BookOpen,
+  Search,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -54,7 +56,7 @@ import SocialFeedScreen from './SocialFeedScreen';
 import MatchHighlightsScreen from './MatchHighlightsScreen';
 import AdvancedStatsScreen from './AdvancedStatsScreen';
 import AchievementsScreen from './AchievementsScreen';
-import ChallengeScreen from './ChallengeScreen';
+import TeamComparisonScreen from './TeamComparisonScreen';
 import GroundsScreen from './GroundsScreen';
 import MatchReplayScreen from './MatchReplayScreen';
 import AIInsightsScreen from './AIInsightsScreen';
@@ -64,6 +66,10 @@ import SeasonScreen from './SeasonScreen';
 import PollsScreen from './PollsScreen';
 import SponsorScreen from './SponsorScreen';
 import PlayerStatsScreen from './PlayerStatsScreen';
+import StreaksRecordsScreen from './StreaksRecordsScreen';
+import MatchPredictionScreen from './MatchPredictionScreen';
+import KabaddiRulesScreen from './KabaddiRulesScreen';
+import GlobalSearchScreen from './GlobalSearchScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -437,7 +443,7 @@ export default function HomeTab() {
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
   const [statsUserId, setStatsUserId] = useState<string | null>(null);
   const [showAchievements, setShowAchievements] = useState(false);
-  const [showChallenges, setShowChallenges] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
   const [showGrounds, setShowGrounds] = useState(false);
   const [showReplay, setShowReplay] = useState(false);
   const [replayMatchId, setReplayMatchId] = useState<string | null>(null);
@@ -447,9 +453,13 @@ export default function HomeTab() {
   const [showDataExport, setShowDataExport] = useState(false);
   const [showSeason, setShowSeason] = useState(false);
   const [showPolls, setShowPolls] = useState(false);
+  const [showPredictions, setShowPredictions] = useState(false);
   const [showSponsors, setShowSponsors] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [showStreaks, setShowStreaks] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);
@@ -565,10 +575,34 @@ export default function HomeTab() {
 
   // Welcome back notification (once per session)
   useEffect(() => {
-    if (currentUser?.name && notifications.length === 0) {
+    if (!currentUser?.name) return;
+
+    const existingTypes = new Set(notifications.map((n) => n.type));
+
+    // Only generate if no notifications at all
+    if (notifications.length === 0) {
       addNotification(welcomeBackNotification(currentUser.name));
     }
-  }, [currentUser?.name]);
+
+    // Upcoming match notification
+    if (upcomingMatches.length > 0 && !existingTypes.has('match_start')) {
+      const nextMatch = upcomingMatches[0];
+      addNotification({
+        type: 'match_start',
+        title: 'Match Starting Soon',
+        description: `${nextMatch.homeTeam.name} vs ${nextMatch.awayTeam.name} is coming up!`,
+      });
+    }
+
+    // Achievement notification for returning users
+    if (notifications.length > 2 && !existingTypes.has('achievement')) {
+      addNotification({
+        type: 'achievement',
+        title: 'Dedicated Player',
+        description: 'You\'ve been consistently active! Keep going for more achievements.',
+      });
+    }
+  }, [currentUser?.name, upcomingMatches.length]);
 
   const handleMatchClick = (match: LiveMatch) => {
     toast({
@@ -850,7 +884,23 @@ export default function HomeTab() {
         <MatchAwardsScreen onClose={() => setShowAwards(false)} />
       )}
       {showNotifications && (
-        <NotificationPanel onClose={() => setShowNotifications(false)} />
+        <NotificationPanel
+          onClose={() => setShowNotifications(false)}
+          onNavigate={(screen) => {
+            setShowNotifications(false);
+            switch (screen) {
+              case 'match-details':
+                break;
+              case 'achievements':
+                setShowAchievements(true);
+                break;
+              case 'premium':
+                setUpgradeFeature('Premium Features');
+                setShowUpgrade(true);
+                break;
+            }
+          }}
+        />
       )}
       {showShareScorecard && shareMatchData && (
         <ShareScorecard
@@ -904,11 +954,14 @@ export default function HomeTab() {
           }}
         />
       )}
+      {showStreaks && (
+        <StreaksRecordsScreen onClose={() => setShowStreaks(false)} />
+      )}
       {showAchievements && (
         <AchievementsScreen onClose={() => setShowAchievements(false)} />
       )}
-      {showChallenges && (
-        <ChallengeScreen onClose={() => setShowChallenges(false)} />
+      {showComparison && (
+        <TeamComparisonScreen onClose={() => setShowComparison(false)} />
       )}
       {showGrounds && (
         <GroundsScreen onClose={() => setShowGrounds(false)} />
@@ -943,15 +996,28 @@ export default function HomeTab() {
       {showPolls && (
         <PollsScreen onClose={() => setShowPolls(false)} />
       )}
+      {showPredictions && (
+        <MatchPredictionScreen onClose={() => setShowPredictions(false)} />
+      )}
       {showSponsors && (
         <SponsorScreen onClose={() => setShowSponsors(false)} />
       )}
       {showStats && currentUser?.id && (
         <PlayerStatsScreen userId={currentUser.id} onClose={() => setShowStats(false)} />
       )}
+      {showRules && (
+        <KabaddiRulesScreen onClose={() => setShowRules(false)} />
+      )}
+
+      {/* ─── Global Search Overlay ─── */}
+      {showSearch && (
+        <GlobalSearchScreen
+          onClose={() => setShowSearch(false)}
+        />
+      )}
 
       {/* ─── Header ─── */}
-      <header className="sticky top-0 z-30 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/40">
+      <header className="sticky top-0 z-30 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md header-gradient-border">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             {/* Logo with animated glow */}
@@ -992,6 +1058,13 @@ export default function HomeTab() {
               </button>
             )}
             <button
+              onClick={() => setShowSearch(true)}
+              className="p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors"
+              aria-label="Search"
+            >
+              <Search className="w-5 h-5 text-warm-700 dark:text-warm-200" />
+            </button>
+            <button
               onClick={() => setShowNotifications(true)}
               className="relative p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors"
             >
@@ -1001,9 +1074,15 @@ export default function HomeTab() {
                 <BellOff className="w-5 h-5 text-warm-400" />
               )}
               {unreadNotificationCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold px-1">
+                <motion.span
+                  key={unreadNotificationCount}
+                  initial={{ scale: 0.5 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', damping: 10, stiffness: 300 }}
+                  className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold px-1"
+                >
                   {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
-                </span>
+                </motion.span>
               )}
             </button>
           </div>
@@ -1862,6 +1941,28 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
+          {/* Rules & Tutorial */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22 }}
+          >
+            <Card
+              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:shadow-md hover:shadow-brand-teal/5 bg-gradient-to-br from-warm-50 to-warm-100 dark:from-warm-800 dark:to-warm-900 border-warm-200 dark:border-warm-700"
+              onClick={() => setShowRules(true)}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-teal/15 to-brand-teal/5 flex items-center justify-center">
+                  <BookOpen className="w-4 h-4 text-brand-teal" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Rules</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Learn the game</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
           {/* Match Highlights */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -1902,7 +2003,7 @@ export default function HomeTab() {
           >
             <Card
               className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:shadow-md hover:shadow-brand-gold/5 bg-gradient-to-br from-warm-50 to-warm-100 dark:from-warm-800 dark:to-warm-900 border-warm-200 dark:border-warm-700"
-              onClick={() => setShowAchievements(true)}
+              onClick={() => setShowStreaks(true)}
             >
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 flex items-center justify-center">
@@ -1910,13 +2011,13 @@ export default function HomeTab() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Achievements</p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Unlock badges</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Streaks & records</p>
                 </div>
               </div>
             </Card>
           </motion.div>
 
-          {/* Challenges */}
+          {/* Compare Teams */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1924,15 +2025,15 @@ export default function HomeTab() {
           >
             <Card
               className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:shadow-md hover:shadow-brand-red/5 bg-gradient-to-br from-warm-50 to-warm-100 dark:from-warm-800 dark:to-warm-900 border-warm-200 dark:border-warm-700"
-              onClick={() => setShowChallenges(true)}
+              onClick={() => setShowComparison(true)}
             >
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-red/15 to-brand-red/5 flex items-center justify-center">
                   <Swords className="w-4 h-4 text-brand-red" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Challenges</p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Challenge teams</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Compare Teams</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Head-to-head</p>
                 </div>
               </div>
             </Card>
@@ -2088,17 +2189,16 @@ export default function HomeTab() {
           >
             <Card
               className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:shadow-md hover:shadow-brand-gold/5 relative overflow-hidden bg-gradient-to-br from-warm-50 to-warm-100 dark:from-warm-800 dark:to-warm-900 border-warm-200 dark:border-warm-700"
-              onClick={() => setShowPolls(true)}
+              onClick={() => setShowPredictions(true)}
             >
               <div className="absolute inset-0 rounded-lg border border-brand-gold/20" style={{ background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.06), transparent)' }} />
               <div className="flex items-center gap-2.5 relative z-10">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 flex items-center justify-center relative">
-                  <Vote className="w-4 h-4 text-brand-gold" />
-                  <Lock className="w-2 h-2 text-brand-gold absolute -top-0.5 -right-0.5" />
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-brand-gold" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Predictions</p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Vote & predict</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Predict & win</p>
                 </div>
               </div>
             </Card>

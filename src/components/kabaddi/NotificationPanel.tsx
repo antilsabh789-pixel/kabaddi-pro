@@ -1,50 +1,433 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, Check, Trash2, Trophy, Swords, Crown, Star } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import {
+  X,
+  Bell,
+  BellOff,
+  Trophy,
+  Radio,
+  Crown,
+  Star,
+  Trash2,
+  Check,
+  CheckCheck,
+  Swords,
+  MessageCircle,
+  Shield,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useKabaddiStore, type AppNotification, type NotificationType } from '@/lib/store';
+import {
+  useKabaddiStore,
+  type AppNotification,
+  type NotificationType,
+} from '@/lib/store';
+import { cn } from '@/lib/utils';
+
+// ─── Constants ──────────────────────────────────────────────────────
+
+type CategoryFilter = 'all' | 'match' | 'achievement' | 'premium' | 'general';
+
+interface CategoryTab {
+  id: CategoryFilter;
+  label: string;
+  types: NotificationType[];
+}
+
+const CATEGORY_TABS: CategoryTab[] = [
+  { id: 'all', label: 'All', types: ['match_start', 'match_result', 'achievement', 'premium', 'general'] },
+  { id: 'match', label: 'Matches', types: ['match_start', 'match_result'] },
+  { id: 'achievement', label: 'Achievements', types: ['achievement'] },
+  { id: 'premium', label: 'Premium', types: ['premium'] },
+  { id: 'general', label: 'General', types: ['general'] },
+];
 
 const NOTIFICATION_ICONS: Record<NotificationType, typeof Bell> = {
-  match_start: Swords,
-  match_result: Trophy,
-  achievement: Star,
+  match_start: Radio,
+  match_result: Swords,
+  achievement: Trophy,
   premium: Crown,
   general: Bell,
 };
 
-const NOTIFICATION_COLORS: Record<NotificationType, string> = {
-  match_start: 'bg-brand-teal/20 text-brand-teal',
-  match_result: 'bg-brand-gold/20 text-brand-gold-dark',
-  achievement: 'bg-purple-500/20 text-purple-600',
-  premium: 'bg-brand-gold/20 text-brand-gold-dark',
-  general: 'bg-warm-200 text-warm-600',
+const NOTIFICATION_BORDER_COLORS: Record<NotificationType, string> = {
+  match_start: 'border-l-brand-teal',
+  match_result: 'border-l-brand-red',
+  achievement: 'border-l-brand-gold',
+  premium: 'border-l-brand-gold',
+  general: 'border-l-warm-400',
 };
+
+const NOTIFICATION_ICON_BG: Record<NotificationType, string> = {
+  match_start: 'bg-brand-teal/15 text-brand-teal',
+  match_result: 'bg-brand-red/15 text-brand-red',
+  achievement: 'bg-brand-gold/15 text-brand-gold-dark dark:text-brand-gold',
+  premium: 'bg-brand-gold/15 text-brand-gold-dark dark:text-brand-gold',
+  general: 'bg-warm-200 dark:bg-warm-300/30 text-warm-500 dark:text-warm-400',
+};
+
+const EMPTY_STATE_MESSAGES: Record<CategoryFilter, { title: string; subtitle: string }> = {
+  all: { title: 'No notifications', subtitle: "You'll see match results and achievements here" },
+  match: { title: 'No match updates', subtitle: 'Match notifications will appear when games go live or finish' },
+  achievement: { title: 'No achievements yet', subtitle: 'Keep playing to unlock achievements!' },
+  premium: { title: 'No premium alerts', subtitle: 'Premium feature updates will show here' },
+  general: { title: 'All caught up!', subtitle: 'General announcements will appear here' },
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function formatTimeAgo(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
+
+// ─── Notification Card ──────────────────────────────────────────────
+
+interface NotificationCardProps {
+  notification: AppNotification;
+  onMarkRead: (id: string) => void;
+  onClick: (notification: AppNotification) => void;
+  onDismiss: (id: string) => void;
+}
+
+function NotificationCard({ notification, onMarkRead, onClick, onDismiss }: NotificationCardProps) {
+  const x = useMotionValue(0);
+  const opacity = useTransform(x, [-150, 0, 150], [0.3, 1, 0.3]);
+  const Icon = NOTIFICATION_ICONS[notification.type] || Bell;
+  const borderClass = NOTIFICATION_BORDER_COLORS[notification.type] || 'border-l-warm-400';
+  const iconBgClass = NOTIFICATION_ICON_BG[notification.type] || NOTIFICATION_ICON_BG.general;
+  const isPremium = notification.type === 'premium';
+
+  const handleDragEnd = useCallback(
+    (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      if (Math.abs(info.offset.x) > 120) {
+        onDismiss(notification.id);
+      }
+    },
+    [notification.id, onDismiss]
+  );
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: 30 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -100, height: 0, marginBottom: 0 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+      style={{ x, opacity }}
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.15}
+      onDragEnd={handleDragEnd}
+      className={cn(
+        'relative rounded-xl border-l-4 cursor-pointer transition-colors select-none',
+        borderClass,
+        notification.read
+          ? 'bg-warm-50/60 dark:bg-warm-100/40 border border-warm-200/50 dark:border-warm-200/20'
+          : 'bg-white dark:bg-warm-100 border border-warm-200 dark:border-warm-200/30 shadow-sm',
+        !notification.read && 'bg-brand-red/[0.03] dark:bg-brand-red/[0.06]',
+        isPremium && !notification.read && 'card-shine'
+      )}
+      onClick={() => onClick(notification)}
+    >
+      {/* Swipe hint background */}
+      <div className="absolute inset-0 rounded-xl bg-brand-red/10 dark:bg-brand-red/20 flex items-center justify-end pr-6 pointer-events-none">
+        <Trash2 className="w-5 h-5 text-brand-red/50" />
+      </div>
+
+      <div className="relative p-3 flex items-start gap-3">
+        {/* Icon */}
+        <div
+          className={cn(
+            'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
+            iconBgClass
+          )}
+        >
+          <Icon className="w-4 h-4" />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p
+              className={cn(
+                'text-sm text-warm-800 dark:text-warm-700 truncate',
+                !notification.read ? 'font-bold' : 'font-medium'
+              )}
+            >
+              {notification.title}
+            </p>
+            {!notification.read && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="w-2 h-2 rounded-full bg-brand-red shrink-0"
+              />
+            )}
+          </div>
+          <p className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 leading-relaxed line-clamp-2">
+            {notification.description}
+          </p>
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-[10px] text-warm-400 dark:text-warm-500">
+              {formatTimeAgo(notification.timestamp)}
+            </p>
+            {!notification.read && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMarkRead(notification.id);
+                }}
+                className="flex items-center gap-1 text-[10px] font-medium text-brand-teal dark:text-brand-teal-light hover:text-brand-teal-dark transition-colors px-1.5 py-0.5 rounded-md hover:bg-brand-teal/10"
+              >
+                <Check className="w-3 h-3" />
+                Mark read
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Category Tab ───────────────────────────────────────────────────
+
+interface CategoryTabButtonProps {
+  tab: CategoryTab;
+  isActive: boolean;
+  count: number;
+  onClick: () => void;
+}
+
+function CategoryTabButton({ tab, isActive, count, onClick }: CategoryTabButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'relative px-3 py-1.5 text-xs font-semibold rounded-full transition-colors whitespace-nowrap',
+        isActive
+          ? 'text-white'
+          : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
+      )}
+    >
+      {isActive && (
+        <motion.div
+          layoutId="notification-tab-indicator"
+          className="absolute inset-0 rounded-full bg-brand-red"
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        />
+      )}
+      <span className="relative z-10 flex items-center gap-1">
+        {tab.label}
+        {count > 0 && (
+          <span
+            className={cn(
+              'min-w-[16px] h-4 rounded-full text-[9px] font-bold flex items-center justify-center px-1',
+              isActive
+                ? 'bg-white/25 text-white'
+                : 'bg-warm-200 dark:bg-warm-300/30 text-warm-600 dark:text-warm-400'
+            )}
+          >
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+// ─── Empty State ────────────────────────────────────────────────────
+
+interface EmptyStateProps {
+  category: CategoryFilter;
+}
+
+function EmptyState({ category }: EmptyStateProps) {
+  const messages = EMPTY_STATE_MESSAGES[category];
+
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <motion.div
+        animate={{ y: [0, -8, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <div className="w-16 h-16 rounded-2xl bg-warm-100 dark:bg-warm-200/20 flex items-center justify-center mb-4">
+          <BellOff className="w-8 h-8 text-warm-300 dark:text-warm-400" />
+        </div>
+      </motion.div>
+      <p className="text-warm-600 dark:text-warm-400 text-sm font-semibold">{messages.title}</p>
+      <p className="text-warm-400 dark:text-warm-500 text-xs mt-1 text-center max-w-[200px]">
+        {messages.subtitle}
+      </p>
+    </div>
+  );
+}
+
+// ─── Clear Confirmation Dialog ──────────────────────────────────────
+
+interface ClearConfirmProps {
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ClearConfirmDialog({ onConfirm, onCancel }: ClearConfirmProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="absolute inset-0 z-20 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="bg-white dark:bg-warm-100 rounded-2xl p-5 shadow-xl max-w-[280px] w-full text-center"
+      >
+        <div className="w-12 h-12 rounded-full bg-brand-red/10 flex items-center justify-center mx-auto mb-3">
+          <Trash2 className="w-6 h-6 text-brand-red" />
+        </div>
+        <h3 className="text-base font-bold text-warm-800 dark:text-warm-700">Clear All?</h3>
+        <p className="text-xs text-warm-500 dark:text-warm-400 mt-1">
+          This will remove all notifications. This action cannot be undone.
+        </p>
+        <div className="flex gap-2 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            className="flex-1 h-9 text-xs"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onConfirm}
+            className="flex-1 h-9 text-xs"
+          >
+            <Trash2 className="w-3 h-3 mr-1" />
+            Clear All
+          </Button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── Main Panel ─────────────────────────────────────────────────────
 
 interface NotificationPanelProps {
   onClose: () => void;
+  onNavigate?: (screen: string, data?: Record<string, string>) => void;
 }
 
-export default function NotificationPanel({ onClose }: NotificationPanelProps) {
+export default function NotificationPanel({ onClose, onNavigate }: NotificationPanelProps) {
   const notifications = useKabaddiStore((s) => s.notifications);
+  const markNotificationRead = useKabaddiStore((s) => s.markNotificationRead);
   const markAllRead = useKabaddiStore((s) => s.markAllRead);
   const clearNotifications = useKabaddiStore((s) => s.clearNotifications);
+  const addNotification = useKabaddiStore((s) => s.addNotification);
+
+  const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const formatTimeAgo = (timestamp: number) => {
-    const diff = Date.now() - timestamp;
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days === 1) return 'Yesterday';
-    if (days < 7) return `${days}d ago`;
-    return new Date(timestamp).toLocaleDateString();
-  };
+  // Filter notifications by category and exclude dismissed
+  const filteredNotifications = notifications.filter((n) => {
+    if (dismissedIds.has(n.id)) return false;
+    const tab = CATEGORY_TABS.find((t) => t.id === activeCategory);
+    if (!tab) return true;
+    return tab.types.includes(n.type);
+  });
+
+  // Count by category
+  const categoryCounts = CATEGORY_TABS.map((tab) => ({
+    tab,
+    count: notifications.filter((n) => tab.types.includes(n.type) && !dismissedIds.has(n.id)).length,
+    unreadCount: notifications.filter(
+      (n) => tab.types.includes(n.type) && !n.read && !dismissedIds.has(n.id)
+    ).length,
+  }));
+
+  // Auto-generate contextual notifications on load
+  useEffect(() => {
+    const existingTypes = new Set(notifications.map((n) => n.type));
+
+    // Premium feature available (only if not premium user and no existing premium notification)
+    if (!existingTypes.has('premium')) {
+      const timer = setTimeout(() => {
+        addNotification({
+          type: 'premium',
+          title: 'Upgrade to Pro',
+          description: 'Unlock advanced stats, AI insights, and more with Kabaddi Pro!',
+        });
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [addNotification, notifications.length]);
+
+  const handleMarkRead = useCallback(
+    (id: string) => {
+      markNotificationRead(id);
+    },
+    [markNotificationRead]
+  );
+
+  const handleDismiss = useCallback((id: string) => {
+    setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleNotificationClick = useCallback(
+    (notification: AppNotification) => {
+      // Mark as read
+      if (!notification.read) {
+        markNotificationRead(notification.id);
+      }
+
+      // Navigate based on type
+      if (onNavigate) {
+        switch (notification.type) {
+          case 'match_start':
+          case 'match_result':
+            onNavigate('match-details');
+            break;
+          case 'achievement':
+            onNavigate('achievements');
+            break;
+          case 'premium':
+            onNavigate('premium');
+            break;
+          default:
+            break;
+        }
+      }
+
+      onClose();
+    },
+    [markNotificationRead, onNavigate, onClose]
+  );
+
+  const handleClearAll = useCallback(() => {
+    clearNotifications();
+    setShowClearConfirm(false);
+  }, [clearNotifications]);
 
   return (
     <AnimatePresence>
@@ -60,26 +443,28 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="absolute right-0 top-0 bottom-0 w-full max-w-sm bg-warm-50 flex flex-col shadow-2xl"
+          className="absolute right-0 top-0 bottom-0 w-full max-w-sm glass-effect flex flex-col shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60 px-4 py-3">
+          {/* ─── Header ─── */}
+          <div className="sticky top-0 z-10 bg-white/80 dark:bg-warm-100/80 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-200/20 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-brand-red/10 flex items-center justify-center">
                   <Bell className="w-4 h-4 text-brand-red" />
                 </div>
-                <h2 className="text-base font-bold text-warm-800">Notifications</h2>
+                <h2 className="text-base font-bold text-warm-800 dark:text-warm-700">
+                  Notifications
+                </h2>
                 {unreadCount > 0 && (
-                  <Badge className="bg-brand-red text-white text-[9px] border-0 font-bold px-1.5 py-0">
-                    {unreadCount}
+                  <Badge className="bg-brand-red text-white text-[9px] border-0 font-bold px-1.5 py-0 animate-[badge-new-bounce_0.5s_ease-out]">
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </Badge>
                 )}
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600 hover:bg-warm-300 transition-colors"
+                className="w-8 h-8 rounded-full bg-warm-200/80 dark:bg-warm-200/30 flex items-center justify-center text-warm-600 dark:text-warm-400 hover:bg-warm-300 dark:hover:bg-warm-200/40 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -93,16 +478,16 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                     variant="ghost"
                     size="sm"
                     onClick={markAllRead}
-                    className="h-7 text-[11px] text-brand-teal hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
+                    className="h-7 text-[11px] text-brand-teal dark:text-brand-teal-light hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
                   >
-                    <Check className="w-3 h-3 mr-1" />
+                    <CheckCheck className="w-3 h-3 mr-1" />
                     Mark all read
                   </Button>
                 )}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={clearNotifications}
+                  onClick={() => setShowClearConfirm(true)}
                   className="h-7 text-[11px] text-brand-red hover:text-brand-red-dark hover:bg-brand-red/10 px-2"
                 >
                   <Trash2 className="w-3 h-3 mr-1" />
@@ -110,63 +495,60 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                 </Button>
               </div>
             )}
+
+            {/* Category Tabs */}
+            <div className="flex gap-1 mt-3 overflow-x-auto custom-scrollbar pb-1 -mx-1 px-1">
+              {categoryCounts.map(({ tab, count, unreadCount: tabUnread }) => (
+                <CategoryTabButton
+                  key={tab.id}
+                  tab={tab}
+                  isActive={activeCategory === tab.id}
+                  count={tabUnread || count}
+                  onClick={() => setActiveCategory(tab.id)}
+                />
+              ))}
+            </div>
           </div>
 
-          {/* Notification List */}
-          <div className="flex-1 overflow-y-auto px-4 py-2">
-            {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16">
-                <Bell className="w-12 h-12 text-warm-300 mb-3" />
-                <p className="text-warm-600 text-sm font-medium">No notifications</p>
-                <p className="text-warm-400 text-xs mt-1">
-                  You&apos;ll see match results and achievements here
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {notifications.map((notification: AppNotification) => {
-                  const Icon = NOTIFICATION_ICONS[notification.type] || Bell;
-                  const colorClass = NOTIFICATION_COLORS[notification.type] || NOTIFICATION_COLORS.general;
-                  return (
-                    <motion.div
+          {/* ─── Notification List ─── */}
+          <div className="flex-1 overflow-y-auto px-4 py-2 custom-scrollbar relative">
+            <AnimatePresence mode="popLayout">
+              {filteredNotifications.length === 0 ? (
+                <EmptyState category={activeCategory} />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {filteredNotifications.map((notification: AppNotification) => (
+                    <NotificationCard
                       key={notification.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={`p-3 rounded-xl border transition-colors ${
-                        notification.read
-                          ? 'bg-warm-50 border-warm-200'
-                          : 'bg-white border-warm-300 shadow-sm'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${colorClass}`}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className={`text-sm font-semibold text-warm-800 truncate ${
-                              !notification.read ? 'font-bold' : ''
-                            }`}>
-                              {notification.title}
-                            </p>
-                            {!notification.read && (
-                              <div className="w-2 h-2 rounded-full bg-brand-red shrink-0" />
-                            )}
-                          </div>
-                          <p className="text-xs text-warm-500 mt-0.5 leading-relaxed">
-                            {notification.description}
-                          </p>
-                          <p className="text-[10px] text-warm-400 mt-1">
-                            {formatTimeAgo(notification.timestamp)}
-                          </p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
+                      notification={notification}
+                      onMarkRead={handleMarkRead}
+                      onClick={handleNotificationClick}
+                      onDismiss={handleDismiss}
+                    />
+                  ))}
+                </div>
+              )}
+            </AnimatePresence>
+
+            {/* Clear Confirmation Overlay */}
+            <AnimatePresence>
+              {showClearConfirm && (
+                <ClearConfirmDialog
+                  onConfirm={handleClearAll}
+                  onCancel={() => setShowClearConfirm(false)}
+                />
+              )}
+            </AnimatePresence>
           </div>
+
+          {/* ─── Footer hint ─── */}
+          {filteredNotifications.length > 0 && (
+            <div className="px-4 py-2 border-t border-warm-200/50 dark:border-warm-200/20 bg-white/50 dark:bg-warm-100/50 backdrop-blur-sm">
+              <p className="text-[10px] text-warm-400 dark:text-warm-500 text-center">
+                Swipe left on a notification to dismiss
+              </p>
+            </div>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>

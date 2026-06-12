@@ -1019,3 +1019,94 @@
     transform: translateX(4px);
   }
 }
+
+/* ==========================================
+   9. Search & Overlay Utilities
+   ========================================== */
+
+/* Yellow background highlight for search matches */
+.search-highlight {
+  background-color: rgba(250, 204, 21, 0.35);
+  color: var(--foreground);
+}
+.dark .search-highlight {
+  background-color: rgba(250, 204, 21, 0.25);
+}
+
+/* Slide in from top animation for search overlay */
+@keyframes slide-in-top-anim {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in-top {
+  animation: slide-in-top-anim 0.35s ease-out forwards;
+}
+
+/* Dark semi-transparent backdrop for overlays */
+.overlay-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.dark .overlay-backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* Large search input styling with focus ring */
+.input-search {
+  font-size: 15px;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+}
+.input-search:focus {
+  box-shadow:
+    0 0 0 3px rgba(220, 38, 38, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.dark .input-search:focus {
+  box-shadow:
+    0 0 0 3px rgba(239, 68, 68, 0.15),
+    0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Header gradient border bottom */
+.header-gradient-border {
+  border-bottom: 1px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+.header-gradient-border::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-brand-red) 20%,
+    var(--color-brand-gold) 50%,
+    var(--color-brand-red) 80%,
+    transparent
+  );
+  opacity: 0.4;
+}
+.dark .header-gradient-border::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-brand-red-light) 20%,
+    var(--color-brand-gold-light) 50%,
+    var(--color-brand-red-light) 80%,
+    transparent
+  );
+  opacity: 0.35;
+}

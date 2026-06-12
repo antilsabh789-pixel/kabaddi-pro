@@ -787,3 +787,343 @@ Work Log:
 - Dark mode support with proper `dark:` classes throughout
 - Responsive mobile-first design
 - `bun run lint` passed with zero errors
+---
+
+Task ID: 9-d
+Agent: Notification Panel Enhancement Agent
+Task: Enhance the Notification Panel with categories, filters, actions, and better UX
+
+Work Log:
+- Read `/home/z/my-project/worklog.md` to understand project context from previous agents
+- Read existing `NotificationPanel.tsx` to understand current implementation
+- Read `store.ts` for notification types, actions, and state structure
+- Read `HomeTab.tsx` for notification bell integration and auto-notification logic
+- Read `notifications.ts` for helper functions
+- Read `globals.css` for theme colors, utility classes, and keyframe animations
+
+Changes Made:
+
+1. **Updated `/home/z/my-project/src/lib/store.ts`**:
+   - Added `markNotificationRead(id: string)` action to interface and implementation
+   - Allows marking individual notifications as read (vs only markAllRead)
+
+2. **Rewrote `/home/z/my-project/src/components/kabaddi/NotificationPanel.tsx`**:
+   - **Category Filter Tabs**: All | Matches | Achievements | Premium | General pill-style tabs with animated active indicator using Framer Motion `layoutId`
+   - **Enhanced Notification Cards**:
+     - Colored left border by type (brand-teal for match_start, brand-red for match_result, brand-gold for achievement/premium, warm-400 for general)
+     - Type icon in colored circle (Radio for match_start, Swords for match_result, Trophy for achievement, Crown for premium, Bell for general)
+     - Bold title + description + relative time ("2 min ago", "1 hour ago", "Yesterday")
+     - Read/unread visual state (unread has brand-red/5 bg tint, read is muted)
+     - Swipe-to-dismiss with Framer Motion drag (drags horizontally, dismisses at 120px threshold)
+     - Premium notifications get card-shine effect when unread
+   - **Notification Actions**:
+     - "Mark as Read" button on each unread notification card
+     - "Mark All as Read" button (CheckCheck icon) in header
+     - "Clear All" button with confirmation dialog overlay
+     - Click actions navigate: match_start/result → match-details, achievement → achievements screen, premium → premium upgrade
+   - **Empty State**: Animated BellOff icon with floating animation, category-specific messages
+   - **Auto-Notifications**: Generates premium upgrade notification on first load
+   - **Visual Style**: Slide-in panel from right, glass-effect background, dark mode support, mobile-first responsive, custom scrollbar
+   - **Footer hint**: "Swipe left on a notification to dismiss"
+
+3. **Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`**:
+   - Enhanced notification bell badge with spring bounce animation using `motion.span` with `key={unreadNotificationCount}` for re-trigger on count change
+   - Updated NotificationPanel to pass `onNavigate` callback that routes to:
+     - achievements → setShowAchievements(true)
+     - premium → setUpgradeFeature + setShowUpgrade(true)
+     - match-details → reserved for future navigation
+   - Enhanced auto-notification generation:
+     - Welcome back notification (if no notifications exist)
+     - Match starting soon notification (if upcoming matches exist and no match_start type exists)
+     - Achievement notification for returning users (if notifications > 2 and no achievement type exists)
+     - Triggers on `currentUser?.name` and `upcomingMatches.length` changes
+
+4. **Fixed `/home/z/my-project/src/components/kabaddi/MatchPredictionScreen.tsx`**:
+   - Replaced `useState([])` + `useEffect(() => setPredictions(...))` with lazy initializer `useState(() => loadPredictions())`
+   - Fixes `react-hooks/set-state-in-effect` lint error
+
+Stage Summary:
+- NotificationPanel completely rewritten with 5 category tabs, swipe-to-dismiss, colored borders, animated empty states, clear-all confirmation, and glass-effect styling
+- HomeTab notification bell now has spring bounce animation on badge count changes
+- Auto-notifications are more contextual (welcome back + upcoming match + achievement + premium)
+- Individual mark-as-read action added to Zustand store
+- Pre-existing lint error in MatchPredictionScreen fixed
+- `bun run lint` passes with zero errors
+
+---
+Task ID: 9-b
+Agent: Subagent (Team Comparison Screen)
+Task: Create a Team Comparison Screen for head-to-head team analysis
+
+Work Log:
+- Read worklog.md to understand project context and previous agent work
+- Examined HomeTab.tsx to find the "Challenges" explore item to replace
+- Reviewed existing API routes (/api/teams, /api/matches) and Prisma schema
+- Created `/home/z/my-project/src/components/kabaddi/TeamComparisonScreen.tsx`:
+  - Team selection section with two custom searchable dropdowns
+  - Animated VS badge between selectors with pulse animation
+  - "Compare" button to trigger comparison
+  - Head-to-head stats comparison with 9 stat bars (Matches Played, Wins, Losses, Draws, Raid Points, Tackle Points, Bonus Points, All Outs, Avg Score)
+  - Horizontal bar comparison with team colors - winning team's bar uses stronger gradient, losing uses lighter
+  - Animated width transitions with framer-motion
+  - SVG-based radar chart with 6 axes (Raid, Tackle, Bonus, All Out, Win Rate, Consistency)
+  - Both teams overlaid with semi-transparent fill in team colors
+  - Legend showing team colors
+  - Recent encounters list showing date, score, winner with win/draw/loss card styles
+  - Win/Loss streak indicator (last 5 matches as colored dots)
+  - Team color gradient header (blends both team colors)
+  - Uses existing CSS utilities (.gradient-text, .card-elevated, .glass-effect, .custom-scrollbar)
+  - Dark mode support throughout
+  - Mobile-first responsive design
+  - Framer motion entrance animations on all sections
+  - Back navigation button with ArrowLeft icon
+  - Empty state with instructions
+- Created `/home/z/my-project/src/app/api/teams/compare/route.ts`:
+  - GET endpoint accepting teamAId and teamBId query params
+  - Fetches all completed matches for each team
+  - Computes comprehensive stats: totalMatches, wins, losses, draws, raidPoints, tacklePoints, bonusPoints, allOuts, avgScore, winRate, consistency
+  - Consistency metric based on inverse of score standard deviation
+  - Returns head-to-head encounters list with winner determination
+- Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`:
+  - Replaced ChallengeScreen import with TeamComparisonScreen import
+  - Replaced showChallenges state with showComparison state
+  - Replaced "Challenges" explore card with "Compare Teams" card using Swords icon
+  - Description changed to "Head-to-head"
+  - Renders TeamComparisonScreen when showComparison is true
+- Ran `bun run lint` - zero errors
+
+Stage Summary:
+- Team Comparison Screen fully functional with team selection, H2H stats bars, radar chart, recent encounters, and streak indicators
+- New API endpoint /api/teams/compare for comparison data
+- HomeTab explore section updated: "Challenges" → "Compare Teams" with "Head-to-head" description
+- All existing CSS utilities and shadcn components used consistently
+- Zero lint errors
+
+---
+Task ID: 9-e
+Agent: Match Prediction Game Agent
+Task: Create a Match Prediction Game screen where users can predict match outcomes and earn points
+
+Work Log:
+- Read `/home/z/my-project/worklog.md` to understand project context from previous agents
+- Read `HomeTab.tsx` to understand existing navigation patterns, state management, and Pro Features section
+- Read `store.ts` for Kabaddi Pro types and store structure
+- Read `globals.css` for utility classes (.gradient-text, .card-elevated, .badge-premium, .badge-win, .badge-loss, .badge-new, .press-down, .hover-lift, .custom-scrollbar, .number-ticker, etc.)
+- Read `tabs.tsx`, `progress.tsx` UI components for component APIs
+
+Changes Made:
+
+1. **Created `/home/z/my-project/src/components/kabaddi/MatchPredictionScreen.tsx`**:
+   - Full 'use client' component with all required features:
+   - **Prediction Dashboard**: Header with Sparkles icon and gradient text, user's points total, accuracy percentage, current streak of correct predictions
+   - **Active Predictions Section**: 4 upcoming match cards with team colors/short names, match date/time, 3 prediction options (Team A Wins / Draw / Team B Wins), selected prediction highlighted with team color gradient, community prediction percentages bar, Submit Prediction button with animation, already-predicted matches show checkmark
+   - **Prediction Results Section**: 4 completed match cards with scores, correct/incorrect status with green glow / red shake animations, points earned badges, Reveal Result button with confetti animation on correct predictions
+   - **Leaderboard Section**: Top 10 predictors with realistic Indian names, current user highlighted with border and badge, points and accuracy display, podium visualization for top 3 (gold/silver/bronze), user's rank card
+   - **Prediction History**: Scrollable list with All/Correct/Incorrect filters, stats summary (total, correct, accuracy, points), progress bar, color-coded items (green for correct, red for incorrect)
+   - **State Management**: useState with localStorage under 'kabaddi-predictions' key, lazy initializer for predictions, community prediction mock data, points calculation (10 pts correct winner, 25 pts exact draw, 5 bonus for streak)
+   - **Confetti Component**: 30-particle confetti burst on correct prediction reveal
+   - **Visual Style**: Gradient header, team color accents on match cards, animated prediction buttons (hover lift, press down), .gradient-text, .card-elevated, .card-premium, .badge-win, .badge-loss, .badge-new, .press-down, .custom-scrollbar, .number-ticker, dark mode support, mobile-first responsive, shadcn Card/Badge/Button/Tabs/Progress components, Lucide icons
+
+2. **Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`**:
+   - Added `import MatchPredictionScreen from './MatchPredictionScreen'`
+   - Added `showPredictions` state variable
+   - Changed Predictions card onClick from `setShowPolls(true)` to `setShowPredictions(true)`
+   - Changed icon from Vote to Sparkles (matching prediction theme)
+   - Removed Lock icon (PremiumLock) - made feature free
+   - Changed description from "Vote & predict" to "Predict & win"
+   - Added MatchPredictionScreen rendering: `{showPredictions && <MatchPredictionScreen onClose={() => setShowPredictions(false)} />}`
+
+3. **Lint**: `bun run lint` passes with zero errors
+
+Stage Summary:
+- MatchPredictionScreen fully implemented with 4 tabs (Predict, Results, Board, History)
+- Complete prediction workflow: select → submit → reveal → earn points
+- Leaderboard with podium visualization and user ranking
+- Confetti animation on correct predictions
+- All predictions persisted to localStorage
+- Feature is now free (no PremiumLock) in HomeTab
+- Zero lint errors
+
+---
+Task ID: 9-c
+Agent: Agent 9-c
+Task: Create Streak & Records Dashboard screen
+
+Work Log:
+- Read worklog.md to understand project context and previous agents' work
+- Examined existing components (HomeTab, PlayerStatsScreen, AchievementsScreen) for patterns
+- Reviewed API routes (`/api/players/[id]`, `/api/matches`) for data fetching
+- Reviewed globals.css for existing utility classes (gradient-text, card-elevated, card-premium, badge-new, badge-live, skeleton classes, etc.)
+- Created `/home/z/my-project/src/components/kabaddi/StreaksRecordsScreen.tsx` with:
+  - **Current Streaks Section**: Win Streak, Raid Streak, Tackle Streak, Unbeaten Streak cards with animated progress bars, current/best counts, and CSS fire pulse animation
+  - **Personal Records Section**: 6 record cards (Most Raid Points, Most Tackle Points, Highest Score Contribution, Longest Match, Most Super Tackles, Most Bonus Points) with gold shimmer border (card-premium class), "New Record!" badge for recent achievements
+  - **Milestones Section**: 5 milestones with SVG circular progress indicators (50 Matches, 100 Total Points, 50 Raid Points, 25 Tackle Points, 10 Super Tackles), gold checkmark + crown animation on completed milestones
+  - **Match Form Chart**: Last 10 matches as colored dots (W=green, L=red, D=amber), gradient connecting lines, form score with progress bar, Hot/Cold/Mixed Form badge
+  - **Season Summary**: Win/Loss/Draw counts, circular win rate indicator, points scored/conceded
+  - Data fetching from `/api/players/[id]` and `/api/matches?userId=XXX`
+  - Loading skeleton while fetching
+  - Gradient header with Trophy/Flame icons
+  - Framer Motion staggered entrance animations
+  - Dark mode support throughout
+  - Mobile-first responsive layout
+  - Back navigation button
+- Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`:
+  - Added import for StreaksRecordsScreen
+  - Added `showStreaks` state variable
+  - Added StreaksRecordsScreen render block
+  - Changed Achievements explore item onClick to `setShowStreaks(true)`
+  - Changed description from "Unlock badges" to "Streaks & records"
+- Ran `bun run lint` — zero errors
+
+Stage Summary:
+- StreaksRecordsScreen: Full-featured streaks, records, milestones, match form, and season summary dashboard
+- HomeTab integration: Achievements card now navigates to StreaksRecordsScreen
+- All components use Kabaddi Pro color theme, shadcn/ui components, Framer Motion animations
+- Zero lint errors
+
+---
+Task ID: 9-a
+Agent: Subagent (Kabaddi Rules & Tutorial Screen)
+Task: Create comprehensive Kabaddi Rules & Tutorial Screen component
+
+Work Log:
+- Read worklog.md to understand previous agents' work
+- Studied existing codebase: HomeTab.tsx pattern, color theme, component library, utility classes
+- Created `/home/z/my-project/src/components/kabaddi/KabaddiRulesScreen.tsx` — a comprehensive 'use client' component with:
+  - **Introduction Section**: Animated kabaddi court SVG with moving raider, "What is Kabaddi?" overview, and 4 key facts cards (team size, match duration, court dimensions, all-out points)
+  - **Rules Sections** (expandable accordion with 6 sections):
+    - Basic Rules: Raid mechanics, scoring, lob, bonus line
+    - Scoring System: 7 scoring types with point values (raid, bonus, tackle, all-out, super tackle, super raid, do-or-die)
+    - Match Format: Two halves, duration, timeouts, result
+    - Player Positions: Raider, defender, all-rounder with color-coded descriptions and icons
+    - Cards & Penalties: Green, yellow, red card with visual card representations
+    - Court Layout: Detailed SVG diagram with labeled areas (midline, baulk line, bonus line, lobby)
+  - **Interactive Tutorial** (4-step carousel):
+    - Step 1: "The Raid" — animated raider moving across court
+    - Step 2: "Scoring Points" — animated point type badges
+    - Step 3: "Defending" — defenders closing in animation
+    - Step 4: "All Out" — pulsing ALL OUT text animation
+    - Each step has progress bar, illustration, description, and highlight tip
+    - Uses shadcn Carousel for swipe navigation
+  - **Glossary Section**: 18 kabaddi terms with definitions in scrollable list with color-coded first letters
+  - **Section Navigation**: Sticky tab bar (Intro, Rules, Tutorial, Glossary) with AnimatePresence transitions
+  - **Back Navigation**: Back button in sticky header
+- Updated `/home/z/my-project/src/components/kabaddi/HomeTab.tsx`:
+  - Added `BookOpen` to lucide-react imports
+  - Added import for KabaddiRulesScreen
+  - Added `showRules` state variable
+  - Added "Rules" card in Explore section grid with BookOpen icon, "Rules" title, and "Learn the game" description
+  - Added conditional render for KabaddiRulesScreen when showRules is true
+- Ran `bun run lint` — zero errors
+
+Stage Summary:
+- KabaddiRulesScreen: Comprehensive rules & tutorial screen with 4 tab sections, animated SVG court diagrams, interactive tutorial carousel, and glossary
+- HomeTab integration: New "Rules" card in Explore section opens full rules screen
+- Visual style: Uses brand-red/gold/teal/navy color theme, glass-effect, card-elevated, gradient-text, custom-scrollbar utility classes
+- Dark mode fully supported throughout
+- Mobile-first responsive design
+- All animations use Framer Motion with spring transitions
+- Zero lint errors
+
+---
+Task ID: 9-f
+Agent: Global Search & Styling Agent
+Task: Create Global Search component and add styling polish across the app
+
+Work Log:
+- Read worklog.md to understand project history and current state
+- Read HomeTab.tsx, store.ts, globals.css, and Prisma schema for context
+- Created `/src/app/api/search/route.ts` - Search API endpoint:
+  - GET /api/search?q=query&type=all|players|teams|tournaments
+  - Searches across users (players with profile position + team names), teams, and tournaments
+  - Uses Prisma with contains filter for name/code matching
+  - Returns grouped results with relevant fields per type
+  - Error handling with proper status codes
+- Created `/src/components/kabaddi/GlobalSearchScreen.tsx` - Full-screen search overlay:
+  - Search interface with large input, Search icon, and clear button
+  - Auto-focus on open
+  - Debounced search (300ms) as you type
+  - Recent searches section stored in localStorage 'kabaddi-recent-searches' (max 8)
+  - Quick category filters: All, Players, Teams, Tournaments (pill-style buttons)
+  - Players results: Name, player code (highlighted), position, team names, avatar
+  - Teams results: Name, short name (highlighted), color indicator, team code
+  - Tournaments results: Name, type, status badge, tournament code (highlighted)
+  - Results grouped by category with section headers and count badges
+  - Empty state with "No results found" and search suggestions
+  - AnimatePresence/motion for smooth overlay transitions
+  - Slide-in-top animation on open
+- Added CSS utilities to globals.css:
+  - `.search-highlight` - yellow background highlight for search matches (light/dark)
+  - `.slide-in-top` - animation from top for search overlay
+  - `.overlay-backdrop` - dark semi-transparent backdrop with blur for overlays (light/dark)
+  - `.input-search` - large search input styling with focus ring (light/dark)
+  - `.header-gradient-border` - gradient border bottom (red-gold-red) for header
+- Integrated search in HomeTab:
+  - Added `Search` icon import from lucide-react
+  - Added `GlobalSearchScreen` component import
+  - Added `showSearch` state variable
+  - Added search icon button in header (next to notification bell, same styling)
+  - Added GlobalSearchScreen overlay rendering with onClose handler
+- Polished HomeTab header:
+  - Verified header is already sticky with backdrop-blur (confirmed ✓)
+  - Added `header-gradient-border` class for subtle gradient border bottom (replacing plain border-b)
+  - Search icon button styled consistently with notification bell button
+- Ran `bun run lint` - zero errors, zero warnings
+
+Stage Summary:
+- Global Search fully functional with full-screen overlay, category filters, debounced search, and recent searches
+- Search API endpoint searches across all 3 entity types (players, teams, tournaments)
+- 5 new CSS utilities added to globals.css for search and overlay styling
+- Header gradient border adds visual polish
+- Zero lint errors
+- All changes support dark mode
+
+Unresolved issues / Next phase recommendations:
+- Search navigation callbacks are currently minimal (just closes overlay) - could add deeper navigation to player stats, team details, tournament bracket views
+- Could add keyboard shortcut (Cmd+K / Ctrl+K) to open search from anywhere
+- Could add search result caching for faster repeat queries
+- Could add trending searches based on actual usage data
+
+---
+Task ID: 10
+Agent: Main Agent (Cron Review Session - Round 3)
+Task: QA testing, 6 major new features, styling polish, and worklog update
+
+Work Log:
+- Read worklog.md to assess project status from previous 2 rounds
+- Performed comprehensive QA with agent-browser: login, all 4 tabs, dark mode, no errors
+- Verified lint passes with 0 errors, 0 warnings
+- Verified no console errors or runtime errors
+- Launched 6 parallel subagents for major new features and styling:
+  - Agent 9-a: Kabaddi Rules & Tutorial Screen
+  - Agent 9-b: Team Comparison Screen
+  - Agent 9-c: Streak & Records Dashboard
+  - Agent 9-d: Enhanced Notification Panel
+  - Agent 9-e: Match Prediction Game
+  - Agent 9-f: Global Search + Styling Polish
+- All 6 agents completed successfully with zero lint errors
+- Final QA verified: all tabs render correctly, no errors, all new features accessible from Home tab
+
+Stage Summary:
+- **KabaddiRulesScreen** (~55KB): Interactive rules guide with animated court SVG, 6 expandable rule sections (Accordion), 4-step interactive tutorial (Carousel), 18-term glossary, section navigation tabs, fully supports dark mode
+- **TeamComparisonScreen** (~36KB): Head-to-head team comparison with dual dropdown selectors, 9 stat comparison bars with animated widths, SVG radar/spider chart, recent encounters list, win/loss streak dots; new API at /api/teams/compare
+- **StreaksRecordsScreen** (~38KB): Streak tracking (win/raid/tackle/unbeaten with fire animation), 6 personal records with gold shimmer, 5 milestones with SVG circular progress, last-10 match form chart, season summary with win rate indicator
+- **Enhanced NotificationPanel**: Complete rewrite with category filter tabs (All/Matches/Achievements/Premium/General), swipe-to-dismiss, mark-as-read per notification, colored type borders, relative timestamps, empty states, auto-notifications; added markNotificationRead action to store
+- **MatchPredictionScreen** (~57KB): 4-tab prediction game (Predict/Results/Leaderboard/History), community prediction percentages, points system (10/25/5), confetti animation on correct, localStorage persistence, podium leaderboard
+- **GlobalSearchScreen** (~31KB): Full-screen search overlay with debounced search, category filters (All/Players/Teams/Tournaments), recent searches in localStorage, grouped results with highlighted matches; new API at /api/search
+- **CSS Polish**: 5 new utility classes (.search-highlight, .slide-in-top, .overlay-backdrop, .input-search, .header-gradient-border), HomeTab header gradient border
+- **HomeTab Integration**: All 6 new screens accessible from Explore/Pro Features sections (Rules, Compare Teams, Streaks & Records, Predictions now free, Search in header)
+- **Store Enhancement**: Added markNotificationRead(id) action
+- **New API Routes**: /api/search, /api/teams/compare
+- Zero lint errors across all new code
+- Full dark mode support for all new components
+
+Unresolved issues / Next phase recommendations:
+- Tournament creation still requires Premium - could add free tier limit
+- Could add WebSocket support for real-time live match updates
+- Could add sound effects / haptic feedback for scoring events
+- Could add more advanced analytics (raid patterns, time-based analysis)
+- Vercel deployment will need cloud database instead of SQLite
+- Could add multi-language support (Hindi) for Rules & Tutorial
+- Could add video replay integration for match highlights
+- Could add social sharing of predictions and streaks

@@ -153,6 +153,7 @@ interface KabaddiState {
 
   // Notification actions
   addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
+  markNotificationRead: (id: string) => void;
   markAllRead: () => void;
   clearNotifications: () => void;
 
@@ -592,6 +593,13 @@ export const useKabaddiStore = create<KabaddiState>()(
             },
             ...state.notifications,
           ].slice(0, 50), // Keep max 50 notifications
+        })),
+
+      markNotificationRead: (id) =>
+        set((state) => ({
+          notifications: state.notifications.map((n) =>
+            n.id === id ? { ...n, read: true } : n
+          ),
         })),
 
       markAllRead: () =>
