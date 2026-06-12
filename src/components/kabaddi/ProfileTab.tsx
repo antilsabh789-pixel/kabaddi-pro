@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
+import { useTheme } from 'next-themes';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,7 +69,8 @@ export default function ProfileTab() {
   const [showSeason, setShowSeason] = useState(false);
   const [showPolls, setShowPolls] = useState(false);
   const [showSponsors, setShowSponsors] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const darkMode = theme === 'dark';
   const [editForm, setEditForm] = useState({
     gender: currentUser?.gender || '',
     weight: currentUser?.weight?.replace('kg', '') || '',
@@ -222,25 +224,9 @@ export default function ProfileTab() {
     return () => { cancelled = true; };
   }, [currentUser?.isAdmin]);
 
-  // Dark mode: load saved preference on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('kabaddi-pro-theme');
-    if (saved === 'dark') {
-      setDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
-
+  // Dark mode: use next-themes
   const toggleDarkMode = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    if (next) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('kabaddi-pro-theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('kabaddi-pro-theme', 'light');
-    }
+    setTheme(darkMode ? 'light' : 'dark');
   };
 
   // Sync edit form when currentUser changes

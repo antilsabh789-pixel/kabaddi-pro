@@ -209,7 +209,7 @@ const fadeUp = {
 
 function LiveMatchSkeleton() {
   return (
-    <Card className="bg-warm-100 border-warm-300 py-0 gap-0 overflow-hidden">
+    <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="h-5 w-14 rounded-full bg-warm-200 animate-pulse" />
@@ -237,7 +237,7 @@ function LiveMatchSkeleton() {
 
 function AwardSkeleton() {
   return (
-    <Card className="bg-warm-100 border-warm-300 border py-0 gap-0 overflow-hidden">
+    <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 border py-0 gap-0 overflow-hidden">
       <CardContent className="p-4">
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-full bg-warm-200 animate-pulse shrink-0" />
@@ -531,7 +531,7 @@ export default function HomeTab() {
     : '♂';
 
   return (
-    <div className="min-h-screen bg-warm-50 pb-6">
+    <div className="min-h-screen bg-warm-50 dark:bg-warm-900 pb-6">
       {/* Overlays */}
       {showUpgrade && (
         <PremiumUpgradeScreen
@@ -644,13 +644,13 @@ export default function HomeTab() {
       )}
 
       {/* ─── Header ─── */}
-      <header className="sticky top-0 z-30 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
+      <header className="sticky top-0 z-30 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/40">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center shadow-sm shadow-brand-red/20">
               <Trophy className="w-4 h-4 text-white" />
             </div>
-            <h1 className="text-base font-black tracking-wider text-warm-800">
+            <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">
               KABADDI <span className="text-brand-red">PRO</span>
             </h1>
             {isPremium && (
@@ -678,7 +678,7 @@ export default function HomeTab() {
               className="relative p-2 rounded-full hover:bg-warm-100 transition-colors"
             >
               {unreadNotificationCount > 0 ? (
-                <Bell className="w-5 h-5 text-warm-700" />
+                <Bell className="w-5 h-5 text-warm-700 dark:text-warm-200" />
               ) : (
                 <BellOff className="w-5 h-5 text-warm-400" />
               )}
@@ -694,14 +694,14 @@ export default function HomeTab() {
 
       {/* ─── Greeting ─── */}
       <div className="px-4 pt-4 pb-2">
-        <p className="text-warm-600 text-sm">Hello,</p>
-        <h2 className="text-xl font-bold text-warm-800">
+        <p className="text-warm-500 dark:text-warm-400 text-xs font-medium uppercase tracking-wider">Hello,</p>
+        <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mt-0.5">
           {currentUser?.name ?? 'Player'}{' '}
           <span className="text-base align-middle">
             {currentUser?.gender && (
               <span className={currentUser.gender.toLowerCase() === 'female' || currentUser.gender.toLowerCase() === 'girls'
                 ? 'text-brand-red'
-                : 'text-brand-blue'
+                : 'text-brand-blue dark:text-brand-teal'
               }>
                 {genderIcon}
               </span>
@@ -709,6 +709,43 @@ export default function HomeTab() {
           </span>{' '}
           👋
         </h2>
+      </div>
+
+      {/* ─── Quick Stats Banner ─── */}
+      <div className="px-4 mt-2">
+        <div className="bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-navy rounded-2xl p-4 shadow-lg shadow-brand-red/20 overflow-hidden relative">
+          {/* Decorative circles */}
+          <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/10" />
+          <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/5" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="w-4 h-4 text-yellow-300" />
+              <span className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Your Stats</span>
+              {currentUser?.playerCode && (
+                <span className="ml-auto text-white/40 text-[9px] font-mono">{currentUser.playerCode}</span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <div className="text-2xl font-black text-white">{awardPlayers.length > 0 ? awardPlayers[0]?.stat ?? 0 : 0}</div>
+                <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Raid Pts</div>
+              </div>
+              <div className="text-center border-x border-white/10">
+                <div className="text-2xl font-black text-white">{awardPlayers.length > 1 ? awardPlayers[1]?.stat ?? 0 : 0}</div>
+                <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Tackle Pts</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-black text-white">
+                  {(() => {
+                    const data = homeData as StatsData | null;
+                    return data?.stats?.totalMatches ?? 0;
+                  })()}
+                </div>
+                <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Matches</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ─── Error State ─── */}
@@ -735,7 +772,7 @@ export default function HomeTab() {
       <section className="px-4 mt-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-warm-800">
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
               Live Matches
             </h3>
             <span className="relative flex h-2.5 w-2.5">
@@ -803,7 +840,7 @@ export default function HomeTab() {
                   whileTap={{ scale: 0.98 }}
                 >
                   <Card
-                    className="bg-warm-100 border-warm-300 cursor-pointer hover:border-warm-200 transition-colors py-0 gap-0 overflow-hidden"
+                    className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 cursor-pointer hover:border-warm-200 transition-colors py-0 gap-0 overflow-hidden"
                     onClick={() => handleMatchClick(match)}
                   >
                     <CardContent className="p-4">
@@ -837,7 +874,7 @@ export default function HomeTab() {
                       <div className="flex items-center justify-between">
                         <div className="flex flex-col items-center gap-1 flex-1">
                           <div
-                            className="w-10 h-10 rounded-full bg-warm-50 flex items-center justify-center text-xs font-bold text-warm-800"
+                            className="w-10 h-10 rounded-full bg-warm-50 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100"
                             style={{
                               borderColor: match.homeTeam.color || '#DC2626',
                               borderWidth: 2,
@@ -862,7 +899,7 @@ export default function HomeTab() {
                         </div>
                         <div className="flex flex-col items-center gap-1 flex-1">
                           <div
-                            className="w-10 h-10 rounded-full bg-warm-50 flex items-center justify-center text-xs font-bold text-warm-800"
+                            className="w-10 h-10 rounded-full bg-warm-50 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100"
                             style={{
                               borderColor: match.awayTeam.color || '#DC2626',
                               borderWidth: 2,
@@ -887,7 +924,7 @@ export default function HomeTab() {
             ))}
           </motion.div>
         ) : (
-          <Card className="bg-warm-100 border-warm-300 py-0 gap-0">
+          <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0">
             <CardContent className="flex flex-col items-center justify-center py-10">
               <Calendar className="w-10 h-10 text-warm-500 mb-3" />
               <p className="text-warm-600 text-sm font-medium">
@@ -907,7 +944,7 @@ export default function HomeTab() {
       {!loading && recentMatches.length > 0 && (
         <section className="px-4 mt-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-warm-800">Recent Results</h3>
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Recent Results</h3>
           </div>
           <motion.div
             className="flex flex-col gap-3"
@@ -921,7 +958,7 @@ export default function HomeTab() {
               return (
                 <motion.div key={match.id} variants={fadeUp}>
                   <Card
-                    className="bg-warm-100 border-warm-300 cursor-pointer hover:border-warm-200 transition-colors py-0 gap-0 overflow-hidden"
+                    className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 cursor-pointer hover:border-warm-200 transition-colors py-0 gap-0 overflow-hidden"
                     onClick={() => handleRecentMatchClick(match)}
                   >
                     <CardContent className="p-4">
@@ -996,7 +1033,7 @@ export default function HomeTab() {
       {!loading && upcomingMatches.length > 0 && (
         <section className="px-4 mt-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-warm-800">Upcoming Matches</h3>
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Upcoming Matches</h3>
             <Clock className="w-4 h-4 text-warm-400" />
           </div>
           <motion.div
@@ -1007,7 +1044,7 @@ export default function HomeTab() {
           >
             {upcomingMatches.slice(0, 5).map((match) => (
               <motion.div key={match.id} variants={fadeUp}>
-                <Card className="bg-warm-100 border-warm-300 py-0 gap-0 overflow-hidden">
+                <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
                       <Badge className="bg-brand-teal/10 text-brand-teal text-[10px] font-semibold border-0 px-2 py-0.5">
@@ -1080,7 +1117,7 @@ export default function HomeTab() {
       <section className="px-4 mt-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-warm-800">
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
               Awards & Honors
             </h3>
             <Zap className="w-4 h-4 text-brand-gold" />
@@ -1127,7 +1164,7 @@ export default function HomeTab() {
                             {motm.userAvatar ? (
                               <img src={motm.userAvatar} alt={motm.userName} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-12 h-12 rounded-full bg-warm-200 flex items-center justify-center text-lg font-bold text-warm-600">
+                              <div className="w-12 h-12 rounded-full bg-warm-200 flex items-center justify-center text-lg font-bold text-warm-600 dark:text-warm-300">
                                 {motm.userName.charAt(0)}
                               </div>
                             )}
@@ -1175,7 +1212,7 @@ export default function HomeTab() {
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
                           <div className="w-14 h-14 rounded-full bg-warm-100 border-2 border-brand-gold/30 flex items-center justify-center">
-                            <div className="w-12 h-12 rounded-full bg-warm-200 flex items-center justify-center text-lg font-bold text-warm-600">
+                            <div className="w-12 h-12 rounded-full bg-warm-200 flex items-center justify-center text-lg font-bold text-warm-600 dark:text-warm-300">
                               {player.name.charAt(0)}
                             </div>
                           </div>
@@ -1226,7 +1263,7 @@ export default function HomeTab() {
             })}
           </div>
         ) : (
-          <Card className="bg-warm-100 border-warm-300 py-0 gap-0">
+          <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0">
             <CardContent className="flex flex-col items-center justify-center py-10">
               <Award className="w-10 h-10 text-warm-500 mb-3" />
               <p className="text-warm-600 text-sm font-medium">
@@ -1244,7 +1281,7 @@ export default function HomeTab() {
       <section className="px-4 mt-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-warm-800">Leaderboard</h3>
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Leaderboard</h3>
             <BarChart3 className="w-4 h-4 text-brand-teal" />
           </div>
           <button
@@ -1293,7 +1330,7 @@ export default function HomeTab() {
       {/* ─── Phase 3: Quick Actions ─── */}
       <section className="px-4 mt-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-base font-bold text-warm-800">Explore</h3>
+          <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Explore</h3>
           <Sparkles className="w-4 h-4 text-brand-gold" />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -1498,7 +1535,7 @@ export default function HomeTab() {
 
         {/* Advanced Phase 5: Pro Features */}
         <div className="flex items-center gap-2 mt-5 mb-3">
-          <h3 className="text-sm font-bold text-warm-800">Pro Features</h3>
+          <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100">Pro Features</h3>
           <Crown className="w-3.5 h-3.5 text-brand-gold" />
         </div>
         <div className="grid grid-cols-2 gap-3">

@@ -18,7 +18,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
         setTimeout(onComplete, 2000);
       }}
     >
-      {/* Background decorative circles */}
+      {/* Background decorative elements */}
       <motion.div
         className="absolute top-[-80px] right-[-80px] w-64 h-64 rounded-full bg-white/5"
         initial={{ scale: 0 }}
@@ -36,6 +36,19 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 0.7, duration: 0.8 }}
+      />
+      {/* New decorative kabaddi mat lines */}
+      <motion.div
+        className="absolute bottom-1/3 right-1/4 w-24 h-24 rounded-full border border-white/10"
+        initial={{ scale: 0, rotate: 0 }}
+        animate={{ scale: 1, rotate: 180 }}
+        transition={{ delay: 1, duration: 2, ease: 'linear' }}
+      />
+      <motion.div
+        className="absolute top-1/3 right-1/6 w-16 h-16 rounded-full border border-yellow-400/10"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.9, duration: 0.6 }}
       />
 
       {/* App Logo */}
@@ -61,6 +74,13 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: [0.8, 1.1, 0.8], opacity: [0, 0.6, 0] }}
           transition={{ duration: 2, repeat: Infinity, delay: 1 }}
+        />
+        {/* Second glow ring */}
+        <motion.div
+          className="absolute inset-[-16px] rounded-[3rem] border border-yellow-400/20"
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: [0.8, 1.15, 0.8], opacity: [0, 0.3, 0] }}
+          transition={{ duration: 2.5, repeat: Infinity, delay: 1.5 }}
         />
       </motion.div>
 

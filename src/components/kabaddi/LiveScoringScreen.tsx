@@ -86,6 +86,9 @@ export default function LiveScoringScreen() {
 
   const match = activeMatch;
 
+  // Ref to allow processRaidResult to be called from useEffect before its declaration
+  const processRaidResultRef = useRef<(result: RaidResult, touchedDefenders: Set<string>, hasBonus: boolean) => void>(() => {});
+
   // Fetch player profiles
   useEffect(() => {
     if (!match) return;
@@ -211,7 +214,7 @@ export default function LiveScoringScreen() {
       if (raidPhase !== 'idle' && raider) {
         // 🔊 Raid time expired — 30 seconds ran out!
         triggerFeedback(SoundType.RAID_TIME_EXPIRED);
-        processRaidResult('empty', new Set(), false);
+        processRaidResultRef.current('empty', new Set(), false);
         toast({ title: 'Raid time expired!', description: 'Recorded as empty raid', duration: 2000 });
       }
       return;
@@ -528,6 +531,10 @@ export default function LiveScoringScreen() {
     // Start 5-second raid gap timer
     setRaidGapTimer(RAID_GAP_TIMEOUT);
   };
+
+  // Keep ref in sync with latest processRaidResult - called after early return so we assign directly
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  processRaidResultRef.current = processRaidResult;
 
   const cancelRaid = () => {
     setRaidTimer(null);

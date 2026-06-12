@@ -22,7 +22,7 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
   const isPremium = currentUser?.isPremium || false;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-warm-100/95 backdrop-blur-lg border-t border-warm-300 z-50 safe-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 bg-warm-100/95 dark:bg-warm-900/95 backdrop-blur-lg border-t border-warm-300 dark:border-warm-700/50 z-50 safe-bottom shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.3)]">
       <div className="max-w-lg mx-auto flex items-center justify-around px-2 pt-2 pb-3">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -36,7 +36,7 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
               onClick={() => setActiveTab(tab.id)}
               className={`relative flex flex-col items-center justify-center gap-0.5 min-w-[64px] py-1 transition-colors duration-200 ${
                 isQuickScore ? '-mt-5' : ''
-              } ${isActive ? 'text-brand-red' : 'text-warm-500'}`}
+              } ${isActive ? 'text-brand-red' : 'text-warm-500 dark:text-warm-400'}`}
             >
               {isQuickScore ? (
                 <div

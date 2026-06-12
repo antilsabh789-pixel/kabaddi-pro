@@ -147,6 +147,30 @@
   --sidebar-accent-foreground: #F8FAFC;
   --sidebar-border: #334155;
   --sidebar-ring: #EF4444;
+
+  /* Dark mode warm color inversions */
+  --color-warm-50: #0F172A;
+  --color-warm-100: #1E293B;
+  --color-warm-200: #334155;
+  --color-warm-300: #475569;
+  --color-warm-400: #64748B;
+  --color-warm-500: #94A3B8;
+  --color-warm-600: #CBD5E1;
+  --color-warm-700: #E2E8F0;
+  --color-warm-800: #F8FAFC;
+
+  /* Dark mode brand color adjustments */
+  --color-brand-red: #EF4444;
+  --color-brand-red-light: #F87171;
+  --color-brand-red-dark: #DC2626;
+
+  --color-brand-navy: #F8FAFC;
+  --color-brand-navy-light: #E2E8F0;
+  --color-brand-navy-dark: #CBD5E1;
+
+  --color-brand-gold: #FBBF24;
+  --color-brand-gold-light: #FCD34D;
+  --color-brand-gold-dark: #F59E0B;
 }
 
 @layer base {
