@@ -2460,7 +2460,7 @@ export default function ProfileTab() {
               </span>
               <span className="flex items-center gap-1">
                 <CreditCard className="w-3 h-3" />
-                Razorpay
+                Cashfree
               </span>
             </div>
           </Card>

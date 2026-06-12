@@ -8,8 +8,6 @@ import {
   BarChart3,
   Shield,
   Zap,
-  Lock,
-  Star,
   Check,
   X,
   Sparkles,
@@ -106,25 +104,45 @@ const PLANS = [
   },
 ];
 
-// Razorpay checkout script loader
-function loadRazorpayScript(): Promise<boolean> {
+// Cashfree SDK loader
+function loadCashfreeSDK(): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') {
       resolve(false);
       return;
     }
     // Check if already loaded
-    if ((window as unknown as Record<string, unknown>).Razorpay) {
+    if ((window as unknown as Record<string, unknown>).Cashfree) {
       resolve(true);
       return;
     }
     const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
     script.async = true;
     script.onload = () => resolve(true);
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
+}
+
+// Declare Cashfree types for TypeScript
+interface CashfreeCheckoutOptions {
+  paymentSessionId: string;
+  redirectTarget?: string;
+}
+
+interface CashfreeInstance {
+  checkout: (options: CashfreeCheckoutOptions) => void;
+}
+
+interface CashfreeConstructor {
+  new (config: { mode: 'production' | 'sandbox' }): CashfreeInstance;
+}
+
+declare global {
+  interface Window {
+    Cashfree?: CashfreeConstructor;
+  }
 }
 
 export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgradeScreenProps) {
@@ -145,10 +163,10 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
     setPaymentError(null);
 
     try {
-      // Step 1: Load Razorpay script
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        // Fallback to demo mode if script can't load
+      // Step 1: Load Cashfree SDK
+      const sdkLoaded = await loadCashfreeSDK();
+      if (!sdkLoaded) {
+        // Fallback to demo mode if SDK can't load
         toast({ title: 'Payment gateway loading...', description: 'Using demo activation for now.' });
         updateUser({ isPremium: true });
         setActivated(true);
@@ -173,76 +191,72 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
 
       const orderData = await orderRes.json();
 
-      // Step 3: Open Razorpay checkout
-      const RazorpayConstructor = (window as unknown as Record<string, unknown>).Razorpay as new (options: Record<string, unknown>) => {
-        open: () => void;
-        on: (event: string, callback: (...args: unknown[]) => void) => void;
-      };
+      if (!orderData.paymentSessionId) {
+        throw new Error('No payment session ID received from Cashfree');
+      }
 
-      const options: Record<string, unknown> = {
-        key: orderData.key,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'Kabaddi Pro',
-        description: `${PLANS.find(p => p.id === selectedPlan)?.name || 'Premium'} Plan`,
-        image: '/logo.svg',
-        order_id: orderData.orderId,
-        prefill: orderData.prefill,
-        theme: {
-          color: '#14B8A6', // brand-teal
-        },
-        modal: {
-          ondismiss: () => {
-            setActivating(false);
-            toast({ title: 'Payment cancelled', description: 'You cancelled the payment. No charge was made.' });
-          },
-        },
-        handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
-          // Step 4: Verify payment on server
-          try {
-            const verifyRes = await fetch('/api/payments/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
+      // Step 3: Initialize Cashfree and open checkout
+      const CashfreeClass = window.Cashfree;
+      if (!CashfreeClass) {
+        throw new Error('Cashfree SDK not loaded');
+      }
 
-            if (verifyRes.ok) {
-              const verifyData = await verifyRes.json();
+      const cfMode = orderData.env === 'production' ? 'production' : 'sandbox';
+      const cf = new CashfreeClass({ mode: cfMode });
+
+      // Open Cashfree checkout
+      cf.checkout({
+        paymentSessionId: orderData.paymentSessionId,
+      });
+
+      // After Cashfree checkout completes, it redirects to our return_url
+      // which calls the verify endpoint. The frontend can also poll for status.
+      // We'll set up a polling mechanism to check payment status
+      const orderId = orderData.orderId;
+      let pollCount = 0;
+      const maxPolls = 60; // Poll for up to ~2 minutes (every 2 seconds)
+
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+
+        try {
+          const verifyRes = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId }),
+          });
+
+          if (verifyRes.ok) {
+            const verifyData = await verifyRes.json();
+            if (verifyData.success) {
+              clearInterval(pollInterval);
               updateUser({ isPremium: true });
               setActivated(true);
+              setActivating(false);
               toast({
                 title: 'Welcome to Kabaddi Pro Premium!',
                 description: `Payment successful! Plan: ${verifyData.plan}. All premium features unlocked.`,
               });
               setTimeout(() => onClose(), 2000);
-            } else {
-              const errData = await verifyRes.json().catch(() => ({}));
-              setPaymentError(errData.error || 'Payment verification failed');
-              toast({
-                title: 'Payment verification failed',
-                description: 'Your payment could not be verified. If money was deducted, it will be refunded within 5-7 days.',
-                variant: 'destructive',
-              });
+              return;
             }
-          } catch {
-            setPaymentError('Could not verify payment. Please contact support.');
-            toast({
-              title: 'Verification error',
-              description: 'Could not verify your payment. Please contact support if money was deducted.',
-              variant: 'destructive',
-            });
-          } finally {
-            setActivating(false);
           }
-        },
-      };
+        } catch {
+          // Continue polling on network errors
+        }
 
-      const rzp = new RazorpayConstructor(options);
-      rzp.open();
+        if (pollCount >= maxPolls) {
+          clearInterval(pollInterval);
+          setActivating(false);
+          setPaymentError('Payment verification timed out. If your payment was successful, premium will be activated shortly.');
+          toast({
+            title: 'Verification timed out',
+            description: 'If money was deducted, your premium will be activated automatically. Please check back in a few minutes.',
+            variant: 'destructive',
+          });
+        }
+      }, 2000);
+
     } catch (error) {
       console.error('Payment error:', error);
       setPaymentError(error instanceof Error ? error.message : 'Payment failed. Please try again.');
@@ -467,7 +481,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                 <div className="flex items-center justify-center gap-1 mt-2">
                   <ShieldCheck className="w-3 h-3 text-warm-400" />
                   <p className="text-center text-[10px] text-warm-400">
-                    Secure payment via Razorpay. UPI, Cards & Netbanking accepted.
+                    Secure payment via Cashfree. UPI, Cards & Netbanking accepted.
                   </p>
                 </div>
               </div>

@@ -3550,3 +3550,61 @@ Stage Summary:
 - All tabs render correctly with empty data states
 - No API errors or frontend crashes
 - Ready for Vercel deployment with proper env var configuration
+
+---
+Task ID: cashfree-migration
+Agent: Cashfree Migration Agent
+Task: Migrate Kabaddi Pro payment gateway from Razorpay to Cashfree
+
+Work Log:
+- Read existing project structure and worklog context
+- Updated Prisma schema (prisma/schema.prisma):
+  - Replaced `razorpayOrderId` with `cashfreeOrderId` (String @unique)
+  - Replaced `razorpayPaymentId` with `cashfreePaymentId` (String?)
+  - Replaced `razorpaySignature` with `cashfreeSignature` (String?)
+  - Added `orderId` (String?) — internal order reference
+  - Added `cfPaymentId` (String?) — Cashfree's internal payment ID
+- Ran `prisma db push --accept-data-loss` to apply schema changes to Neon PostgreSQL
+- Regenerated Prisma client with `bun run db:generate`
+- Rewrote `/api/payments/create-order/route.ts`:
+  - Removed Razorpay dependency
+  - Implemented Cashfree PG Orders API (`POST {CASHFREE_BASE_URL}/orders`)
+  - Uses env vars: CASHFREE_APP_ID, CASHFREE_SECRET_KEY, CASHFREE_API_VERSION, CASHFREE_BASE_URL
+  - Creates Cashfree order with customer details, order_meta (return_url, notify_url)
+  - Saves payment record with cashfreeOrderId
+  - Returns paymentSessionId for frontend Cashfree checkout
+- Rewrote `/api/payments/verify/route.ts`:
+  - GET handler for Cashfree redirect after payment (returns HTML page with JS to postMessage)
+  - POST handler for programmatic verification from frontend
+  - Uses Cashfree's GET order endpoint to verify `order_status === "PAID"`
+  - Updates payment record with cashfreePaymentId, cfPaymentId, method
+  - Activates premium on successful payment
+- Created `/api/payments/webhook/route.ts`:
+  - Handles Cashfree webhook events: PAYMENT_SUCCESS, PAYMENT_FAILED, PAYMENT_REFUNDED
+  - Verifies webhook signature using HMAC-SHA256 with CASHFREE_SECRET_KEY
+  - Double-verifies with Cashfree API on PAYMENT_SUCCESS before activating premium
+  - Always returns 200 to acknowledge receipt
+- Updated `/api/payments/route.ts` — no Razorpay-specific field references remain
+- Rewrote `PremiumUpgradeScreen.tsx`:
+  - Replaced `loadRazorpayScript()` with `loadCashfreeSDK()` (loads from https://sdk.cashfree.com/js/v3/cashfree.js)
+  - Initializes Cashfree with mode based on CASHFREE_ENV (production/sandbox)
+  - Uses `cf.checkout({ paymentSessionId })` to open Cashfree payment UI
+  - Implements polling mechanism to verify payment status after checkout
+  - Updated "Secure payment via Cashfree" text
+- Updated `ProfileTab.tsx`: Changed "Razorpay" label to "Cashfree"
+- Removed `razorpay` package from package.json
+- Updated `.env.example` with Cashfree env vars: CASHFREE_APP_ID, CASHFREE_SECRET_KEY, CASHFREE_API_VERSION, CASHFREE_BASE_URL, CASHFREE_ENV
+- Ran `bun install` to remove razorpay and update node_modules
+- Ran `bun run lint` — no errors
+- Verified no remaining Razorpay references in source code
+
+Files Changed:
+- prisma/schema.prisma
+- src/app/api/payments/create-order/route.ts
+- src/app/api/payments/verify/route.ts
+- src/app/api/payments/webhook/route.ts (new)
+- src/app/api/payments/route.ts
+- src/components/kabaddi/PremiumUpgradeScreen.tsx
+- src/components/kabaddi/ProfileTab.tsx
+- package.json
+- .env.example

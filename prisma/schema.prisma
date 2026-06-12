@@ -224,9 +224,11 @@ model MatchEvent {
 model Payment {
   id                String   @id @default(cuid())
   userId            String
-  razorpayOrderId   String   @unique
-  razorpayPaymentId String?
-  razorpaySignature String?
+  cashfreeOrderId   String   @unique  // Cashfree order_id from create order API
+  orderId           String?           // our internal order reference
+  cashfreePaymentId String?          // cf_payment_id from Cashfree
+  cashfreeSignature String?          // signature for verification
+  cfPaymentId       String?           // Cashfree's internal payment ID
   plan              String   // monthly, yearly, lifetime
   amount            Int      // amount in paise (e.g., 14900 = ₹149)
   currency          String   @default("INR")

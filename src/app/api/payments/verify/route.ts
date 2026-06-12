@@ -1,26 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { db } from '@/lib/db';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    } = body;
+function getCashfreeConfig() {
+  return {
+    appId: process.env.CASHFREE_APP_ID || '',
+    secretKey: process.env.CASHFREE_SECRET_KEY || '',
+    apiVersion: process.env.CASHFREE_API_VERSION || '2025-01-01',
+    baseUrl: process.env.CASHFREE_BASE_URL || 'https://api.cashfree.com/pg',
+  };
+}
 
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+// GET handler — Cashfree redirects here after payment with order_id in query
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get('order_id');
+
+    if (!orderId) {
       return NextResponse.json(
-        { error: 'Missing payment verification details' },
+        { error: 'Missing order_id parameter' },
         { status: 400 }
       );
     }
 
     // Find the payment record
     const payment = await db.payment.findUnique({
-      where: { razorpayOrderId: razorpay_order_id },
+      where: { cashfreeOrderId: orderId },
     });
 
     if (!payment) {
@@ -30,57 +35,233 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the signature
-    const key_secret = process.env.RAZORPAY_KEY_SECRET || 'XXXXXXXXXXXXXXXXXXXXXX';
-    const expectedSignature = crypto
-      .createHmac('sha256', key_secret)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
+    const config = getCashfreeConfig();
 
-    const isSignatureValid = expectedSignature === razorpay_signature;
+    // Verify payment status with Cashfree
+    const cashfreeResponse = await fetch(`${config.baseUrl}/orders/${orderId}`, {
+      method: 'GET',
+      headers: {
+        'x-client-id': config.appId,
+        'x-client-secret': config.secretKey,
+        'x-api-version': config.apiVersion,
+      },
+    });
 
-    if (!isSignatureValid) {
-      // Mark payment as failed
+    if (!cashfreeResponse.ok) {
+      const errorData = await cashfreeResponse.json().catch(() => ({}));
+      console.error('Cashfree verify error:', errorData);
+      return NextResponse.json(
+        { error: 'Failed to verify payment with Cashfree', details: errorData },
+        { status: 500 }
+      );
+    }
+
+    const cashfreeData = await cashfreeResponse.json();
+
+    if (cashfreeData.order_status === 'PAID') {
+      // Payment successful — activate premium
       await db.payment.update({
-        where: { razorpayOrderId: razorpay_order_id },
+        where: { cashfreeOrderId: orderId },
         data: {
-          status: 'failed',
-          razorpayPaymentId: razorpay_payment_id,
-          razorpaySignature: razorpay_signature,
+          status: 'paid',
+          cashfreePaymentId: cashfreeData.cf_payment_id || null,
+          cfPaymentId: cashfreeData.cf_payment_id || null,
+          cashfreeSignature: cashfreeData.payment_signature || null,
+          method: cashfreeData.payment_method || null,
         },
       });
 
+      // Activate premium for the user
+      const user = await db.user.update({
+        where: { id: payment.userId },
+        data: { isPremium: true },
+      });
+
+      const { password: _, ...userWithoutPassword } = user;
+
+      // Redirect to a success page or return JSON
+      // Since this is a redirect from Cashfree, we return a simple HTML page
+      // that posts a message to the parent window (if in iframe) or redirects
+      return new NextResponse(
+        `<!DOCTYPE html>
+<html>
+<head><title>Payment Successful</title></head>
+<body>
+<script>
+  if (window.opener) {
+    window.opener.postMessage({ type: 'cashfree_success', orderId: '${orderId}' }, '*');
+    window.close();
+  } else if (window.parent !== window) {
+    window.parent.postMessage({ type: 'cashfree_success', orderId: '${orderId}' }, '*');
+  } else {
+    window.location.href = '/?payment=success&order_id=${orderId}';
+  }
+</script>
+<noscript>
+  <meta http-equiv="refresh" content="0;url=/?payment=success&order_id=${orderId}">
+</noscript>
+<p>Payment successful! Redirecting...</p>
+</body>
+</html>`,
+        {
+          headers: { 'Content-Type': 'text/html' },
+        }
+      );
+    } else {
+      // Payment not completed
+      const status = cashfreeData.order_status || 'UNKNOWN';
+      await db.payment.update({
+        where: { cashfreeOrderId: orderId },
+        data: {
+          status: status === 'FAILED' ? 'failed' : status.toLowerCase(),
+        },
+      });
+
+      return new NextResponse(
+        `<!DOCTYPE html>
+<html>
+<head><title>Payment ${status}</title></head>
+<body>
+<script>
+  if (window.opener) {
+    window.opener.postMessage({ type: 'cashfree_${status.toLowerCase()}', orderId: '${orderId}' }, '*');
+    window.close();
+  } else if (window.parent !== window) {
+    window.parent.postMessage({ type: 'cashfree_${status.toLowerCase()}', orderId: '${orderId}' }, '*');
+  } else {
+    window.location.href = '/?payment=failed&order_id=${orderId}';
+  }
+</script>
+<noscript>
+  <meta http-equiv="refresh" content="0;url=/?payment=failed&order_id=${orderId}">
+</noscript>
+<p>Payment ${status}. Redirecting...</p>
+</body>
+</html>`,
+        {
+          headers: { 'Content-Type': 'text/html' },
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Payment verification error:', error);
+    return NextResponse.json(
+      { error: 'Payment verification failed' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST handler — for programmatic verification from frontend
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { order_id } = body;
+
+    if (!order_id) {
       return NextResponse.json(
-        { error: 'Payment verification failed. Signature mismatch.' },
+        { error: 'Missing order_id' },
         { status: 400 }
       );
     }
 
-    // Signature is valid — activate premium!
-    await db.payment.update({
-      where: { razorpayOrderId: razorpay_order_id },
-      data: {
-        status: 'paid',
-        razorpayPaymentId: razorpay_payment_id,
-        razorpaySignature: razorpay_signature,
+    // Find the payment record
+    const payment = await db.payment.findUnique({
+      where: { cashfreeOrderId: order_id },
+    });
+
+    if (!payment) {
+      return NextResponse.json(
+        { error: 'Payment order not found' },
+        { status: 404 }
+      );
+    }
+
+    // If already paid, return success
+    if (payment.status === 'paid') {
+      const user = await db.user.findUnique({
+        where: { id: payment.userId },
+        select: { id: true, isPremium: true, name: true, email: true, phone: true },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Payment already verified and premium activated!',
+        user,
+        plan: payment.plan,
+        amount: payment.amount,
+      });
+    }
+
+    const config = getCashfreeConfig();
+
+    // Verify payment status with Cashfree
+    const cashfreeResponse = await fetch(`${config.baseUrl}/orders/${order_id}`, {
+      method: 'GET',
+      headers: {
+        'x-client-id': config.appId,
+        'x-client-secret': config.secretKey,
+        'x-api-version': config.apiVersion,
       },
     });
 
-    // Activate premium for the user
-    const user = await db.user.update({
-      where: { id: payment.userId },
-      data: { isPremium: true },
-    });
+    if (!cashfreeResponse.ok) {
+      const errorData = await cashfreeResponse.json().catch(() => ({}));
+      console.error('Cashfree verify error:', errorData);
+      return NextResponse.json(
+        { error: 'Failed to verify payment with Cashfree', details: errorData },
+        { status: 500 }
+      );
+    }
 
-    const { password: _, ...userWithoutPassword } = user;
+    const cashfreeData = await cashfreeResponse.json();
 
-    return NextResponse.json({
-      success: true,
-      message: 'Payment verified and premium activated!',
-      user: userWithoutPassword,
-      plan: payment.plan,
-      amount: payment.amount,
-    });
+    if (cashfreeData.order_status === 'PAID') {
+      // Payment successful — activate premium
+      await db.payment.update({
+        where: { cashfreeOrderId: order_id },
+        data: {
+          status: 'paid',
+          cashfreePaymentId: cashfreeData.cf_payment_id || null,
+          cfPaymentId: cashfreeData.cf_payment_id || null,
+          cashfreeSignature: cashfreeData.payment_signature || null,
+          method: cashfreeData.payment_method || null,
+        },
+      });
+
+      // Activate premium for the user
+      const user = await db.user.update({
+        where: { id: payment.userId },
+        data: { isPremium: true },
+      });
+
+      const { password: _, ...userWithoutPassword } = user;
+
+      return NextResponse.json({
+        success: true,
+        message: 'Payment verified and premium activated!',
+        user: userWithoutPassword,
+        plan: payment.plan,
+        amount: payment.amount,
+      });
+    } else {
+      // Payment not successful
+      const status = cashfreeData.order_status || 'UNKNOWN';
+      const mappedStatus = status === 'FAILED' ? 'failed' : status.toLowerCase();
+
+      await db.payment.update({
+        where: { cashfreeOrderId: order_id },
+        data: { status: mappedStatus },
+      });
+
+      return NextResponse.json(
+        {
+          error: `Payment not completed. Status: ${status}`,
+          orderStatus: status,
+        },
+        { status: 400 }
+      );
+    }
   } catch (error) {
     console.error('Payment verification error:', error);
     return NextResponse.json(
