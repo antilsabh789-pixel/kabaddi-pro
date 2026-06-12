@@ -1,35 +1,151 @@
 'use client';
 
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home as HomeIcon, Trophy, PlusCircle, User, Crown } from 'lucide-react';
+import { Home as HomeIcon, Trophy, PlusCircle, User, Crown, Bell } from 'lucide-react';
 import { useKabaddiStore } from '@/lib/store';
 
 const tabs = [
-  { id: 'home' as const, label: 'Home', icon: HomeIcon },
-  { id: 'tournaments' as const, label: 'Tournaments', icon: Trophy },
-  { id: 'quick-score' as const, label: 'Quick Score', icon: PlusCircle },
-  { id: 'profile' as const, label: 'Profile', icon: User },
+  { id: 'home' as const, label: 'Home', icon: HomeIcon, ariaLabel: 'Home tab' },
+  { id: 'tournaments' as const, label: 'Tournaments', icon: Trophy, ariaLabel: 'Tournaments tab' },
+  { id: 'quick-score' as const, label: 'Quick Score', icon: PlusCircle, ariaLabel: 'Quick Score - start or view live match' },
+  { id: 'profile' as const, label: 'Profile', icon: User, ariaLabel: 'Profile tab' },
 ];
 
 interface BottomNavProps {
   activeTab: string;
   setActiveTab: (tab: 'home' | 'tournaments' | 'quick-score' | 'profile') => void;
   hasLiveMatch: boolean;
+  onNotificationOpen?: () => void;
 }
 
-export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: BottomNavProps) {
+// Ripple effect component for tab press
+function Ripple({ x, y }: { x: number; y: number }) {
+  return (
+    <motion.span
+      className="absolute rounded-full bg-brand-red/20 dark:bg-brand-red-light/20 pointer-events-none"
+      style={{
+        left: x - 10,
+        top: y - 10,
+        width: 20,
+        height: 20,
+      }}
+      initial={{ scale: 0, opacity: 0.5 }}
+      animate={{ scale: 3, opacity: 0 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+    />
+  );
+}
+
+export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNotificationOpen }: BottomNavProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
+  const notifications = useKabaddiStore((s) => s.notifications);
   const isPremium = currentUser?.isPremium || false;
 
+  const [ripples, setRipples] = useState<Array<{ id: number; x: number; y: number; tabId: string }>>([]);
+  const [showLiveTooltip, setShowLiveTooltip] = useState(false);
+  const [tooltipDismissed, setTooltipDismissed] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Clear ripples after animation
+  useEffect(() => {
+    if (ripples.length > 0) {
+      const timer = setTimeout(() => {
+        setRipples((prev) => prev.slice(1));
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [ripples]);
+
+  // Auto-hide live tooltip
+  useEffect(() => {
+    if (showLiveTooltip && !tooltipDismissed) {
+      tooltipTimerRef.current = setTimeout(() => {
+        setShowLiveTooltip(false);
+      }, 3000);
+      return () => {
+        if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+      };
+    }
+  }, [showLiveTooltip, tooltipDismissed]);
+
+  const handleTabClick = useCallback(
+    (tabId: 'home' | 'tournaments' | 'quick-score' | 'profile', e: React.MouseEvent<HTMLButtonElement>) => {
+      // Create ripple effect
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      setRipples((prev) => [...prev, { id: Date.now(), x, y, tabId }]);
+      setActiveTab(tabId);
+    },
+    [setActiveTab]
+  );
+
+  const activeTabIndex = tabs.findIndex((t) => t.id === activeTab);
+
+  // Get live match score for tooltip
+  const activeMatch = useKabaddiStore((s) => s.activeMatch);
+  const liveScoreText = hasLiveMatch && activeMatch
+    ? `${activeMatch.homeTeam} ${activeMatch.homeScore} - ${activeMatch.awayScore} ${activeMatch.awayTeam}`
+    : '';
+
+  // Keyboard navigation
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLButtonElement>, tabIndex: number) => {
+      let nextIndex = tabIndex;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        nextIndex = (tabIndex + 1) % tabs.length;
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        nextIndex = (tabIndex - 1 + tabs.length) % tabs.length;
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setActiveTab(tabs[tabIndex].id);
+        return;
+      } else {
+        return;
+      }
+      setActiveTab(tabs[nextIndex].id);
+      // Focus the next tab button
+      const btns = navRef.current?.querySelectorAll('[role="tab"]');
+      if (btns && btns[nextIndex]) {
+        (btns[nextIndex] as HTMLElement).focus();
+      }
+    },
+    [setActiveTab]
+  );
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom">
+    <nav
+      ref={navRef}
+      className="fixed bottom-0 left-0 right-0 z-50 safe-bottom"
+      role="tablist"
+      aria-label="Main navigation"
+    >
       {/* Gradient top border */}
       <div className="h-px bg-gradient-to-r from-transparent via-brand-red/30 to-transparent" />
 
       {/* Frosted glass nav bar */}
       <div className="glass-effect dark:bg-warm-900/80 border-t border-white/10 dark:border-warm-700/30 shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.1)] dark:shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.4)]">
-        <div className="max-w-lg mx-auto flex items-center justify-around px-2 pt-2 pb-3">
-          {tabs.map((tab) => {
+        {/* Sliding indicator bar */}
+        <div className="max-w-lg mx-auto relative">
+          <motion.div
+            className="absolute top-0 h-[2px] bg-gradient-to-r from-brand-red to-brand-gold rounded-full"
+            layoutId="nav-sliding-indicator"
+            style={{
+              width: '20%',
+              left: `${activeTabIndex * 25}%`,
+            }}
+            transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+          />
+        </div>
+
+        <div className="max-w-lg mx-auto flex items-center justify-around px-2 pt-2 pb-3 relative">
+          {tabs.map((tab, index) => {
             const isActive = activeTab === tab.id;
             const isQuickScore = tab.id === 'quick-score';
             const isProfile = tab.id === 'profile';
@@ -38,68 +154,105 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
             return (
               <motion.button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                whileTap={{ scale: 0.9 }}
-                className={`relative flex flex-col items-center justify-center gap-0.5 min-w-[64px] py-1 transition-colors duration-200 ${
+                role="tab"
+                aria-selected={isActive}
+                aria-label={tab.ariaLabel}
+                tabIndex={isActive ? 0 : -1}
+                onClick={(e) => handleTabClick(tab.id, e)}
+                onKeyDown={(e) => handleKeyDown(e, index)}
+                whileTap={{ scale: 0.85 }}
+                className={`relative flex flex-col items-center justify-center gap-0.5 min-w-[64px] py-1 transition-colors duration-200 ripple-container ${
                   isQuickScore ? '-mt-6' : ''
                 }`}
               >
+                {/* Ripple effects */}
+                {ripples
+                  .filter((r) => r.tabId === tab.id)
+                  .map((r) => (
+                    <Ripple key={r.id} x={r.x} y={r.y} />
+                  ))}
+
                 {isQuickScore ? (
                   <>
-                  {/* Quick Score Center Button */}
-                  <motion.div
-                    className="relative"
-                    whileHover={{ scale: 1.05 }}
-                    animate={hasLiveMatch ? { scale: [1, 1.04, 1] } : {}}
-                    transition={hasLiveMatch ? { duration: 2, repeat: Infinity, ease: 'easeInOut' } : {}}
-                  >
-                    {/* Glow effect when live */}
-                    {hasLiveMatch && (
-                      <motion.div
-                        className="absolute inset-0 rounded-full"
-                        animate={{
-                          boxShadow: [
-                            '0 0 8px rgba(220,38,38,0.3)',
-                            '0 0 24px rgba(220,38,38,0.6)',
-                            '0 0 8px rgba(220,38,38,0.3)',
-                          ],
-                        }}
-                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                      />
-                    )}
+                    {/* Quick Score Center Button */}
+                    <motion.div
+                      className="relative"
+                      whileHover={{ scale: 1.05 }}
+                      animate={hasLiveMatch ? { scale: [1, 1.04, 1] } : {}}
+                      transition={hasLiveMatch ? { duration: 2, repeat: Infinity, ease: 'easeInOut' } : {}}
+                      onMouseEnter={() => {
+                        if (hasLiveMatch && !tooltipDismissed) {
+                          setShowLiveTooltip(true);
+                        }
+                      }}
+                      onMouseLeave={() => setShowLiveTooltip(false)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setTooltipDismissed(true);
+                        setShowLiveTooltip(false);
+                      }}
+                    >
+                      {/* Glow effect when live */}
+                      {hasLiveMatch && (
+                        <motion.div
+                          className="absolute inset-0 rounded-full"
+                          animate={{
+                            boxShadow: [
+                              '0 0 8px rgba(220,38,38,0.3)',
+                              '0 0 24px rgba(220,38,38,0.6)',
+                              '0 0 8px rgba(220,38,38,0.3)',
+                            ],
+                          }}
+                          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                        />
+                      )}
 
-                    {/* Main button */}
-                    <div
-                      className={`relative flex items-center justify-center w-16 h-16 rounded-full shadow-xl transition-all duration-300 ${
+                      {/* Main button */}
+                      <div
+                        className={`relative flex items-center justify-center w-16 h-16 rounded-full shadow-xl transition-all duration-300 ${
+                          isActive
+                            ? 'bg-gradient-to-br from-brand-red to-brand-gold shadow-brand-red/40'
+                            : hasLiveMatch
+                              ? 'bg-gradient-to-br from-brand-red to-red-500 shadow-brand-red/30'
+                              : 'bg-gradient-to-br from-brand-red to-red-700 shadow-brand-red/20'
+                        }`}
+                      >
+                        <Icon className="w-7 h-7 text-white" strokeWidth={2.5} />
+
+                        {/* Pulsing red dot for live match */}
+                        {hasLiveMatch && !isActive && (
+                          <span className="absolute -top-1 -right-1 flex">
+                            <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+                            <span className="relative inline-flex w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white dark:border-warm-900" />
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Live Score Tooltip */}
+                      <AnimatePresence>
+                        {showLiveTooltip && hasLiveMatch && liveScoreText && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 4 }}
+                            className="live-score-tooltip"
+                          >
+                            🔴 {liveScoreText}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+
+                    {/* Quick Score label */}
+                    <span
+                      className={`text-[10px] font-semibold mt-1.5 transition-colors duration-200 ${
                         isActive
-                          ? 'bg-gradient-to-br from-brand-red to-brand-gold shadow-brand-red/40'
-                          : hasLiveMatch
-                            ? 'bg-gradient-to-br from-brand-red to-red-500 shadow-brand-red/30'
-                            : 'bg-gradient-to-br from-brand-red to-red-700 shadow-brand-red/20'
+                          ? 'gradient-text'
+                          : 'text-warm-500 dark:text-warm-400'
                       }`}
                     >
-                      <Icon className="w-7 h-7 text-white" strokeWidth={2.5} />
-
-                      {/* Pulsing red dot for live match */}
-                      {hasLiveMatch && !isActive && (
-                        <span className="absolute -top-1 -right-1 flex">
-                          <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
-                          <span className="relative inline-flex w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white dark:border-warm-900" />
-                        </span>
-                      )}
-                    </div>
-                  </motion.div>
-
-                  {/* Quick Score label */}
-                  <span
-                    className={`text-[10px] font-semibold mt-1.5 transition-colors duration-200 ${
-                      isActive
-                        ? 'gradient-text'
-                        : 'text-warm-500 dark:text-warm-400'
-                    }`}
-                  >
-                    {tab.label}
-                  </span>
+                      {tab.label}
+                    </span>
                   </>
                 ) : (
                   /* Regular tab items */
@@ -117,6 +270,20 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
                         }`}
                         strokeWidth={isActive ? 2.5 : 2}
                       />
+
+                      {/* Notification badge on Home tab */}
+                      {tab.id === 'home' && unreadCount > 0 && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 badge-glow ${
+                            unreadCount > 0 ? 'animate-breathe' : ''
+                          }`}
+                          aria-label={`${unreadCount} unread notifications`}
+                        >
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </motion.div>
+                      )}
 
                       {/* Premium crown indicator on Profile tab */}
                       {isProfile && isPremium && (
@@ -162,6 +329,29 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
               </motion.button>
             );
           })}
+
+          {/* Notification Bell Button */}
+          {onNotificationOpen && (
+            <motion.button
+              className="absolute top-1 right-1 flex items-center justify-center w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-200/20 transition-colors"
+              onClick={onNotificationOpen}
+              whileTap={{ scale: 0.85 }}
+              aria-label={`Notifications${unreadCount > 0 ? ` - ${unreadCount} unread` : ''}`}
+            >
+              <Bell className={`w-4 h-4 ${unreadCount > 0 ? 'text-brand-red' : 'text-warm-400 dark:text-warm-500'}`} />
+
+              {/* Notification counter badge */}
+              {unreadCount > 0 && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 rounded-full bg-brand-red text-white text-[8px] font-bold flex items-center justify-center px-0.5 badge-glow"
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </motion.div>
+              )}
+            </motion.button>
+          )}
         </div>
       </div>
     </nav>

@@ -2612,3 +2612,445 @@ a,
 .badge-locked:hover {
   filter: grayscale(0.5) opacity(0.7);
 }
+
+/* ==========================================
+   TASK R7-E: BottomNav, Splash, Notification, CSS Enhancements
+   ========================================== */
+
+/* ─── New Utility Classes ─── */
+
+/* Red-to-gold gradient text */
+.text-gradient-red-gold {
+  background: linear-gradient(135deg, #DC2626 0%, #F59E0B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .text-gradient-red-gold {
+  background: linear-gradient(135deg, #EF4444 0%, #FBBF24 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Count-up animation utility */
+.animate-count-up {
+  display: inline-block;
+  animation: count-up 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Breathing/pulsing animation */
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.85;
+  }
+}
+.animate-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+
+/* Glowing badge effect */
+@keyframes badge-glow-anim {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(220, 38, 38, 0.4), 0 0 8px rgba(220, 38, 38, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(220, 38, 38, 0.7), 0 0 20px rgba(220, 38, 38, 0.3), 0 0 32px rgba(245, 158, 11, 0.15);
+  }
+}
+.badge-glow {
+  animation: badge-glow-anim 2s ease-in-out infinite;
+}
+.dark .badge-glow {
+  animation: badge-glow-anim-dark 2s ease-in-out infinite;
+}
+@keyframes badge-glow-anim-dark {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.4), 0 0 8px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.7), 0 0 20px rgba(239, 68, 68, 0.3), 0 0 32px rgba(251, 191, 36, 0.15);
+  }
+}
+
+/* Content loading shimmer placeholder */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--muted);
+  border-radius: var(--radius-md);
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+.dark .shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+}
+
+/* Wave motion for decorative elements */
+@keyframes wave-motion {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-6px) rotate(1deg);
+  }
+  75% {
+    transform: translateY(4px) rotate(-1deg);
+  }
+}
+.animate-wave-motion {
+  animation: wave-motion 3s ease-in-out infinite;
+}
+
+/* ─── Enhanced Custom Scrollbar (mobile-friendly) ─── */
+
+/* Hide scrollbar on touch devices for cleaner UX */
+@media (hover: none) and (pointer: coarse) {
+  .custom-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .custom-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+}
+
+/* ─── Page Transition with fade + slide ─── */
+
+@keyframes page-transition-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes page-transition-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+.page-transition-enter {
+  animation: page-transition-enter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.page-transition-exit {
+  animation: page-transition-exit 0.25s ease-in forwards;
+}
+
+/* ─── Skeleton Loading Classes for Cards and Lists ─── */
+
+.skeleton-list-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  align-items: center;
+}
+
+.skeleton-list-item .skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.skeleton-list-item .skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Skeleton card with header and content areas */
+.skeleton-card-detail {
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  background: var(--card);
+}
+
+.skeleton-card-detail .skeleton-header {
+  width: 50%;
+  height: 16px;
+  margin-bottom: 12px;
+}
+
+.skeleton-card-detail .skeleton-body {
+  width: 80%;
+  height: 12px;
+  margin-bottom: 8px;
+}
+
+.skeleton-card-detail .skeleton-footer {
+  width: 35%;
+  height: 10px;
+}
+
+/* ─── Spinner Animation with Kabaddi Theme ─── */
+
+@keyframes kabaddi-spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner-kabaddi {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(220, 38, 38, 0.15);
+  border-top-color: #DC2626;
+  border-radius: 9999px;
+  animation: kabaddi-spinner 0.8s linear infinite;
+}
+.dark .spinner-kabaddi {
+  border-color: rgba(239, 68, 68, 0.2);
+  border-top-color: #EF4444;
+}
+
+.spinner-kabaddi-lg {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+}
+
+/* ─── Pulse Animation Variants ─── */
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes pulse-strong {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-pulse-strong {
+  animation: pulse-strong 1.5s ease-in-out infinite;
+}
+
+/* ─── Notification-specific animations ─── */
+
+@keyframes notification-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.animate-notification-in {
+  animation: notification-slide-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ─── Tab indicator sliding ─── */
+
+@keyframes tab-indicator-slide {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+/* ─── Ripple effect on tap ─── */
+
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes ripple-expand {
+  0% {
+    transform: scale(0);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.2);
+  animation: ripple-expand 0.6s ease-out forwards;
+  pointer-events: none;
+}
+.dark .ripple-effect {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* ─── Splash screen player silhouette morph ─── */
+
+@keyframes silhouette-morph {
+  0%, 100% {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  25% {
+    border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+  }
+  50% {
+    border-radius: 50% 60% 30% 60% / 30% 50% 70% 60%;
+  }
+  75% {
+    border-radius: 60% 30% 60% 40% / 70% 40% 50% 60%;
+  }
+}
+
+.silhouette-morph {
+  animation: silhouette-morph 4s ease-in-out infinite;
+}
+
+/* ─── Sound wave visualization ─── */
+
+@keyframes sound-wave {
+  0%, 100% {
+    height: 4px;
+  }
+  50% {
+    height: 16px;
+  }
+}
+
+.sound-wave-bar {
+  display: inline-block;
+  width: 3px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.3);
+  animation: sound-wave 1s ease-in-out infinite;
+}
+
+/* ─── Particle burst ─── */
+
+@keyframes particle-burst {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ─── Error boundary styling ─── */
+
+.error-boundary-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  text-align: center;
+  background: var(--background);
+}
+
+@keyframes error-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.animate-error-shake {
+  animation: error-shake 0.5s ease-in-out;
+}
+
+/* ─── Notification panel glass-morphism enhancement ─── */
+
+.glass-notification-panel {
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  background: rgba(255, 255, 255, 0.8);
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+}
+.dark .glass-notification-panel {
+  background: rgba(15, 23, 42, 0.85);
+  border-left: 1px solid rgba(71, 85, 105, 0.3);
+}
+
+/* ─── Live score tooltip ─── */
+
+.live-score-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.95);
+  color: #F8FAFC;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  z-index: 60;
+}
+.live-score-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(30, 41, 59, 0.95);
+}

@@ -1011,11 +1011,16 @@ export default function ProfileTab() {
               ) : null}
             </h2>
 
-            {/* Position badge with icon */}
+            {/* Position badge with kabaddi-themed icon */}
             {profileData.position && (
-              <div className="flex items-center justify-center gap-1.5 mt-1">
-                <span className="text-sm">{getPositionIcon(profileData.position)}</span>
-                <span className="text-white/80 text-xs font-medium">{getPositionLabel(profileData.position)}</span>
+              <div className="flex items-center justify-center gap-1.5 mt-1.5">
+                <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 flex items-center gap-1.5">
+                  <span className="text-sm">{getPositionIcon(profileData.position)}</span>
+                  <span className="text-white/90 text-xs font-semibold">{getPositionLabel(profileData.position)}</span>
+                  {profileData.jerseyNumber && (
+                    <span className="text-white/60 text-[10px] font-mono">#{profileData.jerseyNumber}</span>
+                  )}
+                </span>
               </div>
             )}
 
@@ -1062,17 +1067,20 @@ export default function ProfileTab() {
               </div>
             </motion.div>
 
-            {/* Level progress bar */}
-            <div className="mt-2 mx-auto max-w-[140px]">
-              <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+            {/* Level progress bar with gradient */}
+            <div className="mt-2 mx-auto max-w-[160px]">
+              <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${playerLevel.progress}%` }}
                   transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
-                  className="h-full rounded-full bg-white/60"
-                />
+                  className="h-full rounded-full bg-gradient-to-r from-white/50 via-white/80 to-brand-gold/80 relative"
+                >
+                  {/* Shine effect */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
+                </motion.div>
               </div>
-              <p className="text-[9px] text-white/40 mt-0.5">{playerLevel.progress.toFixed(0)}% to next level</p>
+              <p className="text-[9px] text-white/40 mt-1">{playerLevel.progress.toFixed(0)}% to next level</p>
             </div>
 
             {/* Member Since */}
@@ -1085,22 +1093,32 @@ export default function ProfileTab() {
           </div>
         </div>
 
-        {/* Avatar overlapping the banner with pulsing ring */}
-        <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 z-20">
+        {/* Avatar overlapping the banner with enhanced animated border ring */}
+        <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 z-20">
           <div className="relative">
-            {/* Pulsing border ring - enhanced dual color */}
+            {/* Animated rotating border ring */}
             <motion.div
-              className="absolute -inset-2 rounded-full"
+              className="absolute -inset-3 rounded-full"
+              style={{
+                background: `conic-gradient(from 0deg, #DC2626, #F59E0B, #14B8A6, #DC2626)`,
+              }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+            />
+            <div className="absolute -inset-[6px] rounded-full bg-white dark:bg-warm-900" />
+            {/* Pulsing outer glow */}
+            <motion.div
+              className="absolute -inset-4 rounded-full"
               animate={{
                 boxShadow: [
-                  '0 0 0 0 rgba(220, 38, 38, 0.5), 0 0 0 0 rgba(245, 158, 11, 0.3)',
-                  '0 0 0 8px rgba(220, 38, 38, 0), 0 0 0 4px rgba(245, 158, 11, 0.15)',
+                  '0 0 0 0 rgba(220, 38, 38, 0.4), 0 0 0 0 rgba(245, 158, 11, 0.3)',
+                  '0 0 0 12px rgba(220, 38, 38, 0), 0 0 0 6px rgba(245, 158, 11, 0.1)',
                   '0 0 0 0 rgba(220, 38, 38, 0), 0 0 0 0 rgba(245, 158, 11, 0)',
                 ],
               }}
               transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <div className={`w-28 h-28 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-5xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-xl avatar-pulse-enhanced ${
+            <div className={`w-32 h-32 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-6xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-2xl relative ${
               profileData.position?.includes('raider') || profileData.position?.includes('both')
                 ? 'position-ring-raider'
                 : profileData.position?.includes('corner') || profileData.position?.includes('cover')
@@ -1124,7 +1142,7 @@ export default function ProfileTab() {
             <button
               onClick={handleAvatarClick}
               disabled={uploading}
-              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white shadow-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50"
+              className="absolute bottom-1 right-1 w-9 h-9 rounded-full bg-brand-red flex items-center justify-center text-white shadow-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50 border-2 border-white dark:border-warm-100"
             >
               {uploading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1142,7 +1160,7 @@ export default function ProfileTab() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1, type: 'spring', stiffness: 300 }}
-          className="pt-10"
+          className="pt-12"
         >
           <button
             onClick={handleCopyCode}
@@ -1197,26 +1215,58 @@ export default function ProfileTab() {
             onClick={() => setShowUpgrade(true)}
             className="w-full relative overflow-hidden rounded-2xl p-[2px] active:scale-[0.98] transition-transform"
           >
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 animated-gradient-bg" style={{ backgroundSize: '200% 200%' }} />
-            <div className="relative rounded-2xl bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 p-4 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_3s_infinite]" />
-              <div className="absolute top-3 right-8 w-2 h-2 rounded-full bg-white/70 sparkle-twinkle" />
-              <div className="absolute top-8 right-16 w-1.5 h-1.5 rounded-full bg-white/50 sparkle-twinkle" style={{ animationDelay: '0.5s' }} />
-              <div className="absolute bottom-4 right-10 w-2 h-2 rounded-full bg-white/60 sparkle-twinkle" style={{ animationDelay: '1s' }} />
-              <div className="absolute top-6 left-12 w-1 h-1 rounded-full bg-white/40 sparkle-twinkle" style={{ animationDelay: '1.5s' }} />
-              <div className="relative z-10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-md">
-                    <Crown className="w-7 h-7 text-white" />
+            {/* Animated gradient border */}
+            <motion.div
+              className="absolute inset-0 rounded-2xl"
+              style={{ background: 'linear-gradient(90deg, #F59E0B, #EAB308, #F59E0B, #D97706, #F59E0B)' }}
+              animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+            />
+            <div className="relative rounded-2xl bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 p-5 overflow-hidden">
+              {/* Enhanced shimmer animation */}
+              <motion.div
+                className="absolute inset-0"
+                style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)', backgroundSize: '200% 100%' }}
+                animate={{ backgroundPosition: ['200% 0%', '-200% 0%'] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }}
+              />
+              {/* Sparkle effects */}
+              <div className="absolute top-3 right-8 w-2 h-2 rounded-full bg-white/70" style={{ animation: 'twinkle 2s infinite' }} />
+              <div className="absolute top-8 right-16 w-1.5 h-1.5 rounded-full bg-white/50" style={{ animation: 'twinkle 2s 0.5s infinite' }} />
+              <div className="absolute bottom-4 right-10 w-2 h-2 rounded-full bg-white/60" style={{ animation: 'twinkle 2s 1s infinite' }} />
+              <div className="absolute top-6 left-12 w-1 h-1 rounded-full bg-white/40" style={{ animation: 'twinkle 2s 1.5s infinite' }} />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <motion.div
+                      className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg"
+                      animate={{ rotate: [0, -5, 5, 0] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                    >
+                      <Crown className="w-8 h-8 text-white" />
+                    </motion.div>
+                    <div className="text-left">
+                      <p className="text-white font-bold text-lg">Go Premium</p>
+                      <p className="text-white/80 text-xs">Unlock stats, host tournaments & more</p>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <p className="text-white font-bold text-base">Go Premium</p>
-                    <p className="text-white/80 text-xs">Unlock stats, host tournaments & more</p>
+                  <div className="bg-white/25 backdrop-blur-sm rounded-xl px-5 py-2.5 text-center">
+                    <span className="text-white text-xl font-black">₹149</span>
+                    <span className="text-white/80 text-xs block">/mo</span>
                   </div>
                 </div>
-                <div className="bg-white/25 backdrop-blur-sm rounded-xl px-4 py-2">
-                  <span className="text-white text-sm font-black">₹149</span>
-                  <span className="text-white/80 text-xs">/mo</span>
+                {/* Feature icons with descriptions */}
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                  {[
+                    { icon: <BarChart3 className="w-3.5 h-3.5" />, text: 'Advanced Stats' },
+                    { icon: <Swords className="w-3.5 h-3.5" />, text: 'Tournaments' },
+                    { icon: <Award className="w-3.5 h-3.5" />, text: 'All Badges' },
+                  ].map((feature, i) => (
+                    <div key={i} className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2 py-1.5">
+                      <div className="text-white/90">{feature.icon}</div>
+                      <span className="text-[9px] text-white/80 font-medium">{feature.text}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1252,7 +1302,7 @@ export default function ProfileTab() {
       )}
 
       {/* ═══════════════════════════════════════════ */}
-      {/* 2. STATS CARDS with Glassmorphism & Sparklines */}
+      {/* 2. STATS CARDS with Circular Progress Rings */}
       {/* ═══════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1261,34 +1311,53 @@ export default function ProfileTab() {
         className="grid grid-cols-3 gap-3"
       >
         {[
-          { label: 'Raid Points', value: raidPoints, icon: Zap, color: 'orange', sparkData: raidSparkline, trend: 12, glow: 'stat-glow-orange' },
-          { label: 'Tackle Points', value: tacklePoints, icon: Shield, color: 'emerald', sparkData: tackleSparkline, trend: 8, glow: 'stat-glow-emerald' },
-          { label: 'Rating', value: parseFloat(profileData.overallRating.toFixed(1)), icon: Swords, color: 'amber', sparkData: ratingSparkline, trend: -3, decimals: 1, glow: 'stat-glow-amber' },
+          { label: 'Raid Points', value: raidPoints, icon: Zap, color: 'orange', sparkData: raidSparkline, trend: 12, glow: 'stat-glow-orange', ringColor: '#EA580C', ringBg: '#EA580C20', pct: Math.min((raidPoints / Math.max(totalPoints, 1)) * 100, 100) },
+          { label: 'Tackle Points', value: tacklePoints, icon: Shield, color: 'emerald', sparkData: tackleSparkline, trend: 8, glow: 'stat-glow-emerald', ringColor: '#059669', ringBg: '#05966920', pct: Math.min((tacklePoints / Math.max(totalPoints, 1)) * 100, 100) },
+          { label: 'Rating', value: parseFloat(profileData.overallRating.toFixed(1)), icon: Swords, color: 'amber', sparkData: ratingSparkline, trend: -3, decimals: 1, glow: 'stat-glow-amber', ringColor: '#D97706', ringBg: '#D9770620', pct: Math.min(profileData.overallRating * 10, 100) },
         ].map((stat, idx) => {
           const IconComp = stat.icon;
+          const circumference = 2 * Math.PI * 28;
+          const strokeDashoffset = circumference - (stat.pct / 100) * circumference;
           return (
             <motion.div
               key={stat.label}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + idx * 0.08 }}
-              className={`glass-card rounded-xl p-3 shadow-lg ${stat.glow} hover:scale-[1.03] transition-transform duration-200`}
+              className={`glass-card rounded-xl p-3 shadow-lg ${stat.glow} hover:scale-[1.03] transition-transform duration-200 relative overflow-hidden`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                  stat.color === 'orange' ? 'bg-orange-500/15' :
-                  stat.color === 'emerald' ? 'bg-emerald-500/15' :
-                  'bg-amber-500/15'
-                }`}>
-                  <IconComp className={`w-3.5 h-3.5 ${
-                    stat.color === 'orange' ? 'text-orange-500' :
-                    stat.color === 'emerald' ? 'text-emerald-500' :
-                    'text-amber-500'
-                  }`} />
+              {/* Circular Progress Ring Background */}
+              <div className="flex justify-center mb-2">
+                <div className="relative w-16 h-16">
+                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke={stat.ringBg} strokeWidth="4" />
+                    <motion.circle
+                      cx="32" cy="32" r="28" fill="none"
+                      stroke={stat.ringColor}
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      initial={{ strokeDashoffset: circumference }}
+                      animate={{ strokeDashoffset }}
+                      transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 + idx * 0.1 }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      stat.color === 'orange' ? 'bg-orange-500/15' :
+                      stat.color === 'emerald' ? 'bg-emerald-500/15' :
+                      'bg-amber-500/15'
+                    }`}>
+                      <IconComp className={`w-4 h-4 ${
+                        stat.color === 'orange' ? 'text-orange-500' :
+                        stat.color === 'emerald' ? 'text-emerald-500' :
+                        'text-amber-500'
+                      }`} />
+                    </div>
+                  </div>
                 </div>
-                <MiniSparkline data={stat.sparkData} color={stat.color === 'orange' ? '#EA580C' : stat.color === 'emerald' ? '#059669' : '#D97706'} />
               </div>
-              <div className={`text-xl font-black ${
+              <div className={`text-xl font-black text-center ${
                 stat.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
                 stat.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
                 'text-amber-600 dark:text-amber-400'
@@ -1880,11 +1949,20 @@ export default function ProfileTab() {
           <Settings className="w-4 h-4 text-warm-500" />
           Features
         </h3>
-        <div className="space-y-4">
+        <div className="space-y-5">
           {featureCategories.map((category, catIdx) => (
             <div key={category.title}>
-              <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-300 uppercase tracking-wider mb-2 ml-1">{category.title}</p>
-              <Card className="shadow-sm overflow-hidden divide-y divide-warm-100 dark:divide-warm-200">
+              {/* Enhanced visual category header */}
+              <div className="flex items-center gap-2 mb-2.5 ml-1">
+                <div className={`w-1.5 h-1.5 rounded-full ${
+                  catIdx === 0 ? 'bg-brand-teal' :
+                  catIdx === 1 ? 'bg-brand-gold' :
+                  'bg-brand-red'
+                }`} />
+                <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-widest">{category.title}</p>
+                <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
+              </div>
+              <Card className="shadow-sm overflow-hidden divide-y divide-warm-100 dark:divide-warm-700/50">
                 {category.items.map((item, idx) => {
                   const IconComp = item.icon;
                   const isPremiumFeature = item.premium && !isPremium;
@@ -1895,10 +1973,10 @@ export default function ProfileTab() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.05 * (catIdx * 4 + idx), type: 'spring', stiffness: 200 }}
                       onClick={item.onClick}
-                      className={`w-full flex items-center gap-3 p-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate ${isPremiumFeature ? 'premium-feature-shimmer' : ''}`}
+                      className={`w-full flex items-center gap-3 p-3.5 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate relative ${isPremiumFeature ? 'premium-feature-shimmer' : ''}`}
                     >
-                      {/* Left border accent */}
-                      <div className={`w-1 h-8 rounded-full shrink-0 ${
+                      {/* Left border accent - enhanced */}
+                      <div className={`w-1.5 h-10 rounded-full shrink-0 transition-all duration-200 group-hover:h-12 ${
                         item.color === 'brand-teal' ? 'bg-brand-teal' :
                         item.color === 'brand-gold' ? 'bg-brand-gold' :
                         item.color === 'brand-red' ? 'bg-brand-red' :
@@ -1907,8 +1985,8 @@ export default function ProfileTab() {
                         item.color === 'emerald-500' ? 'bg-emerald-500' :
                         'bg-warm-400'
                       }`} />
-                      {/* Icon with color coding */}
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200 ${
+                      {/* Icon with color coding - enhanced */}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-all duration-200 ${
                         item.color === 'brand-teal' ? 'bg-brand-teal/10' :
                         item.color === 'brand-gold' ? 'bg-brand-gold/10' :
                         item.color === 'brand-red' ? 'bg-brand-red/10' :
@@ -1917,7 +1995,7 @@ export default function ProfileTab() {
                         item.color === 'emerald-500' ? 'bg-emerald-500/10' :
                         'bg-warm-200/50'
                       }`}>
-                        <IconComp className={`w-4 h-4 ${
+                        <IconComp className={`w-4.5 h-4.5 ${
                           item.color === 'brand-teal' ? 'text-brand-teal' :
                           item.color === 'brand-gold' ? 'text-brand-gold' :
                           item.color === 'brand-red' ? 'text-brand-red' :
@@ -1939,8 +2017,16 @@ export default function ProfileTab() {
                         </div>
                         <p className="text-[10px] text-warm-400 dark:text-warm-300">{item.desc}</p>
                       </div>
-                      {/* Chevron */}
-                      <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0 chevron-icon relative z-10" />
+                      {/* Premium lock overlay for locked features */}
+                      {isPremiumFeature && (
+                        <div className="shrink-0 w-8 h-8 rounded-full bg-brand-gold/10 flex items-center justify-center">
+                          <Lock className="w-3.5 h-3.5 text-brand-gold/60" />
+                        </div>
+                      )}
+                      {/* Chevron - only for non-premium-locked items */}
+                      {!isPremiumFeature && (
+                        <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0 chevron-icon relative z-10" />
+                      )}
                     </motion.button>
                   );
                 })}
@@ -1951,12 +2037,12 @@ export default function ProfileTab() {
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* SECTION DIVIDER */}
+      {/* SECTION DIVIDER - Enhanced */}
       {/* ═══════════════════════════════════════════ */}
       <div className="flex items-center gap-3 my-2">
-        <div className="flex-1 h-px bg-warm-200 dark:bg-warm-300" />
-        <span className="text-[10px] font-medium text-warm-300 dark:text-warm-400 uppercase tracking-wider">Info & Settings</span>
-        <div className="flex-1 h-px bg-warm-200 dark:bg-warm-300" />
+        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-200 dark:via-warm-700 to-warm-200 dark:to-warm-700" />
+        <span className="text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-widest">Info & Settings</span>
+        <div className="flex-1 h-px bg-gradient-to-r from-warm-200 dark:from-warm-700 via-warm-200 dark:via-warm-700 to-transparent" />
       </div>
 
       {/* ═══════════════════════════════════════════ */}

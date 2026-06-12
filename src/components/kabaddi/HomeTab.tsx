@@ -1180,23 +1180,42 @@ export default function HomeTab() {
 
       {/* ─── Greeting ─── */}
       <motion.div
-        className="px-4 pt-4 pb-2 greeting-gradient-bg rounded-b-2xl"
+        className="px-4 pt-4 pb-3 rounded-b-2xl relative overflow-hidden"
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        style={{
+          background: 'linear-gradient(135deg, rgba(220,38,38,0.06) 0%, rgba(245,158,11,0.04) 50%, rgba(20,184,166,0.03) 100%)',
+        }}
       >
-        <div className="flex items-center justify-between">
+        {/* Animated court line patterns */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-brand-red/10 via-brand-gold/5 to-transparent" />
+          <div className="absolute top-0 left-1/2 w-px h-full bg-gradient-to-b from-transparent via-brand-gold/8 to-brand-red/5" />
+          <div className="absolute top-0 left-3/4 w-px h-full bg-gradient-to-b from-brand-teal/8 via-transparent to-brand-gold/5" />
+          <div className="absolute top-1/3 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-red/8 to-transparent" />
+          <div className="absolute top-2/3 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-gold/6 to-transparent" />
+          {/* Center circle pattern */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-brand-gold/8" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-brand-red/6" />
+        </div>
+        {/* Parallax shimmer overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+
+        <div className="flex items-center justify-between relative z-10">
           <div>
             <p className="text-warm-500 dark:text-warm-400 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
               <span>{getTimeEmoji()}</span>
               <span>{getTimeGreeting()}</span>
             </p>
-            <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mt-0.5 flex items-center gap-2">
-              <span>{currentUser?.name ?? 'Player'}</span>
+            <h2 className="text-2xl font-black text-warm-800 dark:text-warm-100 mt-0.5 flex items-center gap-2">
+              <span className="bg-gradient-to-r from-warm-800 via-brand-red-dark to-warm-800 dark:from-warm-100 dark:via-brand-red-light dark:to-warm-100 bg-clip-text text-transparent">
+                {currentUser?.name ?? 'Player'}
+              </span>
               {/* Position Badge */}
               {currentUser?.role && (
                 <motion.span
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide"
+                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide shadow-sm"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', damping: 12, stiffness: 280, delay: 0.2 }}
@@ -1207,6 +1226,9 @@ export default function HomeTab() {
                     color: currentUser.role.toLowerCase() === 'raider' ? '#DC2626'
                       : currentUser.role.toLowerCase() === 'defender' ? '#1E293B'
                       : '#D97706',
+                    boxShadow: currentUser.role.toLowerCase() === 'raider' ? '0 2px 8px rgba(220,38,38,0.15)'
+                      : currentUser.role.toLowerCase() === 'defender' ? '0 2px 8px rgba(30,41,59,0.15)'
+                      : '0 2px 8px rgba(245,158,11,0.15)',
                   }}
                 >
                   {currentUser.role.toLowerCase() === 'raider' && <Swords className="w-2.5 h-2.5" />}
@@ -1239,18 +1261,19 @@ export default function HomeTab() {
               )}
             </h2>
           </div>
-          {/* Player Code */}
+          {/* Player Code - enhanced */}
           {currentUser?.playerCode && (
             <motion.button
               onClick={handleCopyPlayerCode}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700 hover:border-brand-gold/40 transition-colors active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-br from-warm-100 to-warm-50 dark:from-warm-800 dark:to-warm-700 border border-warm-200 dark:border-warm-600 hover:border-brand-gold/50 hover:shadow-md hover:shadow-brand-gold/10 transition-all duration-200 active:scale-95 relative overflow-hidden group"
               whileTap={{ scale: 0.95 }}
             >
-              <span className="text-[10px] font-mono font-bold text-warm-500 dark:text-warm-400">{currentUser.playerCode}</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-gold/0 via-brand-gold/5 to-brand-gold/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span className="text-[10px] font-mono font-black text-brand-red dark:text-brand-red-light tracking-wider">{currentUser.playerCode}</span>
               {copiedCode ? (
                 <Check className="w-3 h-3 text-emerald-500" />
               ) : (
-                <Copy className="w-3 h-3 text-warm-400" />
+                <Copy className="w-3 h-3 text-warm-400 group-hover:text-brand-gold transition-colors" />
               )}
             </motion.button>
           )}
@@ -1269,64 +1292,73 @@ export default function HomeTab() {
           <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
           <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full bg-white/5" />
           <div className="absolute top-2 right-20 w-8 h-8 rounded-full bg-white/5" />
-          {/* Animated shimmer overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+          {/* Court line pattern decorations */}
+          <div className="absolute top-0 left-1/4 w-px h-full bg-white/5" />
+          <div className="absolute top-0 left-1/2 w-px h-full bg-white/5" />
+          <div className="absolute top-1/2 left-0 right-0 h-px bg-white/5" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-white/5" />
+          {/* Enhanced parallax shimmer overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-gold/5 via-transparent to-brand-teal/5" />
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
-                  <Shield className="w-3.5 h-3.5 text-yellow-300" />
+                <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center backdrop-blur-sm border border-white/10">
+                  <Shield className="w-4 h-4 text-yellow-300" />
                 </div>
-                <span className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Your Stats</span>
+                <span className="text-white/80 text-[10px] font-bold uppercase tracking-widest">Your Stats</span>
               </div>
               {currentUser?.playerCode && (
-                <div className="px-2.5 py-1 rounded-md bg-white/10 border border-white/10">
-                  <span className="text-white/80 text-[10px] font-mono font-bold">{currentUser.playerCode}</span>
+                <div className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm">
+                  <span className="text-white/90 text-[10px] font-mono font-bold tracking-wider">{currentUser.playerCode}</span>
                 </div>
               )}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <motion.div
-                className="text-center glass-card rounded-xl p-2 stat-card-glow cursor-pointer"
+                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => { if (currentUser?.id) setShowStats(true); }}
               >
-                <div className="flex items-center justify-center gap-1">
-                  <Swords className="w-3 h-3 text-brand-gold-light" />
+                <div className="absolute inset-0 bg-gradient-to-b from-brand-gold/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-center justify-center gap-1 relative z-10">
+                  <Swords className="w-3.5 h-3.5 text-brand-gold-light" />
                 </div>
-                <div className="text-2xl font-black text-white mt-1">
+                <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={raidPts} />
                 </div>
-                <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Raid Pts</div>
+                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Raid Pts</div>
               </motion.div>
               <motion.div
-                className="text-center glass-card rounded-xl p-2 stat-card-glow cursor-pointer border-x border-white/10"
+                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer border-x border-white/10 relative overflow-hidden group"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => { if (currentUser?.id) setShowStats(true); }}
               >
-                <div className="flex items-center justify-center gap-1">
-                  <Target className="w-3 h-3 text-brand-gold-light" />
+                <div className="absolute inset-0 bg-gradient-to-b from-brand-teal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-center justify-center gap-1 relative z-10">
+                  <Target className="w-3.5 h-3.5 text-brand-gold-light" />
                 </div>
-                <div className="text-2xl font-black text-white mt-1">
+                <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={tacklePts} />
                 </div>
-                <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Tackle Pts</div>
+                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Tackle Pts</div>
               </motion.div>
               <motion.div
-                className="text-center glass-card rounded-xl p-2 stat-card-glow cursor-pointer"
+                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => { if (currentUser?.id) setShowStats(true); }}
               >
-                <div className="flex items-center justify-center gap-1">
-                  <Flame className="w-3 h-3 text-brand-gold-light" />
+                <div className="absolute inset-0 bg-gradient-to-b from-brand-red/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-center justify-center gap-1 relative z-10">
+                  <Flame className="w-3.5 h-3.5 text-brand-gold-light" />
                 </div>
-                <div className="text-2xl font-black text-white mt-1">
+                <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={totalMatches} />
                 </div>
-                <div className="text-[9px] text-white/60 font-medium uppercase mt-0.5">Matches</div>
+                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Matches</div>
               </motion.div>
             </div>
           </div>
@@ -1433,14 +1465,27 @@ export default function HomeTab() {
                     whileTap={{ scale: 0.98 }}
                   >
                     <Card
-                      className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 cursor-pointer hover:border-brand-red/30 dark:hover:border-brand-red/30 transition-all duration-200 py-0 gap-0 overflow-hidden relative live-card-glow"
+                      className="bg-warm-100 dark:bg-warm-800 cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden relative live-card-glow"
+                      style={{
+                        borderColor: 'transparent',
+                        boxShadow: `0 0 0 1px rgba(220,38,38,0.15), 0 4px 24px -4px ${match.homeTeam.color || '#DC2626'}15, 0 4px 24px -4px ${match.awayTeam.color || '#1E293B'}15`,
+                      }}
                       onClick={() => handleMatchClick(match)}
                     >
-                      {/* Team color gradient strip at top */}
+                      {/* Team color gradient border strip at top */}
                       <div
-                        className="h-1.5 w-full"
+                        className="h-2 w-full relative"
                         style={{
                           background: `linear-gradient(90deg, ${match.homeTeam.color || '#DC2626'}, ${match.awayTeam.color || '#1E293B'})`,
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+                      </div>
+                      {/* Subtle background glow matching dominant team color */}
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          background: `radial-gradient(ellipse at 30% 50%, ${match.homeScore >= match.awayScore ? (match.homeTeam.color || '#DC2626') : (match.awayTeam.color || '#1E293B')}08, transparent 70%)`,
                         }}
                       />
                       {/* Animated background particles */}
@@ -1473,13 +1518,15 @@ export default function HomeTab() {
                         <ConfettiParticles trigger={match.homeScore + match.awayScore} />
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
+                            {/* Enhanced pulsing LIVE indicator with ring animation */}
                             <Badge
                               variant="secondary"
-                              className="bg-brand-red/20 text-brand-red text-[10px] font-bold border-0 px-2.5 py-1 flex items-center gap-1.5 live-badge-dramatic"
+                              className="bg-brand-red/20 text-brand-red text-[10px] font-bold border border-brand-red/20 px-2.5 py-1 flex items-center gap-1.5 live-badge-dramatic relative"
                             >
-                              <span className="relative flex h-2 w-2">
+                              <span className="relative flex h-2.5 w-2.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-red" />
+                                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-brand-red/30 ring-2 ring-brand-red/20" />
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
                               </span>
                               LIVE
                             </Badge>
@@ -1498,52 +1545,57 @@ export default function HomeTab() {
                               </Badge>
                             )}
                           </div>
-                          <span className="text-xs text-warm-500 dark:text-warm-400 font-medium">
+                          <span className="text-xs text-warm-500 dark:text-warm-400 font-medium bg-warm-200/50 dark:bg-warm-700/50 px-2 py-0.5 rounded-md">
                             {halfLabel(match.half)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col items-center gap-1 flex-1">
                             <div
-                              className="w-11 h-11 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-sm"
+                              className="w-12 h-12 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-md relative"
                               style={{
                                 borderColor: match.homeTeam.color || '#DC2626',
-                                borderWidth: 2.5,
+                                borderWidth: 3,
+                                boxShadow: `0 2px 12px ${match.homeTeam.color || '#DC2626'}25`,
                               }}
                             >
                               {getTeamShortName(match.homeTeam)}
                             </div>
-                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight">
+                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight font-medium">
                               {match.homeTeam.name}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 px-4">
-                            <span className="text-3xl font-black score-gradient tabular-nums">
+                          <div className="flex items-center gap-2 px-3">
+                            <span className="text-4xl font-black tabular-nums" style={{ color: match.homeTeam.color || '#DC2626' }}>
                               <NumberTicker value={match.homeScore} />
                             </span>
-                            <span className="text-warm-400 text-sm font-medium">
-                              vs
-                            </span>
-                            <span className="text-3xl font-black score-gradient tabular-nums">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-warm-400 text-[10px] font-bold uppercase tracking-wider">
+                                vs
+                              </span>
+                              <div className="w-1 h-1 rounded-full bg-brand-red animate-pulse" />
+                            </div>
+                            <span className="text-4xl font-black tabular-nums" style={{ color: match.awayTeam.color || '#1E293B' }}>
                               <NumberTicker value={match.awayScore} />
                             </span>
                           </div>
                           <div className="flex flex-col items-center gap-1 flex-1">
                             <div
-                              className="w-11 h-11 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-sm"
+                              className="w-12 h-12 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-md relative"
                               style={{
-                                borderColor: match.awayTeam.color || '#DC2626',
-                                borderWidth: 2.5,
+                                borderColor: match.awayTeam.color || '#1E293B',
+                                borderWidth: 3,
+                                boxShadow: `0 2px 12px ${match.awayTeam.color || '#1E293B'}25`,
                               }}
                             >
                               {getTeamShortName(match.awayTeam)}
                             </div>
-                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight">
+                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight font-medium">
                               {match.awayTeam.name}
                             </span>
                           </div>
                         </div>
-                        {/* Half Progress Bar */}
+                        {/* Mini Scoreboard Visualization - colored team bars showing score proportion */}
                         <div className="mt-3 px-2">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[9px] font-bold text-warm-500 dark:text-warm-400 uppercase">
@@ -1553,16 +1605,30 @@ export default function HomeTab() {
                               {match.half === 1 ? '1st' : '2nd'} Half
                             </span>
                           </div>
-                          <div className="h-1.5 w-full rounded-full bg-warm-200/60 dark:bg-warm-700/60 overflow-hidden">
+                          {/* Score proportion bar */}
+                          <div className="h-2.5 w-full rounded-full overflow-hidden flex gap-0.5">
                             <motion.div
-                              className="h-full rounded-full half-progress-bar"
-                              style={{
-                                background: `linear-gradient(90deg, ${match.homeTeam.color || '#DC2626'}, ${match.awayTeam.color || '#1E293B'})`,
-                              }}
+                              className="h-full rounded-l-full relative"
+                              style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
                               initial={{ width: '0%' }}
-                              animate={{ width: match.half === 1 ? '50%' : '100%' }}
-                              transition={{ duration: 1, ease: 'easeOut' }}
-                            />
+                              animate={{
+                                width: `${((match.homeScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+                              }}
+                              transition={{ duration: 0.8, ease: 'easeOut' }}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+                            </motion.div>
+                            <motion.div
+                              className="h-full rounded-r-full relative"
+                              style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+                              initial={{ width: '0%' }}
+                              animate={{
+                                width: `${((match.awayScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+                              }}
+                              transition={{ duration: 0.8, ease: 'easeOut' }}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent animate-[shimmer_5s_ease-in-out_infinite]" />
+                            </motion.div>
                           </div>
                         </div>
                         {match.tournament && (
@@ -1663,13 +1729,50 @@ export default function HomeTab() {
               return (
                 <motion.div key={match.id} variants={fadeUp}>
                   <Card
-                    className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 cursor-pointer hover:border-warm-200 dark:hover:border-warm-600 transition-all duration-200 py-0 gap-0 overflow-hidden"
+                    className="cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden relative"
+                    style={{
+                      backgroundColor: isHomeWin
+                        ? `linear-gradient(135deg, ${match.homeTeam.color || '#DC2626'}08, transparent 60%)`
+                        : !isDraw
+                          ? `linear-gradient(135deg, ${match.awayTeam.color || '#1E293B'}08, transparent 60%)`
+                          : undefined,
+                      boxShadow: `0 0 0 1px rgba(16,185,129,0.1), 0 2px 12px -2px rgba(0,0,0,0.06)`,
+                    }}
                     onClick={() => handleRecentMatchClick(match)}
                   >
-                    <CardContent className="p-4">
+                    {/* Subtle gradient background based on winning team color */}
+                    <div
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        background: isHomeWin && !isDraw
+                          ? `linear-gradient(135deg, ${match.homeTeam.color || '#DC2626'}08, transparent 50%)`
+                          : !isDraw
+                            ? `linear-gradient(135deg, ${match.awayTeam.color || '#1E293B'}08, transparent 50%)`
+                            : 'linear-gradient(135deg, rgba(245,158,11,0.04), transparent 50%)',
+                      }}
+                    />
+                    {/* Left color accent strip */}
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-1"
+                      style={{
+                        background: isHomeWin && !isDraw
+                          ? match.homeTeam.color || '#DC2626'
+                          : !isDraw
+                            ? match.awayTeam.color || '#1E293B'
+                            : '#F59E0B',
+                      }}
+                    />
+                    <CardContent className="p-4 relative z-10">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border-0 px-2 py-0.5">
-                          ✓ COMPLETED
+                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/20 px-2 py-0.5 flex items-center gap-1">
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: 'spring', damping: 12, stiffness: 300, delay: 0.2 }}
+                          >
+                            <Check className="w-2.5 h-2.5" />
+                          </motion.span>
+                          COMPLETED
                         </Badge>
                         <span className="text-[10px] text-warm-400 dark:text-warm-500">
                           {formatTimeAgo(match.completedAt)}
@@ -1678,21 +1781,32 @@ export default function HomeTab() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-md relative"
                             style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
                           >
                             {getTeamShortName(match.homeTeam)}
+                            {/* Victory crown for winning team */}
+                            {isHomeWin && !isDraw && (
+                              <motion.div
+                                className="absolute -top-2 left-1/2 -translate-x-1/2"
+                                initial={{ scale: 0, y: 4 }}
+                                animate={{ scale: 1, y: 0 }}
+                                transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.3 }}
+                              >
+                                <Crown className="w-3 h-3 text-brand-gold drop-shadow-sm" />
+                              </motion.div>
+                            )}
                           </div>
                           <span className={`text-sm font-semibold truncate ${isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
                             {match.homeTeam.name}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 px-3">
-                          <span className={`text-lg font-black ${isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+                          <span className={`text-2xl font-black tabular-nums ${isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-400 dark:text-warm-500'}`} style={isHomeWin && !isDraw ? { color: match.homeTeam.color || undefined } : undefined}>
                             {match.homeScore}
                           </span>
-                          <span className="text-warm-400 text-xs">-</span>
-                          <span className={`text-lg font-black ${!isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+                          <span className="text-warm-300 dark:text-warm-600 text-xs font-medium">-</span>
+                          <span className={`text-2xl font-black tabular-nums ${!isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-400 dark:text-warm-500'}`} style={!isHomeWin && !isDraw ? { color: match.awayTeam.color || undefined } : undefined}>
                             {match.awayScore}
                           </span>
                         </div>
@@ -1701,12 +1815,42 @@ export default function HomeTab() {
                             {match.awayTeam.name}
                           </span>
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-md relative"
                             style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
                           >
                             {getTeamShortName(match.awayTeam)}
+                            {/* Victory crown for winning team */}
+                            {!isHomeWin && !isDraw && (
+                              <motion.div
+                                className="absolute -top-2 left-1/2 -translate-x-1/2"
+                                initial={{ scale: 0, y: 4 }}
+                                animate={{ scale: 1, y: 0 }}
+                                transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.3 }}
+                              >
+                                <Crown className="w-3 h-3 text-brand-gold drop-shadow-sm" />
+                              </motion.div>
+                            )}
                           </div>
                         </div>
+                      </div>
+                      {/* Score proportion mini-bar */}
+                      <div className="mt-2 h-1 rounded-full overflow-hidden flex gap-px">
+                        <div
+                          className="h-full rounded-l-full transition-all duration-500"
+                          style={{
+                            width: `${((match.homeScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+                            backgroundColor: match.homeTeam.color || '#DC2626',
+                            opacity: isHomeWin && !isDraw ? 0.7 : 0.3,
+                          }}
+                        />
+                        <div
+                          className="h-full rounded-r-full transition-all duration-500"
+                          style={{
+                            width: `${((match.awayScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+                            backgroundColor: match.awayTeam.color || '#1E293B',
+                            opacity: !isHomeWin && !isDraw ? 0.7 : 0.3,
+                          }}
+                        />
                       </div>
                       {match.tournament && (
                         <p className="text-[10px] text-warm-400 dark:text-warm-500 text-center mt-2">
@@ -1763,11 +1907,21 @@ export default function HomeTab() {
                         background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})`,
                       }}
                     />
+                    {/* Top gradient border */}
+                    <div
+                      className="h-1 w-full relative"
+                      style={{
+                        background: `linear-gradient(90deg, ${gradientFrom}, ${gradientTo})`,
+                      }}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+                    </div>
                     <CardContent className="p-4 relative z-10">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1.5">
-                          <Badge className="bg-brand-teal/10 text-brand-teal text-[10px] font-semibold border-0 px-2 py-0.5">
-                            📅 UPCOMING
+                          <Badge className="bg-brand-teal/10 text-brand-teal text-[10px] font-semibold border border-brand-teal/20 px-2 py-0.5 flex items-center gap-1">
+                            <Calendar className="w-2.5 h-2.5" />
+                            UPCOMING
                           </Badge>
                           {match.gender && (
                             <Badge
@@ -1781,15 +1935,22 @@ export default function HomeTab() {
                             </Badge>
                           )}
                         </div>
-                        <span className="text-[10px] text-warm-400 dark:text-warm-500">
-                          {formatDate(match.startedAt)}
-                        </span>
+                        {/* Prominently styled date */}
+                        <div className="flex items-center gap-1 bg-warm-100 dark:bg-warm-800 px-2 py-0.5 rounded-md border border-warm-200 dark:border-warm-700">
+                          <Calendar className="w-2.5 h-2.5 text-brand-teal" />
+                          <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-300">
+                            {formatDate(match.startedAt)}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm ring-2 ring-white/30"
-                            style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-md ring-2 ring-white/30"
+                            style={{
+                              backgroundColor: match.homeTeam.color || '#DC2626',
+                              boxShadow: `0 2px 8px ${match.homeTeam.color || '#DC2626'}20`,
+                            }}
                           >
                             {getTeamShortName(match.homeTeam)}
                           </div>
@@ -1797,23 +1958,30 @@ export default function HomeTab() {
                             {match.homeTeam.name}
                           </span>
                         </div>
-                        <span className="text-warm-400 text-xs font-medium px-2">vs</span>
+                        <span className="text-warm-400 text-xs font-bold uppercase tracking-wider px-2">vs</span>
                         <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
                           <span className="text-sm font-semibold text-warm-700 dark:text-warm-300 truncate">
                             {match.awayTeam.name}
                           </span>
                           <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm ring-2 ring-white/30"
-                            style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-md ring-2 ring-white/30"
+                            style={{
+                              backgroundColor: match.awayTeam.color || '#1E293B',
+                              boxShadow: `0 2px 8px ${match.awayTeam.color || '#1E293B'}20`,
+                            }}
                           >
                             {getTeamShortName(match.awayTeam)}
                           </div>
                         </div>
                       </div>
-                      {/* Team color bars */}
+                      {/* Team color bars with shimmer */}
                       <div className="flex gap-1 mt-2">
-                        <div className="h-1 rounded-full flex-1" style={{ backgroundColor: match.homeTeam.color || '#DC2626', opacity: 0.6 }} />
-                        <div className="h-1 rounded-full flex-1" style={{ backgroundColor: match.awayTeam.color || '#1E293B', opacity: 0.6 }} />
+                        <div className="h-1.5 rounded-full flex-1 relative overflow-hidden" style={{ backgroundColor: match.homeTeam.color || '#DC2626', opacity: 0.6 }}>
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-[shimmer_5s_ease-in-out_infinite]" />
+                        </div>
+                        <div className="h-1.5 rounded-full flex-1 relative overflow-hidden" style={{ backgroundColor: match.awayTeam.color || '#1E293B', opacity: 0.6 }}>
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_6s_ease-in-out_infinite]" />
+                        </div>
                       </div>
                       {/* Venue info */}
                       {(match.tournament || match.startedAt) && (
@@ -1824,16 +1992,18 @@ export default function HomeTab() {
                           </p>
                         </div>
                       )}
-                      {/* Countdown Timer */}
-                      <div className="mt-3 py-2 px-3 rounded-lg bg-warm-50/80 dark:bg-warm-900/50 border border-warm-200/60 dark:border-warm-700/40">
+                      {/* Countdown Timer - enhanced container */}
+                      <div className="mt-3 py-2.5 px-3 rounded-xl bg-gradient-to-r from-warm-50 to-warm-100/80 dark:from-warm-900/80 dark:to-warm-800/60 border border-warm-200/60 dark:border-warm-700/40 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-teal/5 to-transparent" />
                         <CountdownTimer targetDate={match.startedAt} />
                       </div>
-                      <div className="flex justify-end mt-2">
-                        <motion.div whileTap={{ scale: 0.9 }}>
+                      {/* Set Reminder button - enhanced */}
+                      <div className="flex justify-end mt-2.5">
+                        <motion.div whileTap={{ scale: 0.9 }} whileHover={{ scale: 1.02 }}>
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="h-7 text-[11px] text-brand-teal hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
+                            className="h-8 text-[11px] font-semibold text-brand-teal hover:text-white hover:bg-brand-teal border-brand-teal/30 hover:border-brand-teal px-3 rounded-lg transition-all duration-200 bell-ring-bounce group"
                             onClick={() => {
                               addNotification({
                                 type: 'general',
@@ -1846,7 +2016,7 @@ export default function HomeTab() {
                               });
                             }}
                           >
-                            <Bell className="w-3 h-3 mr-1 bell-ring-bounce" />
+                            <Bell className="w-3.5 h-3.5 mr-1.5 group-hover:animate-bounce" />
                             Set Reminder
                           </Button>
                         </motion.div>
@@ -2108,20 +2278,21 @@ export default function HomeTab() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {/* Social Feed */}
+          {/* Social Feed - teal for stats/community */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(20, 184, 166, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowSocialFeed(true)}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center icon-bounce-target">
-                  <Rss className="w-4 h-4 text-brand-teal" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+                  <Rss className="w-4.5 h-4.5 text-brand-teal" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Social Feed</p>
@@ -2131,20 +2302,21 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Follow & Connect */}
+          {/* Follow & Connect - teal for stats/community */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-navy/40 dark:hover:border-brand-navy-light/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-navy/5 border-glow-hover bg-gradient-to-br from-slate-50/60 to-warm-50 dark:from-slate-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(30, 41, 59, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowFollow(true)}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-navy/20 dark:from-brand-navy-light/20 to-brand-navy/5 dark:to-brand-navy-light/5 flex items-center justify-center icon-bounce-target">
-                  <Users className="w-4 h-4 text-brand-navy dark:text-brand-navy-light" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+                  <Users className="w-4.5 h-4.5 text-brand-teal" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Follow</p>
@@ -2154,20 +2326,21 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Match History */}
+          {/* Match History - red for live features */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(220, 38, 38, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowMatchHistory(true)}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center icon-bounce-target">
-                  <Calendar className="w-4 h-4 text-brand-red" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
+                  <Calendar className="w-4.5 h-4.5 text-brand-red" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Match History</p>
@@ -2177,24 +2350,25 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Advanced Stats */}
+          {/* Advanced Stats - teal for stats */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.22 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(220, 38, 38, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => {
                 if (currentUser?.id) {
                   setShowStats(true);
                 }
               }}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center icon-bounce-target">
-                  <Activity className="w-4 h-4 text-brand-red" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+                  <Activity className="w-4.5 h-4.5 text-brand-teal" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">My Stats</p>
@@ -2204,20 +2378,21 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Rules & Tutorial */}
+          {/* Rules & Tutorial - teal for stats */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.22 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-emerald-50/60 to-warm-50 dark:from-emerald-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(20, 184, 166, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowRules(true)}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center icon-bounce-target">
-                  <BookOpen className="w-4 h-4 text-brand-teal" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+                  <BookOpen className="w-4.5 h-4.5 text-brand-teal" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Rules</p>
@@ -2227,15 +2402,14 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Match Highlights */}
+          {/* Match Highlights - gold for premium */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-gold/5 border-glow-hover bg-gradient-to-br from-amber-50/60 to-warm-50 dark:from-amber-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(245, 158, 11, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => {
                 if (recentMatches.length > 0) {
                   setHighlightsMatchId(recentMatches[0].id);
@@ -2245,9 +2419,11 @@ export default function HomeTab() {
                 }
               }}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-gold/20 to-brand-gold/5 flex items-center justify-center icon-bounce-target">
-                  <Sparkles className="w-4 h-4 text-brand-gold" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-gold/20 transition-shadow">
+                  <Sparkles className="w-4.5 h-4.5 text-brand-gold" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Highlights</p>
@@ -2260,20 +2436,21 @@ export default function HomeTab() {
 
         {/* Phase 5: More Actions */}
         <div className="grid grid-cols-2 gap-3 mt-3">
-          {/* Achievements */}
+          {/* Achievements - gold for premium */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-gold/5 border-glow-hover bg-gradient-to-br from-amber-50/60 to-warm-50 dark:from-amber-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(245, 158, 11, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowStreaks(true)}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-gold/20 to-brand-gold/5 flex items-center justify-center icon-bounce-target">
-                  <Award className="w-4 h-4 text-brand-gold" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-gold/20 transition-shadow">
+                  <Award className="w-4.5 h-4.5 text-brand-gold" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Achievements</p>
@@ -2283,20 +2460,21 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Compare Teams */}
+          {/* Compare Teams - red for live features */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 border-glow-hover bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(220, 38, 38, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowComparison(true)}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center icon-bounce-target">
-                  <Swords className="w-4 h-4 text-brand-red" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
+                  <Swords className="w-4.5 h-4.5 text-brand-red" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Compare Teams</p>
@@ -2306,20 +2484,21 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Grounds */}
+          {/* Grounds - teal for stats */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 border-glow-hover bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(20, 184, 166, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => setShowGrounds(true)}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center icon-bounce-target">
-                  <MapPin className="w-4 h-4 text-brand-teal" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-teal/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow">
+                  <MapPin className="w-4.5 h-4.5 text-brand-teal" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Grounds</p>
@@ -2329,15 +2508,14 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Match Replay */}
+          {/* Match Replay - red for live features */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-navy/40 dark:hover:border-brand-navy-light/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-navy/5 border-glow-hover bg-gradient-to-br from-slate-50/60 to-warm-50 dark:from-slate-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 icon-bounce-hover explore-card-border"
-              style={{ borderLeftColor: 'rgba(30, 41, 59, 0.5)' }}
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 relative overflow-hidden group"
               onClick={() => {
                 if (recentMatches.length > 0) {
                   setReplayMatchId(recentMatches[0].id);
@@ -2347,9 +2525,11 @@ export default function HomeTab() {
                 }
               }}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-navy/20 dark:from-brand-navy-light/20 to-brand-navy/5 dark:to-brand-navy-light/5 flex items-center justify-center icon-bounce-target">
-                  <Play className="w-4 h-4 text-brand-navy dark:text-brand-navy-light" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
+                  <Play className="w-4.5 h-4.5 text-brand-red" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Replay</p>
@@ -2360,7 +2540,7 @@ export default function HomeTab() {
           </motion.div>
         </div>
 
-        {/* Advanced Phase 5: Pro Features */}
+        {/* Advanced Phase 5: Pro Features - enhanced with shimmer overlay */}
         <div className="flex items-center gap-2 mt-5 mb-3">
           <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Pro Features</h3>
           <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[9px] border-0 font-bold px-1.5 py-0 flex items-center gap-0.5 relative overflow-hidden">
@@ -2370,22 +2550,24 @@ export default function HomeTab() {
           </Badge>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {/* AI Insights */}
+          {/* AI Insights - gold/pro */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-purple-400/40 dark:hover:border-purple-400/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-purple-500/5 relative overflow-hidden bg-gradient-to-br from-purple-50/60 to-warm-50 dark:from-purple-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 golden-border-hover lock-shake-hover"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-purple-50/80 to-warm-50 dark:from-purple-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
               onClick={() => setShowAIInsights(true)}
             >
-              {/* Golden border shimmer */}
-              <div className="absolute inset-0 rounded-lg border border-brand-gold/20 animate-[shimmer_5s_ease-in-out_infinite]" style={{ background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.06), transparent)' }} />
-              <div className="flex items-center gap-2.5 relative z-10">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-500/5 flex items-center justify-center relative">
-                  <Brain className="w-4 h-4 text-purple-500" />
-                  <Lock className="w-2 h-2 text-brand-gold absolute -top-0.5 -right-0.5 lock-icon" />
+              {/* Shimmer/lock overlay effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/30 to-purple-500/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-purple-500/20 transition-shadow shrink-0">
+                  <Brain className="w-4.5 h-4.5 text-purple-500" />
+                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">AI Insights</p>
@@ -2395,14 +2577,14 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Live Broadcast */}
+          {/* Live Broadcast - red for live */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-red/40 dark:hover:border-brand-red/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-red/5 relative overflow-hidden bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 golden-border-hover lock-shake-hover"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
               onClick={() => {
                 if (liveMatches.length > 0) {
                   setBroadcastMatchId(liveMatches[0].id);
@@ -2412,11 +2594,13 @@ export default function HomeTab() {
                 }
               }}
             >
-              <div className="absolute inset-0 rounded-lg border border-brand-gold/20" style={{ background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.06), transparent)' }} />
-              <div className="flex items-center gap-2.5 relative z-10">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-red/20 to-brand-red/5 flex items-center justify-center relative">
-                  <Radio className="w-4 h-4 text-brand-red" />
-                  <Lock className="w-2 h-2 text-brand-gold absolute -top-0.5 -right-0.5 lock-icon" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_3.5s_ease-in-out_infinite]" />
+              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-gold" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow shrink-0">
+                  <Radio className="w-4.5 h-4.5 text-brand-red" />
+                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Broadcast</p>
@@ -2426,21 +2610,23 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Seasons */}
+          {/* Seasons - teal for stats */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-teal/40 dark:hover:border-brand-teal/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-teal/5 relative overflow-hidden bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 golden-border-hover lock-shake-hover"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
               onClick={() => setShowSeason(true)}
             >
-              <div className="absolute inset-0 rounded-lg border border-brand-gold/20" style={{ background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.06), transparent)' }} />
-              <div className="flex items-center gap-2.5 relative z-10">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/5 flex items-center justify-center relative">
-                  <Calendar className="w-4 h-4 text-brand-teal" />
-                  <Lock className="w-2 h-2 text-brand-gold absolute -top-0.5 -right-0.5 lock-icon" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-gold" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow shrink-0">
+                  <Calendar className="w-4.5 h-4.5 text-brand-teal" />
+                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Seasons</p>
@@ -2450,20 +2636,22 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Polls & Predictions */}
+          {/* Polls & Predictions - gold for premium */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.65 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-gold/40 dark:hover:border-brand-gold/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-gold/5 relative overflow-hidden bg-gradient-to-br from-amber-50/60 to-warm-50 dark:from-amber-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 golden-border-hover"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
               onClick={() => setShowPredictions(true)}
             >
-              <div className="absolute inset-0 rounded-lg border border-brand-gold/20" style={{ background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.06), transparent)' }} />
-              <div className="flex items-center gap-2.5 relative z-10">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-gold/20 to-brand-gold/5 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-brand-gold" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold/10 flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-brand-gold/20 transition-shadow shrink-0">
+                  <Sparkles className="w-4.5 h-4.5 text-brand-gold" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Predictions</p>
@@ -2473,21 +2661,23 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Data Export */}
+          {/* Data Export - gold for premium */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-brand-navy/40 dark:hover:border-brand-navy-light/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-brand-navy/5 relative overflow-hidden bg-gradient-to-br from-slate-50/60 to-warm-50 dark:from-slate-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 golden-border-hover lock-shake-hover"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-slate-50/80 to-warm-50 dark:from-slate-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
               onClick={() => setShowDataExport(true)}
             >
-              <div className="absolute inset-0 rounded-lg border border-brand-gold/20" style={{ background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.06), transparent)' }} />
-              <div className="flex items-center gap-2.5 relative z-10">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-navy/20 dark:from-brand-navy-light/20 to-brand-navy/5 dark:to-brand-navy-light/5 flex items-center justify-center relative">
-                  <Download className="w-4 h-4 text-brand-navy dark:text-brand-navy-light" />
-                  <Lock className="w-2 h-2 text-brand-gold absolute -top-0.5 -right-0.5 lock-icon" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_4.5s_ease-in-out_infinite]" />
+              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-navy/30 dark:from-brand-navy-light/30 to-brand-navy/10 dark:to-brand-navy-light/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-brand-navy/20 transition-shadow shrink-0">
+                  <Download className="w-4.5 h-4.5 text-brand-navy dark:text-brand-navy-light" />
+                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Export</p>
@@ -2497,21 +2687,23 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Sponsors */}
+          {/* Sponsors - gold for premium */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.75 }}
           >
             <Card
-              className="p-3 cursor-pointer hover:border-emerald-400/40 dark:hover:border-emerald-400/30 transition-all duration-200 active:scale-[0.98] hover:scale-[1.03] hover:shadow-md hover:shadow-emerald-500/5 relative overflow-hidden bg-gradient-to-br from-emerald-50/60 to-warm-50 dark:from-emerald-900/15 dark:to-warm-800 border-warm-200 dark:border-warm-700 golden-border-hover lock-shake-hover"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
               onClick={() => setShowSponsors(true)}
             >
-              <div className="absolute inset-0 rounded-lg border border-brand-gold/20" style={{ background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.06), transparent)' }} />
-              <div className="flex items-center gap-2.5 relative z-10">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center relative">
-                  <Briefcase className="w-4 h-4 text-emerald-500" />
-                  <Lock className="w-2 h-2 text-brand-gold absolute -top-0.5 -right-0.5 lock-icon" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_5s_ease-in-out_infinite]" />
+              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/30 to-emerald-500/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-emerald-500/20 transition-shadow shrink-0">
+                  <Briefcase className="w-4.5 h-4.5 text-emerald-500" />
+                  <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Sponsors</p>
@@ -2616,10 +2808,10 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
   }, [rank, category]);
 
   const rankConfig = rank === 1
-    ? { bg: 'from-yellow-400/20 to-yellow-600/10 dark:from-yellow-400/15 dark:to-yellow-600/5', border: 'border-yellow-500/40', medal: '🥇', label: '1st', labelColor: 'text-yellow-500', ring: 'ring-yellow-400/30', badgeBg: 'bg-yellow-500', badgeText: 'text-yellow-900' }
+    ? { bg: 'from-yellow-400/20 to-yellow-600/10 dark:from-yellow-400/15 dark:to-yellow-600/5', border: 'border-yellow-500/40', medal: '🥇', label: '1st', labelColor: 'text-yellow-500', ring: 'ring-2 ring-yellow-400', badgeBg: 'bg-gradient-to-br from-yellow-400 to-yellow-600', badgeText: 'text-yellow-900', avatarBorder: 'border-yellow-400', arrowColor: 'text-yellow-500', barGradient: 'from-yellow-400 to-yellow-600' }
     : rank === 2
-      ? { bg: 'from-slate-300/20 to-slate-400/10 dark:from-slate-400/15 dark:to-slate-500/5', border: 'border-slate-400/40', medal: '🥈', label: '2nd', labelColor: 'text-slate-400', ring: 'ring-slate-300/30', badgeBg: 'bg-slate-400', badgeText: 'text-slate-900' }
-      : { bg: 'from-amber-600/20 to-amber-700/10 dark:from-amber-600/15 dark:to-amber-700/5', border: 'border-amber-600/40', medal: '🥉', label: '3rd', labelColor: 'text-amber-600', ring: 'ring-amber-500/30', badgeBg: 'bg-amber-600', badgeText: 'text-amber-100' };
+      ? { bg: 'from-slate-300/20 to-slate-400/10 dark:from-slate-400/15 dark:to-slate-500/5', border: 'border-slate-400/40', medal: '🥈', label: '2nd', labelColor: 'text-slate-400', ring: 'ring-2 ring-slate-300', badgeBg: 'bg-gradient-to-br from-slate-300 to-slate-500', badgeText: 'text-slate-900', avatarBorder: 'border-slate-300', arrowColor: 'text-slate-400', barGradient: 'from-slate-300 to-slate-500' }
+      : { bg: 'from-amber-600/20 to-amber-700/10 dark:from-amber-600/15 dark:to-amber-700/5', border: 'border-amber-600/40', medal: '🥉', label: '3rd', labelColor: 'text-amber-600', ring: 'ring-2 ring-amber-500', badgeBg: 'bg-gradient-to-br from-amber-500 to-amber-700', badgeText: 'text-amber-100', avatarBorder: 'border-amber-500', arrowColor: 'text-amber-600', barGradient: 'from-amber-500 to-amber-700' };
 
   if (!player) {
     return (
@@ -2631,26 +2823,43 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
     );
   }
 
-  // Generate a mini bar chart breakdown
+  // Generate a mini bar chart breakdown with gradient colors
   const barMax = Math.max(player.stat, 1);
   const barSegments = [
-    { label: 'R', value: Math.round(barMax * 0.5), color: 'bg-brand-red' },
-    { label: 'T', value: Math.round(barMax * 0.3), color: 'bg-brand-navy dark:bg-brand-navy-light' },
-    { label: 'B', value: Math.round(barMax * 0.2), color: 'bg-brand-gold' },
+    { label: 'R', value: Math.round(barMax * 0.5), gradient: 'bg-gradient-to-t from-brand-red to-brand-red-light' },
+    { label: 'T', value: Math.round(barMax * 0.3), gradient: 'bg-gradient-to-t from-brand-navy to-brand-navy-light dark:from-brand-navy-light dark:to-brand-teal' },
+    { label: 'B', value: Math.round(barMax * 0.2), gradient: 'bg-gradient-to-t from-brand-gold-dark to-brand-gold-light' },
   ];
 
   return (
     <motion.div
-      className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankConfig.bg} ${rankConfig.border} border p-3 flex flex-col items-center gap-1`}
+      className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankConfig.bg} ${rankConfig.border} border p-3 flex flex-col items-center gap-1 relative overflow-hidden`}
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: rank * 0.1 }}
+      whileHover={{ scale: 1.05, y: -2 }}
     >
-      {/* Rank badge with shine */}
-      <div className={`${rankConfig.badgeBg} ${rankConfig.badgeText} w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black rank-badge-shine shadow-sm`}>
+      {/* Shimmer overlay for top rank */}
+      {rank === 1 && (
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/10 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+      )}
+      {/* Position change indicator */}
+      <div className="absolute top-2 right-2">
+        <motion.div
+          initial={{ y: 5, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: rank * 0.1 + 0.3 }}
+          className="flex items-center gap-0.5"
+        >
+          <TrendingUp className={`w-2.5 h-2.5 ${rankConfig.arrowColor}`} />
+        </motion.div>
+      </div>
+      {/* Rank badge with gradient and shine */}
+      <div className={`${rankConfig.badgeBg} ${rankConfig.badgeText} w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black rank-badge-shine shadow-md relative`}>
         {rank}
       </div>
-      <div className={`w-10 h-10 rounded-full bg-warm-100 dark:bg-warm-700 border border-warm-200 dark:border-warm-600 ring-2 ${rankConfig.ring} flex items-center justify-center overflow-hidden relative`}>
+      {/* Medal-style avatar with colored border */}
+      <div className={`w-11 h-11 rounded-full bg-warm-100 dark:bg-warm-700 border-2 ${rankConfig.avatarBorder} ${rankConfig.ring} flex items-center justify-center overflow-hidden relative shadow-md`}>
         {player.avatar ? (
           <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
         ) : (
@@ -2660,19 +2869,19 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
         )}
         {/* Team color indicator dot */}
         {player.teamNames && player.teamNames.length > 0 && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-brand-red border border-white dark:border-warm-800 shadow-sm" />
+          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-brand-red border-2 border-white dark:border-warm-800 shadow-sm" />
         )}
       </div>
       <p className="text-[11px] font-bold text-warm-800 dark:text-warm-100 text-center truncate w-full">
         {player.name}
       </p>
       <p className="text-brand-gold dark:text-brand-gold-light font-black text-sm">{player.stat}</p>
-      {/* Mini bar chart breakdown */}
+      {/* Mini gradient bar chart breakdown */}
       <div className="flex gap-0.5 w-full items-end mt-0.5">
         {barSegments.map((seg) => (
           <div key={seg.label} className="flex-1 flex flex-col items-center gap-0.5">
             <div
-              className={`w-full rounded-sm ${seg.color}`}
+              className={`w-full rounded-sm ${seg.gradient}`}
               style={{ height: `${Math.max((seg.value / barMax) * 16, 3)}px` }}
             />
             <span className="text-[6px] text-warm-400 font-medium">{seg.label}</span>

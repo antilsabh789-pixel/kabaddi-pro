@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import {
   X,
@@ -16,6 +16,8 @@ import {
   Swords,
   MessageCircle,
   Shield,
+  Zap,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +70,16 @@ const NOTIFICATION_ICON_BG: Record<NotificationType, string> = {
   general: 'bg-warm-200 dark:bg-warm-300/30 text-warm-500 dark:text-warm-400',
 };
 
+const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
+  match_start: 'Match Starting',
+  match_result: 'Score Update',
+  achievement: 'Achievement',
+  premium: 'Premium',
+  general: 'General',
+};
+
+const GROUP_ORDER: NotificationType[] = ['match_start', 'match_result', 'achievement', 'premium', 'general'];
+
 const EMPTY_STATE_MESSAGES: Record<CategoryFilter, { title: string; subtitle: string }> = {
   all: { title: 'No notifications', subtitle: "You'll see match results and achievements here" },
   match: { title: 'No match updates', subtitle: 'Match notifications will appear when games go live or finish' },
@@ -91,6 +103,25 @@ function formatTimeAgo(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
+// Group notifications by type
+function groupNotificationsByType(notifications: AppNotification[]): { type: NotificationType; label: string; notifications: AppNotification[] }[] {
+  const groups = new Map<NotificationType, AppNotification[]>();
+
+  for (const notification of notifications) {
+    const existing = groups.get(notification.type) || [];
+    existing.push(notification);
+    groups.set(notification.type, existing);
+  }
+
+  return GROUP_ORDER
+    .filter((type) => groups.has(type))
+    .map((type) => ({
+      type,
+      label: NOTIFICATION_TYPE_LABELS[type],
+      notifications: groups.get(type)!,
+    }));
+}
+
 // ─── Notification Card ──────────────────────────────────────────────
 
 interface NotificationCardProps {
@@ -98,9 +129,10 @@ interface NotificationCardProps {
   onMarkRead: (id: string) => void;
   onClick: (notification: AppNotification) => void;
   onDismiss: (id: string) => void;
+  index?: number;
 }
 
-function NotificationCard({ notification, onMarkRead, onClick, onDismiss }: NotificationCardProps) {
+function NotificationCard({ notification, onMarkRead, onClick, onDismiss, index = 0 }: NotificationCardProps) {
   const x = useMotionValue(0);
   const opacity = useTransform(x, [-150, 0, 150], [0.3, 1, 0.3]);
   const Icon = NOTIFICATION_ICONS[notification.type] || Bell;
@@ -120,10 +152,10 @@ function NotificationCard({ notification, onMarkRead, onClick, onDismiss }: Noti
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: 30 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -100, height: 0, marginBottom: 0 }}
-      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+      initial={{ opacity: 0, x: 40, scale: 0.95 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: -100, height: 0, marginBottom: 0, scale: 0.9 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 300, delay: index * 0.03 }}
       style={{ x, opacity }}
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
@@ -139,6 +171,8 @@ function NotificationCard({ notification, onMarkRead, onClick, onDismiss }: Noti
         isPremium && !notification.read && 'card-shine'
       )}
       onClick={() => onClick(notification)}
+      role="button"
+      aria-label={`${notification.read ? 'Read' : 'Unread'} notification: ${notification.title}`}
     >
       {/* Swipe hint background */}
       <div className="absolute inset-0 rounded-xl bg-brand-red/10 dark:bg-brand-red/20 flex items-center justify-end pr-6 pointer-events-none">
@@ -146,14 +180,24 @@ function NotificationCard({ notification, onMarkRead, onClick, onDismiss }: Noti
       </div>
 
       <div className="relative p-3 flex items-start gap-3">
-        {/* Icon */}
-        <div
-          className={cn(
-            'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
-            iconBgClass
+        {/* Icon with type indicator */}
+        <div className="relative">
+          <div
+            className={cn(
+              'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
+              iconBgClass
+            )}
+          >
+            <Icon className="w-4 h-4" />
+          </div>
+          {/* Unread dot */}
+          {!notification.read && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-brand-red border-2 border-white dark:border-warm-100"
+            />
           )}
-        >
-          <Icon className="w-4 h-4" />
         </div>
 
         {/* Content */}
@@ -167,21 +211,26 @@ function NotificationCard({ notification, onMarkRead, onClick, onDismiss }: Noti
             >
               {notification.title}
             </p>
-            {!notification.read && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="w-2 h-2 rounded-full bg-brand-red shrink-0"
-              />
-            )}
           </div>
           <p className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 leading-relaxed line-clamp-2">
             {notification.description}
           </p>
           <div className="flex items-center justify-between mt-1.5">
-            <p className="text-[10px] text-warm-400 dark:text-warm-500">
-              {formatTimeAgo(notification.timestamp)}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-warm-400 dark:text-warm-500">
+                {formatTimeAgo(notification.timestamp)}
+              </p>
+              <span className={cn(
+                'text-[9px] font-semibold px-1.5 py-0.5 rounded-full',
+                notification.type === 'match_start' && 'bg-brand-teal/10 text-brand-teal',
+                notification.type === 'match_result' && 'bg-brand-red/10 text-brand-red',
+                notification.type === 'achievement' && 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold',
+                notification.type === 'premium' && 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold',
+                notification.type === 'general' && 'bg-warm-200/50 dark:bg-warm-300/20 text-warm-500 dark:text-warm-400',
+              )}>
+                {NOTIFICATION_TYPE_LABELS[notification.type]}
+              </span>
+            </div>
             {!notification.read && (
               <button
                 onClick={(e) => {
@@ -189,6 +238,7 @@ function NotificationCard({ notification, onMarkRead, onClick, onDismiss }: Noti
                   onMarkRead(notification.id);
                 }}
                 className="flex items-center gap-1 text-[10px] font-medium text-brand-teal dark:text-brand-teal-light hover:text-brand-teal-dark transition-colors px-1.5 py-0.5 rounded-md hover:bg-brand-teal/10"
+                aria-label="Mark notification as read"
               >
                 <Check className="w-3 h-3" />
                 Mark read
@@ -198,6 +248,52 @@ function NotificationCard({ notification, onMarkRead, onClick, onDismiss }: Noti
         </div>
       </div>
     </motion.div>
+  );
+}
+
+// ─── Notification Group Header ──────────────────────────────────────
+
+interface GroupHeaderProps {
+  label: string;
+  type: NotificationType;
+  count: number;
+  unreadCount: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+function GroupHeader({ label, type, count, unreadCount, isExpanded, onToggle }: GroupHeaderProps) {
+  const Icon = NOTIFICATION_ICONS[type];
+  const iconBgClass = NOTIFICATION_ICON_BG[type];
+
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center gap-2 py-2 px-1 group"
+      aria-expanded={isExpanded}
+      aria-label={`${label} group - ${count} notifications, ${unreadCount} unread`}
+    >
+      <div className={cn('w-5 h-5 rounded-full flex items-center justify-center', iconBgClass)}>
+        <Icon className="w-2.5 h-2.5" />
+      </div>
+      <span className="text-xs font-semibold text-warm-700 dark:text-warm-600 flex-1 text-left">
+        {label}
+      </span>
+      {unreadCount > 0 && (
+        <span className="min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1">
+          {unreadCount}
+        </span>
+      )}
+      <span className="text-[10px] text-warm-400 dark:text-warm-500 mr-1">
+        {count}
+      </span>
+      <ChevronDown
+        className={cn(
+          'w-3.5 h-3.5 text-warm-400 dark:text-warm-500 transition-transform duration-200',
+          isExpanded ? 'rotate-180' : 'rotate-0'
+        )}
+      />
+    </button>
   );
 }
 
@@ -220,6 +316,8 @@ function CategoryTabButton({ tab, isActive, count, onClick }: CategoryTabButtonP
           ? 'text-white'
           : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
       )}
+      aria-selected={isActive}
+      role="tab"
     >
       {isActive && (
         <motion.div
@@ -262,8 +360,11 @@ function EmptyState({ category }: EmptyStateProps) {
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <div className="w-16 h-16 rounded-2xl bg-warm-100 dark:bg-warm-200/20 flex items-center justify-center mb-4">
+        <div className="w-20 h-20 rounded-2xl bg-warm-100 dark:bg-warm-200/20 flex items-center justify-center mb-4 relative overflow-hidden">
           <BellOff className="w-8 h-8 text-warm-300 dark:text-warm-400" />
+          {/* Decorative circles for illustration */}
+          <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-brand-gold/10" />
+          <div className="absolute -bottom-1 -left-1 w-4 h-4 rounded-full bg-brand-red/10" />
         </div>
       </motion.div>
       <p className="text-warm-600 dark:text-warm-400 text-sm font-semibold">{messages.title}</p>
@@ -292,7 +393,7 @@ function ClearConfirmDialog({ onConfirm, onCancel }: ClearConfirmProps) {
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="bg-white dark:bg-warm-100 rounded-2xl p-5 shadow-xl max-w-[280px] w-full text-center"
+        className="glass-card-strong rounded-2xl p-5 shadow-xl max-w-[280px] w-full text-center"
       >
         <div className="w-12 h-12 rounded-full bg-brand-red/10 flex items-center justify-center mx-auto mb-3">
           <Trash2 className="w-6 h-6 text-brand-red" />
@@ -342,16 +443,27 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [groupedView, setGroupedView] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<NotificationType>>(
+    new Set(['match_start', 'match_result', 'achievement', 'premium', 'general'])
+  );
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Filter notifications by category and exclude dismissed
-  const filteredNotifications = notifications.filter((n) => {
-    if (dismissedIds.has(n.id)) return false;
-    const tab = CATEGORY_TABS.find((t) => t.id === activeCategory);
-    if (!tab) return true;
-    return tab.types.includes(n.type);
-  });
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((n) => {
+      if (dismissedIds.has(n.id)) return false;
+      const tab = CATEGORY_TABS.find((t) => t.id === activeCategory);
+      if (!tab) return true;
+      return tab.types.includes(n.type);
+    });
+  }, [notifications, dismissedIds, activeCategory]);
+
+  // Grouped notifications
+  const groupedNotifications = useMemo(() => {
+    return groupNotificationsByType(filteredNotifications);
+  }, [filteredNotifications]);
 
   // Count by category
   const categoryCounts = CATEGORY_TABS.map((tab) => ({
@@ -429,6 +541,18 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
     setShowClearConfirm(false);
   }, [clearNotifications]);
 
+  const toggleGroup = useCallback((type: NotificationType) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -443,11 +567,11 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="absolute right-0 top-0 bottom-0 w-full max-w-sm glass-effect flex flex-col shadow-2xl"
+          className="absolute right-0 top-0 bottom-0 w-full max-w-sm glass-notification-panel flex flex-col shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* ─── Header ─── */}
-          <div className="sticky top-0 z-10 bg-white/80 dark:bg-warm-100/80 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-200/20 px-4 py-3">
+          <div className="sticky top-0 z-10 glass-card-strong border-b border-warm-200/60 dark:border-warm-200/20 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-brand-red/10 flex items-center justify-center">
@@ -462,12 +586,29 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
                   </Badge>
                 )}
               </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-warm-200/80 dark:bg-warm-200/30 flex items-center justify-center text-warm-600 dark:text-warm-400 hover:bg-warm-300 dark:hover:bg-warm-200/40 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Grouped view toggle */}
+                <button
+                  onClick={() => setGroupedView(!groupedView)}
+                  className={cn(
+                    'w-8 h-8 rounded-full flex items-center justify-center transition-colors',
+                    groupedView
+                      ? 'bg-brand-red/10 text-brand-red'
+                      : 'bg-warm-200/80 dark:bg-warm-200/30 text-warm-600 dark:text-warm-400'
+                  )}
+                  aria-label={groupedView ? 'Switch to flat list view' : 'Switch to grouped view'}
+                  title={groupedView ? 'Flat list' : 'Grouped'}
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full bg-warm-200/80 dark:bg-warm-200/30 flex items-center justify-center text-warm-600 dark:text-warm-400 hover:bg-warm-300 dark:hover:bg-warm-200/40 transition-colors"
+                  aria-label="Close notifications"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Action buttons */}
@@ -479,6 +620,7 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
                     size="sm"
                     onClick={markAllRead}
                     className="h-7 text-[11px] text-brand-teal dark:text-brand-teal-light hover:text-brand-teal-dark hover:bg-brand-teal/10 px-2"
+                    aria-label="Mark all notifications as read"
                   >
                     <CheckCheck className="w-3 h-3 mr-1" />
                     Mark all read
@@ -489,6 +631,7 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
                   size="sm"
                   onClick={() => setShowClearConfirm(true)}
                   className="h-7 text-[11px] text-brand-red hover:text-brand-red-dark hover:bg-brand-red/10 px-2"
+                  aria-label="Clear all notifications"
                 >
                   <Trash2 className="w-3 h-3 mr-1" />
                   Clear all
@@ -497,7 +640,7 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
             )}
 
             {/* Category Tabs */}
-            <div className="flex gap-1 mt-3 overflow-x-auto custom-scrollbar pb-1 -mx-1 px-1">
+            <div className="flex gap-1 mt-3 overflow-x-auto custom-scrollbar pb-1 -mx-1 px-1" role="tablist">
               {categoryCounts.map(({ tab, count, unreadCount: tabUnread }) => (
                 <CategoryTabButton
                   key={tab.id}
@@ -515,15 +658,57 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
             <AnimatePresence mode="popLayout">
               {filteredNotifications.length === 0 ? (
                 <EmptyState category={activeCategory} />
+              ) : groupedView ? (
+                /* Grouped view */
+                <div className="flex flex-col gap-1">
+                  {groupedNotifications.map((group) => (
+                    <div key={group.type}>
+                      <GroupHeader
+                        label={group.label}
+                        type={group.type}
+                        count={group.notifications.length}
+                        unreadCount={group.notifications.filter((n) => !n.read).length}
+                        isExpanded={expandedGroups.has(group.type)}
+                        onToggle={() => toggleGroup(group.type)}
+                      />
+                      <AnimatePresence>
+                        {expandedGroups.has(group.type) && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="flex flex-col gap-2 pb-2">
+                              {group.notifications.map((notification: AppNotification, idx: number) => (
+                                <NotificationCard
+                                  key={notification.id}
+                                  notification={notification}
+                                  onMarkRead={handleMarkRead}
+                                  onClick={handleNotificationClick}
+                                  onDismiss={handleDismiss}
+                                  index={idx}
+                                />
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))}
+                </div>
               ) : (
+                /* Flat list view */
                 <div className="flex flex-col gap-2">
-                  {filteredNotifications.map((notification: AppNotification) => (
+                  {filteredNotifications.map((notification: AppNotification, idx: number) => (
                     <NotificationCard
                       key={notification.id}
                       notification={notification}
                       onMarkRead={handleMarkRead}
                       onClick={handleNotificationClick}
                       onDismiss={handleDismiss}
+                      index={idx}
                     />
                   ))}
                 </div>
@@ -543,9 +728,9 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
 
           {/* ─── Footer hint ─── */}
           {filteredNotifications.length > 0 && (
-            <div className="px-4 py-2 border-t border-warm-200/50 dark:border-warm-200/20 bg-white/50 dark:bg-warm-100/50 backdrop-blur-sm">
+            <div className="px-4 py-2 border-t border-warm-200/50 dark:border-warm-200/20 glass-card">
               <p className="text-[10px] text-warm-400 dark:text-warm-500 text-center">
-                Swipe left on a notification to dismiss
+                Swipe left on a notification to dismiss • Tap to view
               </p>
             </div>
           )}

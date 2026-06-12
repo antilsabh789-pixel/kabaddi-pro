@@ -6,7 +6,8 @@ import {
   Plus, MapPin, Calendar, Users, ChevronDown, ChevronUp, Trophy, Crown,
   Lock, Loader2, Search, X, Copy, Check, Hash, UserPlus, Trash2, Swords,
   Sparkles, Timer, Filter, TrendingUp, Clock, Zap, CalendarDays, LayoutGrid,
-  ChevronRight, Star, ArrowRight, CircleDot, Radio, Award, Target
+  ChevronRight, Star, ArrowRight, CircleDot, Radio, Award, Target,
+  Eye, Flame, Shield, Venus, Mars
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -76,38 +77,44 @@ interface BracketMatch {
 
 // ─── Sub-components ────────────────────────────────────────────────────
 
-/** Animated status indicator dot */
+/** Animated status indicator dot with enhanced glow */
 function StatusIndicator({ status }: { status: string }) {
   const config = {
-    ongoing: { color: 'bg-emerald-500', ring: 'ring-emerald-500/30', pulse: true },
-    upcoming: { color: 'bg-amber-500', ring: 'ring-amber-500/30', pulse: false },
-    past: { color: 'bg-warm-400', ring: 'ring-warm-400/30', pulse: false },
-  }[status] || { color: 'bg-warm-400', ring: 'ring-warm-400/30', pulse: false };
+    ongoing: { color: 'bg-emerald-500', ring: 'ring-emerald-500/30', pulse: true, glow: 'shadow-emerald-500/50' },
+    upcoming: { color: 'bg-amber-500', ring: 'ring-amber-500/30', pulse: false, glow: 'shadow-amber-500/50' },
+    past: { color: 'bg-warm-400', ring: 'ring-warm-400/30', pulse: false, glow: 'shadow-warm-400/50' },
+  }[status] || { color: 'bg-warm-400', ring: 'ring-warm-400/30', pulse: false, glow: 'shadow-warm-400/50' };
 
   return (
-    <span className="relative flex h-3 w-3">
+    <span className="relative flex h-3.5 w-3.5">
       {config.pulse && (
         <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.color} opacity-75`} />
       )}
-      <span className={`relative inline-flex rounded-full h-3 w-3 ${config.color} ring-2 ${config.ring}`} />
+      <span className={`relative inline-flex rounded-full h-3.5 w-3.5 ${config.color} ring-2 ${config.ring} shadow-lg ${config.glow}`} />
     </span>
   );
 }
 
-/** Match progress bar */
+/** Match progress bar with enhanced gradient and label */
 function MatchProgressBar({ completed, total }: { completed: number; total: number }) {
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2 w-full">
-      <div className="flex-1 h-2 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
+      <div className="flex-1 h-2.5 bg-warm-200/60 dark:bg-warm-700/60 rounded-full overflow-hidden relative">
+        {/* Animated background shimmer */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_3s_infinite]" />
         <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light"
+          className="h-full rounded-full bg-gradient-to-r from-brand-gold via-brand-gold-light to-brand-gold relative"
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
-        />
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-transparent rounded-full" />
+        </motion.div>
       </div>
-      <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 shrink-0">{completed}/{total}</span>
+      <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 shrink-0 bg-warm-100 dark:bg-warm-700/50 px-1.5 py-0.5 rounded-md">
+        {completed}/{total}
+      </span>
     </div>
   );
 }
@@ -121,7 +128,7 @@ function ShimmerOverlay() {
       whileHover={{ opacity: 1 }}
     >
       <motion.div
-        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent dark:via-white/5"
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent dark:via-white/5"
         animate={{ x: ['-100%', '200%'] }}
         transition={{ duration: 2, ease: 'linear' }}
       />
@@ -129,7 +136,29 @@ function ShimmerOverlay() {
   );
 }
 
-/** Knockout bracket view */
+/** Decorative kabaddi court pattern for backgrounds */
+function KabaddiPattern() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.03] dark:opacity-[0.05]">
+      {/* Court line patterns */}
+      <div className="absolute top-1/2 left-0 right-0 h-px bg-brand-red" />
+      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-brand-red" />
+      <div className="absolute top-[30%] left-0 right-0 h-px bg-brand-red" />
+      <div className="absolute top-[70%] left-0 right-0 h-px bg-brand-red" />
+      <div className="absolute top-0 bottom-0 left-[25%] w-px bg-brand-red" />
+      <div className="absolute top-0 bottom-0 left-[75%] w-px bg-brand-red" />
+      {/* Center circle */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border border-brand-red" />
+      {/* Corner arcs */}
+      <div className="absolute top-2 left-2 w-8 h-8 border-t-2 border-l-2 border-brand-red rounded-tl-lg" />
+      <div className="absolute top-2 right-2 w-8 h-8 border-t-2 border-r-2 border-brand-red rounded-tr-lg" />
+      <div className="absolute bottom-2 left-2 w-8 h-8 border-b-2 border-l-2 border-brand-red rounded-bl-lg" />
+      <div className="absolute bottom-2 right-2 w-8 h-8 border-b-2 border-r-2 border-brand-red rounded-br-lg" />
+    </div>
+  );
+}
+
+/** Enhanced knockout bracket view with team colors */
 function BracketView({ tournament }: { tournament: Tournament }) {
   const [bracketMatches, setBracketMatches] = useState<BracketMatch[]>([]);
   const [loadingBracket, setLoadingBracket] = useState(false);
@@ -217,7 +246,9 @@ function BracketView({ tournament }: { tournament: Tournament }) {
       transition={{ duration: 0.5, ease: 'easeOut' }}
     >
       <div className="flex items-center gap-2 mb-3">
-        <Swords className="w-4 h-4 text-brand-red" />
+        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/20">
+          <Swords className="w-3.5 h-3.5 text-white" />
+        </div>
         <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">
           {tournament.type === 'knockout' ? 'Knockout Bracket' : tournament.type === 'league' ? 'League Fixtures' : 'Tournament Bracket'}
         </h4>
@@ -243,7 +274,7 @@ function BracketView({ tournament }: { tournament: Tournament }) {
                   transition={{ delay: rIdx * 0.15, duration: 0.4 }}
                 >
                   <div className="text-center">
-                    <Badge className="bg-brand-red/10 text-brand-red text-[10px] border-0 font-bold">
+                    <Badge className="bg-gradient-to-r from-brand-red to-brand-red-light text-white text-[10px] border-0 font-bold shadow-lg shadow-brand-red/20">
                       {getRoundName(roundNum, totalRounds)}
                     </Badge>
                   </div>
@@ -258,9 +289,9 @@ function BracketView({ tournament }: { tournament: Tournament }) {
                           key={match.id}
                           className={`rounded-xl border p-2.5 text-xs transition-all ${
                             isLive
-                              ? 'border-brand-red bg-brand-red/5 dark:bg-brand-red/10 ring-1 ring-brand-red/30'
+                              ? 'border-brand-red/50 bg-gradient-to-br from-brand-red/5 to-brand-red/10 dark:from-brand-red/10 dark:to-brand-red/20 ring-2 ring-brand-red/30 shadow-lg shadow-brand-red/10'
                               : isCompleted
-                                ? 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50'
+                                ? 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 shadow-sm'
                                 : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/30'
                           }`}
                           initial={{ opacity: 0, scale: 0.9 }}
@@ -277,7 +308,7 @@ function BracketView({ tournament }: { tournament: Tournament }) {
                           <div className={`flex items-center gap-2 py-1 ${match.winnerId === match.team1Id ? 'font-bold' : ''}`}>
                             {team1 ? (
                               <>
-                                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ backgroundColor: team1.color }}>
+                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold text-white shrink-0 shadow-sm" style={{ backgroundColor: team1.color }}>
                                   {team1.shortName?.charAt(0) || team1.name.charAt(0)}
                                 </div>
                                 <span className={`truncate flex-1 ${match.winnerId === match.team1Id ? 'text-warm-800 dark:text-warm-100' : 'text-warm-600 dark:text-warm-300'}`}>
@@ -288,17 +319,19 @@ function BracketView({ tournament }: { tournament: Tournament }) {
                               <span className="text-warm-400 italic">TBD</span>
                             )}
                             {match.team1Score !== null && (
-                              <span className={`font-mono font-bold ${match.winnerId === match.team1Id ? 'text-brand-green' : 'text-warm-500'}`}>
+                              <span className={`font-mono font-bold text-xs px-1.5 py-0.5 rounded ${match.winnerId === match.team1Id ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>
                                 {match.team1Score}
                               </span>
                             )}
                           </div>
-                          <div className="border-t border-warm-100 dark:border-warm-700/50 my-0.5" />
+                          <div className="border-t border-warm-100 dark:border-warm-700/50 my-0.5 flex items-center justify-center">
+                            <span className="text-[8px] text-warm-300 dark:text-warm-600 bg-warm-50 dark:bg-warm-800 px-1 rounded font-bold">VS</span>
+                          </div>
                           {/* Team 2 */}
                           <div className={`flex items-center gap-2 py-1 ${match.winnerId === match.team2Id ? 'font-bold' : ''}`}>
                             {team2 ? (
                               <>
-                                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ backgroundColor: team2.color }}>
+                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold text-white shrink-0 shadow-sm" style={{ backgroundColor: team2.color }}>
                                   {team2.shortName?.charAt(0) || team2.name.charAt(0)}
                                 </div>
                                 <span className={`truncate flex-1 ${match.winnerId === match.team2Id ? 'text-warm-800 dark:text-warm-100' : 'text-warm-600 dark:text-warm-300'}`}>
@@ -309,7 +342,7 @@ function BracketView({ tournament }: { tournament: Tournament }) {
                               <span className="text-warm-400 italic">TBD</span>
                             )}
                             {match.team2Score !== null && (
-                              <span className={`font-mono font-bold ${match.winnerId === match.team2Id ? 'text-brand-green' : 'text-warm-500'}`}>
+                              <span className={`font-mono font-bold text-xs px-1.5 py-0.5 rounded ${match.winnerId === match.team2Id ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>
                                 {match.team2Score}
                               </span>
                             )}
@@ -355,7 +388,7 @@ function BracketView({ tournament }: { tournament: Tournament }) {
                           <div className="flex items-center gap-2 py-0.5">
                             {team1 ? (
                               <>
-                                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ backgroundColor: team1.color }}>
+                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: team1.color }}>
                                   {team1.shortName?.charAt(0) || team1.name.charAt(0)}
                                 </div>
                                 <span className="truncate text-warm-500 dark:text-warm-400">{team1.name}</span>
@@ -364,11 +397,11 @@ function BracketView({ tournament }: { tournament: Tournament }) {
                               <span className="text-warm-400 italic">TBD</span>
                             )}
                           </div>
-                          <div className="text-warm-300 dark:text-warm-600 text-center py-0.5 text-[10px]">VS</div>
+                          <div className="text-warm-300 dark:text-warm-600 text-center py-0.5 text-[10px] font-bold">VS</div>
                           <div className="flex items-center gap-2 py-0.5">
                             {team2 ? (
                               <>
-                                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold text-white shrink-0" style={{ backgroundColor: team2.color }}>
+                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: team2.color }}>
                                   {team2.shortName?.charAt(0) || team2.name.charAt(0)}
                                 </div>
                                 <span className="truncate text-warm-500 dark:text-warm-400">{team2.name}</span>
@@ -388,8 +421,10 @@ function BracketView({ tournament }: { tournament: Tournament }) {
             {/* No data at all */}
             {sortedRounds.length === 0 && placeholderRounds.length === 0 && !loadingBracket && (
               <div className="text-center py-6 w-full">
-                <Target className="w-8 h-8 text-warm-300 dark:text-warm-600 mx-auto mb-2" />
-                <p className="text-sm text-warm-400 dark:text-warm-500">No bracket generated yet</p>
+                <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-warm-100 dark:bg-warm-800 flex items-center justify-center">
+                  <Target className="w-8 h-8 text-warm-300 dark:text-warm-600" />
+                </div>
+                <p className="text-sm text-warm-400 dark:text-warm-500 font-medium">No bracket generated yet</p>
                 <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">Add teams and generate a bracket to see the tournament tree</p>
               </div>
             )}
@@ -400,19 +435,29 @@ function BracketView({ tournament }: { tournament: Tournament }) {
   );
 }
 
-/** Skeleton loader with shimmer */
+/** Enhanced skeleton loader with shimmer */
 function SkeletonCard() {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700">
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-warm-200 dark:bg-warm-700" />
-      <div className="p-4 space-y-3">
+    <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-warm-800/50 border border-warm-200/60 dark:border-warm-700/60 shadow-sm">
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-warm-200 to-warm-300 dark:from-warm-700 dark:to-warm-600 rounded-l-2xl" />
+      <div className="p-4 pl-5 space-y-3">
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
             <div className="h-4 w-3/4 rounded-lg bg-warm-200 dark:bg-warm-700" />
+            <div className="flex gap-2">
+              <div className="h-5 w-16 rounded-md bg-warm-100 dark:bg-warm-700/50" />
+              <div className="h-5 w-20 rounded-md bg-warm-100 dark:bg-warm-700/50" />
+            </div>
             <div className="h-3 w-1/2 rounded-lg bg-warm-100 dark:bg-warm-700/50" />
             <div className="h-3 w-2/3 rounded-lg bg-warm-100 dark:bg-warm-700/50" />
           </div>
-          <div className="h-6 w-14 rounded-md bg-warm-200 dark:bg-warm-700" />
+          <div className="space-y-2">
+            <div className="h-5 w-14 rounded-md bg-warm-200 dark:bg-warm-700" />
+            <div className="flex gap-1.5">
+              <div className="h-5 w-8 rounded-md bg-warm-100 dark:bg-warm-700/50" />
+              <div className="h-5 w-8 rounded-md bg-warm-100 dark:bg-warm-700/50" />
+            </div>
+          </div>
         </div>
         <div className="flex items-center justify-between">
           <div className="flex -space-x-1.5">
@@ -420,7 +465,7 @@ function SkeletonCard() {
               <div key={i} className="w-7 h-7 rounded-full bg-warm-200 dark:bg-warm-700 border-2 border-white dark:border-warm-800" />
             ))}
           </div>
-          <div className="h-2 w-20 rounded-full bg-warm-200 dark:bg-warm-700" />
+          <div className="h-2.5 w-24 rounded-full bg-warm-200 dark:bg-warm-700" />
         </div>
       </div>
       {/* Shimmer effect */}
@@ -435,34 +480,46 @@ function SkeletonCard() {
   );
 }
 
-/** Beautiful empty state */
-function EmptyState({ content, onCta }: { content: { icon: string; title: string; description: string; cta: string | null }; onCta: () => void }) {
+/** Enhanced beautiful empty state with illustration-style design */
+function EmptyState({ content, onCta, isPremium }: { content: { icon: string; title: string; description: string; cta: string | null }; onCta: () => void; isPremium: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="py-8"
+      className="py-6"
     >
-      <Card className="p-8 text-center border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 overflow-hidden relative">
-        {/* Decorative background */}
-        <div className="absolute inset-0 opacity-5 dark:opacity-10">
-          <div className="absolute top-4 left-4 w-16 h-16 rounded-full bg-brand-red blur-2xl" />
-          <div className="absolute bottom-4 right-4 w-20 h-20 rounded-full bg-brand-gold blur-2xl" />
+      <Card className="p-8 text-center border-warm-200/60 dark:border-warm-700/60 bg-white dark:bg-warm-800/50 overflow-hidden relative">
+        {/* Decorative background elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-0 left-0 w-32 h-32 rounded-full bg-brand-red/5 dark:bg-brand-red/10 blur-3xl -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute bottom-0 right-0 w-40 h-40 rounded-full bg-brand-gold/5 dark:bg-brand-gold/10 blur-3xl translate-x-1/2 translate-y-1/2" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-60 h-60 rounded-full bg-brand-teal/3 dark:bg-brand-teal/5 blur-3xl" />
         </div>
+        <KabaddiPattern />
+
         <div className="relative">
+          {/* Animated trophy/emoji with floating effect */}
           <motion.div
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-            className="text-6xl mb-4 inline-block"
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            className="inline-block mb-4"
           >
-            {content.icon}
+            <div className="text-6xl relative">
+              {content.icon}
+              <motion.div
+                className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-2 bg-warm-800/5 dark:bg-warm-200/5 rounded-full blur-sm"
+                animate={{ scale: [1, 0.8, 1] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </div>
           </motion.div>
+
           <motion.h3
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="text-warm-700 dark:text-warm-200 text-base font-bold"
+            className="text-warm-700 dark:text-warm-200 text-lg font-bold"
           >
             {content.title}
           </motion.h3>
@@ -470,7 +527,7 @@ function EmptyState({ content, onCta }: { content: { icon: string; title: string
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="text-warm-400 dark:text-warm-500 text-sm mt-1.5 max-w-xs mx-auto"
+            className="text-warm-400 dark:text-warm-500 text-sm mt-2 max-w-xs mx-auto leading-relaxed"
           >
             {content.description}
           </motion.p>
@@ -482,10 +539,26 @@ function EmptyState({ content, onCta }: { content: { icon: string; title: string
             >
               <Button
                 onClick={onCta}
-                className="mt-5 bg-gradient-to-r from-brand-red to-brand-red-light text-white rounded-xl font-bold shadow-lg shadow-brand-red/20"
+                className="mt-6 bg-gradient-to-r from-brand-red to-brand-red-light text-white rounded-xl font-bold shadow-lg shadow-brand-red/25 h-11 px-6"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
                 {content.cta}
+                <ArrowRight className="w-4 h-4 ml-1.5" />
+              </Button>
+            </motion.div>
+          )}
+          {!content.cta && isPremium && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <Button
+                onClick={onCta}
+                className="mt-6 bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white rounded-xl font-bold shadow-lg shadow-brand-gold/25 h-11 px-6"
+              >
+                <Crown className="w-4 h-4 mr-1.5" />
+                Create Tournament
                 <ArrowRight className="w-4 h-4 ml-1.5" />
               </Button>
             </motion.div>
@@ -828,17 +901,17 @@ export default function TournamentsTab() {
     }
   };
 
-  // Tournament type badge styling
+  // Tournament type badge styling with enhanced gradients
   const getTypeBadge = (type: string) => {
     switch (type) {
       case 'knockout':
-        return { bg: 'bg-orange-500/10 dark:bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400', icon: <Swords className="w-3 h-3" />, border: 'border-orange-500/30', gradient: 'from-orange-500 to-orange-400' };
+        return { bg: 'bg-orange-500/10 dark:bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400', icon: <Swords className="w-3 h-3" />, border: 'border-orange-500/30', gradient: 'from-orange-500 to-orange-400', gradientBg: 'bg-gradient-to-r from-orange-500 to-orange-400' };
       case 'league':
-        return { bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', icon: <Trophy className="w-3 h-3" />, border: 'border-emerald-500/30', gradient: 'from-emerald-500 to-emerald-400' };
+        return { bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', icon: <Trophy className="w-3 h-3" />, border: 'border-emerald-500/30', gradient: 'from-emerald-500 to-emerald-400', gradientBg: 'bg-gradient-to-r from-emerald-500 to-emerald-400' };
       case 'hybrid':
-        return { bg: 'bg-purple-500/10 dark:bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400', icon: <Sparkles className="w-3 h-3" />, border: 'border-purple-500/30', gradient: 'from-purple-500 to-purple-400' };
+        return { bg: 'bg-purple-500/10 dark:bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400', icon: <Sparkles className="w-3 h-3" />, border: 'border-purple-500/30', gradient: 'from-purple-500 to-purple-400', gradientBg: 'bg-gradient-to-r from-purple-500 to-purple-400' };
       default:
-        return { bg: 'bg-warm-200 dark:bg-warm-700', text: 'text-warm-600 dark:text-warm-300', icon: <Trophy className="w-3 h-3" />, border: 'border-warm-400/30', gradient: 'from-warm-500 to-warm-400' };
+        return { bg: 'bg-warm-200 dark:bg-warm-700', text: 'text-warm-600 dark:text-warm-300', icon: <Trophy className="w-3 h-3" />, border: 'border-warm-400/30', gradient: 'from-warm-500 to-warm-400', gradientBg: 'bg-gradient-to-r from-warm-500 to-warm-400' };
     }
   };
 
@@ -901,6 +974,9 @@ export default function TournamentsTab() {
     past: tournaments.filter(t => t.status === 'past').length,
   };
 
+  // Count active filters
+  const activeFilterCount = (typeFilter !== 'all' ? 1 : 0) + (genderFilter !== 'all' ? 1 : 0);
+
   // Host tournament steps config
   const hostSteps = [
     { label: 'Details', icon: Trophy },
@@ -918,46 +994,96 @@ export default function TournamentsTab() {
         />
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center">
-            <Trophy className="w-4 h-4 text-brand-gold" />
-          </div>
-          Tournaments
-        </h1>
-        <motion.div whileTap={{ scale: 0.95 }}>
-          <Button
-            onClick={handleCreateClick}
-            className={`rounded-xl h-10 px-4 font-bold ${
-              isPremium
-                ? 'bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white shadow-lg shadow-brand-red/20'
-                : 'bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white hover:opacity-90 shadow-lg shadow-brand-gold/20'
-            }`}
-          >
-            {isPremium ? (
-              <>
-                <Plus className="w-4 h-4 mr-1" />
-                Create
-              </>
-            ) : (
-              <>
-                <Crown className="w-4 h-4 mr-1" />
-                Host
-                <Lock className="w-3 h-3 ml-1" />
-              </>
-            )}
-          </Button>
-        </motion.div>
-      </div>
+      {/* ═══════════════════════════════════════════════════════════════════
+          HEADER WITH DECORATIVE BANNER
+          ═══════════════════════════════════════════════════════════════════ */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-red via-brand-red-light to-brand-red-dark dark:from-brand-red-dark dark:via-brand-red dark:to-brand-red-light p-5 shadow-xl shadow-brand-red/20"
+      >
+        {/* Kabaddi court pattern overlay */}
+        <KabaddiPattern />
 
-      {/* ─── Host Tournament Dialog (Step-by-step) ─────────────────── */}
+        {/* Decorative floating elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div
+            className="absolute top-3 right-6 text-white/10 text-5xl"
+            animate={{ rotate: [0, 10, -10, 0], y: [0, -5, 0] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            🏆
+          </motion.div>
+          <motion.div
+            className="absolute bottom-2 right-16 text-white/5 text-3xl"
+            animate={{ y: [0, -3, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+          >
+            ⚔️
+          </motion.div>
+          <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full bg-brand-gold/10 blur-2xl" />
+        </div>
+
+        <div className="relative flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <motion.div
+                className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg"
+                animate={{ rotate: [0, -5, 5, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <Trophy className="w-5 h-5 text-brand-gold-light" />
+              </motion.div>
+              <h1 className="text-xl font-extrabold text-white tracking-tight">
+                Tournaments
+              </h1>
+            </div>
+            <p className="text-white/70 text-xs mt-1 ml-[50px] font-medium">
+              Find, join, or host kabaddi tournaments
+            </p>
+          </div>
+          <motion.div whileTap={{ scale: 0.95 }}>
+            <Button
+              onClick={handleCreateClick}
+              className={`rounded-xl h-11 px-5 font-bold text-sm ${
+                isPremium
+                  ? 'bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 shadow-lg'
+                  : 'bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white hover:opacity-90 shadow-lg shadow-brand-gold/30 border border-brand-gold-light/30'
+              }`}
+            >
+              {isPremium ? (
+                <>
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Create
+                </>
+              ) : (
+                <>
+                  <motion.div
+                    animate={{ rotate: [0, 15, -15, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    <Crown className="w-4 h-4 mr-1.5" />
+                  </motion.div>
+                  Host
+                  <Lock className="w-3 h-3 ml-1" />
+                </>
+              )}
+            </Button>
+          </motion.div>
+        </div>
+      </motion.div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          HOST TOURNAMENT DIALOG (Step-by-step)
+          ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={createOpen} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setHostStep(0); } }}>
         <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700 max-w-md">
           <DialogHeader>
             <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
               Host Tournament
-              <Badge className="bg-brand-gold/20 text-brand-gold text-[10px] border-0">
+              <Badge className="bg-gradient-to-r from-brand-gold-dark to-brand-gold text-white text-[10px] border-0 shadow-sm shadow-brand-gold/20">
                 <Crown className="w-3 h-3 mr-1" />
                 PRO
               </Badge>
@@ -973,11 +1099,11 @@ export default function TournamentsTab() {
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-1">
                   <motion.div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${
                       isActive
-                        ? 'bg-brand-red text-white shadow-lg shadow-brand-red/30'
+                        ? 'bg-gradient-to-br from-brand-red to-brand-red-light text-white shadow-lg shadow-brand-red/30'
                         : isCompleted
-                          ? 'bg-brand-green text-white'
+                          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
                           : 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
                     }`}
                     animate={{ scale: isActive ? 1.1 : 1 }}
@@ -994,7 +1120,7 @@ export default function TournamentsTab() {
           </div>
 
           {/* Progress bar */}
-          <div className="h-1 bg-warm-200 dark:bg-warm-700 rounded-full mb-4 overflow-hidden">
+          <div className="h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full mb-4 overflow-hidden">
             <motion.div
               className="h-full bg-gradient-to-r from-brand-red to-brand-red-light rounded-full"
               animate={{ width: `${((hostStep + 1) / hostSteps.length) * 100}%` }}
@@ -1036,23 +1162,25 @@ export default function TournamentsTab() {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setNewTournament({ ...newTournament, gender: 'male' })}
-                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
+                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                         newTournament.gender === 'male'
-                          ? 'border-brand-red bg-brand-red/5 text-brand-red'
+                          ? 'border-brand-red bg-brand-red/5 text-brand-red shadow-sm shadow-brand-red/10'
                           : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
                       }`}
                     >
-                      ♂ Boys
+                      <Mars className="w-4 h-4" />
+                      Boys
                     </button>
                     <button
                       onClick={() => setNewTournament({ ...newTournament, gender: 'female' })}
-                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
+                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                         newTournament.gender === 'female'
-                          ? 'border-brand-red bg-brand-red/5 text-brand-red'
+                          ? 'border-pink-500 bg-pink-500/5 text-pink-600 dark:text-pink-400 shadow-sm shadow-pink-500/10'
                           : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
                       }`}
                     >
-                      ♀ Girls
+                      <Venus className="w-4 h-4" />
+                      Girls
                     </button>
                   </div>
                 </div>
@@ -1092,7 +1220,7 @@ export default function TournamentsTab() {
                         onClick={() => setNewTournament({ ...newTournament, type: t })}
                         className={`w-full p-3 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${
                           newTournament.type === t
-                            ? `${badge.bg} ${badge.text} border-current`
+                            ? `${badge.bg} ${badge.text} border-current shadow-sm`
                             : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
                         }`}
                       >
@@ -1149,8 +1277,8 @@ export default function TournamentsTab() {
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
-                <div className="bg-white dark:bg-warm-800 rounded-xl border border-warm-200 dark:border-warm-700 overflow-hidden">
-                  <div className={`h-2 bg-gradient-to-r ${getTypeBadge(newTournament.type).gradient}`} />
+                <div className="bg-white dark:bg-warm-800 rounded-xl border border-warm-200 dark:border-warm-700 overflow-hidden shadow-sm">
+                  <div className={`h-2.5 bg-gradient-to-r ${getTypeBadge(newTournament.type).gradient}`} />
                   <div className="p-4 space-y-3">
                     <h3 className="font-bold text-warm-800 dark:text-warm-100">{newTournament.name || 'Untitled'}</h3>
                     <div className="space-y-2">
@@ -1159,7 +1287,7 @@ export default function TournamentsTab() {
                         <span>{newTournament.venue || 'No venue'}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
-                        <Users className="w-3.5 h-3.5 text-warm-400" />
+                        {newTournament.gender === 'male' ? <Mars className="w-3.5 h-3.5 text-brand-red" /> : <Venus className="w-3.5 h-3.5 text-pink-500" />}
                         <span>{newTournament.gender === 'male' ? '♂ Boys' : '♀ Girls'}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
@@ -1192,36 +1320,54 @@ export default function TournamentsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── Search Bar with Expansion ──────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          ENHANCED SEARCH BAR WITH ANIMATED FOCUS
+          ═══════════════════════════════════════════════════════════════════ */}
       <div className="relative">
         <motion.div
           className="relative"
           animate={{ scale: searchFocused ? 1.02 : 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
         >
-          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${searchFocused ? 'text-brand-red' : 'text-warm-400'}`} />
+          <motion.div
+            className="absolute left-3 top-1/2 -translate-y-1/2"
+            animate={{ scale: searchFocused ? 1.1 : 1, rotate: searchFocused ? -10 : 0 }}
+            transition={{ type: 'spring', stiffness: 300 }}
+          >
+            <Search className={`w-4 h-4 transition-colors duration-300 ${searchFocused ? 'text-brand-red' : 'text-warm-400'}`} />
+          </motion.div>
           <Input
             placeholder="Search by name or code (e.g. TC3001)..."
             value={tournamentSearch}
             onChange={(e) => setTournamentSearch(e.target.value)}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-            className={`pl-9 pr-9 h-11 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm transition-all ${
-              searchFocused ? 'border-brand-red/50 ring-2 ring-brand-red/20 shadow-lg shadow-brand-red/5' : ''
+            className={`pl-10 pr-9 h-12 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-2xl text-sm transition-all duration-300 ${
+              searchFocused ? 'border-brand-red/50 ring-4 ring-brand-red/10 shadow-xl shadow-brand-red/5' : ''
             }`}
           />
           {tournamentSearch ? (
-            <button
+            <motion.button
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
               onClick={() => setTournamentSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 hover:bg-brand-red/10 hover:text-brand-red transition-colors"
             >
-              <X className="w-4 h-4" />
-            </button>
+              <X className="w-3 h-3" />
+            </motion.button>
           ) : (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-warm-300 dark:text-warm-600 bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-warm-300 dark:text-warm-600 bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded-md">
               /
             </span>
           )}
+          {/* Animated focus border glow */}
+          <motion.div
+            className="absolute inset-0 rounded-2xl pointer-events-none"
+            animate={{
+              boxShadow: searchFocused ? '0 0 0 3px rgba(220, 38, 38, 0.1)' : '0 0 0 0px rgba(220, 38, 38, 0)',
+            }}
+            transition={{ duration: 0.3 }}
+          />
         </motion.div>
 
         {/* Search suggestions / recent searches */}
@@ -1260,63 +1406,102 @@ export default function TournamentsTab() {
         </AnimatePresence>
       </div>
 
-      {/* ─── Filter Chips ───────────────────────────────────────────── */}
-      <div className="flex gap-2 flex-wrap">
-        <button
-          onClick={() => setTypeFilter('all')}
-          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1 ${
-            typeFilter === 'all'
-              ? 'bg-warm-800 dark:bg-warm-200 text-white dark:text-warm-800 shadow-sm'
-              : 'bg-warm-100 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
-          }`}
-        >
-          <Filter className="w-3 h-3" />
-          All Types
-        </button>
-        {(['knockout', 'league', 'hybrid'] as const).map((t) => {
-          const badge = getTypeBadge(t);
-          return (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all duration-200 flex items-center gap-1 ${
-                typeFilter === t
-                  ? `${badge.bg} ${badge.text} ring-1 ring-current shadow-sm`
-                  : 'bg-warm-100 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
-              }`}
+      {/* ═══════════════════════════════════════════════════════════════════
+          ENHANCED FILTER CHIPS AS TOGGLE PILLS
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="space-y-2.5">
+        {/* Type Filter Row */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <motion.button
+            onClick={() => setTypeFilter('all')}
+            whileTap={{ scale: 0.95 }}
+            className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border ${
+              typeFilter === 'all'
+                ? 'bg-gradient-to-r from-warm-800 to-warm-700 dark:from-warm-200 dark:to-warm-300 text-white dark:text-warm-800 shadow-lg shadow-warm-800/10 dark:shadow-warm-200/10 border-transparent'
+                : 'bg-warm-50 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
+            }`}
+          >
+            <Filter className="w-3 h-3" />
+            All Types
+          </motion.button>
+          {(['knockout', 'league', 'hybrid'] as const).map((t) => {
+            const badge = getTypeBadge(t);
+            return (
+              <motion.button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                whileTap={{ scale: 0.95 }}
+                className={`px-3.5 py-2 rounded-full text-xs font-bold capitalize transition-all duration-300 flex items-center gap-1.5 border ${
+                  typeFilter === t
+                    ? `bg-gradient-to-r ${badge.gradient} text-white shadow-lg border-transparent`
+                    : 'bg-warm-50 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
+                }`}
+              >
+                {badge.icon}
+                {t}
+              </motion.button>
+            );
+          })}
+          {/* Active filter count badge */}
+          {activeFilterCount > 0 && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="w-6 h-6 rounded-full bg-brand-red text-white text-[10px] font-bold flex items-center justify-center shadow-lg shadow-brand-red/20"
             >
-              {badge.icon}
-              {t}
-            </button>
-          );
-        })}
+              {activeFilterCount}
+            </motion.div>
+          )}
+        </div>
       </div>
 
-      {/* Premium hint for non-premium users */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          ENHANCED PREMIUM UPGRADE CARD WITH SHIMMER
+          ═══════════════════════════════════════════════════════════════════ */}
       {!isPremium && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
           <Card
-            className="p-4 bg-gradient-to-r from-brand-gold/10 via-brand-gold/5 to-brand-gold/10 dark:from-brand-gold/20 dark:via-brand-gold/10 dark:to-brand-gold/20 border border-brand-gold/30 cursor-pointer active:scale-[0.98] transition-transform overflow-hidden relative"
+            className="p-0 bg-gradient-to-r from-brand-gold/15 via-brand-gold/5 to-brand-gold/15 dark:from-brand-gold/25 dark:via-brand-gold/10 dark:to-brand-gold/25 border border-brand-gold/30 cursor-pointer active:scale-[0.98] transition-transform overflow-hidden relative"
             onClick={() => setShowUpgrade(true)}
           >
+            {/* Shimmer animation overlay */}
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/10 to-transparent"
+              className="absolute inset-0 z-10 pointer-events-none"
               animate={{ x: ['-100%', '200%'] }}
               transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-            />
-            <div className="flex items-center gap-3 relative">
-              <div className="w-10 h-10 rounded-xl bg-brand-gold/20 flex items-center justify-center shrink-0">
-                <Crown className="w-5 h-5 text-brand-gold" />
-              </div>
+            >
+              <div className="w-1/3 h-full bg-gradient-to-r from-transparent via-brand-gold/15 to-transparent skew-x-12" />
+            </motion.div>
+
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-brand-gold/5 to-transparent pointer-events-none" />
+
+            <div className="p-4 flex items-center gap-3 relative">
+              <motion.div
+                className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold-dark/30 flex items-center justify-center shrink-0 shadow-lg shadow-brand-gold/10"
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <Crown className="w-6 h-6 text-brand-gold" />
+              </motion.div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Want to host your own tournament?</p>
-                <p className="text-[11px] text-warm-500 dark:text-warm-400">Upgrade to Premium to create and manage tournaments</p>
+                <p className="text-[11px] text-warm-500 dark:text-warm-400 mt-0.5">Upgrade to Premium to create and manage tournaments</p>
+                {/* Feature bullets */}
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+                  {['Create Tournaments', 'Add Teams', 'Generate Brackets', 'Track Scores'].map((feature) => (
+                    <span key={feature} className="text-[9px] text-warm-500 dark:text-warm-400 flex items-center gap-0.5">
+                      <Check className="w-2.5 h-2.5 text-brand-gold" />
+                      {feature}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="shrink-0">
-                <div className="px-3 py-1.5 rounded-lg bg-brand-gold/20 text-brand-gold font-bold text-xs flex items-center gap-1">
+                <div className="px-3 py-2 rounded-xl bg-gradient-to-r from-brand-gold-dark to-brand-gold text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-brand-gold/20">
                   <Sparkles className="w-3 h-3" />
                   Upgrade
                 </div>
@@ -1326,23 +1511,25 @@ export default function TournamentsTab() {
         </motion.div>
       )}
 
-      {/* ─── Status Tabs (Enhanced) ─────────────────────────────────── */}
-      <div className="flex gap-1 bg-warm-100 dark:bg-warm-800 p-1 rounded-xl">
+      {/* ═══════════════════════════════════════════════════════════════════
+          ENHANCED STATUS TABS
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="flex gap-1 bg-warm-100 dark:bg-warm-800 p-1.5 rounded-2xl">
         {(['ongoing', 'upcoming', 'past'] as const).map((s) => {
           const count = statusCounts[s];
           const tabConfig = {
-            ongoing: { icon: <Radio className="w-3 h-3" />, activeColor: 'text-emerald-600 dark:text-emerald-400' },
-            upcoming: { icon: <CalendarDays className="w-3 h-3" />, activeColor: 'text-amber-600 dark:text-amber-400' },
-            past: { icon: <Award className="w-3 h-3" />, activeColor: 'text-warm-600 dark:text-warm-300' },
+            ongoing: { icon: <Radio className="w-3 h-3" />, activeColor: 'text-emerald-600 dark:text-emerald-400', gradient: 'from-emerald-500 to-emerald-400' },
+            upcoming: { icon: <CalendarDays className="w-3 h-3" />, activeColor: 'text-amber-600 dark:text-amber-400', gradient: 'from-amber-500 to-amber-400' },
+            past: { icon: <Award className="w-3 h-3" />, activeColor: 'text-warm-600 dark:text-warm-300', gradient: 'from-warm-500 to-warm-400' },
           }[s];
           const isActive = statusFilter === s;
           return (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold capitalize transition-all duration-200 relative flex items-center justify-center gap-1.5 ${
+              className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold capitalize transition-all duration-300 relative flex items-center justify-center gap-1.5 ${
                 isActive
-                  ? `bg-white dark:bg-warm-700 shadow-sm ${tabConfig.activeColor}`
+                  ? `bg-white dark:bg-warm-700 shadow-lg shadow-warm-800/5 dark:shadow-warm-900/20 ${tabConfig.activeColor}`
                   : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
               }`}
             >
@@ -1351,7 +1538,7 @@ export default function TournamentsTab() {
               {count > 0 && (
                 <span className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center ${
                   isActive
-                    ? 'bg-brand-red/10 text-brand-red'
+                    ? `bg-gradient-to-r ${tabConfig.gradient} text-white shadow-sm`
                     : 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
                 }`}>
                   {count}
@@ -1359,7 +1546,7 @@ export default function TournamentsTab() {
               )}
               {isActive && (
                 <motion.div
-                  className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-brand-red rounded-full"
+                  className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-gradient-to-r from-brand-red to-brand-red-light"
                   layoutId="statusIndicator"
                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 />
@@ -1369,33 +1556,38 @@ export default function TournamentsTab() {
         })}
       </div>
 
-      {/* ─── Gender Filter (Enhanced) ───────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          ENHANCED GENDER FILTER
+          ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex gap-2">
         {[
-          { id: 'all' as const, label: 'All', icon: <Users className="w-3 h-3" /> },
-          { id: 'male' as const, label: '♂ Boys', icon: <span className="text-xs">♂</span> },
-          { id: 'female' as const, label: '♀ Girls', icon: <span className="text-xs">♀</span> },
+          { id: 'all' as const, label: 'All', icon: <Users className="w-3.5 h-3.5" /> },
+          { id: 'male' as const, label: 'Boys', icon: <Mars className="w-3.5 h-3.5" /> },
+          { id: 'female' as const, label: 'Girls', icon: <Venus className="w-3.5 h-3.5" /> },
         ].map((f) => (
-          <button
+          <motion.button
             key={f.id}
             onClick={() => setGenderFilter(f.id)}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
+            whileTap={{ scale: 0.95 }}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border ${
               genderFilter === f.id
                 ? f.id === 'male'
-                  ? 'bg-brand-red/10 text-brand-red ring-1 ring-brand-red/30'
+                  ? 'bg-gradient-to-r from-brand-red to-brand-red-light text-white shadow-lg shadow-brand-red/20 border-transparent'
                   : f.id === 'female'
-                    ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400 ring-1 ring-pink-500/30'
-                    : 'bg-warm-800 dark:bg-warm-200 text-white dark:text-warm-800'
-                : 'bg-warm-100 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+                    ? 'bg-gradient-to-r from-pink-500 to-pink-400 text-white shadow-lg shadow-pink-500/20 border-transparent'
+                    : 'bg-gradient-to-r from-warm-800 to-warm-700 dark:from-warm-200 dark:to-warm-300 text-white dark:text-warm-800 shadow-lg border-transparent'
+                : 'bg-warm-50 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
             }`}
           >
             {f.icon}
             {f.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 
-      {/* ─── Tournament Cards ────────────────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          ENHANCED TOURNAMENT CARDS
+          ═══════════════════════════════════════════════════════════════════ */}
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -1410,7 +1602,7 @@ export default function TournamentsTab() {
           ))}
         </div>
       ) : filteredTournaments.length === 0 ? (
-        <EmptyState content={getEmptyContent()} onCta={handleCreateClick} />
+        <EmptyState content={getEmptyContent()} onCta={handleCreateClick} isPremium={isPremium} />
       ) : (
         <div className="space-y-3">
           {filteredTournaments.map((tournament, i) => {
@@ -1428,11 +1620,15 @@ export default function TournamentsTab() {
                 transition={{ delay: i * 0.07, duration: 0.35, ease: 'easeOut' }}
                 layout
               >
-                <Card className="overflow-hidden border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 relative group">
+                <Card className="overflow-hidden border border-warm-200/80 dark:border-warm-700/80 bg-white dark:bg-warm-800/50 relative group hover:shadow-xl hover:shadow-warm-800/5 dark:hover:shadow-warm-900/20 transition-shadow duration-300">
                   <ShimmerOverlay />
 
-                  {/* Gradient Left Border */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${statusGradient}`} />
+                  {/* Gradient Left Border with animated glow */}
+                  <motion.div
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${statusGradient} rounded-l-2xl`}
+                    whileHover={{ width: 3 }}
+                    transition={{ duration: 0.2 }}
+                  />
 
                   <div
                     className="p-4 pl-5 cursor-pointer"
@@ -1448,18 +1644,28 @@ export default function TournamentsTab() {
                           </h3>
                         </div>
 
-                        {/* Tournament Code Badge + Type Badge Row */}
-                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          {/* Format Type Badge */}
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold capitalize ${typeBadge.bg} ${typeBadge.text} border ${typeBadge.border}`}>
+                        {/* Tournament Type Badge + Code Row */}
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          {/* Format Type Badge with gradient */}
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-bold capitalize ${typeBadge.bg} ${typeBadge.text} border ${typeBadge.border} shadow-sm`}>
                             {typeBadge.icon}
                             {tournament.type}
+                          </span>
+
+                          {/* Gender Badge */}
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold ${
+                            tournament.gender === 'male'
+                              ? 'bg-brand-red/10 text-brand-red border border-brand-red/20'
+                              : 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/20'
+                          }`}>
+                            {tournament.gender === 'male' ? <Mars className="w-3 h-3" /> : <Venus className="w-3 h-3" />}
+                            {tournament.gender === 'male' ? 'Boys' : 'Girls'}
                           </span>
 
                           {/* Tournament Code */}
                           {tournament.tournamentCode && (
                             <div
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-teal/10 dark:bg-brand-teal/20 cursor-pointer hover:bg-brand-teal/20 transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-teal/10 dark:bg-brand-teal/20 cursor-pointer hover:bg-brand-teal/20 transition-colors border border-brand-teal/20"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 copyToClipboard(tournament.tournamentCode!);
@@ -1479,60 +1685,72 @@ export default function TournamentsTab() {
                         </div>
 
                         {/* Venue & Date */}
-                        <div className="flex items-center gap-1 mt-1.5 text-xs text-warm-500 dark:text-warm-400">
-                          <MapPin className="w-3 h-3 shrink-0" />
+                        <div className="flex items-center gap-1 mt-2 text-xs text-warm-500 dark:text-warm-400">
+                          <MapPin className="w-3 h-3 shrink-0 text-warm-400" />
                           <span className="truncate">{tournament.venue}</span>
                         </div>
                         <div className="flex items-center gap-1 mt-0.5 text-xs text-warm-500 dark:text-warm-400">
-                          <Calendar className="w-3 h-3 shrink-0" />
+                          <Calendar className="w-3 h-3 shrink-0 text-warm-400" />
                           <span>{formatDate(tournament.startDate)}</span>
                         </div>
                       </div>
 
-                      <div className="flex flex-col items-end gap-1.5 ml-3">
-                        {/* Gender Badge */}
-                        <Badge
-                          variant="secondary"
-                          className={`text-[10px] font-bold ${
-                            tournament.gender === 'male'
-                              ? 'bg-brand-red/10 text-brand-red'
-                              : 'bg-pink-500/10 text-pink-600 dark:text-pink-400'
-                          }`}
-                        >
-                          {tournament.gender === 'male' ? '♂ Boys' : '♀ Girls'}
-                        </Badge>
-                        {/* Team Count Badge with Icon */}
+                      <div className="flex flex-col items-end gap-2 ml-3">
+                        {/* Team Count & Match Count visual indicators */}
                         <div className="flex items-center gap-1.5">
-                          <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-md">
-                            <Users className="w-3 h-3" />
+                          <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100/80 dark:bg-warm-700/50 px-2 py-1 rounded-lg border border-warm-200/50 dark:border-warm-700/50">
+                            <Users className="w-3 h-3 text-brand-teal" />
                             <span className="font-bold">{teamCount}</span>
+                            <span className="text-warm-400 text-[9px]">teams</span>
                           </div>
                           {tournament.matchCount > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-md">
-                              <Swords className="w-3 h-3" />
+                            <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100/80 dark:bg-warm-700/50 px-2 py-1 rounded-lg border border-warm-200/50 dark:border-warm-700/50">
+                              <Swords className="w-3 h-3 text-brand-red" />
                               <span className="font-bold">{tournament.matchCount}</span>
+                              <span className="text-warm-400 text-[9px]">matches</span>
                             </div>
                           )}
                         </div>
+
+                        {/* View button for quick access */}
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedId(isExpanded ? null : tournament.id);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-red to-brand-red-light text-white text-[10px] font-bold flex items-center gap-1 shadow-lg shadow-brand-red/15 hover:shadow-brand-red/25 transition-shadow"
+                        >
+                          <Eye className="w-3 h-3" />
+                          {isExpanded ? 'Hide' : 'View'}
+                        </motion.button>
                       </div>
                     </div>
 
                     {/* Team Avatars Row + Match Progress */}
                     <div className="flex items-center justify-between mt-3 gap-3">
-                      <div className="flex -space-x-1.5">
-                        {tournament.teams.slice(0, 5).map((team) => (
-                          <div
-                            key={team.id}
-                            className="w-7 h-7 rounded-full border-2 border-white dark:border-warm-800 flex items-center justify-center text-[8px] font-bold text-white shadow-sm"
-                            style={{ backgroundColor: team.color }}
-                          >
-                            {team.shortName?.charAt(0) || team.name.charAt(0)}
-                          </div>
-                        ))}
-                        {tournament.teams.length > 5 && (
-                          <div className="w-7 h-7 rounded-full border-2 border-white dark:border-warm-800 bg-warm-200 dark:bg-warm-600 flex items-center justify-center text-[8px] font-bold text-warm-600 dark:text-warm-300">
-                            +{tournament.teams.length - 5}
-                          </div>
+                      <div className="flex items-center gap-1.5">
+                        {/* Team logo/initial grid preview */}
+                        <div className="flex -space-x-1.5">
+                          {tournament.teams.slice(0, 5).map((team) => (
+                            <motion.div
+                              key={team.id}
+                              whileHover={{ scale: 1.2, zIndex: 10 }}
+                              className="w-7 h-7 rounded-full border-2 border-white dark:border-warm-800 flex items-center justify-center text-[8px] font-bold text-white shadow-sm"
+                              style={{ backgroundColor: team.color }}
+                              title={team.name}
+                            >
+                              {team.shortName?.charAt(0) || team.name.charAt(0)}
+                            </motion.div>
+                          ))}
+                          {tournament.teams.length > 5 && (
+                            <div className="w-7 h-7 rounded-full border-2 border-white dark:border-warm-800 bg-gradient-to-br from-warm-200 to-warm-300 dark:from-warm-600 dark:to-warm-700 flex items-center justify-center text-[8px] font-bold text-warm-600 dark:text-warm-300">
+                              +{tournament.teams.length - 5}
+                            </div>
+                          )}
+                        </div>
+                        {tournament.teams.length === 0 && (
+                          <span className="text-[10px] text-warm-400 dark:text-warm-500 italic">No teams yet</span>
                         )}
                       </div>
 
@@ -1545,12 +1763,12 @@ export default function TournamentsTab() {
                           />
                         </div>
                       ) : tournament.status === 'upcoming' ? (
-                        <div className="flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-amber-500" />
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                          <Flame className="w-3 h-3 text-amber-500" />
                           <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">Upcoming</span>
                         </div>
                       ) : tournament.status === 'past' ? (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-gold/10 border border-brand-gold/20">
                           <Trophy className="w-3 h-3 text-brand-gold" />
                           <span className="text-[10px] text-brand-gold font-bold">Completed</span>
                         </div>
@@ -1560,13 +1778,16 @@ export default function TournamentsTab() {
                       <motion.div
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
+                        className="p-1 rounded-md hover:bg-warm-100 dark:hover:bg-warm-700 transition-colors"
                       >
                         <ChevronDown className="w-4 h-4 text-warm-400" />
                       </motion.div>
                     </div>
                   </div>
 
-                  {/* ─── Expanded Detail View ──────────────────────────── */}
+                  {/* ═════════════════════════════════════════════════════════
+                      EXPANDED DETAIL VIEW
+                      ═════════════════════════════════════════════════════════ */}
                   <AnimatePresence>
                     {isExpanded && (
                       <motion.div
@@ -1576,10 +1797,10 @@ export default function TournamentsTab() {
                         transition={{ duration: 0.3, ease: 'easeInOut' }}
                         className="overflow-hidden"
                       >
-                        <div className="border-t border-warm-200 dark:border-warm-700 p-4 bg-warm-50 dark:bg-warm-800/30 space-y-4">
+                        <div className="border-t border-warm-200/80 dark:border-warm-700/80 p-4 bg-gradient-to-b from-warm-50 to-white dark:from-warm-800/40 dark:to-warm-800/20 space-y-4">
                           {/* Tournament Code Display */}
                           {tournament.tournamentCode && (
-                            <div className="flex items-center justify-between bg-white dark:bg-warm-800 rounded-xl p-3 border border-warm-200 dark:border-warm-700">
+                            <div className="flex items-center justify-between bg-white dark:bg-warm-800 rounded-xl p-3 border border-warm-200 dark:border-warm-700 shadow-sm">
                               <div>
                                 <p className="text-[10px] text-warm-400 dark:text-warm-500 uppercase font-semibold tracking-wider">Tournament Code</p>
                                 <p className="text-lg font-mono font-bold text-brand-teal">{tournament.tournamentCode}</p>
@@ -1608,7 +1829,7 @@ export default function TournamentsTab() {
                           <div>
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider flex items-center gap-1.5">
-                                <Users className="w-3 h-3" />
+                                <Shield className="w-3 h-3" />
                                 Teams ({tournament.teams.length})
                               </h4>
                               <Button
@@ -1623,9 +1844,9 @@ export default function TournamentsTab() {
                             </div>
                             <div className="space-y-1.5 max-h-64 overflow-y-auto">
                               {tournament.teams.map((team) => (
-                                <div key={team.id} className="flex items-center gap-2.5 text-sm text-warm-700 dark:text-warm-300 group bg-white dark:bg-warm-800/50 rounded-lg px-3 py-2 border border-warm-100 dark:border-warm-700/50">
+                                <div key={team.id} className="flex items-center gap-2.5 text-sm text-warm-700 dark:text-warm-300 group bg-white dark:bg-warm-800/50 rounded-lg px-3 py-2 border border-warm-100 dark:border-warm-700/50 hover:shadow-sm transition-shadow">
                                   <div
-                                    className="w-6 h-6 rounded-lg shrink-0 flex items-center justify-center text-white text-[10px] font-bold"
+                                    className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-white text-[10px] font-bold shadow-sm"
                                     style={{ backgroundColor: team.color }}
                                   >
                                     {team.shortName?.charAt(0) || team.name.charAt(0)}
@@ -1637,7 +1858,7 @@ export default function TournamentsTab() {
                                     </span>
                                   )}
                                   {team.played > 0 && (
-                                    <span className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">
+                                    <span className="text-[10px] text-warm-500 dark:text-warm-400 font-medium bg-warm-50 dark:bg-warm-700/50 px-1.5 py-0.5 rounded">
                                       P{team.played} W{team.won} Pts{team.points}
                                     </span>
                                   )}
@@ -1662,15 +1883,17 @@ export default function TournamentsTab() {
                             <span className="font-medium">{tournament.matchCount} matches scheduled</span>
                           </div>
 
-                          {/* Standings Table */}
+                          {/* ═══════════════════════════════════════════════════
+                              ENHANCED STANDINGS TABLE WITH VISUAL INDICATORS
+                              ═══════════════════════════════════════════════════ */}
                           {tournament.teams.length > 0 && (
                             <div>
                               <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                                 <TrendingUp className="w-3 h-3" />
                                 Standings
                               </h4>
-                              <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 overflow-hidden">
-                                <div className="grid grid-cols-8 gap-1 text-[10px] text-warm-400 dark:text-warm-500 font-bold uppercase tracking-wider px-3 py-2 bg-warm-50 dark:bg-warm-800 border-b border-warm-100 dark:border-warm-700/50">
+                              <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 overflow-hidden shadow-sm">
+                                <div className="grid grid-cols-8 gap-1 text-[10px] text-warm-400 dark:text-warm-500 font-bold uppercase tracking-wider px-3 py-2.5 bg-warm-50 dark:bg-warm-800 border-b border-warm-100 dark:border-warm-700/50">
                                   <span className="col-span-3">Team</span>
                                   <span className="text-center">P</span>
                                   <span className="text-center">W</span>
@@ -1679,20 +1902,31 @@ export default function TournamentsTab() {
                                   <span className="text-center">Pts</span>
                                 </div>
                                 <div className="max-h-48 overflow-y-auto">
-                                  {[...tournament.teams].sort((a, b) => b.points - a.points).map((team, idx) => (
-                                    <div key={team.id} className={`grid grid-cols-8 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2 text-xs ${idx > 0 ? 'border-t border-warm-50 dark:border-warm-700/30' : ''}`}>
-                                      <span className="col-span-3 flex items-center gap-1.5 truncate">
-                                        <span className="text-[9px] text-warm-400 dark:text-warm-500 font-bold w-3">{idx + 1}</span>
-                                        <div className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: team.color }} />
-                                        <span className="truncate font-medium">{team.name}</span>
-                                      </span>
-                                      <span className="text-center">{team.played}</span>
-                                      <span className="text-center font-medium text-brand-green">{team.won}</span>
-                                      <span className="text-center">{team.lost}</span>
-                                      <span className="text-center">{team.scoreDiff > 0 ? '+' : ''}{team.scoreDiff}</span>
-                                      <span className="text-center font-bold text-brand-red">{team.points}</span>
-                                    </div>
-                                  ))}
+                                  {[...tournament.teams].sort((a, b) => b.points - a.points).map((team, idx) => {
+                                    const isTopTeam = idx === 0;
+                                    return (
+                                      <div key={team.id} className={`grid grid-cols-8 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2.5 text-xs transition-colors hover:bg-warm-50 dark:hover:bg-warm-700/30 ${idx > 0 ? 'border-t border-warm-50 dark:border-warm-700/30' : ''} ${isTopTeam && team.points > 0 ? 'bg-brand-gold/5 dark:bg-brand-gold/5' : ''}`}>
+                                        <span className="col-span-3 flex items-center gap-1.5 truncate">
+                                          <span className={`text-[9px] font-bold w-4 text-center ${isTopTeam && team.points > 0 ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'}`}>
+                                            {isTopTeam && team.points > 0 ? '🥇' : idx + 1}
+                                          </span>
+                                          <div className="w-5 h-5 rounded shrink-0 shadow-sm" style={{ backgroundColor: team.color }} />
+                                          <span className="truncate font-medium">{team.name}</span>
+                                        </span>
+                                        <span className="text-center font-medium">{team.played}</span>
+                                        <span className="text-center font-medium text-emerald-600 dark:text-emerald-400">{team.won}</span>
+                                        <span className="text-center font-medium">{team.lost}</span>
+                                        <span className={`text-center font-medium ${team.scoreDiff > 0 ? 'text-emerald-600 dark:text-emerald-400' : team.scoreDiff < 0 ? 'text-brand-red' : ''}`}>
+                                          {team.scoreDiff > 0 ? '+' : ''}{team.scoreDiff}
+                                        </span>
+                                        <span className="text-center font-bold">
+                                          <span className={`inline-flex items-center justify-center w-6 h-5 rounded-md ${isTopTeam && team.points > 0 ? 'bg-brand-gold/20 text-brand-gold-dark dark:text-brand-gold' : 'bg-brand-red/10 text-brand-red'}`}>
+                                            {team.points}
+                                          </span>
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             </div>
@@ -1703,7 +1937,7 @@ export default function TournamentsTab() {
                             <Button
                               onClick={() => handleGenerateBracket(tournament.id, tournament.teams.map(t => t.id))}
                               disabled={generatingBracket}
-                              className="w-full bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl h-10 text-xs font-bold shadow-lg shadow-brand-red/20"
+                              className="w-full bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl h-11 text-xs font-bold shadow-lg shadow-brand-red/20"
                             >
                               {generatingBracket ? (
                                 <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
@@ -1728,17 +1962,19 @@ export default function TournamentsTab() {
         </div>
       )}
 
-      {/* ─── Add Team Dialog ──────────────────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          ADD TEAM DIALOG
+          ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={!!addTeamDialogOpen} onOpenChange={(open) => { if (!open) setAddTeamDialogOpen(null); }}>
         <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700 max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-brand-teal/10 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/10 flex items-center justify-center">
                 <UserPlus className="w-4 h-4 text-brand-teal" />
               </div>
               Add Teams
               {selectedTeamIds.length > 0 && (
-                <Badge className="bg-brand-teal/20 text-brand-teal text-[10px] border-0">
+                <Badge className="bg-gradient-to-r from-brand-teal to-brand-teal-light text-white text-[10px] border-0 shadow-sm">
                   {selectedTeamIds.length} selected
                 </Badge>
               )}
@@ -1796,12 +2032,12 @@ export default function TournamentsTab() {
                             isAlreadyIn
                               ? 'opacity-50 cursor-not-allowed bg-warm-100 dark:bg-warm-800'
                               : isSelected
-                                ? 'bg-brand-teal/10 ring-1 ring-brand-teal'
+                                ? 'bg-brand-teal/10 ring-2 ring-brand-teal/50 shadow-sm'
                                 : 'hover:bg-warm-50 dark:hover:bg-warm-800 active:bg-warm-100 dark:active:bg-warm-700'
                           }`}
                         >
                           <div
-                            className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold text-white overflow-hidden shrink-0"
+                            className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold text-white overflow-hidden shrink-0 shadow-sm"
                             style={{ backgroundColor: team.color || '#475569' }}
                           >
                             {team.shortName?.charAt(0) || team.name.charAt(0)}
@@ -1822,9 +2058,9 @@ export default function TournamentsTab() {
                             </div>
                           </div>
                           {isAlreadyIn ? (
-                            <Badge className="bg-brand-green/10 text-brand-green text-[9px] border-0">In</Badge>
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] border-0">In</Badge>
                           ) : isSelected ? (
-                            <div className="w-6 h-6 rounded-full bg-brand-teal flex items-center justify-center">
+                            <div className="w-6 h-6 rounded-full bg-gradient-to-r from-brand-teal to-brand-teal-light flex items-center justify-center shadow-sm">
                               <Check className="w-3.5 h-3.5 text-white" />
                             </div>
                           ) : (
@@ -1872,7 +2108,7 @@ export default function TournamentsTab() {
             <Button
               onClick={handleAddTeams}
               disabled={selectedTeamIds.length === 0 || addingTeams}
-              className="w-full bg-gradient-to-r from-brand-teal to-teal-400 hover:from-brand-teal/90 hover:to-teal-500 text-white rounded-xl font-bold shadow-lg shadow-brand-teal/20"
+              className="w-full bg-gradient-to-r from-brand-teal to-brand-teal-light hover:from-brand-teal-dark hover:to-brand-teal text-white rounded-xl font-bold shadow-lg shadow-brand-teal/20"
             >
               {addingTeams ? (
                 <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Adding...</>
@@ -1884,11 +2120,18 @@ export default function TournamentsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── Remove Team Confirmation ─────────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          REMOVE TEAM CONFIRMATION
+          ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={!!removeTeamId} onOpenChange={(open) => { if (!open) setRemoveTeamId(null); }}>
         <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700">
           <DialogHeader>
-            <DialogTitle className="text-warm-800 dark:text-warm-100">Remove Team?</DialogTitle>
+            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-brand-red/10 flex items-center justify-center">
+                <Trash2 className="w-3.5 h-3.5 text-brand-red" />
+              </div>
+              Remove Team?
+            </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-warm-600 dark:text-warm-300">
             This will remove the team and any upcoming matches involving them. This cannot be undone.
@@ -1897,7 +2140,7 @@ export default function TournamentsTab() {
             <Button
               variant="outline"
               onClick={() => setRemoveTeamId(null)}
-              className="flex-1 rounded-xl"
+              className="flex-1 rounded-xl font-bold"
             >
               Cancel
             </Button>
@@ -1908,7 +2151,7 @@ export default function TournamentsTab() {
                 }
               }}
               disabled={removingTeam}
-              className="flex-1 bg-brand-red hover:bg-brand-red-dark text-white rounded-xl"
+              className="flex-1 bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold shadow-lg shadow-brand-red/20"
             >
               {removingTeam ? (
                 <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Removing...</>
