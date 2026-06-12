@@ -1,0 +1,1492 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  ChevronLeft,
+     7→  Calendar,
+     8→  Trophy,
+     9→  Swords,
+    10→  Shield,
+    11→  Filter,
+    12→  ChevronDown,
+    13→  ChevronUp,
+    14→  Clock,
+    15→  Users,
+    16→  MapPin,
+    17→  Play,
+    18→  Zap,
+    19→  Star,
+    20→  Target,
+    21→  Loader2,
+    22→  TrendingUp,
+    23→  Flame,
+    24→  Activity,
+    25→  ArrowUpRight,
+    26→  ArrowDownRight,
+    27→  Minus,
+    28→} from 'lucide-react';
+    29→import { Card, CardContent } from '@/components/ui/card';
+    30→import { Badge } from '@/components/ui/badge';
+    31→import { Button } from '@/components/ui/button';
+    32→import { useKabaddiStore } from '@/lib/store';
+    33→
+    34→// ─── Types ────────────────────────────────────────────────────────
+    35→
+    36→interface MatchHistoryScreenProps {
+    37→  onClose: () => void;
+    38→}
+    39→
+    40→type ResultFilter = 'all' | 'won' | 'lost' | 'draw';
+    41→type TypeFilter = 'all' | 'tournament' | 'practice';
+    42→type GenderFilter = 'all' | 'boys' | 'girls';
+    43→type SortFilter = 'newest' | 'oldest' | 'highest_score';
+    44→type DateFilter = 'all' | 'week' | 'month' | 'year';
+    45→
+    46→interface MatchTeam {
+    47→  id: string;
+    48→  name: string;
+    49→  shortName: string | null;
+    50→  color: string | null;
+    51→  logo?: string | null;
+    52→}
+    53→
+    54→interface MatchScorer {
+    55→  id: string;
+    56→  userId: string;
+    57→  user: { id: string; name: string; avatar: string | null };
+    58→}
+    59→
+    60→interface MatchEventItem {
+    61→  id: string;
+    62→  eventType: string;
+    63→  teamId: string;
+    64→  playerId: string | null;
+    65→  value: number;
+    66→  half: number;
+    67→  details: string | null;
+    68→}
+    69→
+    70→interface MatchItem {
+    71→  id: string;
+    72→  homeScore: number;
+    73→  awayScore: number;
+    74→  half: number;
+    75→  status: string;
+    76→  isPractice: boolean;
+    77→  gender: string | null;
+    78→  venue: string | null;
+    79→  halfDuration: number;
+    80→  startedAt: string | null;
+    81→  completedAt: string | null;
+    82→  createdAt: string;
+    83→  homeTeam: MatchTeam;
+    84→  awayTeam: MatchTeam;
+    85→  tournament: { id: string; name: string } | null;
+    86→  events: MatchEventItem[];
+    87→  scorers: MatchScorer[];
+    88→  motmUserId?: string | null;
+    89→}
+    90→
+    91→// ─── Animation variants ──────────────────────────────────────────
+    92→
+    93→const containerVariants = {
+    94→  hidden: { opacity: 0 },
+    95→  visible: {
+    96→    opacity: 1,
+    97→    transition: { staggerChildren: 0.06, delayChildren: 0.1 },
+    98→  },
+    99→};
+   100→
+   101→const itemVariants = {
+   102→  hidden: { opacity: 0, y: 16, scale: 0.98 },
+   103→  visible: {
+   104→    opacity: 1,
+   105→    y: 0,
+   106→    scale: 1,
+   107→    transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] },
+   108→  },
+   109→};
+   110→
+   111→const filterPillVariants = {
+   112→  inactive: { scale: 1 },
+   113→  active: { scale: 1.05, transition: { type: 'spring', stiffness: 400, damping: 20 } },
+   114→};
+   115→
+   116→// ─── Animated Counter ─────────────────────────────────────────────
+   117→
+   118→function AnimatedCounter({ target, duration = 1000 }: { target: number; duration?: number }) {
+   119→  const [count, setCount] = useState(0);
+   120→  const prevTarget = useRef(target);
+   121→  const hasAnimated = useRef(false);
+   122→
+   123→  useEffect(() => {
+   124→    if (prevTarget.current === target && hasAnimated.current) return;
+   125→    prevTarget.current = target;
+   126→    hasAnimated.current = true;
+   127→
+   128→    let start = 0;
+   129→    const startTime = performance.now();
+   130→
+   131→    function step(currentTime: number) {
+   132→      const elapsed = currentTime - startTime;
+   133→      const progress = Math.min(elapsed / duration, 1);
+   134→      const eased = 1 - Math.pow(1 - progress, 3);
+   135→      const current = Math.round(eased * target);
+   136→      setCount(current);
+   137→      if (progress < 1) {
+   138→        requestAnimationFrame(step);
+   139→      }
+   140→    }
+   141→
+   142→    requestAnimationFrame(step);
+   143→  }, [target, duration]);
+   144→
+   145→  return <span>{count}</span>;
+   146→}
+   147→
+   148→// ─── Mini Circular Progress ───────────────────────────────────────
+   149→
+   150→function MiniProgressRing({ percent, size = 40, colorClass = 'stroke-emerald-500 dark:stroke-emerald-400' }: { percent: number; size?: number; colorClass?: string }) {
+   151→  const strokeWidth = 4;
+   152→  const radius = (size - strokeWidth) / 2;
+   153→  const circumference = 2 * Math.PI * radius;
+   154→  const offset = circumference - (percent / 100) * circumference;
+   155→
+   156→  return (
+   157→    <svg width={size} height={size} className="transform -rotate-90">
+   158→      <circle
+   159→        cx={size / 2}
+   160→        cy={size / 2}
+   161→        r={radius}
+   162→        strokeWidth={strokeWidth}
+   163→        className="stroke-warm-200 dark:stroke-warm-700"
+   164→        fill="none"
+   165→      />
+   166→      <motion.circle
+   167→        cx={size / 2}
+   168→        cy={size / 2}
+   169→        r={radius}
+   170→        strokeWidth={strokeWidth}
+   171→        className={colorClass}
+   172→        fill="none"
+   173→        strokeLinecap="round"
+   174→        strokeDasharray={circumference}
+   175→        initial={{ strokeDashoffset: circumference }}
+   176→        animate={{ strokeDashoffset: offset }}
+   177→        transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
+   178→      />
+   179→    </svg>
+   180→  );
+   181→}
+   182→
+   183→// ─── Score Comparison Bar ─────────────────────────────────────────
+   184→
+   185→function ScoreBar({ homeScore, awayScore }: { homeScore: number; awayScore: number }) {
+   186→  const total = homeScore + awayScore;
+   187→  if (total === 0) return null;
+   188→  const homePercent = (homeScore / total) * 100;
+   189→  const awayPercent = (awayScore / total) * 100;
+   190→
+   191→  return (
+   192→    <div className="flex items-center gap-1 w-full mt-2">
+   193→      <span className="text-[9px] font-bold text-warm-600 dark:text-warm-300 w-5 text-right tabular-nums">{homeScore}</span>
+   194→      <div className="flex-1 h-1.5 rounded-full bg-warm-200 dark:bg-warm-700 overflow-hidden flex">
+   195→        <motion.div
+   196→          className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-l-full"
+   197→          initial={{ width: 0 }}
+   198→          animate={{ width: `${homePercent}%` }}
+   199→          transition={{ duration: 0.6, delay: 0.2 }}
+   200→        />
+   201→        <div className="flex-1" />
+   202→        <motion.div
+   203→          className="h-full bg-red-500 dark:bg-red-400 rounded-r-full"
+   204→          initial={{ width: 0 }}
+   205→          animate={{ width: `${awayPercent}%` }}
+   206→          transition={{ duration: 0.6, delay: 0.2 }}
+   207→        />
+   208→      </div>
+   209→      <span className="text-[9px] font-bold text-warm-600 dark:text-warm-300 w-5 tabular-nums">{awayScore}</span>
+   210→    </div>
+   211→  );
+   212→}
+   213→
+   214→// ─── Helpers ──────────────────────────────────────────────────────
+   215→
+   216→function getDateGroup(dateStr: string): string {
+   217→  const date = new Date(dateStr);
+   218→  const now = new Date();
+   219→  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+   220→  const yesterday = new Date(today);
+   221→  yesterday.setDate(yesterday.getDate() - 1);
+   222→  const weekAgo = new Date(today);
+   223→  weekAgo.setDate(weekAgo.getDate() - 7);
+   224→
+   225→  const matchDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+   226→
+   227→  if (matchDate.getTime() === today.getTime()) return 'Today';
+   228→  if (matchDate.getTime() === yesterday.getTime()) return 'Yesterday';
+   229→  if (matchDate > weekAgo) return 'This Week';
+   230→  return 'Earlier';
+   231→}
+   232→
+   233→function formatMatchDate(dateStr: string): string {
+   234→  const date = new Date(dateStr);
+   235→  return date.toLocaleDateString('en-IN', {
+   236→    day: 'numeric',
+   237→    month: 'short',
+   238→    year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+   239→  });
+   240→}
+   241→
+   242→function isWithinDateFilter(dateStr: string, filter: DateFilter): boolean {
+   243→  if (filter === 'all') return true;
+   244→  const date = new Date(dateStr);
+   245→  const now = new Date();
+   246→  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+   247→
+   248→  if (filter === 'week') {
+   249→    const weekAgo = new Date(today);
+   250→    weekAgo.setDate(weekAgo.getDate() - 7);
+   251→    return date >= weekAgo;
+   252→  }
+   253→  if (filter === 'month') {
+   254→    const monthAgo = new Date(today);
+   255→    monthAgo.setMonth(monthAgo.getMonth() - 1);
+   256→    return date >= monthAgo;
+   257→  }
+   258→  if (filter === 'year') {
+   259→    const yearAgo = new Date(today);
+   260→    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+   261→    return date >= yearAgo;
+   262→  }
+   263→  return true;
+   264→}
+   265→
+   266→function getMatchResult(match: MatchItem, userId?: string): 'won' | 'lost' | 'draw' {
+   267→  if (match.homeScore === match.awayScore) return 'draw';
+   268→  const homeWon = match.homeScore > match.awayScore;
+   269→
+   270→  // If userId is a scorer, determine which side they were on
+   271→  if (userId) {
+   272→    const isScorer = match.scorers.some((s) => s.userId === userId);
+   273→    if (isScorer) {
+   274→      // Check if the user's team is home or away (based on scorer relation)
+   275→      // Default: assume home team if we can't determine
+   276→      return homeWon ? 'won' : 'lost';
+   277→    }
+   278→  }
+   279→
+   280→  // General: show from home team perspective
+   281→  return homeWon ? 'won' : 'lost';
+   282→}
+   283→
+   284→function getWinnerTeamId(match: MatchItem): string | null {
+   285→  if (match.homeScore > match.awayScore) return match.homeTeam.id;
+   286→  if (match.awayScore > match.homeScore) return match.awayTeam.id;
+   287→  return null;
+   288→}
+   289→
+   290→// ─── Event Icon Helper ────────────────────────────────────────────
+   291→
+   292→function getEventIcon(eventType: string): { icon: string; color: string } {
+   293→  switch (eventType) {
+   294→    case 'raid_point':
+   295→      return { icon: '⚔️', color: 'text-blue-600 dark:text-blue-400' };
+   296→    case 'tackle_point':
+   297→      return { icon: '🛡️', color: 'text-emerald-600 dark:text-emerald-400' };
+   298→    case 'bonus_point':
+   299→      return { icon: '⭐', color: 'text-amber-600 dark:text-amber-400' };
+   300→    case 'super_raid':
+   301→      return { icon: '🔥', color: 'text-orange-600 dark:text-orange-400' };
+   302→    case 'super_tackle':
+   303→      return { icon: '💪', color: 'text-teal-600 dark:text-teal-400' };
+   304→    case 'all_out':
+   305→      return { icon: '💥', color: 'text-red-600 dark:text-red-400' };
+   306→    case 'empty_raid':
+   307→      return { icon: '○', color: 'text-warm-500 dark:text-warm-400' };
+   308→    case 'do_or_die_raid':
+   309→      return { icon: '🎲', color: 'text-purple-600 dark:text-purple-400' };
+   310→    default:
+   311→      return { icon: '•', color: 'text-warm-500 dark:text-warm-400' };
+   312→  }
+   313→}
+   314→
+   315→// ─── Component ────────────────────────────────────────────────────
+   316→
+   317→export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps) {
+   318→  const currentUser = useKabaddiStore((s) => s.currentUser);
+   319→  const userId = currentUser?.id;
+   320→
+   321→  // State
+   322→  const [matches, setMatches] = useState<MatchItem[]>([]);
+   323→  const [loading, setLoading] = useState(true);
+   324→  const [loadingMore, setLoadingMore] = useState(false);
+   325→  const [resultFilter, setResultFilter] = useState<ResultFilter>('all');
+   326→  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+   327→  const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
+   328→  const [sortFilter, setSortFilter] = useState<SortFilter>('newest');
+   329→  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+   330→  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+   331→  const [offset, setOffset] = useState(0);
+   332→  const [hasMore, setHasMore] = useState(true);
+   333→  const [totalFromApi, setTotalFromApi] = useState(0);
+   334→
+   335→  const PAGE_SIZE = 10;
+   336→
+   337→  // Fetch matches
+   338→  const fetchMatches = useCallback(
+   339→    async (currentOffset: number, append: boolean) => {
+   340→      try {
+   341→        if (append) {
+   342→          setLoadingMore(true);
+   343→        } else {
+   344→          setLoading(true);
+   345→        }
+   346→
+   347→        const params = new URLSearchParams();
+   348→        params.set('limit', PAGE_SIZE.toString());
+   349→        params.set('offset', currentOffset.toString());
+   350→        params.set('status', 'completed');
+   351→
+   352→        if (userId) {
+   353→          params.set('userId', userId);
+   354→        }
+   355→
+   356→        const res = await fetch(`/api/matches?${params.toString()}`);
+   357→        if (!res.ok) throw new Error('Failed to fetch');
+   358→
+   359→        const data = await res.json();
+   360→        const fetched: MatchItem[] = data.matches || [];
+   361→
+   362→        if (append) {
+   363→          setMatches((prev) => [...prev, ...fetched]);
+   364→        } else {
+   365→          setMatches(fetched);
+   366→        }
+   367→
+   368→        setTotalFromApi(fetched.length);
+   369→        setHasMore(fetched.length >= PAGE_SIZE);
+   370→      } catch (err) {
+   371→        console.error('Match history fetch error:', err);
+   372→      } finally {
+   373→        setLoading(false);
+   374→        setLoadingMore(false);
+   375→      }
+   376→    },
+   377→    [userId]
+   378→  );
+   379→
+   380→  useEffect(() => {
+   381→    fetchMatches(0, false);
+   382→  }, [fetchMatches]);
+   383→
+   384→  // Compute stats from all loaded matches (respecting date filter)
+   385→  const stats = (() => {
+   386→    let wins = 0;
+   387→    let losses = 0;
+   388→    let draws = 0;
+   389→    let totalPoints = 0;
+   390→    let highestScore = 0;
+   391→    let highestScoringMatch: string | null = null;
+   392→
+   393→    const dateFiltered = matches.filter((m) =>
+   394→      isWithinDateFilter(m.completedAt || m.createdAt, dateFilter)
+   395→    );
+   396→
+   397→    for (const match of dateFiltered) {
+   398→      const result = getMatchResult(match, userId);
+   399→      if (result === 'won') wins++;
+   400→      else if (result === 'lost') losses++;
+   401→      else draws++;
+   402→
+   403→      const matchTotal = match.homeScore + match.awayScore;
+   404→      totalPoints += matchTotal;
+   405→
+   406→      if (matchTotal > highestScore) {
+   407→        highestScore = matchTotal;
+   408→        highestScoringMatch = match.id;
+   409→      }
+   410→    }
+   411→
+   412→    // Current streak
+   413→    const streak = (() => {
+   414→      const sorted = [...dateFiltered].sort(
+   415→        (a, b) =>
+   416→          new Date(b.completedAt || b.createdAt).getTime() -
+   417→          new Date(a.completedAt || a.createdAt).getTime()
+   418→      );
+   419→      if (sorted.length === 0) return { type: 'none', count: 0 };
+   420→
+   421→      const firstResult = getMatchResult(sorted[0], userId);
+   422→      let streakCount = 0;
+   423→      for (const m of sorted) {
+   424→        const r = getMatchResult(m, userId);
+   425→        if (r === firstResult) {
+   426→          streakCount++;
+   427→        } else if (r === 'draw' && firstResult !== 'draw') {
+   428→          // draws don't break streaks but don't count either
+   429→          continue;
+   430→        } else {
+   431→          break;
+   432→        }
+   433→      }
+   434→      return { type: firstResult, count: streakCount };
+   435→    })();
+   436→
+   437→    const avgScore = dateFiltered.length > 0
+   438→      ? Math.round(totalPoints / dateFiltered.length)
+   439→      : 0;
+   440→
+   441→    return {
+   442→      total: dateFiltered.length,
+   443→      wins,
+   444→      losses,
+   445→      draws,
+   446→      winRate: dateFiltered.length > 0 ? Math.round((wins / dateFiltered.length) * 100) : 0,
+   447→      totalPoints,
+   448→      highestScore,
+   449→      highestScoringMatch,
+   450→      avgScore,
+   451→      streak,
+   452→    };
+   453→  })();
+   454→
+   455→  // Filter and sort matches
+   456→  const filteredMatches = (() => {
+   457→    let filtered = [...matches];
+   458→
+   459→    // Date filter
+   460→    filtered = filtered.filter((m) =>
+   461→      isWithinDateFilter(m.completedAt || m.createdAt, dateFilter)
+   462→    );
+   463→
+   464→    // Result filter
+   465→    if (resultFilter !== 'all') {
+   466→      filtered = filtered.filter((m) => getMatchResult(m, userId) === resultFilter);
+   467→    }
+   468→
+   469→    // Type filter
+   470→    if (typeFilter === 'tournament') {
+   471→      filtered = filtered.filter((m) => !m.isPractice);
+   472→    } else if (typeFilter === 'practice') {
+   473→      filtered = filtered.filter((m) => m.isPractice);
+   474→    }
+   475→
+   476→    // Gender filter
+   477→    if (genderFilter !== 'all') {
+   478→      filtered = filtered.filter(
+   479→        (m) => m.gender?.toLowerCase() === genderFilter
+   480→      );
+   481→    }
+   482→
+   483→    // Sort
+   484→    if (sortFilter === 'newest') {
+   485→      filtered.sort(
+   486→        (a, b) =>
+   487→          new Date(b.completedAt || b.createdAt).getTime() -
+   488→          new Date(a.completedAt || a.createdAt).getTime()
+   489→      );
+   490→    } else if (sortFilter === 'oldest') {
+   491→      filtered.sort(
+   492→        (a, b) =>
+   493→          new Date(a.completedAt || a.createdAt).getTime() -
+   494→          new Date(b.completedAt || b.createdAt).getTime()
+   495→      );
+   496→    } else if (sortFilter === 'highest_score') {
+   497→      filtered.sort(
+   498→        (a, b) => (b.homeScore + b.awayScore) - (a.homeScore + a.awayScore)
+   499→      );
+   500→    }
+   501→
+   502→    return filtered;
+   503→  })();
+   504→
+   505→  // Group matches by date
+   506→  const groupedMatches: { label: string; matches: MatchItem[] }[] = (() => {
+   507→    const groups: Record<string, MatchItem[]> = {};
+   508→    const order = ['Today', 'Yesterday', 'This Week', 'Earlier'];
+   509→
+   510→    for (const match of filteredMatches) {
+   511→      const group = getDateGroup(match.completedAt || match.createdAt);
+   512→      if (!groups[group]) groups[group] = [];
+   513→      groups[group].push(match);
+   514→    }
+   515→
+   516→    return order
+   517→      .filter((label) => groups[label]?.length > 0)
+   518→      .map((label) => ({ label, matches: groups[label] }));
+   519→  })();
+   520→
+   521→  // Load more
+   522→  const handleLoadMore = () => {
+   523→    const newOffset = offset + PAGE_SIZE;
+   524→    setOffset(newOffset);
+   525→    fetchMatches(newOffset, true);
+   526→  };
+   527→
+   528→  // Toggle expand
+   529→  const handleMatchClick = (matchId: string) => {
+   530→    setExpandedMatchId((prev) => (prev === matchId ? null : matchId));
+   531→  };
+   532→
+   533→  // Navigate to Quick Score
+   534→  const handleStartMatch = () => {
+   535→    useKabaddiStore.getState().setActiveTab('quick-score');
+   536→  };
+   537→
+   538→  // ─── Filter Pill Component ──────────────────────────────────────
+   539→  function FilterPill<T extends string>({
+   540→    options,
+   541→    value,
+   542→    onChange,
+   543→  }: {
+   544→    options: { label: string; value: T }[];
+   545→    value: T;
+   546→    onChange: (val: T) => void;
+   547→  }) {
+   548→    return (
+   549→      <div className="flex items-center gap-1.5 flex-wrap">
+   550→        {options.map((opt) => (
+   551→          <motion.button
+   552→            key={opt.value}
+   553→            onClick={() => onChange(opt.value)}
+   554→            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 relative ${
+   555→              value === opt.value
+   556→                ? 'bg-warm-800 dark:bg-warm-100 text-warm-50 dark:text-warm-900 shadow-sm'
+   557→                : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+   558→            }`}
+   559→            variants={filterPillVariants}
+   560→            animate={value === opt.value ? 'active' : 'inactive'}
+   561→            whileTap={{ scale: 0.95 }}
+   562→          >
+   563→            {opt.label}
+   564→          </motion.button>
+   565→        ))}
+   566→      </div>
+   567→    );
+   568→  }
+   569→
+   570→  // ─── Match Card ─────────────────────────────────────────────────
+   571→  function MatchCard({ match, index }: { match: MatchItem; index: number }) {
+   572→    const result = getMatchResult(match, userId);
+   573→    const winnerId = getWinnerTeamId(match);
+   574→    const isExpanded = expandedMatchId === match.id;
+   575→
+   576→    const homeTeamName = match.homeTeam.shortName || match.homeTeam.name;
+   577→    const awayTeamName = match.awayTeam.shortName || match.awayTeam.name;
+   578→    const homeColor = match.homeTeam.color || '#DC2626';
+   579→    const awayColor = match.awayTeam.color || '#1E293B';
+   580→
+   581→    // User contribution
+   582→    const userContribution = userId
+   583→      ? match.events
+   584→          .filter((e) => e.playerId === userId)
+   585→          .reduce((sum, e) => sum + e.value, 0)
+   586→      : 0;
+   587→
+   588→    // Event summary for expanded view
+   589→    const eventSummary = (() => {
+   590→      const summary = {
+   591→        raids: 0,
+   592→        tacklePoints: 0,
+   593→        bonusPoints: 0,
+   594→        allOuts: 0,
+   595→        superRaids: 0,
+   596→        superTackles: 0,
+   597→        emptyRaids: 0,
+   598→      };
+   599→      for (const evt of match.events) {
+   600→        switch (evt.eventType) {
+   601→          case 'raid_point':
+   602→            summary.raids += evt.value;
+   603→            break;
+   604→          case 'tackle_point':
+   605→            summary.tacklePoints += evt.value;
+   606→            break;
+   607→          case 'bonus_point':
+   608→            summary.bonusPoints += evt.value;
+   609→            break;
+   610→          case 'all_out':
+   611→            summary.allOuts += 1;
+   612→            break;
+   613→          case 'super_raid':
+   614→            summary.superRaids += 1;
+   615→            break;
+   616→          case 'super_tackle':
+   617→            summary.superTackles += 1;
+   618→            break;
+   619→          case 'empty_raid':
+   620→            summary.emptyRaids += 1;
+   621→            break;
+   622→        }
+   623→      }
+   624→      return summary;
+   625→    })();
+   626→
+   627→    // Top performers
+   628→    const topPerformers = (() => {
+   629→      const playerPoints: Record<string, { name: string; points: number; teamSide: 'home' | 'away' }> = {};
+   630→      for (const evt of match.events) {
+   631→        if (!evt.playerId) continue;
+   632→        const scorer = match.scorers.find((s) => s.userId === evt.playerId);
+   633→        const name = scorer?.user?.name || 'Player';
+   634→        const teamSide = evt.teamId === match.homeTeam.id ? 'home' : 'away';
+   635→        if (!playerPoints[evt.playerId]) {
+   636→          playerPoints[evt.playerId] = { name, points: 0, teamSide };
+   637→        }
+   638→        playerPoints[evt.playerId].points += evt.value;
+   639→      }
+   640→      return Object.entries(playerPoints)
+   641→        .sort((a, b) => b[1].points - a[1].points)
+   642→        .slice(0, 3);
+   643→    })();
+   644→
+   645→    // Home/Away event breakdown
+   646→    const homeEvents = match.events.filter((e) => e.teamId === match.homeTeam.id);
+   647→    const awayEvents = match.events.filter((e) => e.teamId === match.awayTeam.id);
+   648→
+   649→    const homeRaidPts = homeEvents.filter((e) => e.eventType === 'raid_point' || e.eventType === 'super_raid' || e.eventType === 'do_or_die_raid').reduce((s, e) => s + e.value, 0);
+   650→    const homeTacklePts = homeEvents.filter((e) => e.eventType === 'tackle_point' || e.eventType === 'super_tackle').reduce((s, e) => s + e.value, 0);
+   651→    const homeBonusPts = homeEvents.filter((e) => e.eventType === 'bonus_point').reduce((s, e) => s + e.value, 0);
+   652→    const homeAllOuts = homeEvents.filter((e) => e.eventType === 'all_out').length;
+   653→
+   654→    const awayRaidPts = awayEvents.filter((e) => e.eventType === 'raid_point' || e.eventType === 'super_raid' || e.eventType === 'do_or_die_raid').reduce((s, e) => s + e.value, 0);
+   655→    const awayTacklePts = awayEvents.filter((e) => e.eventType === 'tackle_point' || e.eventType === 'super_tackle').reduce((s, e) => s + e.value, 0);
+   656→    const awayBonusPts = awayEvents.filter((e) => e.eventType === 'bonus_point').reduce((s, e) => s + e.value, 0);
+   657→    const awayAllOuts = awayEvents.filter((e) => e.eventType === 'all_out').length;
+   658→
+   659→    // Match duration
+   660→    const matchDuration = (() => {
+   661→      if (match.startedAt && match.completedAt) {
+   662→        const diff = new Date(match.completedAt).getTime() - new Date(match.startedAt).getTime();
+   663→        const minutes = Math.round(diff / 60000);
+   664→        return minutes > 0 ? `${minutes} min` : null;
+   665→      }
+   666→      if (match.halfDuration) {
+   667→        return `${match.halfDuration * 2} min`;
+   668→      }
+   669→      return null;
+   670→    })();
+   671→
+   672→    // Key events timeline (last 8 events)
+   673→    const keyEvents = match.events
+   674→      .filter((e) => ['raid_point', 'tackle_point', 'super_raid', 'super_tackle', 'all_out', 'bonus_point', 'do_or_die_raid'].includes(e.eventType))
+   675→      .slice(0, 8);
+   676→
+   677→    const borderClass =
+   678→      result === 'won'
+   679→        ? 'border-l-4 border-l-emerald-500 dark:border-l-emerald-400'
+   680→        : result === 'lost'
+   681→          ? 'border-l-4 border-l-red-500 dark:border-l-red-400'
+   682→          : 'border-l-4 border-l-amber-500 dark:border-l-amber-400';
+   683→
+   684→    const resultBadgeClass =
+   685→      result === 'won'
+   686→        ? 'badge-win'
+   687→        : result === 'lost'
+   688→          ? 'badge-loss'
+   689→          : 'bg-amber-500 dark:bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase';
+   690→
+   691→    const resultIcon =
+   692→      result === 'won' ? <Trophy className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" /> :
+   693→      result === 'lost' ? <Swords className="w-3.5 h-3.5 text-red-500 dark:text-red-400" /> :
+   694→      <Shield className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />;
+   695→
+   696→    return (
+   697→      <motion.div variants={itemVariants} custom={index}>
+   698→        <Card
+   699→          className={`card-elevated ${borderClass} cursor-pointer transition-all duration-200 hover:shadow-lg active:scale-[0.99] bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 overflow-hidden`}
+   700→          onClick={() => handleMatchClick(match.id)}
+   701→        >
+   702→          <CardContent className="p-4">
+   703→            {/* Header Row */}
+   704→            <div className="flex items-center justify-between mb-2">
+   705→              <div className="flex items-center gap-2">
+   706→                {resultIcon}
+   707→                <span className={resultBadgeClass}>
+   708→                  {result}
+   709→                </span>
+   710→                {!match.isPractice ? (
+   711→                  <Badge className="bg-brand-teal/15 text-brand-teal text-[9px] border-0 font-semibold px-1.5 py-0">
+   712→                    Tournament
+   713→                  </Badge>
+   714→                ) : (
+   715→                  <Badge className="bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300 text-[9px] border-0 font-semibold px-1.5 py-0">
+   716→                    Practice
+   717→                  </Badge>
+   718→                )}
+   719→                {match.gender && (
+   720→                  <span className="text-[10px] text-warm-500 dark:text-warm-400">
+   721→                    {match.gender.toLowerCase() === 'boys' || match.gender.toLowerCase() === 'male'
+   722→                      ? '♂'
+   723→                      : '♀'}
+   724→                  </span>
+   725→                )}
+   726→              </div>
+   727→              <div className="flex items-center gap-1 text-[10px] text-warm-400 dark:text-warm-500">
+   728→                <Calendar className="w-3 h-3" />
+   729→                {formatMatchDate(match.completedAt || match.createdAt)}
+   730→              </div>
+   731→            </div>
+   732→
+   733→            {/* Teams & Score */}
+   734→            <div className="flex items-center justify-between">
+   735→              {/* Home Team */}
+   736→              <div className="flex items-center gap-2 flex-1 min-w-0">
+   737→                <div
+   738→                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-sm"
+   739→                  style={{ backgroundColor: homeColor }}
+   740→                >
+   741→                  {homeTeamName.charAt(0).toUpperCase()}
+   742→                </div>
+   743→                <div className="min-w-0">
+   744→                  <p
+   745→                    className={`text-sm font-semibold truncate ${
+   746→                      winnerId === match.homeTeam.id
+   747→                        ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+   748→                        : 'text-warm-800 dark:text-warm-100'
+   749→                    }`}
+   750→                  >
+   751→                    {homeTeamName}
+   752→                  </p>
+   753→                  {match.tournament && (
+   754→                    <p className="text-[9px] text-warm-400 dark:text-warm-500 truncate">
+   755→                      {match.tournament.name}
+   756→                    </p>
+   757→                  )}
+   758→                </div>
+   759→              </div>
+   760→
+   761→              {/* Score */}
+   762→              <div className="flex items-center gap-2 px-3 shrink-0">
+   763→                <span
+   764→                  className={`text-xl font-black tabular-nums ${
+   765→                    winnerId === match.homeTeam.id
+   766→                      ? 'text-emerald-600 dark:text-emerald-400'
+   767→                      : 'text-warm-700 dark:text-warm-200'
+   768→                  }`}
+   769→                >
+   770→                  {match.homeScore}
+   771→                </span>
+   772→                <span className="text-warm-400 dark:text-warm-500 text-xs font-bold">-</span>
+   773→                <span
+   774→                  className={`text-xl font-black tabular-nums ${
+   775→                    winnerId === match.awayTeam.id
+   776→                      ? 'text-emerald-600 dark:text-emerald-400'
+   777→                      : 'text-warm-700 dark:text-warm-200'
+   778→                  }`}
+   779→                >
+   780→                  {match.awayScore}
+   781→                </span>
+   782→              </div>
+   783→
+   784→              {/* Away Team */}
+   785→              <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+   786→                <div className="min-w-0 text-right">
+   787→                  <p
+   788→                    className={`text-sm font-semibold truncate ${
+   789→                      winnerId === match.awayTeam.id
+   790→                        ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+   791→                        : 'text-warm-800 dark:text-warm-100'
+   792→                    }`}
+   793→                  >
+   794→                    {awayTeamName}
+   795→                  </p>
+   796→                </div>
+   797→                <div
+   798→                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-sm"
+   799→                  style={{ backgroundColor: awayColor }}
+   800→                >
+   801→                  {awayTeamName.charAt(0).toUpperCase()}
+   802→                </div>
+   803→              </div>
+   804→            </div>
+   805→
+   806→            {/* Score Comparison Bar */}
+   807→            <ScoreBar homeScore={match.homeScore} awayScore={match.awayScore} />
+   808→
+   809→            {/* Info Row */}
+   810→            <div className="flex items-center gap-3 mt-2 text-[10px] text-warm-500 dark:text-warm-400">
+   811→              {match.half > 0 && (
+   812→                <span className="flex items-center gap-0.5">
+   813→                  <Clock className="w-3 h-3" />
+   814→                  H{match.half}
+   815→                </span>
+   816→              )}
+   817→              {userContribution > 0 && (
+   818→                <span className="flex items-center gap-0.5 text-brand-gold dark:text-brand-gold-light font-semibold">
+   819→                  <Star className="w-3 h-3" />
+   820→                  You: {userContribution} pts
+   821→                </span>
+   822→              )}
+   823→              {match.venue && (
+   824→                <span className="flex items-center gap-0.5">
+   825→                  <MapPin className="w-3 h-3" />
+   826→                  {match.venue}
+   827→                </span>
+   828→              )}
+   829→              <span className="ml-auto flex items-center gap-0.5">
+   830→                {isExpanded ? (
+   831→                  <ChevronUp className="w-3 h-3" />
+   832→                ) : (
+   833→                  <ChevronDown className="w-3 h-3" />
+   834→                )}
+   835→                Details
+   836→              </span>
+   837→            </div>
+   838→
+   839→            {/* Expanded Details */}
+   840→            <AnimatePresence>
+   841→              {isExpanded && (
+   842→                <motion.div
+   843→                  initial={{ height: 0, opacity: 0 }}
+   844→                  animate={{ height: 'auto', opacity: 1 }}
+   845→                  exit={{ height: 0, opacity: 0 }}
+   846→                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+   847→                  className="overflow-hidden"
+   848→                >
+   849→                  <div className="mt-3 pt-3 border-t border-warm-200 dark:border-warm-700 space-y-3">
+   850→                    {/* Score Breakdown */}
+   851→                    <div>
+   852→                      <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5">
+   853→                        Score Breakdown
+   854→                      </p>
+   855→                      <div className="grid grid-cols-2 gap-2">
+   856→                        <div className="p-2 rounded-lg border border-warm-200 dark:border-warm-600">
+   857→                          <div className="flex items-center gap-1.5 mb-1.5">
+   858→                            <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold" style={{ backgroundColor: homeColor }}>
+   859→                              {homeTeamName.charAt(0)}
+   860→                            </div>
+   861→                            <span className="text-[10px] font-bold text-warm-700 dark:text-warm-200 truncate">{homeTeamName}</span>
+   862→                          </div>
+   863→                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
+   864→                            <span className="text-warm-500 dark:text-warm-400">Raid</span>
+   865→                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{homeRaidPts}</span>
+   866→                            <span className="text-warm-500 dark:text-warm-400">Tackle</span>
+   867→                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{homeTacklePts}</span>
+   868→                            <span className="text-warm-500 dark:text-warm-400">Bonus</span>
+   869→                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{homeBonusPts}</span>
+   870→                            {homeAllOuts > 0 && (
+   871→                              <>
+   872→                                <span className="text-warm-500 dark:text-warm-400">All-Out</span>
+   873→                                <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{homeAllOuts}</span>
+   874→                              </>
+   875→                            )}
+   876→                          </div>
+   877→                        </div>
+   878→                        <div className="p-2 rounded-lg border border-warm-200 dark:border-warm-600">
+   879→                          <div className="flex items-center gap-1.5 mb-1.5">
+   880→                            <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold" style={{ backgroundColor: awayColor }}>
+   881→                              {awayTeamName.charAt(0)}
+   882→                            </div>
+   883→                            <span className="text-[10px] font-bold text-warm-700 dark:text-warm-200 truncate">{awayTeamName}</span>
+   884→                          </div>
+   885→                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
+   886→                            <span className="text-warm-500 dark:text-warm-400">Raid</span>
+   887→                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{awayRaidPts}</span>
+   888→                            <span className="text-warm-500 dark:text-warm-400">Tackle</span>
+   889→                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{awayTacklePts}</span>
+   890→                            <span className="text-warm-500 dark:text-warm-400">Bonus</span>
+   891→                            <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{awayBonusPts}</span>
+   892→                            {awayAllOuts > 0 && (
+   893→                              <>
+   894→                                <span className="text-warm-500 dark:text-warm-400">All-Out</span>
+   895→                                <span className="font-bold text-warm-800 dark:text-warm-100 text-right">{awayAllOuts}</span>
+   896→                              </>
+   897→                            )}
+   898→                          </div>
+   899→                        </div>
+   900→                      </div>
+   901→                    </div>
+   902→
+   903→                    {/* Top Performers */}
+   904→                    {topPerformers.length > 0 && (
+   905→                      <div>
+   906→                        <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5">
+   907→                          Top Performers
+   908→                        </p>
+   909→                        <div className="flex flex-col gap-1">
+   910→                          {topPerformers.map(([pid, data], i) => (
+   911→                            <div
+   912→                              key={pid}
+   913→                              className="flex items-center gap-2 text-xs"
+   914→                            >
+   915→                              <span className="w-4 h-4 rounded-full bg-brand-gold/20 flex items-center justify-center text-[9px] font-bold text-brand-gold dark:text-brand-gold-light">
+   916→                                {i + 1}
+   917→                              </span>
+   918→                              <span className="text-warm-700 dark:text-warm-200 font-medium flex-1 truncate">
+   919→                                {data.name}
+   920→                              </span>
+   921→                              <span className="text-brand-gold dark:text-brand-gold-light font-bold">
+   922→                                {data.points} pts
+   923→                              </span>
+   924→                            </div>
+   925→                          ))}
+   926→                        </div>
+   927→                      </div>
+   928→                    )}
+   929→
+   930→                    {/* Key Events Timeline */}
+   931→                    {keyEvents.length > 0 && (
+   932→                      <div>
+   933→                        <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5">
+   934→                          Key Events
+   935→                        </p>
+   936→                        <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+   937→                          {keyEvents.map((evt) => {
+   938→                            const eventInfo = getEventIcon(evt.eventType);
+   939→                            const isHome = evt.teamId === match.homeTeam.id;
+   940→                            return (
+   941→                              <div key={evt.id} className="flex items-center gap-2 text-[10px]">
+   942→                                <span className="text-xs">{eventInfo.icon}</span>
+   943→                                <div
+   944→                                  className="w-3 h-3 rounded-full shrink-0"
+   945→                                  style={{ backgroundColor: isHome ? homeColor : awayColor }}
+   946→                                />
+   947→                                <span className={`font-medium ${eventInfo.color}`}>
+   948→                                  {evt.eventType.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+   949→                                </span>
+   950→                                {evt.value > 0 && (
+   951→                                  <Badge className="bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 text-[8px] border-0 font-bold px-1 py-0">
+   952→                                    +{evt.value}
+   953→                                  </Badge>
+   954→                                )}
+   955→                                <span className="text-warm-400 dark:text-warm-500 ml-auto">H{evt.half}</span>
+   956→                              </div>
+   957→                            );
+   958→                          })}
+   959→                        </div>
+   960→                      </div>
+   961→                    )}
+   962→
+   963→                    {/* Event Summary Grid */}
+   964→                    <div>
+   965→                      <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5">
+   966→                        Match Summary
+   967→                      </p>
+   968→                      <div className="grid grid-cols-4 gap-2">
+   969→                        <div className="text-center p-1.5 rounded-lg bg-warm-50 dark:bg-warm-700/50">
+   970→                          <p className="text-sm font-bold text-warm-800 dark:text-warm-100">
+   971→                            {eventSummary.raids}
+   972→                          </p>
+   973→                          <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase">Raids</p>
+   974→                        </div>
+   975→                        <div className="text-center p-1.5 rounded-lg bg-warm-50 dark:bg-warm-700/50">
+   976→                          <p className="text-sm font-bold text-warm-800 dark:text-warm-100">
+   977→                            {eventSummary.tacklePoints}
+   978→                          </p>
+   979→                          <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase">Tackles</p>
+   980→                        </div>
+   981→                        <div className="text-center p-1.5 rounded-lg bg-warm-50 dark:bg-warm-700/50">
+   982→                          <p className="text-sm font-bold text-warm-800 dark:text-warm-100">
+   983→                            {eventSummary.bonusPoints}
+   984→                          </p>
+   985→                          <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase">Bonus</p>
+   986→                        </div>
+   987→                        <div className="text-center p-1.5 rounded-lg bg-warm-50 dark:bg-warm-700/50">
+   988→                          <p className="text-sm font-bold text-warm-800 dark:text-warm-100">
+   989→                            {eventSummary.allOuts}
+   990→                          </p>
+   991→                          <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase">All-Outs</p>
+   992→                        </div>
+   993→                      </div>
+   994→                      {(eventSummary.superRaids > 0 || eventSummary.superTackles > 0 || eventSummary.emptyRaids > 0) && (
+   995→                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+   996→                          {eventSummary.superRaids > 0 && (
+   997→                            <Badge className="bg-brand-gold/15 text-brand-gold-dark dark:text-brand-gold-light text-[8px] border-0 font-semibold px-1.5 py-0">
+   998→                              {eventSummary.superRaids} Super Raid{eventSummary.superRaids > 1 ? 's' : ''}
+   999→                            </Badge>
+  1000→                          )}
+  1001→                          {eventSummary.superTackles > 0 && (
+  1002→                            <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[8px] border-0 font-semibold px-1.5 py-0">
+  1003→                              {eventSummary.superTackles} Super Tackle{eventSummary.superTackles > 1 ? 's' : ''}
+  1004→                            </Badge>
+  1005→                          )}
+  1006→                          {eventSummary.emptyRaids > 0 && (
+  1007→                            <Badge className="bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300 text-[8px] border-0 font-semibold px-1.5 py-0">
+  1008→                              {eventSummary.emptyRaids} Empty Raid{eventSummary.emptyRaids > 1 ? 's' : ''}
+  1009→                            </Badge>
+  1010→                          )}
+  1011→                        </div>
+  1012→                      )}
+  1013→                    </div>
+  1014→
+  1015→                    {/* Match Duration & Info */}
+  1016→                    <div className="flex items-center gap-3 text-[10px] text-warm-500 dark:text-warm-400">
+  1017→                      {matchDuration && (
+  1018→                        <span className="flex items-center gap-1">
+  1019→                          <Clock className="w-3 h-3" />
+  1020→                          {matchDuration}
+  1021→                        </span>
+  1022→                      )}
+  1023→                      {match.halfDuration > 0 && (
+  1024→                        <span className="flex items-center gap-1">
+  1025→                          <Users className="w-3 h-3" />
+  1026→                          {match.halfDuration} min/half
+  1027→                        </span>
+  1028→                      )}
+  1029→                      {match.venue && (
+  1030→                        <span className="flex items-center gap-1">
+  1031→                          <MapPin className="w-3 h-3" />
+  1032→                          {match.venue}
+  1033→                        </span>
+  1034→                      )}
+  1035→                    </div>
+  1036→                  </div>
+  1037→                </motion.div>
+  1038→              )}
+  1039→            </AnimatePresence>
+  1040→          </CardContent>
+  1041→        </Card>
+  1042→      </motion.div>
+  1043→    );
+  1044→  }
+  1045→
+  1046→  // ─── Empty State ────────────────────────────────────────────────
+  1047→  function EmptyState() {
+  1048→    const isFilterActive =
+  1049→      resultFilter !== 'all' || typeFilter !== 'all' || genderFilter !== 'all' || dateFilter !== 'all';
+  1050→
+  1051→    return (
+  1052→      <motion.div
+  1053→        className="flex flex-col items-center justify-center py-16 px-6"
+  1054→        initial={{ opacity: 0, y: 20 }}
+  1055→        animate={{ opacity: 1, y: 0 }}
+  1056→        transition={{ duration: 0.4 }}
+  1057→      >
+  1058→        <motion.div
+  1059→          className="w-20 h-20 rounded-full bg-warm-100 dark:bg-warm-800 flex items-center justify-center mb-4"
+  1060→          animate={{ y: [0, -8, 0] }}
+  1061→          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+  1062→        >
+  1063→          <Swords className="w-10 h-10 text-warm-400 dark:text-warm-500" />
+  1064→        </motion.div>
+  1065→        <h3 className="text-lg font-bold text-warm-700 dark:text-warm-200 mb-1">
+  1066→          {isFilterActive ? 'No matches found' : 'No matches yet'}
+  1067→        </h3>
+  1068→        <p className="text-sm text-warm-500 dark:text-warm-400 text-center mb-6 max-w-[260px]">
+  1069→          {isFilterActive
+  1070→            ? 'Try adjusting your filters to find what you\'re looking for.'
+  1071→            : 'Start scoring your first kabaddi match and it will appear here.'}
+  1072→        </p>
+  1073→        {isFilterActive ? (
+  1074→          <Button
+  1075→            variant="outline"
+  1076→            size="sm"
+  1077→            onClick={() => {
+  1078→              setResultFilter('all');
+  1079→              setTypeFilter('all');
+  1080→              setGenderFilter('all');
+  1081→              setDateFilter('all');
+  1082→            }}
+  1083→            className="text-brand-red border-brand-red/30 hover:bg-brand-red/10"
+  1084→          >
+  1085→            <Filter className="w-4 h-4 mr-1.5" />
+  1086→            Clear Filters
+  1087→          </Button>
+  1088→        ) : (
+  1089→          <Button
+  1090→            size="sm"
+  1091→            onClick={handleStartMatch}
+  1092→            className="bg-brand-red hover:bg-brand-red-dark text-white shadow-md shadow-brand-red/25"
+  1093→          >
+  1094→            <Play className="w-4 h-4 mr-1.5" />
+  1095→            Start your first match!
+  1096→          </Button>
+  1097→        )}
+  1098→      </motion.div>
+  1099→    );
+  1100→  }
+  1101→
+  1102→  // ─── Skeleton Loader ────────────────────────────────────────────
+  1103→  function MatchSkeleton() {
+  1104→    return (
+  1105→      <Card className="card-elevated border-l-4 border-l-warm-300 dark:border-l-warm-600 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 overflow-hidden">
+  1106→        <CardContent className="p-4">
+  1107→          <div className="flex items-center gap-2 mb-2">
+  1108→            <div className="h-4 w-12 rounded-full bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1109→            <div className="h-4 w-16 rounded-full bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1110→          </div>
+  1111→          <div className="flex items-center justify-between">
+  1112→            <div className="flex items-center gap-2">
+  1113→              <div className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1114→              <div className="h-3.5 w-16 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1115→            </div>
+  1116→            <div className="flex items-center gap-2">
+  1117→              <div className="h-6 w-5 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1118→              <div className="h-3 w-3 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1119→              <div className="h-6 w-5 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1120→            </div>
+  1121→            <div className="flex items-center gap-2">
+  1122→              <div className="h-3.5 w-16 rounded bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1123→              <div className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 animate-pulse" />
+  1124→            </div>
+  1125→          </div>
+  1126→          {/* Score bar skeleton */}
+  1127→          <div className="h-1.5 rounded-full bg-warm-200 dark:bg-warm-700 animate-pulse mt-3" />
+  1128→        </CardContent>
+  1129→      </Card>
+  1130→    );
+  1131→  }
+  1132→
+  1133→  // ─── Render ─────────────────────────────────────────────────────
+  1134→  return (
+  1135→    <motion.div
+  1136→      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto custom-scrollbar"
+  1137→      initial={{ x: '100%' }}
+  1138→      animate={{ x: 0 }}
+  1139→      exit={{ x: '100%' }}
+  1140→      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+  1141→    >
+  1142→      <div className="min-h-screen flex flex-col max-w-lg mx-auto">
+  1143→        {/* Header */}
+  1144→        <header className="sticky top-0 z-30 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200 dark:border-warm-700">
+  1145→          <div className="px-4 py-3 flex items-center gap-3">
+  1146→            <motion.button
+  1147→              onClick={onClose}
+  1148→              className="p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors active:scale-90"
+  1149→              whileTap={{ scale: 0.9 }}
+  1150→              aria-label="Go back"
+  1151→            >
+  1152→              <ChevronLeft className="w-5 h-5 text-warm-700 dark:text-warm-200" />
+  1153→            </motion.button>
+  1154→            <div>
+  1155→              <h1 className="text-lg font-black text-warm-800 dark:text-warm-100">
+  1156→                Match History
+  1157→              </h1>
+  1158→              <p className="text-[10px] text-warm-500 dark:text-warm-400">
+  1159→                {stats.total} match{stats.total !== 1 ? 'es' : ''} played
+  1160→              </p>
+  1161→            </div>
+  1162→          </div>
+  1163→        </header>
+  1164→
+  1165→        {/* Stats Summary Bar */}
+  1166→        <div className="px-4 pt-4">
+  1167→          <div className="grid grid-cols-5 gap-2">
+  1168→            {/* Total */}
+  1169→            <motion.div
+  1170→              className="flex flex-col items-center p-2.5 rounded-xl bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700"
+  1171→              initial={{ opacity: 0, y: 12 }}
+  1172→              animate={{ opacity: 1, y: 0 }}
+  1173→              transition={{ delay: 0.1 }}
+  1174→            >
+  1175→              <Swords className="w-3.5 h-3.5 text-brand-red mb-1" />
+  1176→              <span className="text-lg font-black text-warm-800 dark:text-warm-100">
+  1177→                <AnimatedCounter target={stats.total} />
+  1178→              </span>
+  1179→              <span className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">
+  1180→                Total
+  1181→              </span>
+  1182→            </motion.div>
+  1183→
+  1184→            {/* Wins */}
+  1185→            <motion.div
+  1186→              className="flex flex-col items-center p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40"
+  1187→              initial={{ opacity: 0, y: 12 }}
+  1188→              animate={{ opacity: 1, y: 0 }}
+  1189→              transition={{ delay: 0.15 }}
+  1190→            >
+  1191→              <Trophy className="w-3.5 h-3.5 text-emerald-500 mb-1" />
+  1192→              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+  1193→                <AnimatedCounter target={stats.wins} />
+  1194→              </span>
+  1195→              <span className="text-[8px] text-emerald-600/70 dark:text-emerald-400/70 uppercase font-semibold">
+  1196→                Wins
+  1197→              </span>
+  1198→            </motion.div>
+  1199→
+  1200→            {/* Losses */}
+  1201→            <motion.div
+  1202→              className="flex flex-col items-center p-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40"
+  1203→              initial={{ opacity: 0, y: 12 }}
+  1204→              animate={{ opacity: 1, y: 0 }}
+  1205→              transition={{ delay: 0.2 }}
+  1206→            >
+  1207→              <Shield className="w-3.5 h-3.5 text-red-500 mb-1" />
+  1208→              <span className="text-lg font-black text-red-600 dark:text-red-400">
+  1209→                <AnimatedCounter target={stats.losses} />
+  1210→              </span>
+  1211→              <span className="text-[8px] text-red-600/70 dark:text-red-400/70 uppercase font-semibold">
+  1212→                Lost
+  1213→              </span>
+  1214→            </motion.div>
+  1215→
+  1216→            {/* Draws */}
+  1217→            <motion.div
+  1218→              className="flex flex-col items-center p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40"
+  1219→              initial={{ opacity: 0, y: 12 }}
+  1220→              animate={{ opacity: 1, y: 0 }}
+  1221→              transition={{ delay: 0.25 }}
+  1222→            >
+  1223→              <Zap className="w-3.5 h-3.5 text-amber-500 mb-1" />
+  1224→              <span className="text-lg font-black text-amber-600 dark:text-amber-400">
+  1225→                <AnimatedCounter target={stats.draws} />
+  1226→              </span>
+  1227→              <span className="text-[8px] text-amber-600/70 dark:text-amber-400/70 uppercase font-semibold">
+  1228→                Draw
+  1229→              </span>
+  1230→            </motion.div>
+  1231→
+  1232→            {/* Win Rate */}
+  1233→            <motion.div
+  1234→              className="flex flex-col items-center p-2.5 rounded-xl bg-warm-100 dark:bg-warm-800 border border-warm-200 dark:border-warm-700 relative"
+  1235→              initial={{ opacity: 0, y: 12 }}
+  1236→              animate={{ opacity: 1, y: 0 }}
+  1237→              transition={{ delay: 0.3 }}
+  1238→            >
+  1239→              <div className="absolute inset-0 flex items-center justify-center opacity-20">
+  1240→                <MiniProgressRing percent={stats.winRate} size={36} />
+  1241→              </div>
+  1242→              <div className="relative z-10">
+  1243→                <Target className="w-3.5 h-3.5 text-brand-teal mb-1" />
+  1244→                <span className="text-lg font-black text-brand-teal">
+  1245→                  <AnimatedCounter target={stats.winRate} />%
+  1246→                </span>
+  1247→                <span className="text-[8px] text-brand-teal/70 uppercase font-semibold">
+  1248→                  Rate
+  1249→                </span>
+  1250→              </div>
+  1251→            </motion.div>
+  1252→          </div>
+  1253→
+  1254→          {/* Extended Stats Row */}
+  1255→          <motion.div
+  1256→            className="mt-2 grid grid-cols-3 gap-2"
+  1257→            initial={{ opacity: 0, y: 8 }}
+  1258→            animate={{ opacity: 1, y: 0 }}
+  1259→            transition={{ delay: 0.35 }}
+  1260→          >
+  1261→            {/* Avg Score */}
+  1262→            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-warm-50 dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700">
+  1263→              <Activity className="w-3 h-3 text-brand-teal shrink-0" />
+  1264→              <div>
+  1265→                <p className="text-xs font-bold text-warm-800 dark:text-warm-100">{stats.avgScore}</p>
+  1266→                <p className="text-[7px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Avg Score</p>
+  1267→              </div>
+  1268→            </div>
+  1269→
+  1270→            {/* Highest Score */}
+  1271→            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-warm-50 dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700">
+  1272→              <TrendingUp className="w-3 h-3 text-brand-gold shrink-0" />
+  1273→              <div>
+  1274→                <p className="text-xs font-bold text-warm-800 dark:text-warm-100">{stats.highestScore}</p>
+  1275→                <p className="text-[7px] text-warm-500 dark:text-warm-400 uppercase font-semibold">High Score</p>
+  1276→              </div>
+  1277→            </div>
+  1278→
+  1279→            {/* Current Streak */}
+  1280→            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-warm-50 dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700">
+  1281→              {stats.streak.type === 'won' ? (
+  1282→                <ArrowUpRight className="w-3 h-3 text-emerald-500 shrink-0" />
+  1283→              ) : stats.streak.type === 'lost' ? (
+  1284→                <ArrowDownRight className="w-3 h-3 text-red-500 shrink-0" />
+  1285→              ) : (
+  1286→                <Minus className="w-3 h-3 text-warm-400 shrink-0" />
+  1287→              )}
+  1288→              <div>
+  1289→                <p className={`text-xs font-bold ${
+  1290→                  stats.streak.type === 'won' ? 'text-emerald-600 dark:text-emerald-400' :
+  1291→                  stats.streak.type === 'lost' ? 'text-red-600 dark:text-red-400' :
+  1292→                  'text-warm-600 dark:text-warm-300'
+  1293→                }`}>
+  1294→                  {stats.streak.count > 0 ? `${stats.streak.count}${stats.streak.type === 'won' ? 'W' : stats.streak.type === 'lost' ? 'L' : 'D'}` : '-'}
+  1295→                </p>
+  1296→                <p className="text-[7px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Streak</p>
+  1297→              </div>
+  1298→            </div>
+  1299→          </motion.div>
+  1300→
+  1301→          {/* Total Points */}
+  1302→          <motion.div
+  1303→            className="mt-2 flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-gradient-to-r from-brand-red/5 via-brand-gold/5 to-brand-teal/5 dark:from-brand-red/10 dark:via-brand-gold/10 dark:to-brand-teal/10 border border-warm-200 dark:border-warm-700"
+  1304→            initial={{ opacity: 0, y: 8 }}
+  1305→            animate={{ opacity: 1, y: 0 }}
+  1306→            transition={{ delay: 0.35 }}
+  1307→          >
+  1308→            <Star className="w-3.5 h-3.5 text-brand-gold" />
+  1309→            <span className="text-xs text-warm-600 dark:text-warm-300 font-medium">
+  1310→              Total points across all matches:
+  1311→            </span>
+  1312→            <span className="text-sm font-black gradient-text">
+  1313→              <AnimatedCounter target={stats.totalPoints} />
+  1314→            </span>
+  1315→          </motion.div>
+  1316→        </div>
+  1317→
+  1318→        {/* Filter Bar */}
+  1319→        <div className="px-4 mt-4 space-y-2.5">
+  1320→          {/* Date Range Filter */}
+  1321→          <div className="flex items-center gap-2">
+  1322→            <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
+  1323→              Time
+  1324→            </span>
+  1325→            <FilterPill
+  1326→              options={[
+  1327→                { label: 'All Time', value: 'all' as DateFilter },
+  1328→                { label: 'This Week', value: 'week' as DateFilter },
+  1329→                { label: 'This Month', value: 'month' as DateFilter },
+  1330→                { label: 'This Year', value: 'year' as DateFilter },
+  1331→              ]}
+  1332→              value={dateFilter}
+  1333→              onChange={setDateFilter}
+  1334→            />
+  1335→          </div>
+  1336→
+  1337→          {/* Result Filter */}
+  1338→          <div className="flex items-center gap-2">
+  1339→            <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
+  1340→              Result
+  1341→            </span>
+  1342→            <FilterPill
+  1343→              options={[
+  1344→                { label: 'All', value: 'all' as ResultFilter },
+  1345→                { label: 'Won', value: 'won' as ResultFilter },
+  1346→                { label: 'Lost', value: 'lost' as ResultFilter },
+  1347→                { label: 'Draw', value: 'draw' as ResultFilter },
+  1348→              ]}
+  1349→              value={resultFilter}
+  1350→              onChange={setResultFilter}
+  1351→            />
+  1352→          </div>
+  1353→
+  1354→          {/* Type Filter */}
+  1355→          <div className="flex items-center gap-2">
+  1356→            <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
+  1357→              Type
+  1358→            </span>
+  1359→            <FilterPill
+  1360→              options={[
+  1361→                { label: 'All', value: 'all' as TypeFilter },
+  1362→                { label: 'Tournament', value: 'tournament' as TypeFilter },
+  1363→                { label: 'Practice', value: 'practice' as TypeFilter },
+  1364→              ]}
+  1365→              value={typeFilter}
+  1366→              onChange={setTypeFilter}
+  1367→            />
+  1368→          </div>
+  1369→
+  1370→          {/* Gender Filter */}
+  1371→          <div className="flex items-center gap-2">
+  1372→            <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
+  1373→              Gender
+  1374→            </span>
+  1375→            <FilterPill
+  1376→              options={[
+  1377→                { label: 'All', value: 'all' as GenderFilter },
+  1378→                { label: '♂ Boys', value: 'boys' as GenderFilter },
+  1379→                { label: '♀ Girls', value: 'girls' as GenderFilter },
+  1380→              ]}
+  1381→              value={genderFilter}
+  1382→              onChange={setGenderFilter}
+  1383→            />
+  1384→          </div>
+  1385→
+  1386→          {/* Sort */}
+  1387→          <div className="flex items-center gap-2">
+  1388→            <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
+  1389→              Sort
+  1390→            </span>
+  1391→            <FilterPill
+  1392→              options={[
+  1393→                { label: 'Newest', value: 'newest' as SortFilter },
+  1394→                { label: 'Oldest', value: 'oldest' as SortFilter },
+  1395→                { label: 'Top Score', value: 'highest_score' as SortFilter },
+  1396→              ]}
+  1397→              value={sortFilter}
+  1398→              onChange={setSortFilter}
+  1399→            />
+  1400→          </div>
+  1401→        </div>
+  1402→
+  1403→        {/* Match Timeline */}
+  1404→        <div className="px-4 mt-4 pb-6 flex-1">
+  1405→          {loading ? (
+  1406→            <motion.div
+  1407→              className="flex flex-col gap-3"
+  1408→              variants={containerVariants}
+  1409→              initial="hidden"
+  1410→              animate="visible"
+  1411→            >
+  1412→              {Array.from({ length: 5 }).map((_, i) => (
+  1413→                <MatchSkeleton key={i} />
+  1414→              ))}
+  1415→            </motion.div>
+  1416→          ) : filteredMatches.length === 0 ? (
+  1417→            <EmptyState />
+  1418→          ) : (
+  1419→            <div className="space-y-5">
+  1420→              {groupedMatches.map((group) => (
+  1421→                <div key={group.label}>
+  1422→                  {/* Date Divider */}
+  1423→                  <div className="flex items-center gap-2 mb-3">
+  1424→                    <div className="h-px flex-1 bg-warm-200 dark:bg-warm-700" />
+  1425→                    <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-widest px-2">
+  1426→                      {group.label}
+  1427→                    </span>
+  1428→                    <div className="h-px flex-1 bg-warm-200 dark:bg-warm-700" />
+  1429→                  </div>
+  1430→
+  1431→                  {/* Match Cards */}
+  1432→                  <motion.div
+  1433→                    className="flex flex-col gap-3"
+  1434→                    variants={containerVariants}
+  1435→                    initial="hidden"
+  1436→                    animate="visible"
+  1437→                  >
+  1438→                    {group.matches.map((match, idx) => (
+  1439→                      <MatchCard key={match.id} match={match} index={idx} />
+  1440→                    ))}
+  1441→                  </motion.div>
+  1442→                </div>
+  1443→              ))}
+  1444→
+  1445→              {/* Load More */}
+  1446→              {hasMore && (
+  1447→                <div className="flex justify-center pt-4">
+  1448→                  <Button
+  1449→                    variant="outline"
+  1450→                    size="sm"
+  1451→                    onClick={handleLoadMore}
+  1452→                    disabled={loadingMore}
+  1453→                    className="border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300 hover:bg-warm-100 dark:hover:bg-warm-800"
+  1454→                  >
+  1455→                    {loadingMore ? (
+  1456→                      <>
+  1457→                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+  1458→                        Loading...
+  1459→                      </>
+  1460→                    ) : (
+  1461→                      <>
+  1462→                        <ChevronDown className="w-4 h-4 mr-1.5" />
+  1463→                        Load More
+  1464→                      </>
+  1465→                    )}
+  1466→                  </Button>
+  1467→                </div>
+  1468→              )}
+  1469→
+  1470→              {/* Loading more skeleton */}
+  1471→              <AnimatePresence>
+  1472→                {loadingMore && (
+  1473→                  <motion.div
+  1474→                    className="flex flex-col gap-3 mt-3"
+  1475→                    initial={{ opacity: 0 }}
+  1476→                    animate={{ opacity: 1 }}
+  1477→                    exit={{ opacity: 0 }}
+  1478→                  >
+  1479→                    {Array.from({ length: 3 }).map((_, i) => (
+  1480→                      <MatchSkeleton key={`more-${i}`} />
+  1481→                    ))}
+  1482→                  </motion.div>
+  1483→                )}
+  1484→              </AnimatePresence>
+  1485→            </div>
+  1486→          )}
+  1487→        </div>
+  1488→      </div>
+  1489→    </motion.div>
+  1490→  );
+  1491→}
+  1492→

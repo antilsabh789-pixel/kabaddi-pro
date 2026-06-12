@@ -387,7 +387,12 @@ export default function QuickScoreTab() {
   };
 
   const handleNext = () => {
-    if (step < 4 && canNext()) setStep(step + 1);
+    // The button is already disabled when canNext() is false, but we keep the
+    // guard as a safety net.  Using functional setStep avoids stale-closure issues
+    // if the click fires during a batched re-render.
+    if (step < STEPS.length - 1 && canNext()) {
+      setStep(s => s + 1);
+    }
   };
 
   const handlePrev = () => {
@@ -693,8 +698,20 @@ export default function QuickScoreTab() {
 
   return (
     <div className="px-4 py-6 space-y-5">
-      {/* Step Progress Indicator - Enhanced with gradient progress, pulse, and animated labels */}
+      {/* Step Progress Indicator - Enhanced with gradient progress, pulse, animated labels, and step counter */}
       <div className="relative px-2 py-3">
+        {/* Step counter badge */}
+        <div className="flex items-center justify-center mb-2">
+          <motion.div
+            key={`step-counter-${step}`}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            className="step-counter"
+          >
+            Step {step + 1} / {STEPS.length}
+          </motion.div>
+        </div>
         {/* Background track line with shimmer */}
         <div className="absolute top-[22px] left-6 right-6 h-[3px] bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-warm-300/50 dark:via-warm-600/30 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
@@ -801,10 +818,10 @@ export default function QuickScoreTab() {
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.2 }}
+          initial={{ opacity: 0, x: 24, scale: 0.98 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={{ opacity: 0, x: -24, scale: 0.98 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
           className="min-h-[400px]"
         >
           {step === 0 && (
@@ -2180,7 +2197,7 @@ export default function QuickScoreTab() {
       </AnimatePresence>
 
       {/* Navigation */}
-      {step < 4 && (
+      {step < STEPS.length - 1 && (
         <div className="flex items-center gap-3 pt-4">
           {step > 0 && (
             <Button

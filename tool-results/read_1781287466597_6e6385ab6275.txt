@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Plus, MapPin, Calendar, Users, ChevronDown, ChevronUp, Trophy, Crown,
+     7→  Lock, Loader2, Search, X, Copy, Check, Hash, UserPlus, Trash2, Swords,
+     8→  Sparkles, Timer, Filter, TrendingUp, Clock, Zap, CalendarDays, LayoutGrid,
+     9→  ChevronRight, Star, ArrowRight, CircleDot, Radio, Award, Target,
+    10→  Eye, Flame, Shield, Venus, Mars
+    11→} from 'lucide-react';
+    12→import { Card } from '@/components/ui/card';
+    13→import { Button } from '@/components/ui/button';
+    14→import { Input } from '@/components/ui/input';
+    15→import { Badge } from '@/components/ui/badge';
+    16→import {
+    17→  Dialog,
+    18→  DialogContent,
+    19→  DialogHeader,
+    20→  DialogTitle,
+    21→} from '@/components/ui/dialog';
+    22→import { useKabaddiStore } from '@/lib/store';
+    23→import { useToast } from '@/hooks/use-toast';
+    24→import PremiumUpgradeScreen from './PremiumUpgradeScreen';
+    25→
+    26→interface TeamInTournament {
+    27→  id: string;
+    28→  name: string;
+    29→  shortName?: string;
+    30→  teamCode?: string;
+    31→  color: string;
+    32→  logo?: string;
+    33→  played: number;
+    34→  won: number;
+    35→  lost: number;
+    36→  drawn: number;
+    37→  scoreDiff: number;
+    38→  points: number;
+    39→}
+    40→
+    41→interface Tournament {
+    42→  id: string;
+    43→  name: string;
+    44→  tournamentCode?: string;
+    45→  type: string;
+    46→  venue: string;
+    47→  startDate: string | null;
+    48→  endDate: string | null;
+    49→  status: string;
+    50→  gender: string;
+    51→  teams: TeamInTournament[];
+    52→  matchCount: number;
+    53→  organizerId?: string;
+    54→}
+    55→
+    56→interface DbTeam {
+    57→  id: string;
+    58→  name: string;
+    59→  shortName: string | null;
+    60→  teamCode: string | null;
+    61→  color: string | null;
+    62→  logo: string | null;
+    63→}
+    64→
+    65→// ─── Bracket Match for visual bracket view ─────────────────────────────
+    66→interface BracketMatch {
+    67→  id: string;
+    68→  round: number;
+    69→  position: number;
+    70→  team1Id: string | null;
+    71→  team2Id: string | null;
+    72→  team1Score: number | null;
+    73→  team2Score: number | null;
+    74→  winnerId: string | null;
+    75→  status: string;
+    76→}
+    77→
+    78→// ─── Sub-components ────────────────────────────────────────────────────
+    79→
+    80→/** Animated status indicator dot with enhanced glow */
+    81→function StatusIndicator({ status }: { status: string }) {
+    82→  const config = {
+    83→    ongoing: { color: 'bg-emerald-500', ring: 'ring-emerald-500/30', pulse: true, glow: 'shadow-emerald-500/50' },
+    84→    upcoming: { color: 'bg-amber-500', ring: 'ring-amber-500/30', pulse: false, glow: 'shadow-amber-500/50' },
+    85→    past: { color: 'bg-warm-400', ring: 'ring-warm-400/30', pulse: false, glow: 'shadow-warm-400/50' },
+    86→  }[status] || { color: 'bg-warm-400', ring: 'ring-warm-400/30', pulse: false, glow: 'shadow-warm-400/50' };
+    87→
+    88→  return (
+    89→    <span className="relative flex h-3.5 w-3.5">
+    90→      {config.pulse && (
+    91→        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.color} opacity-75`} />
+    92→      )}
+    93→      <span className={`relative inline-flex rounded-full h-3.5 w-3.5 ${config.color} ring-2 ${config.ring} shadow-lg ${config.glow}`} />
+    94→    </span>
+    95→  );
+    96→}
+    97→
+    98→/** Match progress bar with enhanced gradient and label */
+    99→function MatchProgressBar({ completed, total }: { completed: number; total: number }) {
+   100→  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+   101→  return (
+   102→    <div className="flex items-center gap-2 w-full">
+   103→      <div className="flex-1 h-2.5 bg-warm-200/60 dark:bg-warm-700/60 rounded-full overflow-hidden relative">
+   104→        {/* Animated background shimmer */}
+   105→        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_3s_infinite]" />
+   106→        <motion.div
+   107→          className="h-full rounded-full bg-gradient-to-r from-brand-gold via-brand-gold-light to-brand-gold relative progress-shimmer"
+   108→          initial={{ width: 0 }}
+   109→          animate={{ width: `${pct}%` }}
+   110→          transition={{ duration: 0.8, ease: 'easeOut' }}
+   111→        >
+   112→          <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-transparent rounded-full" />
+   113→        </motion.div>
+   114→      </div>
+   115→      <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 shrink-0 bg-warm-100 dark:bg-warm-700/50 px-1.5 py-0.5 rounded-md">
+   116→        {completed}/{total}
+   117→      </span>
+   118→    </div>
+   119→  );
+   120→}
+   121→
+   122→/** Shimmer overlay for hover effect */
+   123→function ShimmerOverlay() {
+   124→  return (
+   125→    <motion.div
+   126→      className="absolute inset-0 pointer-events-none z-10 overflow-hidden rounded-2xl"
+   127→      initial={{ opacity: 0 }}
+   128→      whileHover={{ opacity: 1 }}
+   129→    >
+   130→      <motion.div
+   131→        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent dark:via-white/5"
+   132→        animate={{ x: ['-100%', '200%'] }}
+   133→        transition={{ duration: 2, ease: 'linear' }}
+   134→      />
+   135→    </motion.div>
+   136→  );
+   137→}
+   138→
+   139→/** Decorative kabaddi court pattern for backgrounds */
+   140→function KabaddiPattern() {
+   141→  return (
+   142→    <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.03] dark:opacity-[0.05]">
+   143→      {/* Court line patterns */}
+   144→      <div className="absolute top-1/2 left-0 right-0 h-px bg-brand-red" />
+   145→      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-brand-red" />
+   146→      <div className="absolute top-[30%] left-0 right-0 h-px bg-brand-red" />
+   147→      <div className="absolute top-[70%] left-0 right-0 h-px bg-brand-red" />
+   148→      <div className="absolute top-0 bottom-0 left-[25%] w-px bg-brand-red" />
+   149→      <div className="absolute top-0 bottom-0 left-[75%] w-px bg-brand-red" />
+   150→      {/* Center circle */}
+   151→      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border border-brand-red" />
+   152→      {/* Corner arcs */}
+   153→      <div className="absolute top-2 left-2 w-8 h-8 border-t-2 border-l-2 border-brand-red rounded-tl-lg" />
+   154→      <div className="absolute top-2 right-2 w-8 h-8 border-t-2 border-r-2 border-brand-red rounded-tr-lg" />
+   155→      <div className="absolute bottom-2 left-2 w-8 h-8 border-b-2 border-l-2 border-brand-red rounded-bl-lg" />
+   156→      <div className="absolute bottom-2 right-2 w-8 h-8 border-b-2 border-r-2 border-brand-red rounded-br-lg" />
+   157→    </div>
+   158→  );
+   159→}
+   160→
+   161→/** Enhanced knockout bracket view with team colors */
+   162→function BracketView({ tournament }: { tournament: Tournament }) {
+   163→  const [bracketMatches, setBracketMatches] = useState<BracketMatch[]>([]);
+   164→  const [loadingBracket, setLoadingBracket] = useState(false);
+   165→
+   166→  useEffect(() => {
+   167→    const fetchBracket = async () => {
+   168→      setLoadingBracket(true);
+   169→      try {
+   170→        const res = await fetch(`/api/tournaments/${tournament.id}/matches`);
+   171→        if (res.ok) {
+   172→          const data = await res.json();
+   173→          const matches: BracketMatch[] = (data.matches || []).map((m: Record<string, unknown>) => ({
+   174→            id: m.id as string,
+   175→            round: (m.round as number) || 1,
+   176→            position: (m.position as number) || 0,
+   177→            team1Id: (m.team1Id as string) || null,
+   178→            team2Id: (m.team2Id as string) || null,
+   179→            team1Score: (m.team1Score as number) ?? null,
+   180→            team2Score: (m.team2Score as number) ?? null,
+   181→            winnerId: (m.winnerId as string) || null,
+   182→            status: (m.status as string) || 'scheduled',
+   183→          }));
+   184→          setBracketMatches(matches);
+   185→        }
+   186→      } catch {
+   187→        // silently fail
+   188→      } finally {
+   189→        setLoadingBracket(false);
+   190→      }
+   191→    };
+   192→    fetchBracket();
+   193→  }, [tournament.id]);
+   194→
+   195→  const teamsMap = new Map(tournament.teams.map(t => [t.id, t]));
+   196→
+   197→  // Group matches by round
+   198→  const rounds = new Map<number, BracketMatch[]>();
+   199→  bracketMatches.forEach(m => {
+   200→    const list = rounds.get(m.round) || [];
+   201→    list.push(m);
+   202→    rounds.set(m.round, list);
+   203→  });
+   204→  const sortedRounds = Array.from(rounds.entries()).sort((a, b) => a[0] - b[0]);
+   205→
+   206→  // If knockout with no matches yet, show placeholder bracket
+   207→  const showPlaceholder = bracketMatches.length === 0 && !loadingBracket;
+   208→
+   209→  // Generate placeholder bracket based on team count
+   210→  const generatePlaceholderRounds = () => {
+   211→    const teamCount = tournament.teams.length;
+   212→    if (teamCount < 2) return [];
+   213→    const roundsCount = Math.ceil(Math.log2(teamCount));
+   214→    const result: { round: number; matches: { team1: string | null; team2: string | null }[] }[] = [];
+   215→    let currentMatches = Math.floor(teamCount / 2);
+   216→
+   217→    for (let r = 1; r <= roundsCount; r++) {
+   218→      const matches = [];
+   219→      for (let m = 0; m < currentMatches; m++) {
+   220→        const team1Idx = m * 2;
+   221→        const team2Idx = m * 2 + 1;
+   222→        matches.push({
+   223→          team1: tournament.teams[team1Idx]?.id || null,
+   224→          team2: team2Idx < tournament.teams.length ? tournament.teams[team2Idx]?.id || null : null,
+   225→        });
+   226→      }
+   227→      result.push({ round: r, matches });
+   228→      currentMatches = Math.ceil(currentMatches / 2);
+   229→    }
+   230→    return result;
+   231→  };
+   232→
+   233→  const placeholderRounds = showPlaceholder ? generatePlaceholderRounds() : [];
+   234→
+   235→  const getRoundName = (round: number, totalRounds: number) => {
+   236→    if (round === totalRounds) return 'Final';
+   237→    if (round === totalRounds - 1) return 'Semi-Final';
+   238→    if (round === totalRounds - 2) return 'Quarter-Final';
+   239→    return `Round ${round}`;
+   240→  };
+   241→
+   242→  return (
+   243→    <motion.div
+   244→      initial={{ opacity: 0, y: 20 }}
+   245→      animate={{ opacity: 1, y: 0 }}
+   246→      transition={{ duration: 0.5, ease: 'easeOut' }}
+   247→    >
+   248→      <div className="flex items-center gap-2 mb-3">
+   249→        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/20">
+   250→          <Swords className="w-3.5 h-3.5 text-white" />
+   251→        </div>
+   252→        <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">
+   253→          {tournament.type === 'knockout' ? 'Knockout Bracket' : tournament.type === 'league' ? 'League Fixtures' : 'Tournament Bracket'}
+   254→        </h4>
+   255→      </div>
+   256→
+   257→      {loadingBracket ? (
+   258→        <div className="flex items-center justify-center py-8 gap-2">
+   259→          <Loader2 className="w-5 h-5 animate-spin text-brand-red" />
+   260→          <span className="text-sm text-warm-400">Loading bracket...</span>
+   261→        </div>
+   262→      ) : (
+   263→        <div className="overflow-x-auto pb-2 -mx-1">
+   264→          <div className="flex gap-6 min-w-max px-1">
+   265→            {/* Real bracket from API data */}
+   266→            {sortedRounds.length > 0 ? sortedRounds.map(([roundNum, matches], rIdx) => {
+   267→              const totalRounds = sortedRounds.length;
+   268→              return (
+   269→                <motion.div
+   270→                  key={roundNum}
+   271→                  className="flex flex-col gap-3 min-w-[180px]"
+   272→                  initial={{ opacity: 0, x: 30 }}
+   273→                  animate={{ opacity: 1, x: 0 }}
+   274→                  transition={{ delay: rIdx * 0.15, duration: 0.4 }}
+   275→                >
+   276→                  <div className="text-center">
+   277→                    <Badge className="bg-gradient-to-r from-brand-red to-brand-red-light text-white text-[10px] border-0 font-bold shadow-lg shadow-brand-red/20">
+   278→                      {getRoundName(roundNum, totalRounds)}
+   279→                    </Badge>
+   280→                  </div>
+   281→                  <div className="flex flex-col justify-around flex-1 gap-2">
+   282→                    {matches.sort((a, b) => a.position - b.position).map((match) => {
+   283→                      const team1 = match.team1Id ? teamsMap.get(match.team1Id) : null;
+   284→                      const team2 = match.team2Id ? teamsMap.get(match.team2Id) : null;
+   285→                      const isLive = match.status === 'live' || match.status === 'ongoing';
+   286→                      const isCompleted = match.status === 'completed';
+   287→                      return (
+   288→                        <motion.div
+   289→                          key={match.id}
+   290→                          className={`rounded-xl border p-2.5 text-xs transition-all ${
+   291→                            isLive
+   292→                              ? 'border-brand-red/50 bg-gradient-to-br from-brand-red/5 to-brand-red/10 dark:from-brand-red/10 dark:to-brand-red/20 ring-2 ring-brand-red/30 shadow-lg shadow-brand-red/10'
+   293→                              : isCompleted
+   294→                                ? 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 shadow-sm'
+   295→                                : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/30'
+   296→                          }`}
+   297→                          initial={{ opacity: 0, scale: 0.9 }}
+   298→                          animate={{ opacity: 1, scale: 1 }}
+   299→                          transition={{ delay: rIdx * 0.1 + 0.1 }}
+   300→                        >
+   301→                          {isLive && (
+   302→                            <div className="flex items-center gap-1 mb-1">
+   303→                              <Radio className="w-2.5 h-2.5 text-brand-red animate-pulse" />
+   304→                              <span className="text-[9px] font-bold text-brand-red uppercase">Live</span>
+   305→                            </div>
+   306→                          )}
+   307→                          {/* Team 1 */}
+   308→                          <div className={`flex items-center gap-2 py-1 ${match.winnerId === match.team1Id ? 'font-bold' : ''}`}>
+   309→                            {team1 ? (
+   310→                              <>
+   311→                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold text-white shrink-0 shadow-sm" style={{ backgroundColor: team1.color }}>
+   312→                                  {team1.shortName?.charAt(0) || team1.name.charAt(0)}
+   313→                                </div>
+   314→                                <span className={`truncate flex-1 ${match.winnerId === match.team1Id ? 'text-warm-800 dark:text-warm-100' : 'text-warm-600 dark:text-warm-300'}`}>
+   315→                                  {team1.name}
+   316→                                </span>
+   317→                              </>
+   318→                            ) : (
+   319→                              <span className="text-warm-400 italic">TBD</span>
+   320→                            )}
+   321→                            {match.team1Score !== null && (
+   322→                              <span className={`font-mono font-bold text-xs px-1.5 py-0.5 rounded ${match.winnerId === match.team1Id ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>
+   323→                                {match.team1Score}
+   324→                              </span>
+   325→                            )}
+   326→                          </div>
+   327→                          <div className="border-t border-warm-100 dark:border-warm-700/50 my-0.5 flex items-center justify-center">
+   328→                            <span className="text-[8px] text-warm-300 dark:text-warm-600 bg-warm-50 dark:bg-warm-800 px-1 rounded font-bold">VS</span>
+   329→                          </div>
+   330→                          {/* Team 2 */}
+   331→                          <div className={`flex items-center gap-2 py-1 ${match.winnerId === match.team2Id ? 'font-bold' : ''}`}>
+   332→                            {team2 ? (
+   333→                              <>
+   334→                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold text-white shrink-0 shadow-sm" style={{ backgroundColor: team2.color }}>
+   335→                                  {team2.shortName?.charAt(0) || team2.name.charAt(0)}
+   336→                                </div>
+   337→                                <span className={`truncate flex-1 ${match.winnerId === match.team2Id ? 'text-warm-800 dark:text-warm-100' : 'text-warm-600 dark:text-warm-300'}`}>
+   338→                                  {team2.name}
+   339→                                </span>
+   340→                              </>
+   341→                            ) : (
+   342→                              <span className="text-warm-400 italic">TBD</span>
+   343→                            )}
+   344→                            {match.team2Score !== null && (
+   345→                              <span className={`font-mono font-bold text-xs px-1.5 py-0.5 rounded ${match.winnerId === match.team2Id ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>
+   346→                                {match.team2Score}
+   347→                              </span>
+   348→                            )}
+   349→                          </div>
+   350→                          {match.winnerId && (
+   351→                            <div className="flex items-center gap-1 mt-1 pt-1 border-t border-warm-100 dark:border-warm-700/30">
+   352→                              <Trophy className="w-2.5 h-2.5 text-brand-gold" />
+   353→                              <span className="text-[9px] text-brand-gold font-bold">
+   354→                                {teamsMap.get(match.winnerId)?.name || 'Winner'}
+   355→                              </span>
+   356→                            </div>
+   357→                          )}
+   358→                        </motion.div>
+   359→                      );
+   360→                    })}
+   361→                  </div>
+   362→                </motion.div>
+   363→              );
+   364→            }) : null}
+   365→
+   366→            {/* Placeholder bracket */}
+   367→            {placeholderRounds.length > 0 ? placeholderRounds.map((round, rIdx) => {
+   368→              const totalRounds = placeholderRounds.length;
+   369→              return (
+   370→                <motion.div
+   371→                  key={`placeholder-${round.round}`}
+   372→                  className="flex flex-col gap-3 min-w-[160px]"
+   373→                  initial={{ opacity: 0, x: 30 }}
+   374→                  animate={{ opacity: 1, x: 0 }}
+   375→                  transition={{ delay: rIdx * 0.15, duration: 0.4 }}
+   376→                >
+   377→                  <div className="text-center">
+   378→                    <Badge className="bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400 text-[10px] border-0 font-bold">
+   379→                      {getRoundName(round.round, totalRounds)}
+   380→                    </Badge>
+   381→                  </div>
+   382→                  <div className="flex flex-col justify-around flex-1 gap-2">
+   383→                    {round.matches.map((match, mIdx) => {
+   384→                      const team1 = match.team1 ? teamsMap.get(match.team1) : null;
+   385→                      const team2 = match.team2 ? teamsMap.get(match.team2) : null;
+   386→                      return (
+   387→                        <div key={mIdx} className="rounded-xl border border-dashed border-warm-300 dark:border-warm-600 p-2.5 text-xs bg-warm-50 dark:bg-warm-800/20">
+   388→                          <div className="flex items-center gap-2 py-0.5">
+   389→                            {team1 ? (
+   390→                              <>
+   391→                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: team1.color }}>
+   392→                                  {team1.shortName?.charAt(0) || team1.name.charAt(0)}
+   393→                                </div>
+   394→                                <span className="truncate text-warm-500 dark:text-warm-400">{team1.name}</span>
+   395→                              </>
+   396→                            ) : (
+   397→                              <span className="text-warm-400 italic">TBD</span>
+   398→                            )}
+   399→                          </div>
+   400→                          <div className="text-warm-300 dark:text-warm-600 text-center py-0.5 text-[10px] font-bold">VS</div>
+   401→                          <div className="flex items-center gap-2 py-0.5">
+   402→                            {team2 ? (
+   403→                              <>
+   404→                                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: team2.color }}>
+   405→                                  {team2.shortName?.charAt(0) || team2.name.charAt(0)}
+   406→                                </div>
+   407→                                <span className="truncate text-warm-500 dark:text-warm-400">{team2.name}</span>
+   408→                              </>
+   409→                            ) : (
+   410→                              <span className="text-warm-400 italic">BYE</span>
+   411→                            )}
+   412→                          </div>
+   413→                        </div>
+   414→                      );
+   415→                    })}
+   416→                  </div>
+   417→                </motion.div>
+   418→              );
+   419→            }) : null}
+   420→
+   421→            {/* No data at all */}
+   422→            {sortedRounds.length === 0 && placeholderRounds.length === 0 && !loadingBracket && (
+   423→              <div className="text-center py-6 w-full">
+   424→                <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-warm-100 dark:bg-warm-800 flex items-center justify-center">
+   425→                  <Target className="w-8 h-8 text-warm-300 dark:text-warm-600" />
+   426→                </div>
+   427→                <p className="text-sm text-warm-400 dark:text-warm-500 font-medium">No bracket generated yet</p>
+   428→                <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">Add teams and generate a bracket to see the tournament tree</p>
+   429→              </div>
+   430→            )}
+   431→          </div>
+   432→        </div>
+   433→      )}
+   434→    </motion.div>
+   435→  );
+   436→}
+   437→
+   438→/** Enhanced skeleton loader with shimmer */
+   439→function SkeletonCard() {
+   440→  return (
+   441→    <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-warm-800/50 border border-warm-200/60 dark:border-warm-700/60 shadow-sm">
+   442→      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-warm-200 to-warm-300 dark:from-warm-700 dark:to-warm-600 rounded-l-2xl" />
+   443→      <div className="p-4 pl-5 space-y-3">
+   444→        <div className="flex items-start justify-between">
+   445→          <div className="space-y-2 flex-1">
+   446→            <div className="h-4 w-3/4 rounded-lg bg-warm-200 dark:bg-warm-700" />
+   447→            <div className="flex gap-2">
+   448→              <div className="h-5 w-16 rounded-md bg-warm-100 dark:bg-warm-700/50" />
+   449→              <div className="h-5 w-20 rounded-md bg-warm-100 dark:bg-warm-700/50" />
+   450→            </div>
+   451→            <div className="h-3 w-1/2 rounded-lg bg-warm-100 dark:bg-warm-700/50" />
+   452→            <div className="h-3 w-2/3 rounded-lg bg-warm-100 dark:bg-warm-700/50" />
+   453→          </div>
+   454→          <div className="space-y-2">
+   455→            <div className="h-5 w-14 rounded-md bg-warm-200 dark:bg-warm-700" />
+   456→            <div className="flex gap-1.5">
+   457→              <div className="h-5 w-8 rounded-md bg-warm-100 dark:bg-warm-700/50" />
+   458→              <div className="h-5 w-8 rounded-md bg-warm-100 dark:bg-warm-700/50" />
+   459→            </div>
+   460→          </div>
+   461→        </div>
+   462→        <div className="flex items-center justify-between">
+   463→          <div className="flex -space-x-1.5">
+   464→            {[1, 2, 3, 4].map(i => (
+   465→              <div key={i} className="w-7 h-7 rounded-full bg-warm-200 dark:bg-warm-700 border-2 border-white dark:border-warm-800" />
+   466→            ))}
+   467→          </div>
+   468→          <div className="h-2.5 w-24 rounded-full bg-warm-200 dark:bg-warm-700" />
+   469→        </div>
+   470→      </div>
+   471→      {/* Shimmer effect */}
+   472→      <div className="absolute inset-0">
+   473→        <motion.div
+   474→          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-white/5 to-transparent"
+   475→          animate={{ x: ['-100%', '200%'] }}
+   476→          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+   477→        />
+   478→      </div>
+   479→    </div>
+   480→  );
+   481→}
+   482→
+   483→/** Enhanced beautiful empty state with illustration-style design */
+   484→function EmptyState({ content, onCta, isPremium }: { content: { icon: string; title: string; description: string; cta: string | null }; onCta: () => void; isPremium: boolean }) {
+   485→  return (
+   486→    <motion.div
+   487→      initial={{ opacity: 0, y: 20 }}
+   488→      animate={{ opacity: 1, y: 0 }}
+   489→      transition={{ duration: 0.5 }}
+   490→      className="py-6"
+   491→    >
+   492→      <Card className="p-8 text-center border-warm-200/60 dark:border-warm-700/60 bg-white dark:bg-warm-800/50 overflow-hidden relative">
+   493→        {/* Decorative background elements */}
+   494→        <div className="absolute inset-0 overflow-hidden">
+   495→          <div className="absolute top-0 left-0 w-32 h-32 rounded-full bg-brand-red/5 dark:bg-brand-red/10 blur-3xl -translate-x-1/2 -translate-y-1/2" />
+   496→          <div className="absolute bottom-0 right-0 w-40 h-40 rounded-full bg-brand-gold/5 dark:bg-brand-gold/10 blur-3xl translate-x-1/2 translate-y-1/2" />
+   497→          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-60 h-60 rounded-full bg-brand-teal/3 dark:bg-brand-teal/5 blur-3xl" />
+   498→        </div>
+   499→        <KabaddiPattern />
+   500→
+   501→        <div className="relative">
+   502→          {/* Animated trophy/emoji with floating effect */}
+   503→          <motion.div
+   504→            animate={{ y: [0, -8, 0] }}
+   505→            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+   506→            className="inline-block mb-4"
+   507→          >
+   508→            <div className="text-6xl relative">
+   509→              {content.icon}
+   510→              <motion.div
+   511→                className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-2 bg-warm-800/5 dark:bg-warm-200/5 rounded-full blur-sm"
+   512→                animate={{ scale: [1, 0.8, 1] }}
+   513→                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+   514→              />
+   515→            </div>
+   516→          </motion.div>
+   517→
+   518→          <motion.h3
+   519→            initial={{ opacity: 0 }}
+   520→            animate={{ opacity: 1 }}
+   521→            transition={{ delay: 0.2 }}
+   522→            className="text-warm-700 dark:text-warm-200 text-lg font-bold"
+   523→          >
+   524→            {content.title}
+   525→          </motion.h3>
+   526→          <motion.p
+   527→            initial={{ opacity: 0 }}
+   528→            animate={{ opacity: 1 }}
+   529→            transition={{ delay: 0.3 }}
+   530→            className="text-warm-400 dark:text-warm-500 text-sm mt-2 max-w-xs mx-auto leading-relaxed"
+   531→          >
+   532→            {content.description}
+   533→          </motion.p>
+   534→          {content.cta && (
+   535→            <motion.div
+   536→              initial={{ opacity: 0, y: 10 }}
+   537→              animate={{ opacity: 1, y: 0 }}
+   538→              transition={{ delay: 0.4 }}
+   539→            >
+   540→              <Button
+   541→                onClick={onCta}
+   542→                className="mt-6 bg-gradient-to-r from-brand-red to-brand-red-light text-white rounded-xl font-bold shadow-lg shadow-brand-red/25 h-11 px-6"
+   543→              >
+   544→                <Plus className="w-4 h-4 mr-1.5" />
+   545→                {content.cta}
+   546→                <ArrowRight className="w-4 h-4 ml-1.5" />
+   547→              </Button>
+   548→            </motion.div>
+   549→          )}
+   550→          {!content.cta && isPremium && (
+   551→            <motion.div
+   552→              initial={{ opacity: 0, y: 10 }}
+   553→              animate={{ opacity: 1, y: 0 }}
+   554→              transition={{ delay: 0.4 }}
+   555→            >
+   556→              <Button
+   557→                onClick={onCta}
+   558→                className="mt-6 bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white rounded-xl font-bold shadow-lg shadow-brand-gold/25 h-11 px-6"
+   559→              >
+   560→                <Crown className="w-4 h-4 mr-1.5" />
+   561→                Create Tournament
+   562→                <ArrowRight className="w-4 h-4 ml-1.5" />
+   563→              </Button>
+   564→            </motion.div>
+   565→          )}
+   566→        </div>
+   567→      </Card>
+   568→    </motion.div>
+   569→  );
+   570→}
+   571→
+   572→// ─── Main Component ────────────────────────────────────────────────────
+   573→
+   574→export default function TournamentsTab() {
+   575→  const { currentUser } = useKabaddiStore();
+   576→  const { toast } = useToast();
+   577→  const isPremium = currentUser?.isPremium || false;
+   578→
+   579→  const [statusFilter, setStatusFilter] = useState<'ongoing' | 'upcoming' | 'past'>('ongoing');
+   580→  const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+   581→  const [typeFilter, setTypeFilter] = useState<string>('all');
+   582→  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+   583→  const [expandedId, setExpandedId] = useState<string | null>(null);
+   584→  const [loading, setLoading] = useState(true);
+   585→  const [createOpen, setCreateOpen] = useState(false);
+   586→  const [showUpgrade, setShowUpgrade] = useState(false);
+   587→  const [generatingBracket, setGeneratingBracket] = useState(false);
+   588→
+   589→  // Tournament search by code
+   590→  const [tournamentSearch, setTournamentSearch] = useState('');
+   591→  const [searchFocused, setSearchFocused] = useState(false);
+   592→  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+   593→
+   594→  // Host tournament step
+   595→  const [hostStep, setHostStep] = useState(0);
+   596→
+   597→  // New tournament form
+   598→  const [newTournament, setNewTournament] = useState({
+   599→    name: '',
+   600→    venue: '',
+   601→    gender: 'male',
+   602→    type: 'knockout',
+   603→  });
+   604→
+   605→  // Add teams to tournament
+   606→  const [addTeamDialogOpen, setAddTeamDialogOpen] = useState<string | null>(null);
+   607→  const [teamSearch, setTeamSearch] = useState('');
+   608→  const [teamSearchResults, setTeamSearchResults] = useState<DbTeam[]>([]);
+   609→  const [isSearchingTeams, setIsSearchingTeams] = useState(false);
+   610→  const [allTeams, setAllTeams] = useState<DbTeam[]>([]);
+   611→  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+   612→  const [addingTeams, setAddingTeams] = useState(false);
+   613→  const teamInputRef = useRef<HTMLDivElement>(null);
+   614→
+   615→  // Remove team confirmation
+   616→  const [removeTeamId, setRemoveTeamId] = useState<string | null>(null);
+   617→  const [removingTeam, setRemovingTeam] = useState(false);
+   618→
+   619→  // Copy code feedback
+   620→  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+   621→
+   622→  useEffect(() => {
+   623→    fetchTournaments();
+   624→  }, [statusFilter, genderFilter]);
+   625→
+   626→  // Fetch all teams on mount for instant filtering
+   627→  useEffect(() => {
+   628→    const fetchAllTeams = async () => {
+   629→      try {
+   630→        const res = await fetch('/api/teams?limit=100');
+   631→        if (res.ok) {
+   632→          const data = await res.json();
+   633→          setAllTeams(data.teams || []);
+   634→        }
+   635→      } catch {
+   636→        // silently fail
+   637→      }
+   638→    };
+   639→    fetchAllTeams();
+   640→  }, []);
+   641→
+   642→  // Load recent searches from localStorage
+   643→  useEffect(() => {
+   644→    try {
+   645→      const saved = localStorage.getItem('tournament-recent-searches');
+   646→      if (saved) setRecentSearches(JSON.parse(saved));
+   647→    } catch {
+   648→      // ignore
+   649→    }
+   650→  }, []);
+   651→
+   652→  // Close team suggestions when clicking outside
+   653→  useEffect(() => {
+   654→    const handleClickOutside = (e: MouseEvent) => {
+   655→      if (teamInputRef.current && !teamInputRef.current.contains(e.target as Node)) {
+   656→        setTeamSearchResults([]);
+   657→      }
+   658→    };
+   659→    document.addEventListener('mousedown', handleClickOutside);
+   660→    return () => document.removeEventListener('mousedown', handleClickOutside);
+   661→  }, []);
+   662→
+   663→  const fetchTournaments = useCallback(async () => {
+   664→    try {
+   665→      setLoading(true);
+   666→      const params = new URLSearchParams();
+   667→      if (statusFilter) params.set('status', statusFilter);
+   668→      if (genderFilter && genderFilter !== 'all') params.set('gender', genderFilter);
+   669→      if (tournamentSearch.trim()) params.set('search', tournamentSearch.trim());
+   670→
+   671→      const res = await fetch(`/api/tournaments?${params}`);
+   672→      if (res.ok) {
+   673→        const data = await res.json();
+   674→        setTournaments(data.tournaments || []);
+   675→      }
+   676→    } catch {
+   677→      setTournaments([]);
+   678→    } finally {
+   679→      setLoading(false);
+   680→    }
+   681→  }, [statusFilter, genderFilter, tournamentSearch]);
+   682→
+   683→  useEffect(() => {
+   684→    const timer = setTimeout(() => {
+   685→      fetchTournaments();
+   686→    }, 300);
+   687→    return () => clearTimeout(timer);
+   688→  }, [tournamentSearch]);
+   689→
+   690→  const handleCreateClick = () => {
+   691→    if (!isPremium) {
+   692→      setShowUpgrade(true);
+   693→      return;
+   694→    }
+   695→    setHostStep(0);
+   696→    setCreateOpen(true);
+   697→  };
+   698→
+   699→  const handleCreateTournament = async () => {
+   700→    try {
+   701→      const res = await fetch('/api/tournaments', {
+   702→        method: 'POST',
+   703→        headers: { 'Content-Type': 'application/json' },
+   704→        body: JSON.stringify({
+   705→          ...newTournament,
+   706→          organizerId: currentUser?.id,
+   707→        }),
+   708→      });
+   709→      if (res.ok) {
+   710→        const data = await res.json();
+   711→        toast({
+   712→          title: 'Tournament Created!',
+   713→          description: `Code: ${data.tournament?.tournamentCode || 'N/A'}`,
+   714→        });
+   715→        setCreateOpen(false);
+   716→        setHostStep(0);
+   717→        fetchTournaments();
+   718→      } else {
+   719→        const data = await res.json();
+   720→        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+   721→      }
+   722→    } catch {
+   723→      toast({ title: 'Error', description: 'Failed to create tournament', variant: 'destructive' });
+   724→    }
+   725→    setNewTournament({ name: '', venue: '', gender: 'male', type: 'knockout' });
+   726→  };
+   727→
+   728→  const handleGenerateBracket = async (tournamentId: string, teamIds: string[]) => {
+   729→    setGeneratingBracket(true);
+   730→    try {
+   731→      const res = await fetch('/api/tournaments/generate-bracket', {
+   732→        method: 'POST',
+   733→        headers: { 'Content-Type': 'application/json' },
+   734→        body: JSON.stringify({ tournamentId, teamIds }),
+   735→      });
+   736→      if (res.ok) {
+   737→        const data = await res.json();
+   738→        toast({
+   739→          title: 'Bracket Generated!',
+   740→          description: `${data.matchCount} matches scheduled`,
+   741→        });
+   742→        fetchTournaments();
+   743→      } else {
+   744→        const data = await res.json();
+   745→        toast({ title: 'Error', description: data.error || 'Failed to generate bracket', variant: 'destructive' });
+   746→      }
+   747→    } catch {
+   748→      toast({ title: 'Error', description: 'Failed to generate bracket', variant: 'destructive' });
+   749→    } finally {
+   750→      setGeneratingBracket(false);
+   751→    }
+   752→  };
+   753→
+   754→  // Search teams for adding to tournament
+   755→  const getFilteredTeams = useCallback((query: string): DbTeam[] => {
+   756→    if (!query.trim()) return allTeams.slice(0, 20);
+   757→    const q = query.toLowerCase().trim();
+   758→    return allTeams.filter(t =>
+   759→      t.name.toLowerCase().includes(q) ||
+   760→      (t.teamCode && t.teamCode.toLowerCase().includes(q)) ||
+   761→      (t.shortName && t.shortName.toLowerCase().includes(q))
+   762→    ).slice(0, 20);
+   763→  }, [allTeams]);
+   764→
+   765→  useEffect(() => {
+   766→    if (!addTeamDialogOpen) return;
+   767→    const timer = setTimeout(async () => {
+   768→      const localResults = getFilteredTeams(teamSearch);
+   769→      setTeamSearchResults(localResults);
+   770→
+   771→      if (teamSearch.length >= 2) {
+   772→        setIsSearchingTeams(true);
+   773→        try {
+   774→          const res = await fetch(`/api/teams?search=${encodeURIComponent(teamSearch)}`);
+   775→          if (res.ok) {
+   776→            const data = await res.json();
+   777→            const serverTeams: DbTeam[] = data.teams || [];
+   778→            const serverIds = new Set(serverTeams.map(t => t.id));
+   779→            const merged = [...serverTeams, ...localResults.filter(t => !serverIds.has(t.id))].slice(0, 20);
+   780→            setTeamSearchResults(merged);
+   781→          }
+   782→        } catch {
+   783→          // keep local results
+   784→        } finally {
+   785→          setIsSearchingTeams(false);
+   786→        }
+   787→      }
+   788→    }, 200);
+   789→    return () => clearTimeout(timer);
+   790→  }, [teamSearch, addTeamDialogOpen, getFilteredTeams]);
+   791→
+   792→  const openAddTeamDialog = (tournamentId: string) => {
+   793→    const tournament = tournaments.find(t => t.id === tournamentId);
+   794→    setSelectedTeamIds([]);
+   795→    setTeamSearch('');
+   796→    setTeamSearchResults(getFilteredTeams(''));
+   797→    setAddTeamDialogOpen(tournamentId);
+   798→  };
+   799→
+   800→  const handleAddTeams = async () => {
+   801→    if (!addTeamDialogOpen || selectedTeamIds.length === 0) return;
+   802→    setAddingTeams(true);
+   803→    try {
+   804→      const res = await fetch(`/api/tournaments/${addTeamDialogOpen}`, {
+   805→        method: 'PATCH',
+   806→        headers: { 'Content-Type': 'application/json' },
+   807→        body: JSON.stringify({ addTeamIds: selectedTeamIds }),
+   808→      });
+   809→      if (res.ok) {
+   810→        const data = await res.json();
+   811→        toast({
+   812→          title: 'Teams Added!',
+   813→          description: data.message || `${selectedTeamIds.length} team(s) added to tournament`,
+   814→        });
+   815→        setAddTeamDialogOpen(null);
+   816→        setSelectedTeamIds([]);
+   817→        fetchTournaments();
+   818→      } else {
+   819→        const data = await res.json();
+   820→        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+   821→      }
+   822→    } catch {
+   823→      toast({ title: 'Error', description: 'Failed to add teams', variant: 'destructive' });
+   824→    } finally {
+   825→      setAddingTeams(false);
+   826→    }
+   827→  };
+   828→
+   829→  const handleRemoveTeam = async (tournamentId: string, teamId: string) => {
+   830→    setRemovingTeam(true);
+   831→    try {
+   832→      const res = await fetch(`/api/tournaments/${tournamentId}`, {
+   833→        method: 'PATCH',
+   834→        headers: { 'Content-Type': 'application/json' },
+   835→        body: JSON.stringify({ removeTeamIds: [teamId] }),
+   836→      });
+   837→      if (res.ok) {
+   838→        toast({ title: 'Team Removed', description: 'Team removed from tournament' });
+   839→        setRemoveTeamId(null);
+   840→        fetchTournaments();
+   841→      } else {
+   842→        const data = await res.json();
+   843→        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+   844→      }
+   845→    } catch {
+   846→      toast({ title: 'Error', description: 'Failed to remove team', variant: 'destructive' });
+   847→    } finally {
+   848→      setRemovingTeam(false);
+   849→    }
+   850→  };
+   851→
+   852→  const copyToClipboard = async (code: string) => {
+   853→    try {
+   854→      await navigator.clipboard.writeText(code);
+   855→      setCopiedCode(code);
+   856→      toast({ title: 'Copied!', description: `Code ${code} copied to clipboard` });
+   857→      setTimeout(() => setCopiedCode(null), 2000);
+   858→    } catch {
+   859→      // fallback
+   860→    }
+   861→  };
+   862→
+   863→  const handleSearchSubmit = (query: string) => {
+   864→    if (!query.trim()) return;
+   865→    setRecentSearches(prev => {
+   866→      const updated = [query, ...prev.filter(s => s !== query)].slice(0, 5);
+   867→      try { localStorage.setItem('tournament-recent-searches', JSON.stringify(updated)); } catch { /* ignore */ }
+   868→      return updated;
+   869→    });
+   870→    setTournamentSearch(query);
+   871→    setSearchFocused(false);
+   872→  };
+   873→
+   874→  const filteredTournaments = tournaments.filter((t) => {
+   875→    if (t.status !== statusFilter) return false;
+   876→    if (genderFilter !== 'all' && t.gender !== genderFilter) return false;
+   877→    if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+   878→    return true;
+   879→  });
+   880→
+   881→  const highlightMatch = (text: string, query: string) => {
+   882→    if (!query.trim()) return text;
+   883→    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+   884→    const parts = text.split(regex);
+   885→    return parts.map((part, i) =>
+   886→      regex.test(part) ? (
+   887→        <span key={i} className="text-brand-red font-bold">{part}</span>
+   888→      ) : (
+   889→        <span key={i}>{part}</span>
+   890→      )
+   891→    );
+   892→  };
+   893→
+   894→  const formatDate = (dateStr: string | null) => {
+   895→    if (!dateStr) return 'TBD';
+   896→    try {
+   897→      const date = new Date(dateStr);
+   898→      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+   899→    } catch {
+   900→      return dateStr;
+   901→    }
+   902→  };
+   903→
+   904→  // Tournament type badge styling with enhanced gradients
+   905→  const getTypeBadge = (type: string) => {
+   906→    switch (type) {
+   907→      case 'knockout':
+   908→        return { bg: 'bg-orange-500/10 dark:bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400', icon: <Swords className="w-3 h-3" />, border: 'border-orange-500/30', gradient: 'from-orange-500 to-orange-400', gradientBg: 'bg-gradient-to-r from-orange-500 to-orange-400' };
+   909→      case 'league':
+   910→        return { bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', icon: <Trophy className="w-3 h-3" />, border: 'border-emerald-500/30', gradient: 'from-emerald-500 to-emerald-400', gradientBg: 'bg-gradient-to-r from-emerald-500 to-emerald-400' };
+   911→      case 'hybrid':
+   912→        return { bg: 'bg-purple-500/10 dark:bg-purple-500/20', text: 'text-purple-600 dark:text-purple-400', icon: <Sparkles className="w-3 h-3" />, border: 'border-purple-500/30', gradient: 'from-purple-500 to-purple-400', gradientBg: 'bg-gradient-to-r from-purple-500 to-purple-400' };
+   913→      default:
+   914→        return { bg: 'bg-warm-200 dark:bg-warm-700', text: 'text-warm-600 dark:text-warm-300', icon: <Trophy className="w-3 h-3" />, border: 'border-warm-400/30', gradient: 'from-warm-500 to-warm-400', gradientBg: 'bg-gradient-to-r from-warm-500 to-warm-400' };
+   915→    }
+   916→  };
+   917→
+   918→  // Status-based gradient for left border
+   919→  const getStatusGradient = (status: string) => {
+   920→    switch (status) {
+   921→      case 'ongoing': return 'from-emerald-500 to-emerald-400';
+   922→      case 'upcoming': return 'from-amber-500 to-amber-400';
+   923→      case 'past': return 'from-warm-400 to-warm-300';
+   924→      default: return 'from-warm-400 to-warm-300';
+   925→    }
+   926→  };
+   927→
+   928→  // Empty state content based on filter
+   929→  const getEmptyContent = () => {
+   930→    if (tournamentSearch.trim()) {
+   931→      return {
+   932→        icon: '🔍',
+   933→        title: 'No results found',
+   934→        description: `Try searching by tournament code like "TC3001"`,
+   935→        cta: null,
+   936→      };
+   937→    }
+   938→    switch (statusFilter) {
+   939→      case 'ongoing':
+   940→        return {
+   941→          icon: '🏟️',
+   942→          title: 'No ongoing tournaments right now',
+   943→          description: 'Check back later or create your own tournament',
+   944→          cta: isPremium ? 'Create Tournament' : null,
+   945→        };
+   946→      case 'upcoming':
+   947→        return {
+   948→          icon: '📅',
+   949→          title: 'No upcoming tournaments',
+   950→          description: 'Be the first to host one!',
+   951→          cta: isPremium ? 'Host Tournament' : null,
+   952→        };
+   953→      case 'past':
+   954→        return {
+   955→          icon: '🏆',
+   956→          title: 'No past tournaments yet',
+   957→          description: 'Completed tournaments will appear here',
+   958→          cta: null,
+   959→        };
+   960→      default:
+   961→        return {
+   962→          icon: '🏆',
+   963→          title: 'No tournaments found',
+   964→          description: '',
+   965→          cta: null,
+   966→        };
+   967→    }
+   968→  };
+   969→
+   970→  // Count tournaments by status
+   971→  const statusCounts = {
+   972→    ongoing: tournaments.filter(t => t.status === 'ongoing').length,
+   973→    upcoming: tournaments.filter(t => t.status === 'upcoming').length,
+   974→    past: tournaments.filter(t => t.status === 'past').length,
+   975→  };
+   976→
+   977→  // Count active filters
+   978→  const activeFilterCount = (typeFilter !== 'all' ? 1 : 0) + (genderFilter !== 'all' ? 1 : 0);
+   979→
+   980→  // Host tournament steps config
+   981→  const hostSteps = [
+   982→    { label: 'Details', icon: Trophy },
+   983→    { label: 'Format', icon: LayoutGrid },
+   984→    { label: 'Review', icon: Star },
+   985→  ];
+   986→
+   987→  return (
+   988→    <div className="px-4 py-6 space-y-5">
+   989→      {/* Premium Upgrade Modal */}
+   990→      {showUpgrade && (
+   991→        <PremiumUpgradeScreen
+   992→          onClose={() => setShowUpgrade(false)}
+   993→          feature="Host Tournaments"
+   994→        />
+   995→      )}
+   996→
+   997→      {/* ═══════════════════════════════════════════════════════════════════
+   998→          HEADER WITH DECORATIVE BANNER
+   999→          ═══════════════════════════════════════════════════════════════════ */}
+  1000→      <motion.div
+  1001→        initial={{ opacity: 0, y: -20 }}
+  1002→        animate={{ opacity: 1, y: 0 }}
+  1003→        transition={{ duration: 0.5, ease: 'easeOut' }}
+  1004→        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-red via-brand-red-light to-brand-red-dark dark:from-brand-red-dark dark:via-brand-red dark:to-brand-red-light p-5 shadow-xl shadow-brand-red/20"
+  1005→      >
+  1006→        {/* Kabaddi court pattern overlay */}
+  1007→        <KabaddiPattern />
+  1008→
+  1009→        {/* Decorative floating elements */}
+  1010→        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+  1011→          <motion.div
+  1012→            className="absolute top-3 right-6 text-white/10 text-5xl"
+  1013→            animate={{ rotate: [0, 10, -10, 0], y: [0, -5, 0] }}
+  1014→            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+  1015→          >
+  1016→            🏆
+  1017→          </motion.div>
+  1018→          <motion.div
+  1019→            className="absolute bottom-2 right-16 text-white/5 text-3xl"
+  1020→            animate={{ y: [0, -3, 0] }}
+  1021→            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+  1022→          >
+  1023→            ⚔️
+  1024→          </motion.div>
+  1025→          <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-white/5 blur-2xl" />
+  1026→          <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full bg-brand-gold/10 blur-2xl" />
+  1027→        </div>
+  1028→
+  1029→        <div className="relative flex items-center justify-between">
+  1030→          <div>
+  1031→            <div className="flex items-center gap-2.5">
+  1032→              <motion.div
+  1033→                className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg"
+  1034→                animate={{ rotate: [0, -5, 5, 0] }}
+  1035→                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+  1036→              >
+  1037→                <Trophy className="w-5 h-5 text-brand-gold-light" />
+  1038→              </motion.div>
+  1039→              <h1 className="text-xl font-extrabold text-white tracking-tight">
+  1040→                Tournaments
+  1041→              </h1>
+  1042→            </div>
+  1043→            <p className="text-white/70 text-xs mt-1 ml-[50px] font-medium">
+  1044→              Find, join, or host kabaddi tournaments
+  1045→            </p>
+  1046→          </div>
+  1047→          <motion.div whileTap={{ scale: 0.95 }}>
+  1048→            <Button
+  1049→              onClick={handleCreateClick}
+  1050→              className={`rounded-xl h-11 px-5 font-bold text-sm ${
+  1051→                isPremium
+  1052→                  ? 'bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border border-white/30 shadow-lg'
+  1053→                  : 'bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white hover:opacity-90 shadow-lg shadow-brand-gold/30 border border-brand-gold-light/30'
+  1054→              }`}
+  1055→            >
+  1056→              {isPremium ? (
+  1057→                <>
+  1058→                  <Plus className="w-4 h-4 mr-1.5" />
+  1059→                  Create
+  1060→                </>
+  1061→              ) : (
+  1062→                <>
+  1063→                  <motion.div
+  1064→                    animate={{ rotate: [0, 15, -15, 0] }}
+  1065→                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+  1066→                  >
+  1067→                    <Crown className="w-4 h-4 mr-1.5" />
+  1068→                  </motion.div>
+  1069→                  Host
+  1070→                  <Lock className="w-3 h-3 ml-1" />
+  1071→                </>
+  1072→              )}
+  1073→            </Button>
+  1074→          </motion.div>
+  1075→        </div>
+  1076→      </motion.div>
+  1077→
+  1078→      {/* ═══════════════════════════════════════════════════════════════════
+  1079→          HOST TOURNAMENT DIALOG (Step-by-step)
+  1080→          ═══════════════════════════════════════════════════════════════════ */}
+  1081→      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setHostStep(0); } }}>
+  1082→        <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700 max-w-md">
+  1083→          <DialogHeader>
+  1084→            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+  1085→              Host Tournament
+  1086→              <Badge className="bg-gradient-to-r from-brand-gold-dark to-brand-gold text-white text-[10px] border-0 shadow-sm shadow-brand-gold/20">
+  1087→                <Crown className="w-3 h-3 mr-1" />
+  1088→                PRO
+  1089→              </Badge>
+  1090→            </DialogTitle>
+  1091→          </DialogHeader>
+  1092→
+  1093→          {/* Step Progress Indicator */}
+  1094→          <div className="flex items-center gap-2 mb-4">
+  1095→            {hostSteps.map((step, idx) => {
+  1096→              const StepIcon = step.icon;
+  1097→              const isActive = idx === hostStep;
+  1098→              const isCompleted = idx < hostStep;
+  1099→              return (
+  1100→                <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+  1101→                  <motion.div
+  1102→                    className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${
+  1103→                      isActive
+  1104→                        ? 'bg-gradient-to-br from-brand-red to-brand-red-light text-white shadow-lg shadow-brand-red/30'
+  1105→                        : isCompleted
+  1106→                          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+  1107→                          : 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+  1108→                    }`}
+  1109→                    animate={{ scale: isActive ? 1.1 : 1 }}
+  1110→                    transition={{ type: 'spring', stiffness: 300 }}
+  1111→                  >
+  1112→                    {isCompleted ? <Check className="w-4 h-4" /> : <StepIcon className="w-3.5 h-3.5" />}
+  1113→                  </motion.div>
+  1114→                  <span className={`text-[10px] font-bold ${isActive ? 'text-brand-red' : 'text-warm-400 dark:text-warm-500'}`}>
+  1115→                    {step.label}
+  1116→                  </span>
+  1117→                </div>
+  1118→              );
+  1119→            })}
+  1120→          </div>
+  1121→
+  1122→          {/* Progress bar */}
+  1123→          <div className="h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full mb-4 overflow-hidden">
+  1124→            <motion.div
+  1125→              className="h-full bg-gradient-to-r from-brand-red to-brand-red-light rounded-full"
+  1126→              animate={{ width: `${((hostStep + 1) / hostSteps.length) * 100}%` }}
+  1127→              transition={{ duration: 0.3 }}
+  1128→            />
+  1129→          </div>
+  1130→
+  1131→          <AnimatePresence mode="wait">
+  1132→            {/* Step 1: Details */}
+  1133→            {hostStep === 0 && (
+  1134→              <motion.div
+  1135→                key="step-0"
+  1136→                initial={{ opacity: 0, x: 30 }}
+  1137→                animate={{ opacity: 1, x: 0 }}
+  1138→                exit={{ opacity: 0, x: -30 }}
+  1139→                transition={{ duration: 0.2 }}
+  1140→                className="space-y-4"
+  1141→              >
+  1142→                <div>
+  1143→                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block">Tournament Name</label>
+  1144→                  <Input
+  1145→                    placeholder="e.g. Inter-School Kabaddi Championship"
+  1146→                    value={newTournament.name}
+  1147→                    onChange={(e) => setNewTournament({ ...newTournament, name: e.target.value })}
+  1148→                    className="bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-700 rounded-xl"
+  1149→                  />
+  1150→                </div>
+  1151→                <div>
+  1152→                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block">Venue</label>
+  1153→                  <Input
+  1154→                    placeholder="e.g. City Sports Arena"
+  1155→                    value={newTournament.venue}
+  1156→                    onChange={(e) => setNewTournament({ ...newTournament, venue: e.target.value })}
+  1157→                    className="bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-700 rounded-xl"
+  1158→                  />
+  1159→                </div>
+  1160→                <div>
+  1161→                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block">Category</label>
+  1162→                  <div className="grid grid-cols-2 gap-3">
+  1163→                    <button
+  1164→                      onClick={() => setNewTournament({ ...newTournament, gender: 'male' })}
+  1165→                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+  1166→                        newTournament.gender === 'male'
+  1167→                          ? 'border-brand-red bg-brand-red/5 text-brand-red shadow-sm shadow-brand-red/10'
+  1168→                          : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+  1169→                      }`}
+  1170→                    >
+  1171→                      <Mars className="w-4 h-4" />
+  1172→                      Boys
+  1173→                    </button>
+  1174→                    <button
+  1175→                      onClick={() => setNewTournament({ ...newTournament, gender: 'female' })}
+  1176→                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+  1177→                        newTournament.gender === 'female'
+  1178→                          ? 'border-pink-500 bg-pink-500/5 text-pink-600 dark:text-pink-400 shadow-sm shadow-pink-500/10'
+  1179→                          : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+  1180→                      }`}
+  1181→                    >
+  1182→                      <Venus className="w-4 h-4" />
+  1183→                      Girls
+  1184→                    </button>
+  1185→                  </div>
+  1186→                </div>
+  1187→                <Button
+  1188→                  onClick={() => setHostStep(1)}
+  1189→                  disabled={!newTournament.name || !newTournament.venue}
+  1190→                  className="w-full bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold"
+  1191→                >
+  1192→                  Next: Choose Format
+  1193→                  <ChevronRight className="w-4 h-4 ml-1" />
+  1194→                </Button>
+  1195→              </motion.div>
+  1196→            )}
+  1197→
+  1198→            {/* Step 2: Format */}
+  1199→            {hostStep === 1 && (
+  1200→              <motion.div
+  1201→                key="step-1"
+  1202→                initial={{ opacity: 0, x: 30 }}
+  1203→                animate={{ opacity: 1, x: 0 }}
+  1204→                exit={{ opacity: 0, x: -30 }}
+  1205→                transition={{ duration: 0.2 }}
+  1206→                className="space-y-4"
+  1207→              >
+  1208→                <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block">Tournament Format</label>
+  1209→                <div className="space-y-2">
+  1210→                  {(['knockout', 'league', 'hybrid'] as const).map((t) => {
+  1211→                    const badge = getTypeBadge(t);
+  1212→                    const descriptions: Record<string, string> = {
+  1213→                      knockout: 'Single elimination — lose and you\'re out!',
+  1214→                      league: 'Round-robin — every team plays each other',
+  1215→                      hybrid: 'League + Knockout — best of both worlds',
+  1216→                    };
+  1217→                    return (
+  1218→                      <button
+  1219→                        key={t}
+  1220→                        onClick={() => setNewTournament({ ...newTournament, type: t })}
+  1221→                        className={`w-full p-3 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${
+  1222→                          newTournament.type === t
+  1223→                            ? `${badge.bg} ${badge.text} border-current shadow-sm`
+  1224→                            : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+  1225→                        }`}
+  1226→                      >
+  1227→                        <div className={`w-10 h-10 rounded-xl ${badge.bg} flex items-center justify-center shrink-0`}>
+  1228→                          {badge.icon}
+  1229→                        </div>
+  1230→                        <div>
+  1231→                          <p className="font-bold text-sm capitalize">{t}</p>
+  1232→                          <p className="text-[10px] opacity-70">{descriptions[t]}</p>
+  1233→                        </div>
+  1234→                        {newTournament.type === t && (
+  1235→                          <motion.div
+  1236→                            initial={{ scale: 0 }}
+  1237→                            animate={{ scale: 1 }}
+  1238→                            className="ml-auto w-5 h-5 rounded-full bg-current flex items-center justify-center"
+  1239→                          >
+  1240→                            <Check className="w-3 h-3 text-white" style={{ color: 'white' }} />
+  1241→                          </motion.div>
+  1242→                        )}
+  1243→                      </button>
+  1244→                    );
+  1245→                  })}
+  1246→                </div>
+  1247→                <div className="bg-warm-100 dark:bg-warm-800 rounded-xl p-3 text-center">
+  1248→                  <p className="text-xs text-warm-500 dark:text-warm-400">A unique tournament code will be auto-generated</p>
+  1249→                  <p className="text-[10px] text-warm-400 dark:text-warm-500">Share this code so others can easily find &amp; join</p>
+  1250→                </div>
+  1251→                <div className="flex gap-2">
+  1252→                  <Button
+  1253→                    variant="outline"
+  1254→                    onClick={() => setHostStep(0)}
+  1255→                    className="flex-1 rounded-xl font-bold"
+  1256→                  >
+  1257→                    Back
+  1258→                  </Button>
+  1259→                  <Button
+  1260→                    onClick={() => setHostStep(2)}
+  1261→                    className="flex-1 bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold"
+  1262→                  >
+  1263→                    Next: Review
+  1264→                    <ChevronRight className="w-4 h-4 ml-1" />
+  1265→                  </Button>
+  1266→                </div>
+  1267→              </motion.div>
+  1268→            )}
+  1269→
+  1270→            {/* Step 3: Review */}
+  1271→            {hostStep === 2 && (
+  1272→              <motion.div
+  1273→                key="step-2"
+  1274→                initial={{ opacity: 0, x: 30 }}
+  1275→                animate={{ opacity: 1, x: 0 }}
+  1276→                exit={{ opacity: 0, x: -30 }}
+  1277→                transition={{ duration: 0.2 }}
+  1278→                className="space-y-4"
+  1279→              >
+  1280→                <div className="bg-white dark:bg-warm-800 rounded-xl border border-warm-200 dark:border-warm-700 overflow-hidden shadow-sm">
+  1281→                  <div className={`h-2.5 bg-gradient-to-r ${getTypeBadge(newTournament.type).gradient}`} />
+  1282→                  <div className="p-4 space-y-3">
+  1283→                    <h3 className="font-bold text-warm-800 dark:text-warm-100">{newTournament.name || 'Untitled'}</h3>
+  1284→                    <div className="space-y-2">
+  1285→                      <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
+  1286→                        <MapPin className="w-3.5 h-3.5 text-warm-400" />
+  1287→                        <span>{newTournament.venue || 'No venue'}</span>
+  1288→                      </div>
+  1289→                      <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
+  1290→                        {newTournament.gender === 'male' ? <Mars className="w-3.5 h-3.5 text-brand-red" /> : <Venus className="w-3.5 h-3.5 text-pink-500" />}
+  1291→                        <span>{newTournament.gender === 'male' ? '♂ Boys' : '♀ Girls'}</span>
+  1292→                      </div>
+  1293→                      <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
+  1294→                        {getTypeBadge(newTournament.type).icon}
+  1295→                        <span className="capitalize">{newTournament.type} Format</span>
+  1296→                      </div>
+  1297→                    </div>
+  1298→                  </div>
+  1299→                </div>
+  1300→                <div className="flex gap-2">
+  1301→                  <Button
+  1302→                    variant="outline"
+  1303→                    onClick={() => setHostStep(1)}
+  1304→                    className="flex-1 rounded-xl font-bold"
+  1305→                  >
+  1306→                    Back
+  1307→                  </Button>
+  1308→                  <Button
+  1309→                    onClick={handleCreateTournament}
+  1310→                    disabled={!newTournament.name}
+  1311→                    className="flex-1 bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl font-bold shadow-lg shadow-brand-red/20"
+  1312→                  >
+  1313→                    <Trophy className="w-4 h-4 mr-1" />
+  1314→                    Create Tournament
+  1315→                  </Button>
+  1316→                </div>
+  1317→              </motion.div>
+  1318→            )}
+  1319→          </AnimatePresence>
+  1320→        </DialogContent>
+  1321→      </Dialog>
+  1322→
+  1323→      {/* ═══════════════════════════════════════════════════════════════════
+  1324→          ENHANCED SEARCH BAR WITH ANIMATED FOCUS
+  1325→          ═══════════════════════════════════════════════════════════════════ */}
+  1326→      <div className="relative">
+  1327→        <motion.div
+  1328→          className="relative"
+  1329→          animate={{ scale: searchFocused ? 1.02 : 1 }}
+  1330→          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+  1331→        >
+  1332→          <motion.div
+  1333→            className="absolute left-3 top-1/2 -translate-y-1/2"
+  1334→            animate={{ scale: searchFocused ? 1.1 : 1, rotate: searchFocused ? -10 : 0 }}
+  1335→            transition={{ type: 'spring', stiffness: 300 }}
+  1336→          >
+  1337→            <motion.div
+  1338→              animate={searchFocused ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+  1339→              transition={searchFocused ? { duration: 1, repeat: Infinity, ease: 'easeInOut' } : {}}
+  1340→            >
+  1341→              <Search className={`w-4 h-4 transition-colors duration-300 ${searchFocused ? 'text-brand-red' : 'text-warm-400'}`} />
+  1342→            </motion.div>
+  1343→          </motion.div>
+  1344→          <Input
+  1345→            placeholder="Search by name or code (e.g. TC3001)..."
+  1346→            value={tournamentSearch}
+  1347→            onChange={(e) => setTournamentSearch(e.target.value)}
+  1348→            onFocus={() => setSearchFocused(true)}
+  1349→            onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+  1350→            className={`pl-10 pr-9 h-12 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-2xl text-sm transition-all duration-300 ${
+  1351→              searchFocused ? 'border-brand-red/50 ring-4 ring-brand-red/10 shadow-xl shadow-brand-red/5' : ''
+  1352→            }`}
+  1353→          />
+  1354→          {tournamentSearch ? (
+  1355→            <motion.button
+  1356→              initial={{ scale: 0 }}
+  1357→              animate={{ scale: 1 }}
+  1358→              onClick={() => setTournamentSearch('')}
+  1359→              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 hover:bg-brand-red/10 hover:text-brand-red transition-colors clear-btn-spin"
+  1360→            >
+  1361→              <X className="w-3 h-3" />
+  1362→            </motion.button>
+  1363→          ) : (
+  1364→            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-warm-300 dark:text-warm-600 bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded-md">
+  1365→              /
+  1366→            </span>
+  1367→          )}
+  1368→          {/* Animated focus border glow */}
+  1369→          <motion.div
+  1370→            className="absolute inset-0 rounded-2xl pointer-events-none"
+  1371→            animate={{
+  1372→              boxShadow: searchFocused ? '0 0 0 3px rgba(220, 38, 38, 0.1)' : '0 0 0 0px rgba(220, 38, 38, 0)',
+  1373→            }}
+  1374→            transition={{ duration: 0.3 }}
+  1375→          />
+  1376→        </motion.div>
+  1377→
+  1378→        {/* Search suggestions / recent searches */}
+  1379→        <AnimatePresence>
+  1380→          {searchFocused && !tournamentSearch.trim() && recentSearches.length > 0 && (
+  1381→            <motion.div
+  1382→              initial={{ opacity: 0, y: -5, height: 0 }}
+  1383→              animate={{ opacity: 1, y: 0, height: 'auto' }}
+  1384→              exit={{ opacity: 0, y: -5, height: 0 }}
+  1385→              className="absolute z-20 top-full mt-1 left-0 right-0 bg-white dark:bg-warm-800 rounded-xl border border-warm-200 dark:border-warm-700 shadow-xl overflow-hidden"
+  1386→            >
+  1387→              <div className="p-2">
+  1388→                <div className="flex items-center justify-between px-2 py-1">
+  1389→                  <span className="text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider">Recent Searches</span>
+  1390→                  <button
+  1391→                    onClick={() => { setRecentSearches([]); try { localStorage.removeItem('tournament-recent-searches'); } catch { /* ignore */ } }}
+  1392→                    className="text-[10px] text-brand-red font-bold hover:underline"
+  1393→                  >
+  1394→                    Clear
+  1395→                  </button>
+  1396→                </div>
+  1397→                {recentSearches.map((search, i) => (
+  1398→                  <button
+  1399→                    key={i}
+  1400→                    onClick={() => handleSearchSubmit(search)}
+  1401→                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-warm-700 dark:text-warm-300 hover:bg-warm-50 dark:hover:bg-warm-700 transition-colors"
+  1402→                  >
+  1403→                    <Clock className="w-3.5 h-3.5 text-warm-400" />
+  1404→                    <span className="flex-1 text-left">{search}</span>
+  1405→                    <ArrowRight className="w-3 h-3 text-warm-300" />
+  1406→                  </button>
+  1407→                ))}
+  1408→              </div>
+  1409→            </motion.div>
+  1410→          )}
+  1411→        </AnimatePresence>
+  1412→      </div>
+  1413→
+  1414→      {/* ═══════════════════════════════════════════════════════════════════
+  1415→          ENHANCED FILTER CHIPS AS TOGGLE PILLS
+  1416→          ═══════════════════════════════════════════════════════════════════ */}
+  1417→      <div className="space-y-2.5">
+  1418→        {/* Type Filter Row */}
+  1419→        <div className="flex gap-2 flex-wrap items-center">
+  1420→          <motion.button
+  1421→            onClick={() => setTypeFilter('all')}
+  1422→            whileTap={{ scale: 0.95 }}
+  1423→            className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border ${
+  1424→              typeFilter === 'all'
+  1425→                ? 'bg-gradient-to-r from-warm-800 to-warm-700 dark:from-warm-200 dark:to-warm-300 text-white dark:text-warm-800 shadow-lg shadow-warm-800/10 dark:shadow-warm-200/10 border-transparent pill-bounce'
+  1426→                : 'bg-warm-50 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
+  1427→            }`}
+  1428→          >
+  1429→            <Filter className="w-3 h-3" />
+  1430→            All Types
+  1431→          </motion.button>
+  1432→          {(['knockout', 'league', 'hybrid'] as const).map((t) => {
+  1433→            const badge = getTypeBadge(t);
+  1434→            return (
+  1435→              <motion.button
+  1436→                key={t}
+  1437→                onClick={() => setTypeFilter(t)}
+  1438→                whileTap={{ scale: 0.95 }}
+  1439→                className={`px-3.5 py-2 rounded-full text-xs font-bold capitalize transition-all duration-300 flex items-center gap-1.5 border ${
+  1440→                  typeFilter === t
+  1441→                    ? `bg-gradient-to-r ${badge.gradient} text-white shadow-lg border-transparent pill-bounce`
+  1442→                    : 'bg-warm-50 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
+  1443→                }`}
+  1444→              >
+  1445→                {badge.icon}
+  1446→                {t}
+  1447→              </motion.button>
+  1448→            );
+  1449→          })}
+  1450→          {/* Active filter count badge */}
+  1451→          {activeFilterCount > 0 && (
+  1452→            <motion.div
+  1453→              initial={{ scale: 0 }}
+  1454→              animate={{ scale: 1 }}
+  1455→              className="w-6 h-6 rounded-full bg-brand-red text-white text-[10px] font-bold flex items-center justify-center shadow-lg shadow-brand-red/20"
+  1456→            >
+  1457→              {activeFilterCount}
+  1458→            </motion.div>
+  1459→          )}
+  1460→        </div>
+  1461→      </div>
+  1462→
+  1463→      {/* ═══════════════════════════════════════════════════════════════════
+  1464→          ENHANCED PREMIUM UPGRADE CARD WITH SHIMMER
+  1465→          ═══════════════════════════════════════════════════════════════════ */}
+  1466→      {!isPremium && (
+  1467→        <motion.div
+  1468→          initial={{ opacity: 0, y: -10 }}
+  1469→          animate={{ opacity: 1, y: 0 }}
+  1470→        >
+  1471→          <Card
+  1472→            className="p-0 bg-gradient-to-r from-brand-gold/15 via-brand-gold/5 to-brand-gold/15 dark:from-brand-gold/25 dark:via-brand-gold/10 dark:to-brand-gold/25 border border-brand-gold/30 cursor-pointer active:scale-[0.98] transition-transform overflow-hidden relative"
+  1473→            onClick={() => setShowUpgrade(true)}
+  1474→          >
+  1475→            {/* Shimmer animation overlay */}
+  1476→            <motion.div
+  1477→              className="absolute inset-0 z-10 pointer-events-none"
+  1478→              animate={{ x: ['-100%', '200%'] }}
+  1479→              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+  1480→            >
+  1481→              <div className="w-1/3 h-full bg-gradient-to-r from-transparent via-brand-gold/15 to-transparent skew-x-12" />
+  1482→            </motion.div>
+  1483→
+  1484→            {/* Gradient overlay */}
+  1485→            <div className="absolute inset-0 bg-gradient-to-br from-brand-gold/5 to-transparent pointer-events-none" />
+  1486→
+  1487→            <div className="p-4 flex items-center gap-3 relative">
+  1488→              <motion.div
+  1489→                className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-gold/30 to-brand-gold-dark/30 flex items-center justify-center shrink-0 shadow-lg shadow-brand-gold/10 relative"
+  1490→                animate={{ rotate: [0, 5, -5, 0] }}
+  1491→                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+  1492→              >
+  1493→                <Crown className="w-6 h-6 text-brand-gold" />
+  1494→                {/* Floating sparkle particles */}
+  1495→                {[...Array(3)].map((_, si) => (
+  1496→                  <motion.div
+  1497→                    key={`sparkle-${si}`}
+  1498→                    className="absolute w-1 h-1 rounded-full bg-brand-gold/60 sparkle-particle"
+  1499→                    style={{
+  1500→                      left: `${20 + si * 30}%`,
+  1501→                      top: '0%',
+  1502→                      animationDelay: `${si * 0.6}s`,
+  1503→                    }}
+  1504→                  />
+  1505→                ))}
+  1506→              </motion.div>
+  1507→              <div className="flex-1 min-w-0">
+  1508→                <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Want to host your own tournament?</p>
+  1509→                <p className="text-[11px] text-warm-500 dark:text-warm-400 mt-0.5">Upgrade to Premium to create and manage tournaments</p>
+  1510→                {/* Feature bullets */}
+  1511→                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+  1512→                  {['Create Tournaments', 'Add Teams', 'Generate Brackets', 'Track Scores'].map((feature) => (
+  1513→                    <span key={feature} className="text-[9px] text-warm-500 dark:text-warm-400 flex items-center gap-0.5">
+  1514→                      <Check className="w-2.5 h-2.5 text-brand-gold" />
+  1515→                      {feature}
+  1516→                    </span>
+  1517→                  ))}
+  1518→                </div>
+  1519→              </div>
+  1520→              <div className="shrink-0">
+  1521→                <div className="px-3 py-2 rounded-xl bg-gradient-to-r from-brand-gold-dark to-brand-gold text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-brand-gold/20">
+  1522→                  <Sparkles className="w-3 h-3" />
+  1523→                  Upgrade
+  1524→                </div>
+  1525→              </div>
+  1526→            </div>
+  1527→          </Card>
+  1528→        </motion.div>
+  1529→      )}
+  1530→
+  1531→      {/* ═══════════════════════════════════════════════════════════════════
+  1532→          ENHANCED STATUS TABS
+  1533→          ═══════════════════════════════════════════════════════════════════ */}
+  1534→      <div className="flex gap-1 bg-warm-100 dark:bg-warm-800 p-1.5 rounded-2xl">
+  1535→        {(['ongoing', 'upcoming', 'past'] as const).map((s) => {
+  1536→          const count = statusCounts[s];
+  1537→          const tabConfig = {
+  1538→            ongoing: { icon: <Radio className="w-3 h-3" />, activeColor: 'text-emerald-600 dark:text-emerald-400', gradient: 'from-emerald-500 to-emerald-400' },
+  1539→            upcoming: { icon: <CalendarDays className="w-3 h-3" />, activeColor: 'text-amber-600 dark:text-amber-400', gradient: 'from-amber-500 to-amber-400' },
+  1540→            past: { icon: <Award className="w-3 h-3" />, activeColor: 'text-warm-600 dark:text-warm-300', gradient: 'from-warm-500 to-warm-400' },
+  1541→          }[s];
+  1542→          const isActive = statusFilter === s;
+  1543→          return (
+  1544→            <button
+  1545→              key={s}
+  1546→              onClick={() => setStatusFilter(s)}
+  1547→              className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold capitalize transition-all duration-300 relative flex items-center justify-center gap-1.5 ${
+  1548→                isActive
+  1549→                  ? `bg-white dark:bg-warm-700 shadow-lg shadow-warm-800/5 dark:shadow-warm-900/20 ${tabConfig.activeColor}`
+  1550→                  : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
+  1551→              }`}
+  1552→            >
+  1553→              {tabConfig.icon}
+  1554→              <span>{s}</span>
+  1555→              {count > 0 && (
+  1556→                <span className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center ${
+  1557→                  isActive
+  1558→                    ? `bg-gradient-to-r ${tabConfig.gradient} text-white shadow-sm`
+  1559→                    : 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+  1560→                }`}>
+  1561→                  {count}
+  1562→                </span>
+  1563→              )}
+  1564→              {isActive && (
+  1565→                <motion.div
+  1566→                  className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-gradient-to-r from-brand-red to-brand-red-light"
+  1567→                  layoutId="statusIndicator"
+  1568→                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+  1569→                />
+  1570→              )}
+  1571→            </button>
+  1572→          );
+  1573→        })}
+  1574→      </div>
+  1575→
+  1576→      {/* ═══════════════════════════════════════════════════════════════════
+  1577→          ENHANCED GENDER FILTER
+  1578→          ═══════════════════════════════════════════════════════════════════ */}
+  1579→      <div className="flex gap-2">
+  1580→        {[
+  1581→          { id: 'all' as const, label: 'All', icon: <Users className="w-3.5 h-3.5" /> },
+  1582→          { id: 'male' as const, label: 'Boys', icon: <Mars className="w-3.5 h-3.5" /> },
+  1583→          { id: 'female' as const, label: 'Girls', icon: <Venus className="w-3.5 h-3.5" /> },
+  1584→        ].map((f) => (
+  1585→          <motion.button
+  1586→            key={f.id}
+  1587→            onClick={() => setGenderFilter(f.id)}
+  1588→            whileTap={{ scale: 0.95 }}
+  1589→            className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-1.5 border ${
+  1590→              genderFilter === f.id
+  1591→                ? f.id === 'male'
+  1592→                  ? 'bg-gradient-to-r from-brand-red to-brand-red-light text-white shadow-lg shadow-brand-red/20 border-transparent'
+  1593→                  : f.id === 'female'
+  1594→                    ? 'bg-gradient-to-r from-pink-500 to-pink-400 text-white shadow-lg shadow-pink-500/20 border-transparent'
+  1595→                    : 'bg-gradient-to-r from-warm-800 to-warm-700 dark:from-warm-200 dark:to-warm-300 text-white dark:text-warm-800 shadow-lg border-transparent'
+  1596→                : 'bg-warm-50 dark:bg-warm-800 text-warm-500 dark:text-warm-400 hover:bg-warm-100 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
+  1597→            }`}
+  1598→          >
+  1599→            {f.icon}
+  1600→            {f.label}
+  1601→          </motion.button>
+  1602→        ))}
+  1603→      </div>
+  1604→
+  1605→      {/* ═══════════════════════════════════════════════════════════════════
+  1606→          ENHANCED TOURNAMENT CARDS
+  1607→          ═══════════════════════════════════════════════════════════════════ */}
+  1608→      {loading ? (
+  1609→        <div className="space-y-3">
+  1610→          {[1, 2, 3].map((i) => (
+  1611→            <motion.div
+  1612→              key={i}
+  1613→              initial={{ opacity: 0, y: 10 }}
+  1614→              animate={{ opacity: 1, y: 0 }}
+  1615→              transition={{ delay: i * 0.1 }}
+  1616→            >
+  1617→              <SkeletonCard />
+  1618→            </motion.div>
+  1619→          ))}
+  1620→        </div>
+  1621→      ) : filteredTournaments.length === 0 ? (
+  1622→        <EmptyState content={getEmptyContent()} onCta={handleCreateClick} isPremium={isPremium} />
+  1623→      ) : (
+  1624→        <div className="space-y-3">
+  1625→          {filteredTournaments.map((tournament, i) => {
+  1626→            const typeBadge = getTypeBadge(tournament.type);
+  1627→            const teamCount = tournament.teams.length;
+  1628→            const statusGradient = getStatusGradient(tournament.status);
+  1629→            const completedMatches = tournament.teams.reduce((sum, t) => sum + t.won + t.lost + t.drawn, 0) / 2;
+  1630→            const isExpanded = expandedId === tournament.id;
+  1631→
+  1632→            return (
+  1633→              <motion.div
+  1634→                key={tournament.id}
+  1635→                initial={{ opacity: 0, y: 20, scale: 0.97 }}
+  1636→                animate={{ opacity: 1, y: 0, scale: 1 }}
+  1637→                transition={{ delay: i * 0.07, duration: 0.35, ease: 'easeOut' }}
+  1638→                layout
+  1639→              >
+  1640→                <Card className="overflow-hidden border border-warm-200/80 dark:border-warm-700/80 bg-white dark:bg-warm-800/50 relative group hover:shadow-xl hover:shadow-warm-800/5 dark:hover:shadow-warm-900/20 transition-shadow duration-300 tournament-card-lift">
+  1641→                  <ShimmerOverlay />
+  1642→
+  1643→                  {/* Animated border gradient flow around card */}
+  1644→                  <div className="absolute inset-0 rounded-2xl pointer-events-none z-0 overflow-hidden">
+  1645→                    <div className="absolute inset-0 border-gradient-flow opacity-0 group-hover:opacity-30 transition-opacity duration-500" style={{ WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude', padding: '1.5px', borderRadius: '16px' }} />
+  1646→                  </div>
+  1647→
+  1648→                  {/* Gradient Left Border with animated glow */}
+  1649→                  <motion.div
+  1650→                    className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${statusGradient} rounded-l-2xl`}
+  1651→                    whileHover={{ width: 3 }}
+  1652→                    transition={{ duration: 0.2 }}
+  1653→                  />
+  1654→
+  1655→                  <div
+  1656→                    className="p-4 pl-5 cursor-pointer"
+  1657→                    onClick={() => setExpandedId(isExpanded ? null : tournament.id)}
+  1658→                  >
+  1659→                    <div className="flex items-start justify-between">
+  1660→                      <div className="flex-1 min-w-0">
+  1661→                        {/* Title Row with Status */}
+  1662→                        <div className="flex items-center gap-2">
+  1663→                          <StatusIndicator status={tournament.status} />
+  1664→                          <h3 className="font-bold text-warm-800 dark:text-warm-100 text-sm truncate">
+  1665→                            {tournament.name}
+  1666→                          </h3>
+  1667→                        </div>
+  1668→
+  1669→                        {/* Tournament Type Badge + Code Row */}
+  1670→                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+  1671→                          {/* Format Type Badge with gradient */}
+  1672→                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-bold capitalize ${typeBadge.bg} ${typeBadge.text} border ${typeBadge.border} shadow-sm`}>
+  1673→                            {typeBadge.icon}
+  1674→                            {tournament.type}
+  1675→                          </span>
+  1676→
+  1677→                          {/* Gender Badge */}
+  1678→                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold ${
+  1679→                            tournament.gender === 'male'
+  1680→                              ? 'bg-brand-red/10 text-brand-red border border-brand-red/20'
+  1681→                              : 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/20'
+  1682→                          }`}>
+  1683→                            {tournament.gender === 'male' ? <Mars className="w-3 h-3" /> : <Venus className="w-3 h-3" />}
+  1684→                            {tournament.gender === 'male' ? 'Boys' : 'Girls'}
+  1685→                          </span>
+  1686→
+  1687→                          {/* Tournament Code */}
+  1688→                          {tournament.tournamentCode && (
+  1689→                            <div
+  1690→                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-teal/10 dark:bg-brand-teal/20 cursor-pointer hover:bg-brand-teal/20 transition-colors border border-brand-teal/20"
+  1691→                              onClick={(e) => {
+  1692→                                e.stopPropagation();
+  1693→                                copyToClipboard(tournament.tournamentCode!);
+  1694→                              }}
+  1695→                            >
+  1696→                              <Hash className="w-3 h-3 text-brand-teal" />
+  1697→                              <span className="text-[10px] font-mono font-bold text-brand-teal">
+  1698→                                {tournament.tournamentCode}
+  1699→                              </span>
+  1700→                              {copiedCode === tournament.tournamentCode ? (
+  1701→                                <Check className="w-3 h-3 text-brand-green" />
+  1702→                              ) : (
+  1703→                                <Copy className="w-3 h-3 text-brand-teal/60" />
+  1704→                              )}
+  1705→                            </div>
+  1706→                          )}
+  1707→                        </div>
+  1708→
+  1709→                        {/* Venue & Date */}
+  1710→                        <div className="flex items-center gap-1 mt-2 text-xs text-warm-500 dark:text-warm-400">
+  1711→                          <MapPin className="w-3 h-3 shrink-0 text-warm-400" />
+  1712→                          <span className="truncate">{tournament.venue}</span>
+  1713→                        </div>
+  1714→                        <div className="flex items-center gap-1 mt-0.5 text-xs text-warm-500 dark:text-warm-400">
+  1715→                          <Calendar className="w-3 h-3 shrink-0 text-warm-400" />
+  1716→                          <span>{formatDate(tournament.startDate)}</span>
+  1717→                        </div>
+  1718→                      </div>
+  1719→
+  1720→                      <div className="flex flex-col items-end gap-2 ml-3">
+  1721→                        {/* Team Count & Match Count visual indicators */}
+  1722→                        <div className="flex items-center gap-1.5">
+  1723→                          {/* Team avatar stack with overlapping circles */}
+  1724→                          <div className="flex avatar-stack">
+  1725→                            {tournament.teams.slice(0, 4).map((team) => (
+  1726→                              <div
+  1727→                                key={team.id}
+  1728→                                className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-sm shrink-0"
+  1729→                                style={{ backgroundColor: team.color }}
+  1730→                                title={team.name}
+  1731→                              >
+  1732→                                {team.shortName?.charAt(0) || team.name.charAt(0)}
+  1733→                              </div>
+  1734→                            ))}
+  1735→                            {tournament.teams.length > 4 && (
+  1736→                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold bg-warm-200 dark:bg-warm-600 text-warm-600 dark:text-warm-300 shadow-sm shrink-0">
+  1737→                                +{tournament.teams.length - 4}
+  1738→                              </div>
+  1739→                            )}
+  1740→                          </div>
+  1741→                          <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100/80 dark:bg-warm-700/50 px-2 py-1 rounded-lg border border-warm-200/50 dark:border-warm-700/50">
+  1742→                            <Users className="w-3 h-3 text-brand-teal" />
+  1743→                            <span className="font-bold">{teamCount}</span>
+  1744→                            <span className="text-warm-400 text-[9px]">teams</span>
+  1745→                          </div>
+  1746→                          {tournament.matchCount > 0 && (
+  1747→                            <div className="flex items-center gap-1 text-xs text-warm-600 dark:text-warm-300 bg-warm-100/80 dark:bg-warm-700/50 px-2 py-1 rounded-lg border border-warm-200/50 dark:border-warm-700/50">
+  1748→                              <Swords className="w-3 h-3 text-brand-red" />
+  1749→                              <span className="font-bold">{tournament.matchCount}</span>
+  1750→                              <span className="text-warm-400 text-[9px]">matches</span>
+  1751→                            </div>
+  1752→                          )}
+  1753→                        </div>
+  1754→
+  1755→                        {/* View button for quick access */}
+  1756→                        <motion.button
+  1757→                          whileTap={{ scale: 0.95 }}
+  1758→                          onClick={(e) => {
+  1759→                            e.stopPropagation();
+  1760→                            setExpandedId(isExpanded ? null : tournament.id);
+  1761→                          }}
+  1762→                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-red to-brand-red-light text-white text-[10px] font-bold flex items-center gap-1 shadow-lg shadow-brand-red/15 hover:shadow-brand-red/25 transition-shadow"
+  1763→                        >
+  1764→                          <Eye className="w-3 h-3" />
+  1765→                          {isExpanded ? 'Hide' : 'View'}
+  1766→                        </motion.button>
+  1767→                      </div>
+  1768→                    </div>
+  1769→
+  1770→                    {/* Team Avatars Row + Match Progress */}
+  1771→                    <div className="flex items-center justify-between mt-3 gap-3">
+  1772→                      <div className="flex items-center gap-1.5">
+  1773→                        {/* Team logo/initial grid preview */}
+  1774→                        <div className="flex -space-x-1.5">
+  1775→                          {tournament.teams.slice(0, 5).map((team) => (
+  1776→                            <motion.div
+  1777→                              key={team.id}
+  1778→                              whileHover={{ scale: 1.2, zIndex: 10 }}
+  1779→                              className="w-7 h-7 rounded-full border-2 border-white dark:border-warm-800 flex items-center justify-center text-[8px] font-bold text-white shadow-sm"
+  1780→                              style={{ backgroundColor: team.color }}
+  1781→                              title={team.name}
+  1782→                            >
+  1783→                              {team.shortName?.charAt(0) || team.name.charAt(0)}
+  1784→                            </motion.div>
+  1785→                          ))}
+  1786→                          {tournament.teams.length > 5 && (
+  1787→                            <div className="w-7 h-7 rounded-full border-2 border-white dark:border-warm-800 bg-gradient-to-br from-warm-200 to-warm-300 dark:from-warm-600 dark:to-warm-700 flex items-center justify-center text-[8px] font-bold text-warm-600 dark:text-warm-300">
+  1788→                              +{tournament.teams.length - 5}
+  1789→                            </div>
+  1790→                          )}
+  1791→                        </div>
+  1792→                        {tournament.teams.length === 0 && (
+  1793→                          <span className="text-[10px] text-warm-400 dark:text-warm-500 italic">No teams yet</span>
+  1794→                        )}
+  1795→                      </div>
+  1796→
+  1797→                      {/* Match progress bar for ongoing tournaments */}
+  1798→                      {tournament.status === 'ongoing' && tournament.matchCount > 0 ? (
+  1799→                        <div className="flex items-center gap-2 flex-1 max-w-[160px]">
+  1800→                          <MatchProgressBar
+  1801→                            completed={Math.round(completedMatches)}
+  1802→                            total={tournament.matchCount}
+  1803→                          />
+  1804→                        </div>
+  1805→                      ) : tournament.status === 'upcoming' ? (
+  1806→                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">
+  1807→                          <Flame className="w-3 h-3 text-amber-500" />
+  1808→                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">Upcoming</span>
+  1809→                        </div>
+  1810→                      ) : tournament.status === 'past' ? (
+  1811→                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-gold/10 border border-brand-gold/20">
+  1812→                          <Trophy className="w-3 h-3 text-brand-gold" />
+  1813→                          <span className="text-[10px] text-brand-gold font-bold">Completed</span>
+  1814→                        </div>
+  1815→                      ) : null}
+  1816→
+  1817→                      {/* Expand/Collapse Icon */}
+  1818→                      <motion.div
+  1819→                        animate={{ rotate: isExpanded ? 180 : 0 }}
+  1820→                        transition={{ duration: 0.2 }}
+  1821→                        className="p-1 rounded-md hover:bg-warm-100 dark:hover:bg-warm-700 transition-colors"
+  1822→                      >
+  1823→                        <ChevronDown className="w-4 h-4 text-warm-400" />
+  1824→                      </motion.div>
+  1825→                    </div>
+  1826→                  </div>
+  1827→
+  1828→                  {/* ═════════════════════════════════════════════════════════
+  1829→                      EXPANDED DETAIL VIEW
+  1830→                      ═════════════════════════════════════════════════════════ */}
+  1831→                  <AnimatePresence>
+  1832→                    {isExpanded && (
+  1833→                      <motion.div
+  1834→                        initial={{ height: 0, opacity: 0 }}
+  1835→                        animate={{ height: 'auto', opacity: 1 }}
+  1836→                        exit={{ height: 0, opacity: 0 }}
+  1837→                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+  1838→                        className="overflow-hidden"
+  1839→                      >
+  1840→                        <div className="border-t border-warm-200/80 dark:border-warm-700/80 p-4 bg-gradient-to-b from-warm-50 to-white dark:from-warm-800/40 dark:to-warm-800/20 space-y-4">
+  1841→                          {/* Tournament Code Display */}
+  1842→                          {tournament.tournamentCode && (
+  1843→                            <div className="flex items-center justify-between bg-white dark:bg-warm-800 rounded-xl p-3 border border-warm-200 dark:border-warm-700 shadow-sm">
+  1844→                              <div>
+  1845→                                <p className="text-[10px] text-warm-400 dark:text-warm-500 uppercase font-semibold tracking-wider">Tournament Code</p>
+  1846→                                <p className="text-lg font-mono font-bold text-brand-teal">{tournament.tournamentCode}</p>
+  1847→                              </div>
+  1848→                              <Button
+  1849→                                variant="outline"
+  1850→                                size="sm"
+  1851→                                onClick={() => copyToClipboard(tournament.tournamentCode!)}
+  1852→                                className="rounded-lg text-xs"
+  1853→                              >
+  1854→                                {copiedCode === tournament.tournamentCode ? (
+  1855→                                  <><Check className="w-3 h-3 mr-1" /> Copied</>
+  1856→                                ) : (
+  1857→                                  <><Copy className="w-3 h-3 mr-1" /> Copy</>
+  1858→                                )}
+  1859→                              </Button>
+  1860→                            </div>
+  1861→                          )}
+  1862→
+  1863→                          {/* ─── Bracket View for Knockout Tournaments ──── */}
+  1864→                          {tournament.type === 'knockout' && (
+  1865→                            <BracketView tournament={tournament} />
+  1866→                          )}
+  1867→
+  1868→                          {/* Teams List */}
+  1869→                          <div>
+  1870→                            <div className="flex items-center justify-between mb-2">
+  1871→                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider flex items-center gap-1.5">
+  1872→                                <Shield className="w-3 h-3" />
+  1873→                                Teams ({tournament.teams.length})
+  1874→                              </h4>
+  1875→                              <Button
+  1876→                                onClick={() => openAddTeamDialog(tournament.id)}
+  1877→                                variant="outline"
+  1878→                                size="sm"
+  1879→                                className="rounded-lg h-7 px-2.5 text-[10px] font-bold border-brand-teal text-brand-teal hover:bg-brand-teal/10"
+  1880→                              >
+  1881→                                <Plus className="w-3 h-3 mr-1" />
+  1882→                                Add Team
+  1883→                              </Button>
+  1884→                            </div>
+  1885→                            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+  1886→                              {tournament.teams.map((team) => (
+  1887→                                <div key={team.id} className="flex items-center gap-2.5 text-sm text-warm-700 dark:text-warm-300 group bg-white dark:bg-warm-800/50 rounded-lg px-3 py-2 border border-warm-100 dark:border-warm-700/50 hover:shadow-sm transition-shadow">
+  1888→                                  <div
+  1889→                                    className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-white text-[10px] font-bold shadow-sm"
+  1890→                                    style={{ backgroundColor: team.color }}
+  1891→                                  >
+  1892→                                    {team.shortName?.charAt(0) || team.name.charAt(0)}
+  1893→                                  </div>
+  1894→                                  <span className="flex-1 truncate font-medium">{team.name}</span>
+  1895→                                  {team.teamCode && (
+  1896→                                    <span className="text-[9px] font-mono font-semibold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded">
+  1897→                                      {team.teamCode}
+  1898→                                    </span>
+  1899→                                  )}
+  1900→                                  {team.played > 0 && (
+  1901→                                    <span className="text-[10px] text-warm-500 dark:text-warm-400 font-medium bg-warm-50 dark:bg-warm-700/50 px-1.5 py-0.5 rounded">
+  1902→                                      P{team.played} W{team.won} Pts{team.points}
+  1903→                                    </span>
+  1904→                                  )}
+  1905→                                  {(tournament.status === 'upcoming' || tournament.status === 'ongoing') && (
+  1906→                                    <button
+  1907→                                      onClick={() => setRemoveTeamId(team.id)}
+  1908→                                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-brand-red/10 text-warm-400 hover:text-brand-red"
+  1909→                                    >
+  1910→                                      <Trash2 className="w-3 h-3" />
+  1911→                                    </button>
+  1912→                                  )}
+  1913→                                </div>
+  1914→                              ))}
+  1915→                              {tournament.teams.length === 0 && (
+  1916→                                <p className="text-xs text-warm-400 dark:text-warm-500 text-center py-3">No teams yet. Add teams to get started.</p>
+  1917→                              )}
+  1918→                            </div>
+  1919→                          </div>
+  1920→
+  1921→                          <div className="flex items-center gap-2 text-xs text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700/50 rounded-lg px-3 py-2">
+  1922→                            <Timer className="w-3.5 h-3.5" />
+  1923→                            <span className="font-medium">{tournament.matchCount} matches scheduled</span>
+  1924→                          </div>
+  1925→
+  1926→                          {/* ═══════════════════════════════════════════════════
+  1927→                              ENHANCED STANDINGS TABLE WITH VISUAL INDICATORS
+  1928→                              ═══════════════════════════════════════════════════ */}
+  1929→                          {tournament.teams.length > 0 && (
+  1930→                            <div>
+  1931→                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+  1932→                                <TrendingUp className="w-3 h-3" />
+  1933→                                Standings
+  1934→                              </h4>
+  1935→                              <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 overflow-hidden shadow-sm">
+  1936→                                <div className="grid grid-cols-8 gap-1 text-[10px] text-warm-400 dark:text-warm-500 font-bold uppercase tracking-wider px-3 py-2.5 bg-warm-50 dark:bg-warm-800 border-b border-warm-100 dark:border-warm-700/50">
+  1937→                                  <span className="col-span-3">Team</span>
+  1938→                                  <span className="text-center">P</span>
+  1939→                                  <span className="text-center">W</span>
+  1940→                                  <span className="text-center">L</span>
+  1941→                                  <span className="text-center">SD</span>
+  1942→                                  <span className="text-center">Pts</span>
+  1943→                                </div>
+  1944→                                <div className="max-h-48 overflow-y-auto">
+  1945→                                  {[...tournament.teams].sort((a, b) => b.points - a.points).map((team, idx) => {
+  1946→                                    const isTopTeam = idx === 0;
+  1947→                                    return (
+  1948→                                      <motion.div
+  1949→                                        key={team.id}
+  1950→                                        className={`grid grid-cols-8 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2.5 text-xs transition-colors hover:bg-warm-50 dark:hover:bg-warm-700/30 ${idx > 0 ? 'border-t border-warm-50 dark:border-warm-700/30' : ''} ${isTopTeam && team.points > 0 ? 'bg-brand-gold/5 dark:bg-brand-gold/5' : ''}`}
+  1951→                                        initial={{ opacity: 0, x: -10 }}
+  1952→                                        animate={{ opacity: 1, x: 0 }}
+  1953→                                        transition={{ delay: idx * 0.05, duration: 0.3 }}
+  1954→                                        whileHover={{ backgroundColor: 'rgba(245, 158, 11, 0.05)', x: 2 }}
+  1955→                                      >
+  1956→                                        <span className="col-span-3 flex items-center gap-1.5 truncate">
+  1957→                                          <span className={`text-[9px] font-bold w-4 text-center ${isTopTeam && team.points > 0 ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'}`}>
+  1958→                                            {isTopTeam && team.points > 0 ? '🥇' : idx + 1}
+  1959→                                          </span>
+  1960→                                          <div className="w-5 h-5 rounded shrink-0 shadow-sm" style={{ backgroundColor: team.color }} />
+  1961→                                          <span className="truncate font-medium">{team.name}</span>
+  1962→                                        </span>
+  1963→                                        <span className="text-center font-medium">{team.played}</span>
+  1964→                                        <span className="text-center font-medium text-emerald-600 dark:text-emerald-400">{team.won}</span>
+  1965→                                        <span className="text-center font-medium">{team.lost}</span>
+  1966→                                        <span className={`text-center font-medium ${team.scoreDiff > 0 ? 'text-emerald-600 dark:text-emerald-400' : team.scoreDiff < 0 ? 'text-brand-red' : ''}`}>
+  1967→                                          {team.scoreDiff > 0 ? '+' : ''}{team.scoreDiff}
+  1968→                                        </span>
+  1969→                                        <span className="text-center font-bold">
+  1970→                                          <span className={`inline-flex items-center justify-center w-6 h-5 rounded-md ${isTopTeam && team.points > 0 ? 'bg-brand-gold/20 text-brand-gold-dark dark:text-brand-gold' : 'bg-brand-red/10 text-brand-red'}`}>
+  1971→                                            {team.points}
+  1972→                                          </span>
+  1973→                                        </span>
+  1974→                                      </motion.div>
+  1975→                                    );
+  1976→                                  })}
+  1977→                                </div>
+  1978→                              </div>
+  1979→                            </div>
+  1980→                          )}
+  1981→
+  1982→                          {/* Generate Bracket Button (upcoming) */}
+  1983→                          {tournament.status === 'upcoming' && tournament.teams.length >= 2 && (
+  1984→                            <Button
+  1985→                              onClick={() => handleGenerateBracket(tournament.id, tournament.teams.map(t => t.id))}
+  1986→                              disabled={generatingBracket}
+  1987→                              className="w-full bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white rounded-xl h-11 text-xs font-bold shadow-lg shadow-brand-red/20"
+  1988→                            >
+  1989→                              {generatingBracket ? (
+  1990→                                <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating...</>
+  1991→                              ) : (
+  1992→                                <><Swords className="w-3 h-3 mr-1" /> Generate Bracket &amp; Start</>
+  1993→                              )}
+  1994→                            </Button>
+  1995→                          )}
+  1996→                          {tournament.status === 'upcoming' && tournament.teams.length < 2 && (
+  1997→                            <div className="bg-brand-gold/10 dark:bg-brand-gold/20 border border-brand-gold/20 dark:border-brand-gold/30 rounded-xl p-3 text-center">
+  1998→                              <p className="text-xs text-warm-600 dark:text-warm-300 font-medium">Add at least 2 teams to generate bracket</p>
+  1999→                            </div>
+  2000→                          )}
+
+[showing lines 1-2000 of 2215; use offset=2001 with limit to continue reading]

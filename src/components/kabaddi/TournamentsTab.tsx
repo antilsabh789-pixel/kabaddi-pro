@@ -7,7 +7,7 @@ import {
   Lock, Loader2, Search, X, Copy, Check, Hash, UserPlus, Trash2, Swords,
   Sparkles, Timer, Filter, TrendingUp, Clock, Zap, CalendarDays, LayoutGrid,
   ChevronRight, Star, ArrowRight, CircleDot, Radio, Award, Target,
-  Eye, Flame, Shield, Venus, Mars
+  Eye, Flame, Shield, Venus, Mars, BarChart3, Activity
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,32 @@ interface Tournament {
   teams: TeamInTournament[];
   matchCount: number;
   organizerId?: string;
+}
+
+// ─── Tournament Detail (fetched from API) ──────────────────────────
+
+interface TournamentMatch {
+  id: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeScore: number;
+  awayScore: number;
+  status: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  round?: number;
+  position?: number;
+}
+
+interface TournamentPlayer {
+  id: string;
+  userId: string;
+  name: string;
+  avatar: string | null;
+  teamId: string;
+  raidPoints: number;
+  tacklePoints: number;
+  totalPoints: number;
 }
 
 interface DbTeam {
@@ -618,6 +644,89 @@ export default function TournamentsTab() {
 
   // Copy code feedback
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Tournament detail data for expanded view
+  const [tournamentMatches, setTournamentMatches] = useState<TournamentMatch[]>([]);
+  const [topRaiders, setTopRaiders] = useState<TournamentPlayer[]>([]);
+  const [topDefenders, setTopDefenders] = useState<TournamentPlayer[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Fetch tournament detail when expanded
+  useEffect(() => {
+    if (expandedId) {
+      const fetchDetail = async () => {
+        setDetailLoading(true);
+        try {
+          const res = await fetch(`/api/tournaments/${expandedId}`);
+          if (res.ok) {
+            const data = await res.json();
+            const t = data.tournament;
+            // Extract matches
+            if (t.matches) {
+              setTournamentMatches(t.matches.map((m: Record<string, unknown>) => ({
+                id: m.id as string,
+                homeTeamId: m.homeTeamId as string,
+                awayTeamId: m.awayTeamId as string,
+                homeScore: (m.homeScore as number) || 0,
+                awayScore: (m.awayScore as number) || 0,
+                status: (m.status as string) || 'upcoming',
+                startedAt: (m.startedAt as string) || null,
+                completedAt: (m.completedAt as string) || null,
+                round: (m.round as number) || undefined,
+                position: (m.position as number) || undefined,
+              })));
+            }
+            // Extract top scorers from team members
+            const raiders: TournamentPlayer[] = [];
+            const defenders: TournamentPlayer[] = [];
+            const currentTournament = tournaments.find((tt) => tt.id === expandedId);
+            if (t.entries) {
+              for (const entry of t.entries) {
+                if (entry.team?.members) {
+                  for (const member of entry.team.members) {
+                    if (member.user?.profile) {
+                      const p = member.user.profile;
+                      raiders.push({
+                        id: p.id,
+                        userId: member.user.id,
+                        name: member.user.name || 'Unknown',
+                        avatar: member.user.avatar,
+                        teamId: entry.teamId,
+                        raidPoints: p.raidPoints || 0,
+                        tacklePoints: p.tacklePoints || 0,
+                        totalPoints: p.totalPoints || 0,
+                      });
+                      defenders.push({
+                        id: p.id,
+                        userId: member.user.id,
+                        name: member.user.name || 'Unknown',
+                        avatar: member.user.avatar,
+                        teamId: entry.teamId,
+                        raidPoints: p.raidPoints || 0,
+                        tacklePoints: p.tacklePoints || 0,
+                        totalPoints: p.totalPoints || 0,
+                      });
+                    }
+                  }
+                }
+              }
+            }
+            setTopRaiders(raiders.sort((a, b) => b.raidPoints - a.raidPoints).slice(0, 5));
+            setTopDefenders(defenders.sort((a, b) => b.tacklePoints - a.tacklePoints).slice(0, 5));
+          }
+        } catch {
+          // silently fail
+        } finally {
+          setDetailLoading(false);
+        }
+      };
+      fetchDetail();
+    } else {
+      setTournamentMatches([]);
+      setTopRaiders([]);
+      setTopDefenders([]);
+    }
+  }, [expandedId, tournaments]);
 
   useEffect(() => {
     fetchTournaments();
@@ -1969,6 +2078,211 @@ export default function TournamentsTab() {
                                         <span className="text-center font-bold">
                                           <span className={`inline-flex items-center justify-center w-6 h-5 rounded-md ${isTopTeam && team.points > 0 ? 'bg-brand-gold/20 text-brand-gold-dark dark:text-brand-gold' : 'bg-brand-red/10 text-brand-red'}`}>
                                             {team.points}
+                                          </span>
+                                        </span>
+                                      </motion.div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ═══════════════════════════════════════════════════
+                              STATS SUMMARY
+                              ═══════════════════════════════════════════════════ */}
+                          {tournamentMatches.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <BarChart3 className="w-3 h-3" />
+                                Stats Summary
+                              </h4>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 p-3 text-center">
+                                  <p className="text-[9px] text-warm-400 dark:text-warm-500 uppercase font-bold tracking-wider">Total Matches</p>
+                                  <p className="text-xl font-black text-warm-800 dark:text-warm-100 mt-1">{tournamentMatches.length}</p>
+                                </div>
+                                <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 p-3 text-center">
+                                  <p className="text-[9px] text-warm-400 dark:text-warm-500 uppercase font-bold tracking-wider">Total Points</p>
+                                  <p className="text-xl font-black text-brand-red mt-1">
+                                    {tournamentMatches.reduce((sum, m) => sum + m.homeScore + m.awayScore, 0)}
+                                  </p>
+                                </div>
+                                <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 p-3 text-center">
+                                  <p className="text-[9px] text-warm-400 dark:text-warm-500 uppercase font-bold tracking-wider">Avg Pts/Match</p>
+                                  <p className="text-xl font-black text-brand-gold mt-1">
+                                    {tournamentMatches.length > 0
+                                      ? (tournamentMatches.reduce((sum, m) => sum + m.homeScore + m.awayScore, 0) / tournamentMatches.length).toFixed(1)
+                                      : '0'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ═══════════════════════════════════════════════════
+                              TOP SCORERS
+                              ═══════════════════════════════════════════════════ */}
+                          {(topRaiders.length > 0 || topDefenders.length > 0) && (
+                            <div>
+                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <Award className="w-3 h-3" />
+                                Top Scorers
+                              </h4>
+                              <div className="grid grid-cols-2 gap-2">
+                                {/* Top Raiders */}
+                                {topRaiders.length > 0 && (
+                                  <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 overflow-hidden">
+                                    <div className="px-3 py-2 bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-orange-900/20 dark:to-orange-800/10 border-b border-warm-100 dark:border-warm-700/50">
+                                      <div className="flex items-center gap-1.5">
+                                        <Zap className="w-3 h-3 text-orange-500" />
+                                        <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">Top Raiders</span>
+                                      </div>
+                                    </div>
+                                    <div className="divide-y divide-warm-50 dark:divide-warm-700/30">
+                                      {topRaiders.map((player, idx) => {
+                                        const team = tournament.teams.find(t => t.id === player.teamId);
+                                        return (
+                                          <motion.div
+                                            key={player.id}
+                                            className="flex items-center gap-2 px-3 py-2"
+                                            initial={{ opacity: 0, x: -8 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: idx * 0.05 }}
+                                          >
+                                            <span className={`text-[9px] font-bold w-4 text-center ${idx === 0 ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'}`}>
+                                              {idx + 1}
+                                            </span>
+                                            <div className="w-6 h-6 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-[8px] font-bold text-warm-600 dark:text-warm-300 shrink-0">
+                                              {player.name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-[11px] font-medium text-warm-800 dark:text-warm-200 truncate">{player.name}</p>
+                                              {team && (
+                                                <div className="flex items-center gap-1">
+                                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: team.color }} />
+                                                  <span className="text-[8px] text-warm-400 dark:text-warm-500 truncate">{team.name}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                            <span className="text-xs font-black text-orange-500">{player.raidPoints}</span>
+                                          </motion.div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Top Defenders */}
+                                {topDefenders.length > 0 && (
+                                  <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 overflow-hidden">
+                                    <div className="px-3 py-2 bg-gradient-to-r from-teal-50 to-teal-100/50 dark:from-teal-900/20 dark:to-teal-800/10 border-b border-warm-100 dark:border-warm-700/50">
+                                      <div className="flex items-center gap-1.5">
+                                        <Shield className="w-3 h-3 text-teal-600" />
+                                        <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">Top Defenders</span>
+                                      </div>
+                                    </div>
+                                    <div className="divide-y divide-warm-50 dark:divide-warm-700/30">
+                                      {topDefenders.map((player, idx) => {
+                                        const team = tournament.teams.find(t => t.id === player.teamId);
+                                        return (
+                                          <motion.div
+                                            key={player.id}
+                                            className="flex items-center gap-2 px-3 py-2"
+                                            initial={{ opacity: 0, x: -8 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: idx * 0.05 }}
+                                          >
+                                            <span className={`text-[9px] font-bold w-4 text-center ${idx === 0 ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'}`}>
+                                              {idx + 1}
+                                            </span>
+                                            <div className="w-6 h-6 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-[8px] font-bold text-warm-600 dark:text-warm-300 shrink-0">
+                                              {player.name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-[11px] font-medium text-warm-800 dark:text-warm-200 truncate">{player.name}</p>
+                                              {team && (
+                                                <div className="flex items-center gap-1">
+                                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: team.color }} />
+                                                  <span className="text-[8px] text-warm-400 dark:text-warm-500 truncate">{team.name}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                            <span className="text-xs font-black text-teal-600 dark:text-teal-400">{player.tacklePoints}</span>
+                                          </motion.div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ═══════════════════════════════════════════════════
+                              MATCH SCHEDULE (Calendar-Style)
+                              ═══════════════════════════════════════════════════ */}
+                          {tournamentMatches.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <CalendarDays className="w-3 h-3" />
+                                Match Schedule
+                              </h4>
+                              <div className="bg-white dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 overflow-hidden shadow-sm">
+                                <div className="grid grid-cols-12 gap-1 text-[9px] text-warm-400 dark:text-warm-500 font-bold uppercase tracking-wider px-3 py-2 bg-warm-50 dark:bg-warm-800 border-b border-warm-100 dark:border-warm-700/50">
+                                  <span className="col-span-1">#</span>
+                                  <span className="col-span-5">Match</span>
+                                  <span className="col-span-2 text-center">Score</span>
+                                  <span className="col-span-2 text-center">Date</span>
+                                  <span className="col-span-2 text-center">Status</span>
+                                </div>
+                                <div className="max-h-40 overflow-y-auto">
+                                  {tournamentMatches.map((match, idx) => {
+                                    const homeTeam = tournament.teams.find(t => t.id === match.homeTeamId);
+                                    const awayTeam = tournament.teams.find(t => t.id === match.awayTeamId);
+                                    const matchDate = match.startedAt
+                                      ? new Date(match.startedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                                      : '—';
+                                    const statusColor = match.status === 'completed'
+                                      ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
+                                      : match.status === 'live'
+                                        ? 'text-brand-red bg-brand-red/10'
+                                        : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20';
+
+                                    return (
+                                      <motion.div
+                                        key={match.id}
+                                        className="grid grid-cols-12 gap-1 text-warm-700 dark:text-warm-300 px-3 py-2 text-[10px] transition-colors hover:bg-warm-50 dark:hover:bg-warm-700/30 border-t border-warm-50 dark:border-warm-700/30"
+                                        initial={{ opacity: 0, y: 5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: idx * 0.03 }}
+                                      >
+                                        <span className="col-span-1 font-mono text-warm-400 dark:text-warm-500">{idx + 1}</span>
+                                        <span className="col-span-5 flex items-center gap-1 truncate">
+                                          {homeTeam && (
+                                            <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: homeTeam.color }} />
+                                          )}
+                                          <span className="truncate">{homeTeam?.shortName || homeTeam?.name || 'TBD'}</span>
+                                          <span className="text-warm-300 dark:text-warm-600">vs</span>
+                                          {awayTeam && (
+                                            <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: awayTeam.color }} />
+                                          )}
+                                          <span className="truncate">{awayTeam?.shortName || awayTeam?.name || 'TBD'}</span>
+                                        </span>
+                                        <span className="col-span-2 text-center font-bold tabular-nums">
+                                          {match.status === 'completed' || match.status === 'live'
+                                            ? `${match.homeScore}-${match.awayScore}`
+                                            : '—'}
+                                        </span>
+                                        <span className="col-span-2 text-center text-warm-400 dark:text-warm-500">{matchDate}</span>
+                                        <span className={`col-span-2 text-center`}>
+                                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold capitalize ${statusColor}`}>
+                                            {match.status === 'live' && (
+                                              <span className="relative flex h-1.5 w-1.5 mr-1">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red opacity-75" />
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand-red" />
+                                              </span>
+                                            )}
+                                            {match.status}
                                           </span>
                                         </span>
                                       </motion.div>

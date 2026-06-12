@@ -78,6 +78,7 @@ import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchTimelineScreen from './MatchTimelineScreen';
 import LiveCommentaryTicker, { toCommentaryMatchInfo, type CommentaryMatchInfo } from './LiveCommentaryTicker';
+import LiveMatchCommentaryFeed, { type LiveMatchCommentaryInfo } from './LiveMatchCommentaryFeed';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -1330,7 +1331,7 @@ export default function HomeTab() {
           {currentUser?.playerCode && (
             <motion.button
               onClick={handleCopyPlayerCode}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-br from-warm-100 to-warm-50 dark:from-warm-800 dark:to-warm-700 border border-warm-200 dark:border-warm-600 hover:border-brand-gold/50 hover:shadow-md hover:shadow-brand-gold/10 transition-all duration-200 active:scale-95 relative overflow-hidden group"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-br from-warm-100 to-warm-50 dark:from-warm-800 dark:to-warm-700 border border-warm-200 dark:border-warm-600 hover:border-brand-gold/50 hover:shadow-md hover:shadow-brand-gold/10 transition-all duration-200 active:scale-95 relative overflow-hidden group card-hover-lift"
               whileTap={{ scale: 0.95 }}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-brand-gold/0 via-brand-gold/5 to-brand-gold/0 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1379,8 +1380,14 @@ export default function HomeTab() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <motion.div
+              className="grid grid-cols-3 gap-3"
+              variants={stagger}
+              initial="hidden"
+              animate="show"
+            >
               <motion.div
+                variants={fadeUp}
                 className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group ripple-container"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
@@ -1407,6 +1414,7 @@ export default function HomeTab() {
                 <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Raid Pts</div>
               </motion.div>
               <motion.div
+                variants={fadeUp}
                 className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer border-x border-white/10 relative overflow-hidden group ripple-container"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
@@ -1433,6 +1441,7 @@ export default function HomeTab() {
                 <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Tackle Pts</div>
               </motion.div>
               <motion.div
+                variants={fadeUp}
                 className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group ripple-container"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
@@ -1458,9 +1467,14 @@ export default function HomeTab() {
                 </div>
                 <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Matches</div>
               </motion.div>
-            </div>
+            </motion.div>
           </div>
         </motion.div>
+      </div>
+
+      {/* ─── Gradient Separator ─── */}
+      <div className="px-4 mt-4">
+        <div className="section-gradient-separator" />
       </div>
 
       {/* ─── Error State ─── */}
@@ -1764,28 +1778,36 @@ export default function HomeTab() {
                           </p>
                         )}
                       </CardContent>
-                      {/* Live Commentary Ticker */}
-                      <LiveCommentaryTicker
-                        mode="compact"
-                        events={
-                          activeMatch && activeMatch.id === match.id
-                            ? activeMatch.events
-                            : []
-                        }
-                        match={
-                          activeMatch && activeMatch.id === match.id
-                            ? toCommentaryMatchInfo(activeMatch)
-                            : {
-                                homeTeamId: match.homeTeam.id,
-                                awayTeamId: match.awayTeam.id,
-                                homeTeam: match.homeTeam.name,
-                                awayTeam: match.awayTeam.name,
-                                homeTeamColor: match.homeTeam.color ?? '#DC2626',
-                                awayTeamColor: match.awayTeam.color ?? '#1E293B',
-                              }
-                        }
-                        onExpand={() => handleMatchClick(match)}
-                      />
+                      {/* Live Commentary Feed - Enhanced */}
+                      {activeMatch && activeMatch.id === match.id && activeMatch.events.length > 0 ? (
+                        <LiveMatchCommentaryFeed
+                          events={activeMatch.events}
+                          match={{
+                            homeTeamId: match.homeTeam.id,
+                            awayTeamId: match.awayTeam.id,
+                            homeTeam: match.homeTeam.name,
+                            awayTeam: match.awayTeam.name,
+                            homeTeamColor: match.homeTeam.color ?? '#DC2626',
+                            awayTeamColor: match.awayTeam.color ?? '#1E293B',
+                            currentHalf: activeMatch.currentHalf,
+                          }}
+                          maxEvents={5}
+                        />
+                      ) : (
+                        <LiveCommentaryTicker
+                          mode="compact"
+                          events={[]}
+                          match={{
+                            homeTeamId: match.homeTeam.id,
+                            awayTeamId: match.awayTeam.id,
+                            homeTeam: match.homeTeam.name,
+                            awayTeam: match.awayTeam.name,
+                            homeTeamColor: match.homeTeam.color ?? '#DC2626',
+                            awayTeamColor: match.awayTeam.color ?? '#1E293B',
+                          }}
+                          onExpand={() => handleMatchClick(match)}
+                        />
+                      )}
                     </Card>
                   </motion.div>
                 </motion.div>
@@ -1801,11 +1823,11 @@ export default function HomeTab() {
               <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
                 <CardContent className="flex flex-col items-center justify-center py-10 px-4">
                   <div className="relative mb-4">
-                    <div className="w-16 h-16 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center">
-                      <Radio className="w-8 h-8 text-warm-400 dark:text-warm-500" />
+                    <div className="w-16 h-16 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center empty-state-pulse">
+                      <span className="text-2xl">🏟️</span>
                     </div>
-                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-warm-300 dark:bg-warm-600 flex items-center justify-center">
-                      <span className="text-[8px]">💤</span>
+                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-gold/20 flex items-center justify-center empty-state-pulse" style={{ animationDelay: '0.5s' }}>
+                      <span className="text-[9px]">⏳</span>
                     </div>
                   </div>
                   <p className="text-warm-700 dark:text-warm-200 text-sm font-bold">
@@ -1814,7 +1836,7 @@ export default function HomeTab() {
                       : 'No Live Matches'}
                   </p>
                   <p className="text-warm-500 dark:text-warm-400 text-xs mt-1 text-center">
-                    Matches will appear here when they go live
+                    Matches will appear here when they go live — stay tuned! 🏏
                   </p>
                   <Button
                     variant="outline"
@@ -1834,6 +1856,13 @@ export default function HomeTab() {
           )}
         </AnimatePresence>
       </section>
+
+      {/* ─── Gradient Separator ─── */}
+      {!loading && recentMatches.length > 0 && (
+        <div className="px-4 mt-5">
+          <div className="section-gradient-separator" />
+        </div>
+      )}
 
       {/* ─── Recent Results / Match History ─── */}
       {!loading && recentMatches.length > 0 && (
@@ -2428,7 +2457,7 @@ export default function HomeTab() {
             transition={{ delay: 0.05 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowSocialFeed(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
@@ -2452,7 +2481,7 @@ export default function HomeTab() {
             transition={{ delay: 0.1 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowFollow(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
@@ -2476,7 +2505,7 @@ export default function HomeTab() {
             transition={{ delay: 0.15 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowMatchHistory(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
@@ -2500,7 +2529,7 @@ export default function HomeTab() {
             transition={{ delay: 0.2 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/60 to-warm-50 dark:from-teal-900/15 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => {
                 if (currentUser?.id) {
                   setShowStats(true);
@@ -2528,7 +2557,7 @@ export default function HomeTab() {
             transition={{ delay: 0.25 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-emerald-500/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-emerald-500/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowRules(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
@@ -2552,7 +2581,7 @@ export default function HomeTab() {
             transition={{ delay: 0.3 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-gold/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-gold/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => {
                 if (recentMatches.length > 0) {
                   setHighlightsMatchId(recentMatches[0].id);
@@ -2586,7 +2615,7 @@ export default function HomeTab() {
             transition={{ delay: 0.35 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-gold/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-gold/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowStreaks(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-gold to-brand-gold/40" />
@@ -2610,7 +2639,7 @@ export default function HomeTab() {
             transition={{ delay: 0.4 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowComparison(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
@@ -2634,7 +2663,7 @@ export default function HomeTab() {
             transition={{ delay: 0.45 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-teal/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowGrounds(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-teal/40" />
@@ -2658,7 +2687,7 @@ export default function HomeTab() {
             transition={{ delay: 0.45 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/60 to-warm-50 dark:from-red-900/15 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => {
                 if (recentMatches.length > 0) {
                   setReplayMatchId(recentMatches[0].id);
@@ -2689,7 +2718,7 @@ export default function HomeTab() {
             transition={{ delay: 0.5 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-navy/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-blue-50/80 to-warm-50 dark:from-blue-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-navy/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-blue-50/80 to-warm-50 dark:from-blue-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowTeamChat(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-navy to-brand-navy/40" />
@@ -2713,7 +2742,7 @@ export default function HomeTab() {
             transition={{ delay: 0.55 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-orange-500/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-orange-50/80 to-warm-50 dark:from-orange-900/20 dark:to-warm-800 relative overflow-hidden group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-orange-500/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-orange-50/80 to-warm-50 dark:from-orange-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
               onClick={() => setShowDailyChallenge(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-500 to-orange-500/40" />
@@ -2746,7 +2775,7 @@ export default function HomeTab() {
             transition={{ delay: 0.5 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-purple-50/80 to-warm-50 dark:from-purple-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-purple-50/80 to-warm-50 dark:from-purple-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group card-hover-lift"
               onClick={() => setShowAIInsights(true)}
             >
               {/* Shimmer/lock overlay effect */}
@@ -2773,7 +2802,7 @@ export default function HomeTab() {
             transition={{ delay: 0.55 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group card-hover-lift"
               onClick={() => {
                 if (liveMatches.length > 0) {
                   setBroadcastMatchId(liveMatches[0].id);
@@ -2806,7 +2835,7 @@ export default function HomeTab() {
             transition={{ delay: 0.6 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group card-hover-lift"
               onClick={() => setShowSeason(true)}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
@@ -2832,7 +2861,7 @@ export default function HomeTab() {
             transition={{ delay: 0.65 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group card-hover-lift"
               onClick={() => setShowPredictions(true)}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
@@ -2857,7 +2886,7 @@ export default function HomeTab() {
             transition={{ delay: 0.7 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-slate-50/80 to-warm-50 dark:from-slate-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-slate-50/80 to-warm-50 dark:from-slate-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group card-hover-lift"
               onClick={() => setShowDataExport(true)}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_4.5s_ease-in-out_infinite]" />
@@ -2883,7 +2912,7 @@ export default function HomeTab() {
             transition={{ delay: 0.75 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group"
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-warm-50 dark:from-emerald-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group card-hover-lift"
               onClick={() => setShowSponsors(true)}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_5s_ease-in-out_infinite]" />

@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  ChevronLeft, ChevronRight, Plus, X, Search, UserPlus, Database, Check, Clock, Users, Swords, Play, GripVertical, Shield, Zap,
+     7→  AlertTriangle, Sparkles, Eye, Info,
+     8→} from 'lucide-react';
+     9→import { useKabaddiStore, type MatchPlayer } from '@/lib/store';
+    10→import { Button } from '@/components/ui/button';
+    11→import { Input } from '@/components/ui/input';
+    12→import { Badge } from '@/components/ui/badge';
+    13→
+    14→interface UserTeam {
+    15→  id: string;
+    16→  name: string;
+    17→  shortName: string | null;
+    18→  color: string | null;
+    19→}
+    20→
+    21→interface MatchConfig {
+    22→  gender: string;
+    23→  halfDuration: number;
+    24→  playersPerSide: number;
+    25→  homeTeam: string;
+    26→  awayTeam: string;
+    27→  homeTeamColor: string;
+    28→  awayTeamColor: string;
+    29→  homeLineup: MatchPlayer[];
+    30→  awayLineup: MatchPlayer[];
+    31→}
+    32→
+    33→// Removed 'Type' step - Quick Score is always practice
+    34→const STEPS = ['Gender', 'Settings', 'Teams', 'Lineup', 'Start'];
+    35→const STEP_ICONS = [Users, Clock, Swords, Shield, Play];
+    36→
+    37→interface DbPlayer {
+    38→  id: string;
+    39→  name: string | null;
+    40→  phone: string | null;
+    41→  playerCode: string | null;
+    42→  avatar: string | null;
+    43→  gender?: string | null;
+    44→  profile?: {
+    45→    position: string | null;
+    46→    jerseyNumber: number | null;
+    47→    overallRating: number;
+    48→    totalPoints?: number;
+    49→    raidPoints?: number;
+    50→    tacklePoints?: number;
+    51→    totalRaids?: number;
+    52→    successfulRaids?: number;
+    53→  } | null;
+    54→}
+    55→
+    56→// ─── Position Balance Config ────────────────────────────────────
+    57→
+    58→const POSITION_BALANCE: Record<number, { raiders: number; defenders: number; allRounders: number }> = {
+    59→  5: { raiders: 1, defenders: 3, allRounders: 1 },
+    60→  6: { raiders: 2, defenders: 3, allRounders: 1 },
+    61→  7: { raiders: 2, defenders: 3, allRounders: 2 },
+    62→  8: { raiders: 2, defenders: 4, allRounders: 2 },
+    63→  9: { raiders: 3, defenders: 4, allRounders: 2 },
+    64→  10: { raiders: 3, defenders: 5, allRounders: 2 },
+    65→  11: { raiders: 3, defenders: 5, allRounders: 3 },
+    66→  12: { raiders: 4, defenders: 5, allRounders: 3 },
+    67→};
+    68→
+    69→function getPositionCategory(position: string | null): 'raider' | 'defender' | 'all-rounder' | 'unknown' {
+    70→  if (!position) return 'unknown';
+    71→  const p = position.toLowerCase();
+    72→  if (p.includes('raider')) return 'raider';
+    73→  if (p.includes('defend') || p.includes('corner') || p.includes('cover')) return 'defender';
+    74→  if (p.includes('all')) return 'all-rounder';
+    75→  return 'unknown';
+    76→}
+    77→
+    78→// ─── Lineup Validation Component ────────────────────────────────
+    79→
+    80→function LineupValidation({ lineup, playersPerSide, teamName }: {
+    81→  lineup: MatchPlayer[];
+    82→  playersPerSide: number;
+    83→  teamName: string;
+    84→}) {
+    85→  const warnings: { message: string; severity: 'error' | 'warning' | 'info' }[] = [];
+    86→
+    87→  if (lineup.length === 0) {
+    88→    warnings.push({ message: 'No players added', severity: 'error' });
+    89→  } else if (lineup.length < playersPerSide) {
+    90→    warnings.push({
+    91→      message: `${lineup.length}/${playersPerSide} players — need ${playersPerSide - lineup.length} more`,
+    92→      severity: 'warning',
+    93→    });
+    94→  } else if (lineup.length > playersPerSide) {
+    95→    warnings.push({
+    96→      message: `${lineup.length} players — ${lineup.length - playersPerSide} extra`,
+    97→      severity: 'info',
+    98→    });
+    99→  }
+   100→
+   101→  // Position balance check (only if we have position data from DB)
+   102→  const balance = POSITION_BALANCE[playersPerSide];
+   103→  // Note: position data might not be available for quick-added players
+   104→  // We check this based on the allPlayers data which is in parent scope
+   105→
+   106→  if (warnings.length === 0) return null;
+   107→
+   108→  return (
+   109→    <motion.div
+   110→      initial={{ opacity: 0, y: -5 }}
+   111→      animate={{ opacity: 1, y: 0 }}
+   112→      className="space-y-1.5"
+   113→    >
+   114→      {warnings.map((w, i) => (
+   115→        <div
+   116→          key={i}
+   117→          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
+   118→            w.severity === 'error'
+   119→              ? 'bg-brand-red/10 text-brand-red dark:bg-brand-red/15'
+   120→              : w.severity === 'warning'
+   121→                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 dark:bg-amber-500/15'
+   122→                : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 dark:bg-blue-500/15'
+   123→          }`}
+   124→        >
+   125→          <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${w.severity === 'info' ? 'hidden' : ''}`} />
+   126→          <Info className={`w-3.5 h-3.5 shrink-0 ${w.severity !== 'info' ? 'hidden' : ''}`} />
+   127→          <span>{teamName}: {w.message}</span>
+   128→        </div>
+   129→      ))}
+   130→    </motion.div>
+   131→  );
+   132→}
+   133→
+   134→// ─── Player Stats Tooltip ───────────────────────────────────────
+   135→
+   136→function PlayerStatsTooltip({ player, allPlayers }: { player: DbPlayer; allPlayers: DbPlayer[] }) {
+   137→  const dbPlayer = allPlayers.find(p => p.id === player.id);
+   138→  const profile = dbPlayer?.profile;
+   139→
+   140→  if (!profile || !profile.totalPoints) return null;
+   141→
+   142→  const raidSuccessRate = profile.totalRaids && profile.totalRaids > 0
+   143→    ? Math.round(((profile.successfulRaids || 0) / profile.totalRaids) * 100)
+   144→    : 0;
+   145→
+   146→  return (
+   147→    <div className="absolute z-30 bottom-full left-0 mb-1 p-2 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-600 rounded-lg shadow-lg text-[10px] min-w-[140px]">
+   148→      <div className="space-y-1">
+   149→        <div className="flex justify-between">
+   150→          <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+   151→          <span className="font-bold text-brand-navy dark:text-brand-navy-light">{profile.totalPoints}</span>
+   152→        </div>
+   153→        <div className="flex justify-between">
+   154→          <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+   155→          <span className="font-bold text-brand-red">{profile.raidPoints || 0}</span>
+   156→        </div>
+   157→        <div className="flex justify-between">
+   158→          <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+   159→          <span className="font-bold text-brand-teal">{profile.tacklePoints || 0}</span>
+   160→        </div>
+   161→        <div className="flex justify-between">
+   162→          <span className="text-warm-500 dark:text-warm-400">Raid Success</span>
+   163→          <span className="font-bold text-brand-gold">{raidSuccessRate}%</span>
+   164→        </div>
+   165→      </div>
+   166→      {/* Tooltip arrow */}
+   167→      <div className="absolute -bottom-1 left-4 w-2 h-2 bg-white dark:bg-warm-800 border-r border-b border-warm-200 dark:border-warm-600 rotate-45" />
+   168→    </div>
+   169→  );
+   170→}
+   171→
+   172→// ─── Formation Visualization ────────────────────────────────────
+   173→
+   174→function FormationVisualization({ lineup, teamColor, teamName, side }: {
+   175→  lineup: MatchPlayer[];
+   176→  teamColor: string;
+   177→  teamName: string;
+   178→  side: 'left' | 'right';
+   179→}) {
+   180→  const maxDisplay = Math.min(lineup.length, 7);
+   181→  const displayPlayers = lineup.slice(0, maxDisplay);
+   182→
+   183→  return (
+   184→    <div className="flex-1 relative">
+   185→      {/* Team header */}
+   186→      <div className="text-center mb-2">
+   187→        <div
+   188→          className="w-10 h-10 rounded-xl mx-auto flex items-center justify-center text-white font-black text-sm shadow-md"
+   189→          style={{ backgroundColor: teamColor }}
+   190→        >
+   191→          {teamName.charAt(0).toUpperCase()}
+   192→        </div>
+   193→        <p className="text-[10px] font-bold text-warm-600 dark:text-warm-300 mt-1 truncate max-w-[80px] mx-auto">
+   194→          {teamName}
+   195→        </p>
+   196→      </div>
+   197→
+   198→      {/* Formation layout */}
+   199→      <div className="relative bg-warm-100/40 dark:bg-warm-700/20 rounded-xl p-2 min-h-[90px]">
+   200→        {/* Court half line */}
+   201→        <div className={`absolute top-1/2 left-0 right-0 h-px bg-warm-200 dark:bg-warm-600 ${
+   202→          side === 'left' ? 'bg-gradient-to-r from-transparent to-warm-200 dark:to-warm-600' : 'bg-gradient-to-l from-transparent to-warm-200 dark:to-warm-600'
+   203→        }`} />
+   204→
+   205→        {/* Players in formation */}
+   206→        <div className="grid grid-cols-3 gap-1 place-items-center">
+   207→          {displayPlayers.map((player, i) => {
+   208→            // Simple formation: top row = defenders, middle = all-rounders, bottom = raiders
+   209→            return (
+   210→              <motion.div
+   211→                key={player.id}
+   212→                initial={{ scale: 0, opacity: 0 }}
+   213→                animate={{ scale: 1, opacity: 1 }}
+   214→                transition={{ delay: i * 0.05, type: 'spring', stiffness: 300, damping: 20 }}
+   215→                className="flex flex-col items-center"
+   216→              >
+   217→                <div
+   218→                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[8px] font-bold shadow-sm"
+   219→                  style={{ backgroundColor: teamColor }}
+   220→                >
+   221→                  {player.jerseyNumber || i + 1}
+   222→                </div>
+   223→                <span className="text-[7px] text-warm-400 dark:text-warm-500 mt-0.5 truncate max-w-[32px]">
+   224→                  {player.name.split(' ')[0]}
+   225→                </span>
+   226→              </motion.div>
+   227→            );
+   228→          })}
+   229→          {/* Empty slots */}
+   230→          {Array.from({ length: Math.max(0, 7 - displayPlayers.length) }).map((_, i) => (
+   231→            <div key={`empty-${i}`} className="flex flex-col items-center">
+   232→              <div className="w-7 h-7 rounded-full border-2 border-dashed border-warm-200 dark:border-warm-600 flex items-center justify-center">
+   233→                <span className="text-[8px] text-warm-300 dark:text-warm-600">?</span>
+   234→              </div>
+   235→              <span className="text-[7px] text-warm-300 dark:text-warm-600 mt-0.5">Empty</span>
+   236→            </div>
+   237→          ))}
+   238→        </div>
+   239→      </div>
+   240→    </div>
+   241→  );
+   242→}
+   243→
+   244→// ─── Main Component ─────────────────────────────────────────────
+   245→
+   246→export default function QuickScoreTab() {
+   247→  const { initiateToss, currentUser } = useKabaddiStore();
+   248→  const [step, setStep] = useState(0);
+   249→  const [config, setConfig] = useState<MatchConfig>({
+   250→    gender: '',
+   251→    halfDuration: 20,
+   252→    playersPerSide: 7,
+   253→    homeTeam: '',
+   254→    awayTeam: '',
+   255→    homeTeamColor: '#DC2626',
+   256→    awayTeamColor: '#1E293B',
+   257→    homeLineup: [],
+   258→    awayLineup: [],
+   259→  });
+   260→  const [playerSearch, setPlayerSearch] = useState('');
+   261→  const [activeLineupTeam, setActiveLineupTeam] = useState<'home' | 'away'>('home');
+   262→  const [searchResults, setSearchResults] = useState<DbPlayer[]>([]);
+   263→  const [isSearching, setIsSearching] = useState(false);
+   264→  const [showSuggestions, setShowSuggestions] = useState(false);
+   265→  const [allPlayers, setAllPlayers] = useState<DbPlayer[]>([]);
+   266→  const playerInputRef = useRef<HTMLDivElement>(null);
+   267→  const [userTeams, setUserTeams] = useState<UserTeam[]>([]);
+   268→  const [homeTeamSuggestions, setHomeTeamSuggestions] = useState<UserTeam[]>([]);
+   269→  const [awayTeamSuggestions, setAwayTeamSuggestions] = useState<UserTeam[]>([]);
+   270→  const [showHomeSuggestions, setShowHomeSuggestions] = useState(false);
+   271→  const [showAwaySuggestions, setShowAwaySuggestions] = useState(false);
+   272→  const teamInputRef = useRef<HTMLDivElement>(null);
+   273→  const [suggestingLineup, setSuggestingLineup] = useState(false);
+   274→  const [hoveredPlayer, setHoveredPlayer] = useState<string | null>(null);
+   275→
+   276→  // Close team/player suggestions when clicking outside
+   277→  useEffect(() => {
+   278→    const handleClickOutside = (e: MouseEvent) => {
+   279→      if (teamInputRef.current && !teamInputRef.current.contains(e.target as Node)) {
+   280→        setShowHomeSuggestions(false);
+   281→        setShowAwaySuggestions(false);
+   282→      }
+   283→      if (playerInputRef.current && !playerInputRef.current.contains(e.target as Node)) {
+   284→        setShowSuggestions(false);
+   285→        setHoveredPlayer(null);
+   286→      }
+   287→    };
+   288→    document.addEventListener('mousedown', handleClickOutside);
+   289→    return () => document.removeEventListener('mousedown', handleClickOutside);
+   290→  }, []);
+   291→
+   292→  // Fetch all players on mount for instant filtering
+   293→  useEffect(() => {
+   294→    const fetchAllPlayers = async () => {
+   295→      try {
+   296→        const res = await fetch('/api/players?limit=100');
+   297→        if (res.ok) {
+   298→          const data = await res.json();
+   299→          setAllPlayers(data.players || []);
+   300→        }
+   301→      } catch {
+   302→        // silently fail
+   303→      }
+   304→    };
+   305→    fetchAllPlayers();
+   306→  }, []);
+   307→
+   308→  // Fetch user's teams for suggestions
+   309→  useEffect(() => {
+   310→    if (!currentUser?.id) return;
+   311→    const fetchUserTeams = async () => {
+   312→      try {
+   313→        const res = await fetch('/api/teams');
+   314→        if (res.ok) {
+   315→          const data = await res.json();
+   316→          const teams: UserTeam[] = (data.teams || [])
+   317→            .filter((team: Record<string, unknown>) =>
+   318→              (team.members as Array<Record<string, unknown>>)?.some((m) => m.userId === currentUser.id)
+   319→            )
+   320→            .map((team: Record<string, unknown>) => ({
+   321→              id: team.id as string,
+   322→              name: team.name as string,
+   323→              shortName: team.shortName as string | null,
+   324→              color: team.color as string | null,
+   325→            }));
+   326→          setUserTeams(teams);
+   327→        }
+   328→      } catch {
+   329→        // silently fail
+   330→      }
+   331→    };
+   332→    fetchUserTeams();
+   333→  }, [currentUser?.id]);
+   334→
+   335→  // Filter team suggestions based on input
+   336→  useEffect(() => {
+   337→    const query = config.homeTeam.toLowerCase().trim();
+   338→    if (query.length > 0) {
+   339→      const filtered = userTeams.filter(t =>
+   340→        t.name.toLowerCase().includes(query)
+   341→      );
+   342→      setHomeTeamSuggestions(filtered);
+   343→    } else {
+   344→      setHomeTeamSuggestions(userTeams);
+   345→    }
+   346→  }, [config.homeTeam, userTeams]);
+   347→
+   348→  useEffect(() => {
+   349→    const query = config.awayTeam.toLowerCase().trim();
+   350→    if (query.length > 0) {
+   351→      const filtered = userTeams.filter(t =>
+   352→        t.name.toLowerCase().includes(query)
+   353→      );
+   354→      setAwayTeamSuggestions(filtered);
+   355→    } else {
+   356→      setAwayTeamSuggestions(userTeams);
+   357→    }
+   358→  }, [config.awayTeam, userTeams]);
+   359→
+   360→  const selectHomeTeamSuggestion = (team: UserTeam) => {
+   361→    setConfig({
+   362→      ...config,
+   363→      homeTeam: team.name,
+   364→      homeTeamColor: team.color || config.homeTeamColor,
+   365→    });
+   366→    setShowHomeSuggestions(false);
+   367→  };
+   368→
+   369→  const selectAwayTeamSuggestion = (team: UserTeam) => {
+   370→    setConfig({
+   371→      ...config,
+   372→      awayTeam: team.name,
+   373→      awayTeamColor: team.color || config.awayTeamColor,
+   374→    });
+   375→    setShowAwaySuggestions(false);
+   376→  };
+   377→
+   378→  const canNext = () => {
+   379→    switch (step) {
+   380→      case 0: return config.gender !== '';
+   381→      case 1: return config.halfDuration >= 1 && config.playersPerSide >= 1;
+   382→      case 2: return config.homeTeam !== '' && config.awayTeam !== '';
+   383→      case 3: return config.homeLineup.length > 0 && config.awayLineup.length > 0;
+   384→      case 4: return true;
+   385→      default: return false;
+   386→    }
+   387→  };
+   388→
+   389→  const handleNext = () => {
+   390→    if (step < 4 && canNext()) setStep(step + 1);
+   391→  };
+   392→
+   393→  const handlePrev = () => {
+   394→    if (step > 0) setStep(step - 1);
+   395→  };
+   396→
+   397→  const handleStart = () => {
+   398→    initiateToss({
+   399→      id: `match_${Date.now()}`,
+   400→      homeTeamId: `home_${Date.now()}`,
+   401→      awayTeamId: `away_${Date.now()}`,
+   402→      homeTeam: config.homeTeam,
+   403→      awayTeam: config.awayTeam,
+   404→      homeTeamColor: config.homeTeamColor,
+   405→      awayTeamColor: config.awayTeamColor,
+   406→      isPractice: true, // Quick Score is always practice
+   407→      gender: config.gender,
+   408→      halfDuration: config.halfDuration,
+   409→      playersPerSide: config.playersPerSide,
+   410→      homeLineup: config.homeLineup,
+   411→      awayLineup: config.awayLineup,
+   412→    });
+   413→  };
+   414→
+   415→  const addQuickPlayer = (team: 'home' | 'away') => {
+   416→    const name = playerSearch.trim();
+   417→    if (!name) return;
+   418→    const lineup = team === 'home' ? config.homeLineup : config.awayLineup;
+   419→    const newPlayer: MatchPlayer = {
+   420→      id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+   421→      name,
+   422→      jerseyNumber: lineup.length + 1,
+   423→      team,
+   424→    };
+   425→    setConfig({
+   426→      ...config,
+   427→      [team === 'home' ? 'homeLineup' : 'awayLineup']: [...lineup, newPlayer],
+   428→    });
+   429→    setPlayerSearch('');
+   430→    setSearchResults([]);
+   431→    setShowSuggestions(false);
+   432→  };
+   433→
+   434→  // Highlight matching text in suggestions
+   435→  const highlightMatch = (text: string, query: string) => {
+   436→    if (!query.trim()) return text;
+   437→    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+   438→    const parts = text.split(regex);
+   439→    return parts.map((part, i) =>
+   440→      regex.test(part) ? (
+   441→        <span key={i} className="text-brand-red font-bold">{part}</span>
+   442→      ) : (
+   443→        <span key={i}>{part}</span>
+   444→      )
+   445→    );
+   446→  };
+   447→
+   448→  const removePlayer = (team: 'home' | 'away', playerId: string) => {
+   449→    const lineup = team === 'home' ? config.homeLineup : config.awayLineup;
+   450→    setConfig({
+   451→      ...config,
+   452→      [team === 'home' ? 'homeLineup' : 'awayLineup']: lineup.filter((p) => p.id !== playerId),
+   453→    });
+   454→  };
+   455→
+   456→  // Local filter for instant results
+   457→  const getLocalFiltered = useCallback((query: string): DbPlayer[] => {
+   458→    if (!query.trim()) return allPlayers.slice(0, 20);
+   459→    const q = query.toLowerCase().trim();
+   460→    return allPlayers.filter(p =>
+   461→      (p.name && p.name.toLowerCase().includes(q)) ||
+   462→      (p.playerCode && p.playerCode.toLowerCase().includes(q)) ||
+   463→      (p.phone && p.phone.includes(q))
+   464→    ).slice(0, 20);
+   465→  }, [allPlayers]);
+   466→
+   467→  // Search existing players from DB (server-side for more results)
+   468→  const searchPlayers = useCallback(async (query: string) => {
+   469→    if (query.length < 1) {
+   470→      setSearchResults(getLocalFiltered(''));
+   471→      return;
+   472→    }
+   473→    // Show local results immediately
+   474→    const localResults = getLocalFiltered(query);
+   475→    setSearchResults(localResults);
+   476→
+   477→    // Also fetch from server for more comprehensive results
+   478→    if (query.length >= 2) {
+   479→      setIsSearching(true);
+   480→      try {
+   481→        const res = await fetch(`/api/players?search=${encodeURIComponent(query)}`);
+   482→        if (res.ok) {
+   483→          const data = await res.json();
+   484→          const serverPlayers: DbPlayer[] = data.players || [];
+   485→          // Merge: server results first, then local-only results
+   486→          const serverIds = new Set(serverPlayers.map(p => p.id));
+   487→          const merged = [...serverPlayers, ...localResults.filter(p => !serverIds.has(p.id))].slice(0, 20);
+   488→          setSearchResults(merged);
+   489→        }
+   490→      } catch {
+   491→        // Keep local results on error
+   492→      } finally {
+   493→        setIsSearching(false);
+   494→      }
+   495→    }
+   496→  }, [getLocalFiltered]);
+   497→
+   498→  // Debounce server search, but local filter is instant
+   499→  useEffect(() => {
+   500→    const timer = setTimeout(() => {
+   501→      if (showSuggestions && playerSearch.length >= 2) {
+   502→        searchPlayers(playerSearch);
+   503→      }
+   504→    }, 300);
+   505→    return () => clearTimeout(timer);
+   506→  }, [playerSearch, showSuggestions, searchPlayers]);
+   507→
+   508→  // Instant local filter on every keystroke
+   509→  useEffect(() => {
+   510→    if (showSuggestions) {
+   511→      setSearchResults(getLocalFiltered(playerSearch));
+   512→    }
+   513→  }, [playerSearch, showSuggestions, getLocalFiltered]);
+   514→
+   515→  const addDbPlayer = (dbPlayer: DbPlayer) => {
+   516→    const lineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
+   517→    // Check if already added
+   518→    const alreadyAdded = [...config.homeLineup, ...config.awayLineup].some(p => p.id === dbPlayer.id);
+   519→    if (alreadyAdded) return;
+   520→    const newPlayer: MatchPlayer = {
+   521→      id: dbPlayer.id,
+   522→      name: dbPlayer.name || 'Unknown',
+   523→      jerseyNumber: dbPlayer.profile?.jerseyNumber || lineup.length + 1,
+   524→      playerCode: dbPlayer.playerCode || undefined,
+   525→      team: activeLineupTeam,
+   526→    };
+   527→    setConfig({
+   528→      ...config,
+   529→      [activeLineupTeam === 'home' ? 'homeLineup' : 'awayLineup']: [...lineup, newPlayer],
+   530→    });
+   531→    setPlayerSearch('');
+   532→    setSearchResults([]);
+   533→    setShowSuggestions(false);
+   534→  };
+   535→
+   536→  // ─── Smart Lineup Suggestion ────────────────────────────────────
+   537→
+   538→  const handleSuggestLineup = useCallback(() => {
+   539→    setSuggestingLineup(true);
+   540→
+   541→    const targetCount = config.playersPerSide;
+   542→    const balance = POSITION_BALANCE[targetCount] || POSITION_BALANCE[7];
+   543→    const lineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
+   544→    const otherLineup = activeLineupTeam === 'home' ? config.awayLineup : config.homeLineup;
+   545→    const alreadyAdded = new Set([...lineup, ...otherLineup].map(p => p.id));
+   546→
+   547→    // Categorize available players by position
+   548→    const available = allPlayers.filter(p => !alreadyAdded.has(p.id));
+   549→    const raiders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'raider');
+   550→    const defenders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'defender');
+   551→    const allRounders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'all-rounder');
+   552→    const unknowns = available.filter(p => getPositionCategory(p.profile?.position || null) === 'unknown');
+   553→
+   554→    // Sort each category by overall rating descending
+   555→    const sortByRating = (arr: DbPlayer[]) => [...arr].sort((a, b) =>
+   556→      (b.profile?.overallRating || 0) - (a.profile?.overallRating || 0)
+   557→    );
+   558→
+   559→    const sortedRaiders = sortByRating(raiders);
+   560→    const sortedDefenders = sortByRating(defenders);
+   561→    const sortedAllRounders = sortByRating(allRounders);
+   562→    const sortedUnknowns = sortByRating(unknowns);
+   563→
+   564→    const suggested: MatchPlayer[] = [];
+   565→
+   566→    // Pick from each category based on balance
+   567→    const pickFrom = (pool: DbPlayer[], count: number) => {
+   568→      const picked = pool.slice(0, count);
+   569→      picked.forEach(p => {
+   570→        suggested.push({
+   571→          id: p.id,
+   572→          name: p.name || 'Unknown',
+   573→          jerseyNumber: p.profile?.jerseyNumber || suggested.length + 1,
+   574→          playerCode: p.playerCode || undefined,
+   575→          team: activeLineupTeam,
+   576→        });
+   577→      });
+   578→      return picked.length;
+   579→    };
+   580→
+   581→    let needRaiders = balance.raiders;
+   582→    let needDefenders = balance.defenders;
+   583→    let needAllRounders = balance.allRounders;
+   584→
+   585→    // First pick from known positions
+   586→    const pickedRaiders = pickFrom(sortedRaiders, needRaiders);
+   587→    needRaiders -= pickedRaiders;
+   588→    const pickedDefenders = pickFrom(sortedDefenders, needDefenders);
+   589→    needDefenders -= pickedDefenders;
+   590→    const pickedAllRounders = pickFrom(sortedAllRounders, needAllRounders);
+   591→    needAllRounders -= pickedAllRounders;
+   592→
+   593→    // Fill remaining slots with unknowns
+   594→    const remaining = needRaiders + needDefenders + needAllRounders;
+   595→    if (remaining > 0) {
+   596→      pickFrom(sortedUnknowns, remaining);
+   597→    }
+   598→
+   599→    // If still not enough, just add from the remaining sorted by rating
+   600→    if (suggested.length < targetCount) {
+   601→      const allRemaining = [...sortedRaiders.slice(pickedRaiders), ...sortedDefenders.slice(pickedDefenders), ...sortedAllRounders.slice(pickedAllRounders), ...sortedUnknowns.slice(remaining)]
+   602→        .filter(p => !suggested.some(s => s.id === p.id) && !alreadyAdded.has(p.id));
+   603→      const sortedRemaining = sortByRating(allRemaining);
+   604→      pickFrom(sortedRemaining, targetCount - suggested.length);
+   605→    }
+   606→
+   607→    // Apply the suggestion (merge with existing)
+   608→    const mergedLineup = [...lineup, ...suggested].slice(0, targetCount);
+   609→
+   610→    setTimeout(() => {
+   611→      setConfig({
+   612→        ...config,
+   613→        [activeLineupTeam === 'home' ? 'homeLineup' : 'awayLineup']: mergedLineup,
+   614→      });
+   615→      setSuggestingLineup(false);
+   616→    }, 600);
+   617→  }, [activeLineupTeam, config, allPlayers]);
+   618→
+   619→  // ─── Lineup validation summary ──────────────────────────────────
+   620→
+   621→  const lineupWarnings = useMemo(() => {
+   622→    const warnings: { team: 'home' | 'away'; message: string; severity: 'error' | 'warning' | 'info' }[] = [];
+   623→
+   624→    const validateTeam = (lineup: MatchPlayer[], team: 'home' | 'away', teamName: string) => {
+   625→      if (lineup.length === 0) {
+   626→        warnings.push({ team, message: `${teamName}: No players added`, severity: 'error' });
+   627→        return;
+   628→      }
+   629→      if (lineup.length < config.playersPerSide) {
+   630→        warnings.push({
+   631→          team,
+   632→          message: `${teamName}: ${lineup.length}/${config.playersPerSide} players`,
+   633→          severity: 'warning',
+   634→        });
+   635→      }
+   636→
+   637→      // Position balance
+   638→      const positions = lineup.map(p => {
+   639→        const dbP = allPlayers.find(ap => ap.id === p.id);
+   640→        return getPositionCategory(dbP?.profile?.position || null);
+   641→      });
+   642→
+   643→      const balance = POSITION_BALANCE[config.playersPerSide];
+   644→      const raiderCount = positions.filter(p => p === 'raider').length;
+   645→      const defenderCount = positions.filter(p => p === 'defender').length;
+   646→
+   647→      if (balance && raiderCount < balance.raiders && lineup.length >= config.playersPerSide) {
+   648→        warnings.push({
+   649→          team,
+   650→          message: `${teamName}: Only ${raiderCount} raider(s) — recommended ${balance.raiders}`,
+   651→          severity: 'info',
+   652→        });
+   653→      }
+   654→      if (balance && defenderCount < balance.defenders && lineup.length >= config.playersPerSide) {
+   655→        warnings.push({
+   656→          team,
+   657→          message: `${teamName}: Only ${defenderCount} defender(s) — recommended ${balance.defenders}`,
+   658→          severity: 'info',
+   659→        });
+   660→      }
+   661→    };
+   662→
+   663→    validateTeam(config.homeLineup, 'home', config.homeTeam || 'Team A');
+   664→    validateTeam(config.awayLineup, 'away', config.awayTeam || 'Team B');
+   665→
+   666→    return warnings;
+   667→  }, [config.homeLineup, config.awayLineup, config.playersPerSide, config.homeTeam, config.awayTeam, allPlayers]);
+   668→
+   669→  const teamColors = [
+   670→    '#DC2626', '#1E293B', '#14B8A6', '#475569', '#9333EA',
+   671→    '#F97316', '#06B6D4', '#EC4899', '#84CC16', '#6366F1',
+   672→  ];
+   673→
+   674→  // Position icon mapping
+   675→  const getPositionIcon = (position: string | null) => {
+   676→    if (!position) return null;
+   677→    const p = position.toLowerCase();
+   678→    if (p.includes('raider')) return <Zap className="w-3 h-3" />;
+   679→    if (p.includes('defend') || p.includes('corner') || p.includes('cover')) return <Shield className="w-3 h-3" />;
+   680→    if (p.includes('all')) return <Swords className="w-3 h-3" />;
+   681→    return null;
+   682→  };
+   683→
+   684→  // ─── Position color for lineup display ──────────────────────────
+   685→  const getPositionColor = (position: string | null) => {
+   686→    if (!position) return 'bg-warm-400 dark:bg-warm-500';
+   687→    const p = position.toLowerCase();
+   688→    if (p.includes('raider')) return 'bg-brand-red';
+   689→    if (p.includes('defend') || p.includes('corner') || p.includes('cover')) return 'bg-brand-teal';
+   690→    if (p.includes('all')) return 'bg-brand-gold';
+   691→    return 'bg-warm-400 dark:bg-warm-500';
+   692→  };
+   693→
+   694→  return (
+   695→    <div className="px-4 py-6 space-y-5">
+   696→      {/* Step Progress Indicator - Enhanced with gradient progress, pulse, and animated labels */}
+   697→      <div className="relative px-2 py-3">
+   698→        {/* Background track line with shimmer */}
+   699→        <div className="absolute top-[22px] left-6 right-6 h-[3px] bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
+   700→          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-warm-300/50 dark:via-warm-600/30 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+   701→        </div>
+   702→        {/* Animated gradient progress fill */}
+   703→        <motion.div
+   704→          className="absolute top-[22px] left-6 h-[3px] rounded-full overflow-hidden"
+   705→          style={{
+   706→            background: 'linear-gradient(90deg, #DC2626, #F59E0B, #14B8A6, #DC2626)',
+   707→            backgroundSize: '200% 100%',
+   708→          }}
+   709→          initial={{ width: 0 }}
+   710→          animate={{ width: `${(step / (STEPS.length - 1)) * (100 - 8)}%`, backgroundPosition: ['0% 0%', '100% 0%'] }}
+   711→          transition={{ width: { duration: 0.6, ease: 'easeInOut' }, backgroundPosition: { duration: 3, repeat: Infinity, ease: 'linear' } }}
+   712→        >
+   713→          {/* Shine sweep on progress line */}
+   714→          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[shimmer_2s_ease-in-out_infinite]" />
+   715→        </motion.div>
+   716→        <div className="flex items-start justify-between relative">
+   717→          {STEPS.map((label, i) => {
+   718→            const StepIcon = STEP_ICONS[i];
+   719→            const isCompleted = i < step;
+   720→            const isCurrent = i === step;
+   721→            const isFuture = i > step;
+   722→            return (
+   723→              <div key={label} className="flex flex-col items-center gap-2 z-10">
+   724→                <motion.div
+   725→                  className={`relative w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ${
+   726→                    isCompleted
+   727→                      ? 'bg-gradient-to-br from-brand-red to-brand-red-dark text-white shadow-lg shadow-brand-red/40'
+   728→                      : isCurrent
+   729→                        ? 'bg-gradient-to-br from-brand-red to-brand-gold text-white shadow-xl shadow-brand-red/50'
+   730→                        : 'bg-warm-100 dark:bg-warm-800 text-warm-300 dark:text-warm-600'
+   731→                  }`}
+   732→                  animate={isCurrent ? {
+   733→                    scale: [1, 1.08, 1],
+   734→                    boxShadow: [
+   735→                      '0 0 0 0 rgba(220, 38, 38, 0.4)',
+   736→                      '0 0 0 10px rgba(220, 38, 38, 0)',
+   737→                      '0 0 0 0 rgba(220, 38, 38, 0)',
+   738→                    ],
+   739→                  } : {}}
+   740→                  transition={isCurrent ? { duration: 2, repeat: Infinity, ease: 'easeInOut' } : {}}
+   741→                  initial={{ scale: 0.8, opacity: 0 }}
+   742→                  whileInView={{ scale: 1, opacity: 1 }}
+   743→                >
+   744→                  {/* Double glow ring for current step */}
+   745→                  {isCurrent && (
+   746→                    <>
+   747→                      <motion.div
+   748→                        className="absolute inset-0 rounded-full border-2 border-brand-red/30"
+   749→                        animate={{ scale: [1, 1.5, 1], opacity: [0.6, 0, 0.6] }}
+   750→                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+   751→                      />
+   752→                      <motion.div
+   753→                        className="absolute inset-0 rounded-full border border-brand-gold/20"
+   754→                        animate={{ scale: [1, 1.8, 1], opacity: [0.4, 0, 0.4] }}
+   755→                        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+   756→                      />
+   757→                    </>
+   758→                  )}
+   759→                  {/* Selection ring animation on completed */}
+   760→                  {isCompleted && (
+   761→                    <motion.div
+   762→                      className="absolute -inset-1 rounded-full border-2 border-brand-gold/40"
+   763→                      initial={{ scale: 0.8, opacity: 0 }}
+   764→                      animate={{ scale: 1, opacity: 1 }}
+   765→                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+   766→                    />
+   767→                  )}
+   768→                  {isCompleted ? (
+   769→                    <motion.div
+   770→                      initial={{ scale: 0, rotate: -180 }}
+   771→                      animate={{ scale: 1, rotate: 0 }}
+   772→                      transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+   773→                    >
+   774→                      <Check className="w-4.5 h-4.5" />
+   775→                    </motion.div>
+   776→                  ) : (
+   777→                    <StepIcon className={`w-4 h-4 ${isFuture ? 'opacity-40' : ''}`} />
+   778→                  )}
+   779→                </motion.div>
+   780→                {/* Animated step label with fade transition */}
+   781→                <motion.span
+   782→                  key={`label-${i}-${isCurrent ? 'active' : isCompleted ? 'done' : 'future'}`}
+   783→                  initial={{ y: 4, opacity: 0 }}
+   784→                  animate={{ y: 0, opacity: 1 }}
+   785→                  transition={{ duration: 0.3, delay: i * 0.05 }}
+   786→                  className={`text-[9px] font-bold tracking-wide transition-colors duration-300 ${
+   787→                    isCompleted ? 'text-brand-red' :
+   788→                    isCurrent ? 'gradient-text' :
+   789→                    'text-warm-300 dark:text-warm-600'
+   790→                  }`}
+   791→                >
+   792→                  {label}
+   793→                </motion.span>
+   794→              </div>
+   795→            );
+   796→          })}
+   797→        </div>
+   798→      </div>
+   799→
+   800→      {/* Step Content */}
+   801→      <AnimatePresence mode="wait">
+   802→        <motion.div
+   803→          key={step}
+   804→          initial={{ opacity: 0, x: 20 }}
+   805→          animate={{ opacity: 1, x: 0 }}
+   806→          exit={{ opacity: 0, x: -20 }}
+   807→          transition={{ duration: 0.2 }}
+   808→          className="min-h-[400px]"
+   809→        >
+   810→          {step === 0 && (
+   811→            <div className="space-y-5">
+   812→              <div className="text-center">
+   813→                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Select Category</h2>
+   814→                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Choose the match category to get started</p>
+   815→              </div>
+   816→              <div className="grid grid-cols-2 gap-4">
+   817→                <motion.button
+   818→                  onClick={() => setConfig({ ...config, gender: 'male' })}
+   819→                  whileTap={{ scale: 0.95 }}
+   820→                  whileHover={{ scale: 1.02 }}
+   821→                  className={`relative p-6 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-3 overflow-hidden group ${
+   822→                    config.gender === 'male'
+   823→                      ? 'border-blue-500 bg-gradient-to-br from-blue-600/20 via-blue-500/10 to-red-500/5 shadow-xl shadow-blue-500/30'
+   824→                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-blue-300 hover:shadow-md'
+   825→                  }`}
+   826→                >
+   827→                  {config.gender === 'male' && (
+   828→                    <motion.div
+   829→                      className="absolute inset-0 bg-gradient-to-br from-blue-500/15 via-blue-400/5 to-red-400/5"
+   830→                      initial={{ opacity: 0 }}
+   831→                      animate={{ opacity: 1 }}
+   832→                      transition={{ duration: 0.4 }}
+   833→                    />
+   834→                  )}
+   835→                  {/* Floating kabaddi silhouette behind card */}
+   836→                  <motion.div
+   837→                    className="absolute -bottom-2 -right-2 text-7xl opacity-[0.06] dark:opacity-[0.08] select-none pointer-events-none z-0"
+   838→                    animate={config.gender === 'male' ? { y: [0, -8, 0], rotate: [-2, 2, -2] } : {}}
+   839→                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+   840→                  >
+   841→                    🤼
+   842→                  </motion.div>
+   843→                  {/* Animated background circles */}
+   844→                  {config.gender === 'male' && (
+   845→                    <>
+   846→                      <motion.div
+   847→                        className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-blue-400/10"
+   848→                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+   849→                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+   850→                      />
+   851→                      <motion.div
+   852→                        className="absolute -bottom-6 -left-6 w-16 h-16 rounded-full bg-red-400/8"
+   853→                        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
+   854→                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+   855→                      />
+   856→                    </>
+   857→                  )}
+   858→                  {/* Hover glow effect */}
+   859→                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-blue-500/5 via-transparent to-red-500/5 pointer-events-none" />
+   860→                  <motion.div
+   861→                    className={`w-20 h-20 rounded-2xl flex items-center justify-center relative z-10 ${
+   862→                      config.gender === 'male'
+   863→                        ? 'bg-gradient-to-br from-blue-400 via-blue-500 to-red-500 shadow-lg shadow-blue-500/40'
+   864→                        : 'bg-blue-50 dark:bg-blue-900/30 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40'
+   865→                    }`}
+   866→                    animate={config.gender === 'male' ? {
+   867→                      boxShadow: [
+   868→                        '0 4px 14px rgba(59, 130, 246, 0.4)',
+   869→                        '0 4px 20px rgba(59, 130, 246, 0.6)',
+   870→                        '0 4px 14px rgba(59, 130, 246, 0.4)',
+   871→                      ],
+   872→                    } : {}}
+   873→                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+   874→                  >
+   875→                    <span className="text-4xl">♂</span>
+   876→                  </motion.div>
+   877→                  <span className={`font-bold text-lg relative z-10 ${config.gender === 'male' ? 'text-blue-600 dark:text-blue-400' : 'text-warm-600 dark:text-warm-300'}`}>
+   878→                    Boys
+   879→                  </span>
+   880→                  {config.gender === 'male' && (
+   881→                    <>
+   882→                      {/* Selection ring animation */}
+   883→                      <motion.div
+   884→                        className="absolute inset-0 rounded-2xl border-2 border-blue-400/30"
+   885→                        initial={{ scale: 1.2, opacity: 0 }}
+   886→                        animate={{ scale: 1, opacity: 1 }}
+   887→                        transition={{ duration: 0.4, ease: 'easeOut' }}
+   888→                      />
+   889→                      <motion.div
+   890→                        className="absolute top-2.5 right-2.5 z-20"
+   891→                        initial={{ scale: 0, rotate: -180 }}
+   892→                        animate={{ scale: 1, rotate: 0 }}
+   893→                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+   894→                      >
+   895→                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-red-500 flex items-center justify-center shadow-md">
+   896→                          <Check className="w-3.5 h-3.5 text-white" />
+   897→                        </div>
+   898→                      </motion.div>
+   899→                    </>
+   900→                  )}
+   901→                </motion.button>
+   902→                <motion.button
+   903→                  onClick={() => setConfig({ ...config, gender: 'female' })}
+   904→                  whileTap={{ scale: 0.95 }}
+   905→                  whileHover={{ scale: 1.02 }}
+   906→                  className={`relative p-6 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-3 overflow-hidden group ${
+   907→                    config.gender === 'female'
+   908→                      ? 'border-pink-500 bg-gradient-to-br from-pink-500/20 via-purple-500/10 to-pink-600/5 shadow-xl shadow-pink-500/30'
+   909→                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-pink-300 hover:shadow-md'
+   910→                  }`}
+   911→                >
+   912→                  {config.gender === 'female' && (
+   913→                    <motion.div
+   914→                      className="absolute inset-0 bg-gradient-to-br from-pink-500/15 via-purple-400/5 to-transparent"
+   915→                      initial={{ opacity: 0 }}
+   916→                      animate={{ opacity: 1 }}
+   917→                      transition={{ duration: 0.4 }}
+   918→                    />
+   919→                  )}
+   920→                  {/* Floating kabaddi silhouette behind card */}
+   921→                  <motion.div
+   922→                    className="absolute -bottom-2 -left-2 text-7xl opacity-[0.06] dark:opacity-[0.08] select-none pointer-events-none z-0 scale-x-[-1]"
+   923→                    animate={config.gender === 'female' ? { y: [0, -6, 0], rotate: [2, -2, 2] } : {}}
+   924→                    transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+   925→                  >
+   926→                    🤼
+   927→                  </motion.div>
+   928→                  {/* Animated background circles */}
+   929→                  {config.gender === 'female' && (
+   930→                    <>
+   931→                      <motion.div
+   932→                        className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-pink-400/10"
+   933→                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+   934→                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+   935→                      />
+   936→                      <motion.div
+   937→                        className="absolute -bottom-6 -left-6 w-16 h-16 rounded-full bg-purple-400/8"
+   938→                        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
+   939→                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
+   940→                      />
+   941→                    </>
+   942→                  )}
+   943→                  {/* Hover glow effect */}
+   944→                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-pink-500/5 via-transparent to-purple-500/5 pointer-events-none" />
+   945→                  <motion.div
+   946→                    className={`w-20 h-20 rounded-2xl flex items-center justify-center relative z-10 ${
+   947→                      config.gender === 'female'
+   948→                        ? 'bg-gradient-to-br from-pink-400 via-purple-500 to-pink-600 shadow-lg shadow-pink-500/40'
+   949→                        : 'bg-pink-50 dark:bg-pink-900/30 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/40'
+   950→                    }`}
+   951→                    animate={config.gender === 'female' ? {
+   952→                      boxShadow: [
+   953→                        '0 4px 14px rgba(236, 72, 153, 0.4)',
+   954→                        '0 4px 20px rgba(236, 72, 153, 0.6)',
+   955→                        '0 4px 14px rgba(236, 72, 153, 0.4)',
+   956→                      ],
+   957→                    } : {}}
+   958→                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+   959→                  >
+   960→                    <span className="text-4xl">♀</span>
+   961→                  </motion.div>
+   962→                  <span className={`font-bold text-lg relative z-10 ${config.gender === 'female' ? 'text-pink-600 dark:text-pink-400' : 'text-warm-600 dark:text-warm-300'}`}>
+   963→                    Girls
+   964→                  </span>
+   965→                  {config.gender === 'female' && (
+   966→                    <>
+   967→                      {/* Selection ring animation */}
+   968→                      <motion.div
+   969→                        className="absolute inset-0 rounded-2xl border-2 border-pink-400/30"
+   970→                        initial={{ scale: 1.2, opacity: 0 }}
+   971→                        animate={{ scale: 1, opacity: 1 }}
+   972→                        transition={{ duration: 0.4, ease: 'easeOut' }}
+   973→                      />
+   974→                      <motion.div
+   975→                        className="absolute top-2.5 right-2.5 z-20"
+   976→                        initial={{ scale: 0, rotate: -180 }}
+   977→                        animate={{ scale: 1, rotate: 0 }}
+   978→                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+   979→                      >
+   980→                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-400 to-purple-600 flex items-center justify-center shadow-md">
+   981→                          <Check className="w-3.5 h-3.5 text-white" />
+   982→                        </div>
+   983→                      </motion.div>
+   984→                    </>
+   985→                  )}
+   986→                </motion.button>
+   987→              </div>
+   988→            </div>
+   989→          )}
+   990→
+   991→          {step === 1 && (
+   992→            <div className="space-y-6">
+   993→              <div className="text-center">
+   994→                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Match Settings</h2>
+   995→                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Configure your practice match</p>
+   996→              </div>
+   997→
+   998→              {/* Practice Match Indicator */}
+   999→              <motion.div
+  1000→                initial={{ opacity: 0, y: -5 }}
+  1001→                animate={{ opacity: 1, y: 0 }}
+  1002→                className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800/30 rounded-2xl p-4 flex items-center gap-3"
+  1003→              >
+  1004→                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+  1005→                  <span className="text-xl">🏋️</span>
+  1006→                </div>
+  1007→                <div>
+  1008→                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Practice Match</p>
+  1009→                  <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400/60">Quick Score is for practice. Tournament matches are scored via Tournaments tab.</p>
+  1010→                </div>
+  1011→              </motion.div>
+  1012→
+  1013→              {/* Visual Timer Preview */}
+  1014→              <motion.div
+  1015→                initial={{ opacity: 0, scale: 0.95 }}
+  1016→                animate={{ opacity: 1, scale: 1 }}
+  1017→                className="bg-gradient-to-br from-brand-navy/5 via-brand-red/5 to-brand-gold/5 dark:from-brand-navy/20 dark:via-brand-red/10 dark:to-brand-gold/10 rounded-2xl p-5 border border-warm-200/50 dark:border-warm-700/50"
+  1018→              >
+  1019→                <div className="text-center">
+  1020→                  <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-widest mb-2">Total Match Time</p>
+  1021→                  <div className="flex items-center justify-center gap-2">
+  1022→                    <motion.span
+  1023→                      key={`h1-${config.halfDuration}`}
+  1024→                      initial={{ scale: 1.3, opacity: 0 }}
+  1025→                      animate={{ scale: 1, opacity: 1 }}
+  1026→                      className="text-4xl font-black text-brand-red tabular-nums"
+  1027→                    >
+  1028→                      {config.halfDuration * 2}
+  1029→                    </motion.span>
+  1030→                    <span className="text-lg text-warm-400 dark:text-warm-500 font-medium">min</span>
+  1031→                  </div>
+  1032→                  <div className="flex items-center justify-center gap-3 mt-1">
+  1033→                    <span className="text-[10px] text-warm-500 dark:text-warm-400 flex items-center gap-1">
+  1034→                      <span className="w-1.5 h-1.5 rounded-full bg-brand-red inline-block" />
+  1035→                      1st Half: {config.halfDuration}m
+  1036→                    </span>
+  1037→                    <span className="text-[10px] text-warm-400">|</span>
+  1038→                    <span className="text-[10px] text-warm-500 dark:text-warm-400 flex items-center gap-1">
+  1039→                      <span className="w-1.5 h-1.5 rounded-full bg-brand-teal inline-block" />
+  1040→                      2nd Half: {config.halfDuration}m
+  1041→                    </span>
+  1042→                  </div>
+  1043→                  {/* Mini progress bar showing half split */}
+  1044→                  <div className="flex gap-1 mt-3 h-1.5">
+  1045→                    <div className="flex-1 bg-brand-red rounded-full" />
+  1046→                    <div className="flex-1 bg-brand-teal rounded-full" />
+  1047→                  </div>
+  1048→                </div>
+  1049→              </motion.div>
+  1050→
+  1051→              {/* Half Duration */}
+  1052→              <motion.div
+  1053→                initial={{ opacity: 0, y: 5 }}
+  1054→                animate={{ opacity: 1, y: 0 }}
+  1055→                transition={{ delay: 0.1 }}
+  1056→                className="bg-white dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700 rounded-2xl p-5"
+  1057→              >
+  1058→                <div className="flex items-center gap-2 mb-4">
+  1059→                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-red/15 to-brand-red/5 flex items-center justify-center">
+  1060→                    <Clock className="w-4.5 h-4.5 text-brand-red" />
+  1061→                  </div>
+  1062→                  <div className="flex-1">
+  1063→                    <label className="text-sm font-bold text-warm-800 dark:text-warm-100">
+  1064→                      Half Duration
+  1065→                    </label>
+  1066→                    <p className="text-[10px] text-warm-400 dark:text-warm-500">Each half lasts this many minutes</p>
+  1067→                  </div>
+  1068→                  <motion.div
+  1069→                    key={`dur-${config.halfDuration}`}
+  1070→                    initial={{ scale: 1.3, opacity: 0 }}
+  1071→                    animate={{ scale: 1, opacity: 1 }}
+  1072→                    className="flex items-baseline"
+  1073→                  >
+  1074→                    <span className="text-3xl font-black text-brand-red tabular-nums">{config.halfDuration}</span>
+  1075→                    <span className="text-sm text-warm-400 dark:text-warm-500 ml-1">min</span>
+  1076→                  </motion.div>
+  1077→                </div>
+  1078→                <div className="flex items-center gap-3">
+  1079→                  <motion.button
+  1080→                    whileTap={{ scale: 0.85 }}
+  1081→                    onClick={() => setConfig({ ...config, halfDuration: Math.max(1, config.halfDuration - 1) })}
+  1082→                    className="w-11 h-11 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-warm-700 dark:text-warm-200 active:bg-warm-200 dark:active:bg-warm-600 transition-colors font-bold text-xl shadow-sm hover:shadow-md"
+  1083→                  >
+  1084→                    −
+  1085→                  </motion.button>
+  1086→                  <div className="flex-1 relative">
+  1087→                    {/* Custom track */}
+  1088→                    <div className="h-3 bg-warm-100 dark:bg-warm-700 rounded-full relative overflow-hidden">
+  1089→                      <motion.div
+  1090→                        className="absolute left-0 top-0 h-full bg-gradient-to-r from-brand-red via-brand-red-light to-brand-gold rounded-full"
+  1091→                        animate={{ width: `${((config.halfDuration - 1) / 19) * 100}%` }}
+  1092→                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1093→                      />
+  1094→                      {/* Shine effect */}
+  1095→                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
+  1096→                    </div>
+  1097→                    {/* Custom thumb indicator */}
+  1098→                    <motion.div
+  1099→                      className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white dark:bg-warm-100 border-2 border-brand-red shadow-lg"
+  1100→                      animate={{ left: `calc(${((config.halfDuration - 1) / 19) * 100}% - 10px)` }}
+  1101→                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1102→                    />
+  1103→                  </div>
+  1104→                  <motion.button
+  1105→                    whileTap={{ scale: 0.85 }}
+  1106→                    onClick={() => setConfig({ ...config, halfDuration: Math.min(20, config.halfDuration + 1) })}
+  1107→                    className="w-11 h-11 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-warm-700 dark:text-warm-200 active:bg-warm-200 dark:active:bg-warm-600 transition-colors font-bold text-xl shadow-sm hover:shadow-md"
+  1108→                  >
+  1109→                    +
+  1110→                  </motion.button>
+  1111→                </div>
+  1112→                <div className="flex justify-between text-[10px] text-warm-400 dark:text-warm-500 mt-2 px-1">
+  1113→                  <span>1 min</span>
+  1114→                  <span>10 min</span>
+  1115→                  <span>20 min</span>
+  1116→                </div>
+  1117→              </motion.div>
+  1118→
+  1119→              {/* Players Per Side */}
+  1120→              <motion.div
+  1121→                initial={{ opacity: 0, y: 5 }}
+  1122→                animate={{ opacity: 1, y: 0 }}
+  1123→                transition={{ delay: 0.2 }}
+  1124→                className="bg-white dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700 rounded-2xl p-5"
+  1125→              >
+  1126→                <div className="flex items-center gap-2 mb-4">
+  1127→                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-teal/15 to-brand-teal/5 flex items-center justify-center">
+  1128→                    <Users className="w-4.5 h-4.5 text-brand-teal" />
+  1129→                  </div>
+  1130→                  <div className="flex-1">
+  1131→                    <label className="text-sm font-bold text-warm-800 dark:text-warm-100">
+  1132→                      Players Per Side
+  1133→                    </label>
+  1134→                    <p className="text-[10px] text-warm-400 dark:text-warm-500">Standard kabaddi is 7 players</p>
+  1135→                  </div>
+  1136→                  <motion.div
+  1137→                    key={`pps-${config.playersPerSide}`}
+  1138→                    initial={{ scale: 1.3, opacity: 0 }}
+  1139→                    animate={{ scale: 1, opacity: 1 }}
+  1140→                    className="flex items-baseline"
+  1141→                  >
+  1142→                    <span className="text-3xl font-black text-brand-teal tabular-nums">{config.playersPerSide}</span>
+  1143→                  </motion.div>
+  1144→                </div>
+  1145→                <div className="flex items-center gap-3">
+  1146→                  <motion.button
+  1147→                    whileTap={{ scale: 0.85 }}
+  1148→                    onClick={() => setConfig({ ...config, playersPerSide: Math.max(1, config.playersPerSide - 1) })}
+  1149→                    className="w-11 h-11 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-warm-700 dark:text-warm-200 active:bg-warm-200 dark:active:bg-warm-600 transition-colors font-bold text-xl shadow-sm hover:shadow-md"
+  1150→                  >
+  1151→                    −
+  1152→                  </motion.button>
+  1153→                  <div className="flex-1 relative">
+  1154→                    {/* Custom track */}
+  1155→                    <div className="h-3 bg-warm-100 dark:bg-warm-700 rounded-full relative overflow-hidden">
+  1156→                      <motion.div
+  1157→                        className="absolute left-0 top-0 h-full bg-gradient-to-r from-brand-teal via-teal-400 to-emerald-400 rounded-full"
+  1158→                        animate={{ width: `${((config.playersPerSide - 1) / 11) * 100}%` }}
+  1159→                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1160→                      />
+  1161→                      {/* Shine effect */}
+  1162→                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
+  1163→                    </div>
+  1164→                    {/* Custom thumb indicator */}
+  1165→                    <motion.div
+  1166→                      className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white dark:bg-warm-100 border-2 border-brand-teal shadow-lg"
+  1167→                      animate={{ left: `calc(${((config.playersPerSide - 1) / 11) * 100}% - 10px)` }}
+  1168→                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1169→                    />
+  1170→                  </div>
+  1171→                  <motion.button
+  1172→                    whileTap={{ scale: 0.85 }}
+  1173→                    onClick={() => setConfig({ ...config, playersPerSide: Math.min(12, config.playersPerSide + 1) })}
+  1174→                    className="w-11 h-11 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-warm-700 dark:text-warm-200 active:bg-warm-200 dark:active:bg-warm-600 transition-colors font-bold text-xl shadow-sm hover:shadow-md"
+  1175→                  >
+  1176→                    +
+  1177→                  </motion.button>
+  1178→                </div>
+  1179→                <div className="flex justify-between text-[10px] text-warm-400 dark:text-warm-500 mt-2 px-1">
+  1180→                  <span>1</span>
+  1181→                  <span>7 (Standard)</span>
+  1182→                  <span>12</span>
+  1183→                </div>
+  1184→
+  1185→                {/* Player count visual indicators */}
+  1186→                <div className="flex gap-1.5 mt-3 flex-wrap justify-center">
+  1187→                  {Array.from({ length: 12 }).map((_, i) => (
+  1188→                    <motion.div
+  1189→                      key={i}
+  1190→                      initial={false}
+  1191→                      animate={{
+  1192→                        scale: i < config.playersPerSide ? 1 : 0.7,
+  1193→                        opacity: i < config.playersPerSide ? 1 : 0.3,
+  1194→                      }}
+  1195→                      transition={{ type: 'spring', stiffness: 400, damping: 20, delay: i * 0.03 }}
+  1196→                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${
+  1197→                        i < config.playersPerSide
+  1198→                          ? 'bg-brand-teal text-white shadow-sm'
+  1199→                          : 'bg-warm-100 dark:bg-warm-700 text-warm-300 dark:text-warm-600 border border-dashed border-warm-200 dark:border-warm-600'
+  1200→                      }`}
+  1201→                    >
+  1202→                      {i + 1}
+  1203→                    </motion.div>
+  1204→                  ))}
+  1205→                </div>
+  1206→
+  1207→                {/* Recommended formation hint */}
+  1208→                {POSITION_BALANCE[config.playersPerSide] && (
+  1209→                  <motion.div
+  1210→                    initial={{ opacity: 0, height: 0 }}
+  1211→                    animate={{ opacity: 1, height: 'auto' }}
+  1212→                    className="mt-3 flex items-center gap-2 px-3 py-2 bg-brand-navy/5 dark:bg-brand-navy/10 rounded-lg"
+  1213→                  >
+  1214→                    <Sparkles className="w-3.5 h-3.5 text-brand-navy dark:text-brand-navy-light shrink-0" />
+  1215→                    <span className="text-[10px] text-warm-600 dark:text-warm-300">
+  1216→                      Recommended: {POSITION_BALANCE[config.playersPerSide].raiders} Raiders · {POSITION_BALANCE[config.playersPerSide].defenders} Defenders · {POSITION_BALANCE[config.playersPerSide].allRounders} All-rounders
+  1217→                    </span>
+  1218→                  </motion.div>
+  1219→                )}
+  1220→              </motion.div>
+  1221→            </div>
+  1222→          )}
+  1223→
+  1224→          {step === 2 && (
+  1225→            <div className="space-y-5" ref={teamInputRef}>
+  1226→              <div className="text-center">
+  1227→                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Team Setup</h2>
+  1228→                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Name and customize both teams</p>
+  1229→              </div>
+  1230→
+  1231→              {/* Enhanced VS Section with gradient backgrounds */}
+  1232→              <div className="relative">
+  1233→                {/* Home Team */}
+  1234→                <div className="space-y-3">
+  1235→                  <label className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
+  1236→                    <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: config.homeTeamColor }} />
+  1237→                    Team A
+  1238→                  </label>
+  1239→                  <div className="relative">
+  1240→                    <div
+  1241→                      className="rounded-xl overflow-hidden"
+  1242→                      style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}15, transparent)` }}
+  1243→                    >
+  1244→                      <Input
+  1245→                        placeholder="Enter team name"
+  1246→                        value={config.homeTeam}
+  1247→                        onChange={(e) => {
+  1248→                          setConfig({ ...config, homeTeam: e.target.value });
+  1249→                          setShowHomeSuggestions(true);
+  1250→                        }}
+  1251→                        onFocus={() => setShowHomeSuggestions(true)}
+  1252→                        className="h-12 bg-white/80 dark:bg-warm-800/80 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-medium pl-4"
+  1253→                        style={{ borderColor: config.homeTeamColor, borderWidth: '2px' }}
+  1254→                      />
+  1255→                    </div>
+  1256→                    {/* Team initial avatar with gradient */}
+  1257→                    {config.homeTeam && (
+  1258→                      <motion.div
+  1259→                        initial={{ scale: 0, rotate: -180 }}
+  1260→                        animate={{ scale: 1, rotate: 0 }}
+  1261→                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+  1262→                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg"
+  1263→                        style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}, ${config.homeTeamColor}dd)` }}
+  1264→                      >
+  1265→                        {config.homeTeam.charAt(0).toUpperCase()}
+  1266→                      </motion.div>
+  1267→                    )}
+  1268→                    {/* Team Suggestions Dropdown */}
+  1269→                    {showHomeSuggestions && homeTeamSuggestions.length > 0 && (
+  1270→                      <div className="absolute z-20 top-14 left-0 right-0 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
+  1271→                        <div className="px-3 py-1.5 text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider border-b border-warm-100 dark:border-warm-700">
+  1272→                          Your Teams
+  1273→                        </div>
+  1274→                        {homeTeamSuggestions.map((team) => (
+  1275→                          <button
+  1276→                            key={team.id}
+  1277→                            onClick={() => selectHomeTeamSuggestion(team)}
+  1278→                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors"
+  1279→                          >
+  1280→                            <div
+  1281→                              className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm"
+  1282→                              style={{ background: `linear-gradient(135deg, ${team.color || '#DC2626'}, ${team.color || '#DC2626'}cc)` }}
+  1283→                            >
+  1284→                              {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
+  1285→                            </div>
+  1286→                            <span className="text-sm text-warm-800 dark:text-warm-200 font-medium">{team.name}</span>
+  1287→                            {team.shortName && (
+  1288→                              <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono ml-auto">{team.shortName}</span>
+  1289→                            )}
+  1290→                          </button>
+  1291→                        ))}
+  1292→                      </div>
+  1293→                    )}
+  1294→                  </div>
+  1295→                  <div className="flex gap-2 flex-wrap">
+  1296→                    {teamColors.map((color) => (
+  1297→                      <motion.button
+  1298→                        key={color}
+  1299→                        whileTap={{ scale: 0.85 }}
+  1300→                        onClick={() => setConfig({ ...config, homeTeamColor: color })}
+  1301→                        className={`w-9 h-9 rounded-xl transition-all duration-200 relative ${
+  1302→                          config.homeTeamColor === color ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-900 scale-110 shadow-md' : 'hover:scale-110'
+  1303→                        }`}
+  1304→                        style={{ backgroundColor: color }}
+  1305→                      >
+  1306→                        {config.homeTeamColor === color && (
+  1307→                          <motion.div
+  1308→                            initial={{ scale: 0 }}
+  1309→                            animate={{ scale: 1 }}
+  1310→                            className="absolute inset-0 flex items-center justify-center"
+  1311→                          >
+  1312→                            <Check className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+  1313→                          </motion.div>
+  1314→                        )}
+  1315→                      </motion.button>
+  1316→                    ))}
+  1317→                  </div>
+  1318→                </div>
+  1319→
+  1320→                {/* VS Indicator - Enhanced with lightning bolt animation */}
+  1321→                <div className="flex items-center justify-center py-3">
+  1322→                  <div className="flex items-center gap-3 w-full">
+  1323→                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+  1324→                    <motion.div
+  1325→                      className="relative"
+  1326→                      animate={{ rotate: [0, 5, -5, 0] }}
+  1327→                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+  1328→                    >
+  1329→                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-lg relative overflow-hidden">
+  1330→                        <Swords className="w-6 h-6 text-warm-500 dark:text-warm-400 relative z-10" />
+  1331→                        {/* Lightning bolt flash effect */}
+  1332→                        <motion.div
+  1333→                          className="absolute inset-0 bg-gradient-to-br from-brand-gold/20 via-transparent to-brand-red/10"
+  1334→                          initial={{ opacity: 0 }}
+  1335→                          animate={{ opacity: [0, 0.5, 0, 0.3, 0] }}
+  1336→                          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+  1337→                        />
+  1338→                      </div>
+  1339→                      {/* Animated glow effect with pulse */}
+  1340→                      <motion.div
+  1341→                        className="absolute inset-0 rounded-full"
+  1342→                        animate={{
+  1343→                          boxShadow: [
+  1344→                            '0 0 0 0 rgba(220, 38, 38, 0.3)',
+  1345→                            '0 0 0 8px rgba(220, 38, 38, 0)',
+  1346→                          ],
+  1347→                        }}
+  1348→                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+  1349→                      />
+  1350→                      {/* Mini lightning bolt icons */}
+  1351→                      <motion.div
+  1352→                        className="absolute -top-2 -right-2"
+  1353→                        animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.4, 0.8, 0.4] }}
+  1354→                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+  1355→                      >
+  1356→                        <Zap className="w-3 h-3 text-brand-gold" />
+  1357→                      </motion.div>
+  1358→                      <motion.div
+  1359→                        className="absolute -bottom-2 -left-2"
+  1360→                        animate={{ scale: [1.2, 0.8, 1.2], opacity: [0.4, 0.8, 0.4] }}
+  1361→                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 0.75 }}
+  1362→                      >
+  1363→                        <Zap className="w-3 h-3 text-brand-red" />
+  1364→                      </motion.div>
+  1365→                    </motion.div>
+  1366→                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+  1367→                  </div>
+  1368→                </div>
+  1369→
+  1370→                {/* Away Team */}
+  1371→                <div className="space-y-3">
+  1372→                  <label className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
+  1373→                    <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: config.awayTeamColor }} />
+  1374→                    Team B
+  1375→                  </label>
+  1376→                  <div className="relative">
+  1377→                    <div
+  1378→                      className="rounded-xl overflow-hidden"
+  1379→                      style={{ background: `linear-gradient(135deg, ${config.awayTeamColor}15, transparent)` }}
+  1380→                    >
+  1381→                      <Input
+  1382→                        placeholder="Enter team name"
+  1383→                        value={config.awayTeam}
+  1384→                        onChange={(e) => {
+  1385→                          setConfig({ ...config, awayTeam: e.target.value });
+  1386→                          setShowAwaySuggestions(true);
+  1387→                        }}
+  1388→                        onFocus={() => setShowAwaySuggestions(true)}
+  1389→                        className="h-12 bg-white/80 dark:bg-warm-800/80 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-medium pl-4"
+  1390→                        style={{ borderColor: config.awayTeamColor, borderWidth: '2px' }}
+  1391→                      />
+  1392→                    </div>
+  1393→                    {/* Team initial avatar with gradient */}
+  1394→                    {config.awayTeam && (
+  1395→                      <motion.div
+  1396→                        initial={{ scale: 0, rotate: -180 }}
+  1397→                        animate={{ scale: 1, rotate: 0 }}
+  1398→                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+  1399→                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg"
+  1400→                        style={{ background: `linear-gradient(135deg, ${config.awayTeamColor}, ${config.awayTeamColor}dd)` }}
+  1401→                      >
+  1402→                        {config.awayTeam.charAt(0).toUpperCase()}
+  1403→                      </motion.div>
+  1404→                    )}
+  1405→                    {/* Team Suggestions Dropdown */}
+  1406→                    {showAwaySuggestions && awayTeamSuggestions.length > 0 && (
+  1407→                      <div className="absolute z-20 top-14 left-0 right-0 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
+  1408→                        <div className="px-3 py-1.5 text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider border-b border-warm-100 dark:border-warm-700">
+  1409→                          Your Teams
+  1410→                        </div>
+  1411→                        {awayTeamSuggestions.map((team) => (
+  1412→                          <button
+  1413→                            key={team.id}
+  1414→                            onClick={() => selectAwayTeamSuggestion(team)}
+  1415→                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors"
+  1416→                          >
+  1417→                            <div
+  1418→                              className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm"
+  1419→                              style={{ background: `linear-gradient(135deg, ${team.color || '#1E293B'}, ${team.color || '#1E293B'}cc)` }}
+  1420→                            >
+  1421→                              {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
+  1422→                            </div>
+  1423→                            <span className="text-sm text-warm-800 dark:text-warm-200 font-medium">{team.name}</span>
+  1424→                            {team.shortName && (
+  1425→                              <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono ml-auto">{team.shortName}</span>
+  1426→                            )}
+  1427→                          </button>
+  1428→                        ))}
+  1429→                      </div>
+  1430→                    )}
+  1431→                  </div>
+  1432→                  <div className="flex gap-2 flex-wrap">
+  1433→                    {teamColors.map((color) => (
+  1434→                      <motion.button
+  1435→                        key={`away-${color}`}
+  1436→                        whileTap={{ scale: 0.85 }}
+  1437→                        onClick={() => setConfig({ ...config, awayTeamColor: color })}
+  1438→                        className={`w-9 h-9 rounded-xl transition-all duration-200 relative ${
+  1439→                          config.awayTeamColor === color ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-900 scale-110 shadow-md' : 'hover:scale-110'
+  1440→                        }`}
+  1441→                        style={{ backgroundColor: color }}
+  1442→                      >
+  1443→                        {config.awayTeamColor === color && (
+  1444→                          <motion.div
+  1445→                            initial={{ scale: 0 }}
+  1446→                            animate={{ scale: 1 }}
+  1447→                            className="absolute inset-0 flex items-center justify-center"
+  1448→                          >
+  1449→                            <Check className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+  1450→                          </motion.div>
+  1451→                        )}
+  1452→                      </motion.button>
+  1453→                    ))}
+  1454→                  </div>
+  1455→                </div>
+  1456→              </div>
+  1457→            </div>
+  1458→          )}
+  1459→
+  1460→          {step === 3 && (
+  1461→            <div className="space-y-4">
+  1462→              <div className="text-center">
+  1463→                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Add Players</h2>
+  1464→                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Search or quick-add players to each team</p>
+  1465→              </div>
+  1466→
+  1467→              {/* Team Toggle */}
+  1468→              <div className="flex gap-2 p-1 bg-warm-100 dark:bg-warm-800 rounded-xl">
+  1469→                <button
+  1470→                  onClick={() => setActiveLineupTeam('home')}
+  1471→                  className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${
+  1472→                    activeLineupTeam === 'home'
+  1473→                      ? 'text-white shadow-md'
+  1474→                      : 'text-warm-500 dark:text-warm-400'
+  1475→                  }`}
+  1476→                  style={activeLineupTeam === 'home' ? { backgroundColor: config.homeTeamColor } : {}}
+  1477→                >
+  1478→                  {config.homeTeam || 'Team A'} ({config.homeLineup.length})
+  1479→                </button>
+  1480→                <button
+  1481→                  onClick={() => setActiveLineupTeam('away')}
+  1482→                  className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${
+  1483→                    activeLineupTeam === 'away'
+  1484→                      ? 'text-white shadow-md'
+  1485→                      : 'text-warm-500 dark:text-warm-400'
+  1486→                  }`}
+  1487→                  style={activeLineupTeam === 'away' ? { backgroundColor: config.awayTeamColor } : {}}
+  1488→                >
+  1489→                  {config.awayTeam || 'Team B'} ({config.awayLineup.length})
+  1490→                </button>
+  1491→              </div>
+  1492→
+  1493→              {/* Smart Lineup Suggestion Button */}
+  1494→              <motion.div
+  1495→                initial={{ opacity: 0, y: -5 }}
+  1496→                animate={{ opacity: 1, y: 0 }}
+  1497→              >
+  1498→                <Button
+  1499→                  onClick={handleSuggestLineup}
+  1500→                  disabled={suggestingLineup || allPlayers.length === 0}
+  1501→                  variant="outline"
+  1502→                  className="w-full border-brand-gold/40 dark:border-brand-gold/30 text-brand-gold-dark dark:text-brand-gold hover:bg-brand-gold/5 dark:hover:bg-brand-gold/10 h-10"
+  1503→                >
+  1504→                  {suggestingLineup ? (
+  1505→                    <>
+  1506→                      <motion.div
+  1507→                        animate={{ rotate: 360 }}
+  1508→                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+  1509→                      >
+  1510→                        <Sparkles className="w-4 h-4 mr-2" />
+  1511→                      </motion.div>
+  1512→                      Suggesting...
+  1513→                    </>
+  1514→                  ) : (
+  1515→                    <>
+  1516→                      <Sparkles className="w-4 h-4 mr-2" />
+  1517→                      Suggest Lineup
+  1518→                      <Badge className="ml-2 bg-brand-gold/15 text-brand-gold-dark dark:text-brand-gold text-[8px] font-bold border-0 px-1.5">
+  1519→                        AI
+  1520→                      </Badge>
+  1521→                    </>
+  1522→                  )}
+  1523→                </Button>
+  1524→              </motion.div>
+  1525→
+  1526→              {/* Lineup Validation */}
+  1527→              {lineupWarnings.length > 0 && (
+  1528→                <div className="space-y-1.5">
+  1529→                  {lineupWarnings.map((w, i) => (
+  1530→                    <motion.div
+  1531→                      key={i}
+  1532→                      initial={{ opacity: 0, x: -10 }}
+  1533→                      animate={{ opacity: 1, x: 0 }}
+  1534→                      transition={{ delay: i * 0.05 }}
+  1535→                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
+  1536→                        w.severity === 'error'
+  1537→                          ? 'bg-brand-red/10 text-brand-red dark:bg-brand-red/15'
+  1538→                          : w.severity === 'warning'
+  1539→                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 dark:bg-amber-500/15'
+  1540→                            : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 dark:bg-blue-500/15'
+  1541→                      }`}
+  1542→                    >
+  1543→                      {w.severity === 'info' ? (
+  1544→                        <Info className="w-3.5 h-3.5 shrink-0" />
+  1545→                      ) : (
+  1546→                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+  1547→                      )}
+  1548→                      <span>{w.message}</span>
+  1549→                    </motion.div>
+  1550→                  ))}
+  1551→                </div>
+  1552→              )}
+  1553→
+  1554→              {/* Unified Search Input with Suggestions */}
+  1555→              <div className="space-y-2" ref={playerInputRef}>
+  1556→                <div className="relative">
+  1557→                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+  1558→                  <Input
+  1559→                    placeholder="Search by name, ID code, or phone..."
+  1560→                    value={playerSearch}
+  1561→                    onChange={(e) => {
+  1562→                      setPlayerSearch(e.target.value);
+  1563→                      setShowSuggestions(true);
+  1564→                    }}
+  1565→                    onFocus={() => {
+  1566→                      setShowSuggestions(true);
+  1567→                      // Show all players on focus if search is empty
+  1568→                      if (!playerSearch.trim()) {
+  1569→                        setSearchResults(getLocalFiltered(''));
+  1570→                      }
+  1571→                    }}
+  1572→                    onKeyDown={(e) => {
+  1573→                      if (e.key === 'Enter' && playerSearch.trim()) {
+  1574→                        // If exact match found in results, add it
+  1575→                        const exactMatch = searchResults.find(
+  1576→                          p => p.name?.toLowerCase() === playerSearch.trim().toLowerCase()
+  1577→                        );
+  1578→                        if (exactMatch) {
+  1579→                          addDbPlayer(exactMatch);
+  1580→                        } else {
+  1581→                          // Quick add a new player by name
+  1582→                          addQuickPlayer(activeLineupTeam);
+  1583→                        }
+  1584→                      }
+  1585→                      if (e.key === 'Escape') {
+  1586→                        setShowSuggestions(false);
+  1587→                      }
+  1588→                    }}
+  1589→                    className="pl-9 pr-9 h-12 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm"
+  1590→                    autoFocus
+  1591→                  />
+  1592→                  {playerSearch && (
+  1593→                    <button
+  1594→                      onClick={() => {
+  1595→                        setPlayerSearch('');
+  1596→                        setSearchResults([]);
+  1597→                        setShowSuggestions(false);
+  1598→                      }}
+  1599→                      className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+  1600→                    >
+  1601→                      <X className="w-4 h-4" />
+  1602→                    </button>
+  1603→                  )}
+  1604→                </div>
+  1605→
+  1606→                {/* Suggestions Dropdown with Player Quick Stats */}
+  1607→                {showSuggestions && (
+  1608→                  <div className="bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-warm-100 dark:divide-warm-700">
+  1609→                    {/* Searching indicator */}
+  1610→                    {isSearching && (
+  1611→                      <div className="px-3 py-2 flex items-center gap-2">
+  1612→                        <div className="w-3 h-3 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+  1613→                        <span className="text-xs text-warm-400">Searching more...</span>
+  1614→                      </div>
+  1615→                    )}
+  1616→
+  1617→                    {/* Player Suggestions */}
+  1618→                    {searchResults.length > 0 ? (
+  1619→                      searchResults.map((p) => {
+  1620→                        const alreadyAdded = [...config.homeLineup, ...config.awayLineup].some(lp => lp.id === p.id);
+  1621→                        const isHovered = hoveredPlayer === p.id;
+  1622→                        const hasStats = p.profile?.totalPoints && p.profile.totalPoints > 0;
+  1623→
+  1624→                        return (
+  1625→                          <div
+  1626→                            key={p.id}
+  1627→                            className="relative"
+  1628→                            onMouseEnter={() => setHoveredPlayer(p.id)}
+  1629→                            onMouseLeave={() => setHoveredPlayer(null)}
+  1630→                          >
+  1631→                            <button
+  1632→                              onClick={() => !alreadyAdded && addDbPlayer(p)}
+  1633→                              disabled={alreadyAdded}
+  1634→                              className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
+  1635→                                alreadyAdded
+  1636→                                  ? 'opacity-50 cursor-not-allowed bg-warm-50 dark:bg-warm-800/50'
+  1637→                                  : 'hover:bg-warm-50 dark:hover:bg-warm-700/50 active:bg-warm-100 dark:active:bg-warm-700'
+  1638→                              }`}
+  1639→                            >
+  1640→                              <div className="w-10 h-10 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-600 dark:text-warm-300 overflow-hidden shrink-0 relative">
+  1641→                                {p.avatar ? (
+  1642→                                  <img src={p.avatar} alt={p.name || ''} className="w-full h-full object-cover" />
+  1643→                                ) : (
+  1644→                                  (p.name || '?').charAt(0).toUpperCase()
+  1645→                                )}
+  1646→                                {p.profile?.position && (
+  1647→                                  <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ${getPositionColor(p.profile.position)} flex items-center justify-center text-white`}>
+  1648→                                    {getPositionIcon(p.profile.position)}
+  1649→                                  </div>
+  1650→                                )}
+  1651→                              </div>
+  1652→
+  1653→                              <div className="flex-1 min-w-0">
+  1654→                                <p className="text-sm font-medium text-warm-800 dark:text-warm-200 truncate">
+  1655→                                  {highlightMatch(p.name || 'Unknown', playerSearch)}
+  1656→                                </p>
+  1657→                                <div className="flex items-center gap-2">
+  1658→                                  {p.playerCode && (
+  1659→                                    <span className="text-[10px] font-mono font-semibold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded">
+  1660→                                      {highlightMatch(p.playerCode, playerSearch)}
+  1661→                                    </span>
+  1662→                                  )}
+  1663→                                  {p.phone && (
+  1664→                                    <span className="text-[10px] text-warm-400 dark:text-warm-500">{p.phone}</span>
+  1665→                                  )}
+  1666→                                  {p.profile?.position && (
+  1667→                                    <span className="text-[10px] text-warm-500 dark:text-warm-400 bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded capitalize">
+  1668→                                      {p.profile.position}
+  1669→                                    </span>
+  1670→                                  )}
+  1671→                                </div>
+  1672→                                {/* Quick Stats Inline */}
+  1673→                                {hasStats && (
+  1674→                                  <div className="flex items-center gap-2 mt-1">
+  1675→                                    <span className="text-[9px] font-semibold text-brand-navy dark:text-brand-navy-light">
+  1676→                                      ⭐ {p.profile.totalPoints}pts
+  1677→                                    </span>
+  1678→                                    <span className="text-[9px] text-brand-red">
+  1679→                                      ⚡ {p.profile.raidPoints || 0}R
+  1680→                                    </span>
+  1681→                                    <span className="text-[9px] text-brand-teal">
+  1682→                                      🎯 {p.profile.tacklePoints || 0}T
+  1683→                                    </span>
+  1684→                                  </div>
+  1685→                                )}
+  1686→                              </div>
+  1687→                              {alreadyAdded ? (
+  1688→                                <Badge className="bg-brand-green/10 text-brand-green text-[9px] border-0">Added</Badge>
+  1689→                              ) : (
+  1690→                                <div className="w-8 h-8 rounded-full bg-brand-teal/10 flex items-center justify-center">
+  1691→                                  <Plus className="w-4 h-4 text-brand-teal" />
+  1692→                                </div>
+  1693→                              )}
+  1694→                            </button>
+  1695→
+  1696→                            {/* Player Stats Tooltip on hover */}
+  1697→                            {isHovered && hasStats && !alreadyAdded && (
+  1698→                              <PlayerStatsTooltip player={p} allPlayers={allPlayers} />
+  1699→                            )}
+  1700→                          </div>
+  1701→                        );
+  1702→                      })
+  1703→                    ) : !isSearching && playerSearch.trim() ? (
+  1704→                      <div className="px-3 py-4 text-center">
+  1705→                        <p className="text-sm text-warm-500 dark:text-warm-400">No player found for &quot;{playerSearch}&quot;</p>
+  1706→                        <button
+  1707→                          onClick={() => addQuickPlayer(activeLineupTeam)}
+  1708→                          className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-brand-red hover:text-brand-red-dark"
+  1709→                        >
+  1710→                          <UserPlus className="w-3.5 h-3.5" />
+  1711→                          Quick add &quot;{playerSearch.trim()}&quot;
+  1712→                        </button>
+  1713→                      </div>
+  1714→                    ) : !playerSearch.trim() && allPlayers.length === 0 ? (
+  1715→                      <div className="px-3 py-4 text-center">
+  1716→                        <Database className="w-6 h-6 text-warm-300 dark:text-warm-600 mx-auto mb-1" />
+  1717→                        <p className="text-xs text-warm-400 dark:text-warm-500">No players in database yet</p>
+  1718→                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Type a name to quick-add a new player</p>
+  1719→                      </div>
+  1720→                    ) : null}
+  1721→
+  1722→                    {/* Quick add option when there are results but no exact match */}
+  1723→                    {searchResults.length > 0 && playerSearch.trim() && !searchResults.some(
+  1724→                      p => p.name?.toLowerCase() === playerSearch.trim().toLowerCase()
+  1725→                    ) && (
+  1726→                      <button
+  1727→                        onClick={() => addQuickPlayer(activeLineupTeam)}
+  1728→                        className="w-full flex items-center gap-3 p-3 text-left hover:bg-brand-red/5 dark:hover:bg-brand-red/10 active:bg-brand-red/10 transition-colors border-t-2 border-dashed border-warm-200 dark:border-warm-700"
+  1729→                      >
+  1730→                        <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center shrink-0">
+  1731→                          <UserPlus className="w-4 h-4 text-brand-red" />
+  1732→                        </div>
+  1733→                        <div className="flex-1 min-w-0">
+  1734→                          <p className="text-sm font-medium text-brand-red">
+  1735→                            Quick add &quot;{playerSearch.trim()}&quot;
+  1736→                          </p>
+  1737→                          <p className="text-[10px] text-warm-400 dark:text-warm-500">Add as new player (not in database)</p>
+  1738→                        </div>
+  1739→                      </button>
+  1740→                    )}
+  1741→                  </div>
+  1742→                )}
+  1743→              </div>
+  1744→
+  1745→              {/* Player Cards - Enhanced with jersey number badges and position indicators */}
+  1746→              <div className="space-y-2 min-h-[60px]">
+  1747→                {(activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup).length === 0 ? (
+  1748→                  <div className="w-full text-center py-10">
+  1749→                    <div className="w-14 h-14 rounded-2xl bg-warm-100 dark:bg-warm-800 mx-auto flex items-center justify-center mb-3">
+  1750→                      <UserPlus className="w-6 h-6 text-warm-300 dark:text-warm-600" />
+  1751→                    </div>
+  1752→                    <p className="text-warm-400 dark:text-warm-500 text-sm font-medium">No players added yet</p>
+  1753→                    <p className="text-warm-300 dark:text-warm-600 text-xs mt-0.5">Search, type a name, or use &quot;Suggest Lineup&quot;</p>
+  1754→                    {/* Empty position slots */}
+  1755→                    <div className="flex gap-1.5 mt-4 justify-center flex-wrap">
+  1756→                      {Array.from({ length: config.playersPerSide }).map((_, i) => (
+  1757→                        <div key={`empty-slot-${i}`} className="w-10 h-10 rounded-xl border-2 border-dashed border-warm-200 dark:border-warm-700 flex items-center justify-center">
+  1758→                          <span className="text-[10px] text-warm-300 dark:text-warm-600 font-medium">{i + 1}</span>
+  1759→                        </div>
+  1760→                      ))}
+  1761→                    </div>
+  1762→                  </div>
+  1763→                ) : (
+  1764→                  <>
+  1765→                    {/* Position slots: filled + empty */}
+  1766→                    {(activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup).map((player, idx) => {
+  1767→                      const dbP = allPlayers.find(ap => ap.id === player.id);
+  1768→                      const position = dbP?.profile?.position || null;
+  1769→                      const positionCategory = getPositionCategory(position);
+  1770→                      const hasStats = dbP?.profile?.totalPoints && (dbP.profile.totalPoints || 0) > 0;
+  1771→                      const teamColor = activeLineupTeam === 'home' ? config.homeTeamColor : config.awayTeamColor;
+  1772→
+  1773→                      return (
+  1774→                        <motion.div
+  1775→                          key={player.id}
+  1776→                          initial={{ scale: 0.9, opacity: 0, x: -20 }}
+  1777→                          animate={{ scale: 1, opacity: 1, x: 0 }}
+  1778→                          transition={{ delay: idx * 0.05, type: 'spring', stiffness: 300, damping: 25 }}
+  1779→                          className="flex items-center gap-3 bg-white dark:bg-warm-800/70 border border-warm-200 dark:border-warm-700 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow"
+  1780→                        >
+  1781→                          {/* Enhanced drag handle */}
+  1782→                          <div className="text-warm-300 dark:text-warm-600 cursor-grab active:cursor-grabbing hover:text-warm-500 dark:hover:text-warm-400 transition-colors">
+  1783→                            <GripVertical className="w-4 h-4" />
+  1784→                          </div>
+  1785→                          {/* Jersey number badge with gradient */}
+  1786→                          <div className="relative">
+  1787→                            <div
+  1788→                              className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black text-white shrink-0 shadow-md"
+  1789→                              style={{ background: `linear-gradient(135deg, ${teamColor}, ${teamColor}cc)` }}
+  1790→                            >
+  1791→                              {player.jerseyNumber}
+  1792→                            </div>
+  1793→                            {/* Position dot indicator */}
+  1794→                            {position && (
+  1795→                              <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full ${getPositionColor(position)} flex items-center justify-center text-white border-2 border-white dark:border-warm-800 shadow-sm`}>
+  1796→                                {getPositionIcon(position)}
+  1797→                              </div>
+  1798→                            )}
+  1799→                          </div>
+  1800→                          <div className="flex-1 min-w-0">
+  1801→                            <div className="flex items-center gap-1.5">
+  1802→                              <span className="text-sm font-semibold text-warm-800 dark:text-warm-200">{player.name}</span>
+  1803→                              {position && (
+  1804→                                <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${
+  1805→                                  positionCategory === 'raider' ? 'bg-brand-red/10 text-brand-red' :
+  1806→                                  positionCategory === 'defender' ? 'bg-brand-teal/10 text-brand-teal' :
+  1807→                                  positionCategory === 'all-rounder' ? 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold' :
+  1808→                                  'bg-warm-100 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+  1809→                                } capitalize`}>
+  1810→                                  {position}
+  1811→                                </span>
+  1812→                              )}
+  1813→                            </div>
+  1814→                            {hasStats && (
+  1815→                              <div className="flex items-center gap-2 mt-0.5">
+  1816→                                <span className="text-[9px] text-warm-400 dark:text-warm-500">
+  1817→                                  ⭐ {dbP!.profile!.totalPoints}pts
+  1818→                                </span>
+  1819→                                <span className="text-[9px] text-warm-400 dark:text-warm-500">
+  1820→                                  ⚡ {dbP!.profile!.raidPoints || 0}R
+  1821→                                </span>
+  1822→                              </div>
+  1823→                            )}
+  1824→                          </div>
+  1825→                          {/* Position number badge */}
+  1826→                          <span className="text-[10px] text-warm-400 dark:text-warm-500 font-bold bg-warm-100 dark:bg-warm-700 w-6 h-6 rounded-full flex items-center justify-center">#{idx + 1}</span>
+  1827→                          <motion.button
+  1828→                            whileTap={{ scale: 0.8 }}
+  1829→                            onClick={() => removePlayer(activeLineupTeam, player.id)}
+  1830→                            className="w-7 h-7 rounded-full flex items-center justify-center text-warm-400 hover:text-brand-red hover:bg-brand-red/10 transition-colors"
+  1831→                          >
+  1832→                            <X className="w-3.5 h-3.5" />
+  1833→                          </motion.button>
+  1834→                        </motion.div>
+  1835→                      );
+  1836→                    })}
+  1837→                    {/* Empty remaining slots */}
+  1838→                    {(activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup).length < config.playersPerSide && (
+  1839→                      <div className="flex gap-2 mt-2 flex-wrap">
+  1840→                        {Array.from({ length: config.playersPerSide - (activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup).length }).map((_, i) => (
+  1841→                          <motion.div
+  1842→                            key={`remaining-${i}`}
+  1843→                            initial={{ opacity: 0, scale: 0.8 }}
+  1844→                            animate={{ opacity: 1, scale: 1 }}
+  1845→                            transition={{ delay: 0.3 + i * 0.05 }}
+  1846→                            className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-warm-200 dark:border-warm-700 bg-warm-50/50 dark:bg-warm-800/30"
+  1847→                          >
+  1848→                            <div className="w-8 h-8 rounded-lg border-2 border-dashed border-warm-300 dark:border-warm-600 flex items-center justify-center">
+  1849→                              <Plus className="w-3.5 h-3.5 text-warm-300 dark:text-warm-600" />
+  1850→                            </div>
+  1851→                            <span className="text-[10px] text-warm-400 dark:text-warm-500 font-medium">
+  1852→                              Slot {(activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup).length + i + 1}
+  1853→                            </span>
+  1854→                          </motion.div>
+  1855→                        ))}
+  1856→                      </div>
+  1857→                    )}
+  1858→                  </>
+  1859→                )}
+  1860→              </div>
+  1861→            </div>
+  1862→          )}
+  1863→
+  1864→          {step === 4 && (
+  1865→            <div className="space-y-5">
+  1866→              <div className="text-center">
+  1867→                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Match Preview</h2>
+  1868→                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Review your match setup before starting</p>
+  1869→              </div>
+  1870→
+  1871→              {/* Match Preview Card - Enhanced */}
+  1872→              <div className="bg-white dark:bg-warm-800/50 rounded-2xl border border-warm-200 dark:border-warm-700 overflow-hidden shadow-lg">
+  1873→                {/* Gender Badge Header with enhanced gradient */}
+  1874→                <div className={`py-3 px-4 text-center relative overflow-hidden ${
+  1875→                  config.gender === 'male'
+  1876→                    ? 'bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-blue-600/10 dark:from-blue-500/20 dark:via-blue-500/10 dark:to-blue-600/20'
+  1877→                    : 'bg-gradient-to-r from-red-500/10 via-red-500/5 to-red-600/10 dark:from-red-500/20 dark:via-red-500/10 dark:to-red-600/20'
+  1878→                }`}>
+  1879→                  <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold ${
+  1880→                    config.gender === 'male'
+  1881→                      ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+  1882→                      : 'bg-red-500/20 text-red-600 dark:text-red-400'
+  1883→                  }`}>
+  1884→                    {config.gender === 'male' ? '♂ Boys Match' : '♀ Girls Match'}
+  1885→                  </span>
+  1886→                  {/* Decorative dots */}
+  1887→                  <div className="absolute top-2 left-6 w-1.5 h-1.5 rounded-full bg-white/20" />
+  1888→                  <div className="absolute bottom-2 right-8 w-1 h-1 rounded-full bg-white/15" />
+  1889→                </div>
+  1890→
+  1891→                {/* Teams Face Off - Enhanced with gradient backgrounds */}
+  1892→                <div className="p-6">
+  1893→                  <div className="flex items-center justify-between">
+  1894→                    <div className="text-center flex-1">
+  1895→                      {/* Team gradient background */}
+  1896→                      <div
+  1897→                        className="rounded-2xl p-4 relative overflow-hidden"
+  1898→                        style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}20, transparent)` }}
+  1899→                      >
+  1900→                        <motion.div
+  1901→                          className="w-18 h-18 rounded-2xl mx-auto flex items-center justify-center text-white font-black text-xl shadow-lg relative"
+  1902→                          style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}, ${config.homeTeamColor}cc)`, width: '72px', height: '72px' }}
+  1903→                          initial={{ x: -20, opacity: 0 }}
+  1904→                          animate={{ x: 0, opacity: 1 }}
+  1905→                          transition={{ delay: 0.1 }}
+  1906→                        >
+  1907→                          {config.homeTeam.charAt(0).toUpperCase()}
+  1908→                        </motion.div>
+  1909→                        <motion.div
+  1910→                          className="font-bold text-warm-800 dark:text-warm-100 mt-2 text-sm"
+  1911→                          initial={{ opacity: 0 }}
+  1912→                          animate={{ opacity: 1 }}
+  1913→                          transition={{ delay: 0.2 }}
+  1914→                        >
+  1915→                          {config.homeTeam}
+  1916→                        </motion.div>
+  1917→                        <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 flex items-center justify-center gap-1">
+  1918→                          <Users className="w-3 h-3" />
+  1919→                          {config.homeLineup.length} players
+  1920→                        </div>
+  1921→                        {/* Lineup Summary with position badges */}
+  1922→                        <div className="flex flex-wrap gap-1 mt-2 justify-center">
+  1923→                          {config.homeLineup.slice(0, 5).map((p) => {
+  1924→                            const dbP = allPlayers.find(ap => ap.id === p.id);
+  1925→                            const position = dbP?.profile?.position;
+  1926→                            return (
+  1927→                              <span
+  1928→                                key={p.id}
+  1929→                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+  1930→                                  position
+  1931→                                    ? getPositionCategory(position) === 'raider'
+  1932→                                      ? 'bg-brand-red/10 text-brand-red'
+  1933→                                      : getPositionCategory(position) === 'defender'
+  1934→                                        ? 'bg-brand-teal/10 text-brand-teal'
+  1935→                                        : 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold'
+  1936→                                    : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+  1937→                                }`}
+  1938→                              >
+  1939→                                #{p.jerseyNumber} {p.name.split(' ')[0]}
+  1940→                              </span>
+  1941→                            );
+  1942→                          })}
+  1943→                          {config.homeLineup.length > 5 && (
+  1944→                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-500">
+  1945→                              +{config.homeLineup.length - 5}
+  1946→                            </span>
+  1947→                          )}
+  1948→                        </div>
+  1949→                      </div>
+  1950→                    </div>
+  1951→
+  1952→                    <div className="flex flex-col items-center px-2">
+  1953→                      <motion.div
+  1954→                        className="w-14 h-14 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-lg relative"
+  1955→                        animate={{ scale: [1, 1.08, 1] }}
+  1956→                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+  1957→                      >
+  1958→                        <span className="text-warm-600 dark:text-warm-300 font-black text-sm">VS</span>
+  1959→                        {/* Pulse ring */}
+  1960→                        <motion.div
+  1961→                          className="absolute inset-0 rounded-full border-2 border-brand-red/20"
+  1962→                          animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+  1963→                          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+  1964→                        />
+  1965→                      </motion.div>
+  1966→                    </div>
+  1967→
+  1968→                    <div className="text-center flex-1">
+  1969→                      {/* Team gradient background */}
+  1970→                      <div
+  1971→                        className="rounded-2xl p-4 relative overflow-hidden"
+  1972→                        style={{ background: `linear-gradient(135deg, ${config.awayTeamColor}20, transparent)` }}
+  1973→                      >
+  1974→                        <motion.div
+  1975→                          className="w-18 h-18 rounded-2xl mx-auto flex items-center justify-center text-white font-black text-xl shadow-lg relative"
+  1976→                          style={{ background: `linear-gradient(135deg, ${config.awayTeamColor}, ${config.awayTeamColor}cc)`, width: '72px', height: '72px' }}
+  1977→                          initial={{ x: 20, opacity: 0 }}
+  1978→                          animate={{ x: 0, opacity: 1 }}
+  1979→                          transition={{ delay: 0.1 }}
+  1980→                        >
+  1981→                          {config.awayTeam.charAt(0).toUpperCase()}
+  1982→                        </motion.div>
+  1983→                        <motion.div
+  1984→                          className="font-bold text-warm-800 dark:text-warm-100 mt-2 text-sm"
+  1985→                          initial={{ opacity: 0 }}
+  1986→                          animate={{ opacity: 1 }}
+  1987→                          transition={{ delay: 0.2 }}
+  1988→                        >
+  1989→                          {config.awayTeam}
+  1990→                        </motion.div>
+  1991→                        <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 flex items-center justify-center gap-1">
+  1992→                          <Users className="w-3 h-3" />
+  1993→                          {config.awayLineup.length} players
+  1994→                        </div>
+  1995→                        {/* Lineup Summary with position badges */}
+  1996→                        <div className="flex flex-wrap gap-1 mt-2 justify-center">
+  1997→                          {config.awayLineup.slice(0, 5).map((p) => {
+  1998→                            const dbP = allPlayers.find(ap => ap.id === p.id);
+  1999→                            const position = dbP?.profile?.position;
+  2000→                            return (
+
+[showing lines 1-2000 of 2208; use offset=2001 with limit to continue reading]

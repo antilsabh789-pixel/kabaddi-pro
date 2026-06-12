@@ -1175,10 +1175,8 @@ export default function AuthScreen() {
               </div>
 
               {/* ── Toggle Login/Signup with animated underline ── */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="text-brand-red hover:text-brand-red-light dark:text-brand-red-light dark:hover:text-brand-red text-sm font-medium transition-colors w-full text-center group relative"
+              <button
+                className="text-brand-red hover:text-brand-red-light dark:text-brand-red-light dark:hover:text-brand-red text-sm font-medium transition-colors w-full text-center group relative pointer-events-auto"
                 onClick={() => {
                   setIsSignUp(!isSignUp);
                   setError('');
@@ -1190,16 +1188,10 @@ export default function AuthScreen() {
                   {isSignUp
                     ? 'Already have an account? Login'
                     : "Don't have an account? Sign Up"}
-                  {/* Animated underline */}
-                  <motion.div
-                    className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] bg-brand-red dark:bg-brand-red-light rounded-full"
-                    initial={{ scaleX: 0 }}
-                    whileHover={{ scaleX: 1 }}
-                    transition={{ duration: 0.3 }}
-                    style={{ transformOrigin: 'center' }}
-                  />
+                  {/* Animated underline via CSS — no motion.div that can swallow events */}
+                  <span className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] bg-brand-red dark:bg-brand-red-light rounded-full origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
                 </span>
-              </motion.button>
+              </button>
             </motion.div>
           )}
 

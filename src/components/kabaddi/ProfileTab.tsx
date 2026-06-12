@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Radio, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import { useTheme } from 'next-themes';
 import { Card } from '@/components/ui/card';
@@ -30,7 +30,6 @@ import ChallengeScreen from './ChallengeScreen';
 import GroundsScreen from './GroundsScreen';
 import ReferralScreen from './ReferralScreen';
 import AIInsightsScreen from './AIInsightsScreen';
-import BroadcastScreen from './BroadcastScreen';
 import DataExportScreen from './DataExportScreen';
 import SeasonScreen from './SeasonScreen';
 import PollsScreen from './PollsScreen';
@@ -39,6 +38,7 @@ import PlayerStatsScreen from './PlayerStatsScreen';
 import PlayerProfileCard from './PlayerProfileCard';
 import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
+import MatchHistoryTimeline from './MatchHistoryTimeline';
 import { t } from '@/lib/i18n';
 
 const POSITIONS = [
@@ -242,6 +242,7 @@ export default function ProfileTab() {
     practiceTacklePoints: 0,
     practiceTotalPoints: 0,
   });
+  const [profileNotFound, setProfileNotFound] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
@@ -268,6 +269,10 @@ export default function ProfileTab() {
   const loadProfile = useCallback(async (userId: string) => {
     try {
       const res = await fetch(`/api/players/${userId}`);
+      if (res.status === 404) {
+        // Player record doesn't exist yet — return 'not-found' sentinel
+        return 'not-found' as const;
+      }
       if (res.ok) {
         const data = await res.json();
         const fetchedPlayerCode = data.player?.playerCode || null;
@@ -364,7 +369,12 @@ export default function ProfileTab() {
     if (!currentUser?.id) return;
     let cancelled = false;
     loadProfile(currentUser.id).then((data) => {
-      if (data && !cancelled) {
+      if (cancelled) return;
+      if (data === 'not-found') {
+        // Player record doesn't exist yet — mark as not found so we show CTA
+        setProfileNotFound(true);
+      } else if (data) {
+        setProfileNotFound(false);
         setProfileData(data);
         setEditForm(prev => ({
           ...prev,
@@ -374,6 +384,9 @@ export default function ProfileTab() {
         if (data.playerCode && !currentUser?.playerCode) {
           updateUser({ playerCode: data.playerCode });
         }
+      } else {
+        // Network error or other failure — still mark not-found to show CTA
+        setProfileNotFound(true);
       }
     });
     loadRecentMatches(currentUser.id);
@@ -1262,7 +1275,7 @@ export default function ProfileTab() {
         >
           <button
             onClick={() => setShowUpgrade(true)}
-            className="w-full relative overflow-hidden rounded-2xl p-[2px] active:scale-[0.98] transition-transform"
+            className="w-full relative overflow-hidden rounded-2xl p-[2px] active:scale-[0.98] transition-transform premium-card-shimmer"
           >
             {/* Animated gradient border */}
             <motion.div
@@ -1351,8 +1364,37 @@ export default function ProfileTab() {
       )}
 
       {/* ═══════════════════════════════════════════ */}
+      {/* Profile Not Found — Complete Your Profile CTA */}
+      {/* ═══════════════════════════════════════════ */}
+      {profileNotFound && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="glass-card p-5 text-center space-y-3">
+            <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-brand-red/20 to-brand-gold/20 flex items-center justify-center">
+              <Edit3 className="w-6 h-6 text-brand-red" />
+            </div>
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Complete Your Profile</h3>
+            <p className="text-sm text-warm-500 dark:text-warm-400">
+              Your player profile hasn&apos;t been set up yet. Add your details to start tracking stats and unlocking achievements!
+            </p>
+            <Button
+              onClick={() => setEditOpen(true)}
+              className="bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white font-bold rounded-xl px-6"
+            >
+              <Edit3 className="w-4 h-4 mr-2" />
+              Set Up Profile
+            </Button>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* ═══════════════════════════════════════════ */}
       {/* 2. STATS CARDS with Circular Progress Rings */}
       {/* ═══════════════════════════════════════════ */}
+      {!profileNotFound && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1428,10 +1470,12 @@ export default function ProfileTab() {
           );
         })}
       </motion.div>
+      )}
 
       {/* ═══════════════════════════════════════════ */}
       {/* 3. SCORE BREAKDOWN with Donut/Ring Chart */}
       {/* ═══════════════════════════════════════════ */}
+      {!profileNotFound && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1622,339 +1666,37 @@ export default function ProfileTab() {
           </motion.div>
         </div>
       </motion.div>
+      )}
 
       {/* ═══════════════════════════════════════════ */}
-      {/* 4. RECENT MATCHES with Enhanced Cards */}
+      {/* 4. MATCH HISTORY TIMELINE (Enhanced) */}
       {/* ═══════════════════════════════════════════ */}
+      {!profileNotFound && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.14 }}
       >
-        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-brand-teal" />
-          Recent Matches
-        </h3>
-        <Card className="shadow-sm overflow-hidden">
-          {recentMatches.length === 0 ? (
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 rounded-full bg-warm-100 dark:bg-warm-200 flex items-center justify-center mx-auto mb-3">
-                <Swords className="w-6 h-6 text-warm-300 dark:text-warm-400" />
-              </div>
-              <p className="text-sm text-warm-500 dark:text-warm-400">No matches yet</p>
-              <p className="text-xs text-warm-400 dark:text-warm-300 mt-1">Start scoring to see your match history</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-warm-200 dark:divide-warm-300">
-              {recentMatches.slice(0, 5).map((match, idx) => {
-                const result = getMatchResult(match);
-                const timeAgoStr = match.completedAt ? timeAgo(match.completedAt) : '';
-                return (
-                  <motion.div
-                    key={match.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 * idx }}
-                    className={`flex items-center gap-3 px-4 py-3 hover:bg-warm-50 dark:hover:bg-warm-200/30 transition-colors border-l-4 ${getResultBg(result)}`}
-                  >
-                    {/* Win/Loss/Tie indicator - enhanced */}
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', stiffness: 300, delay: 0.15 * idx }}
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 shadow-sm ${getResultColor(result)} ${idx < 2 ? 'result-pulse' : ''}`}
-                    >
-                      {result}
-                    </motion.div>
-                    {/* Match info with team color indicators */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 text-sm font-medium text-warm-800 dark:text-warm-700">
-                        <span className="team-dot bg-brand-red" />
-                        <span className="truncate">{match.homeTeam}</span>
-                        <span className="text-warm-400 text-xs shrink-0 font-bold">vs</span>
-                        <span className="team-dot bg-brand-teal" />
-                        <span className="truncate">{match.awayTeam}</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-warm-400">{match.date}</span>
-                        {timeAgoStr && (
-                          <span className="text-[10px] text-warm-300 dark:text-warm-400 flex items-center gap-0.5">
-                            <Clock className="w-2.5 h-2.5" />{timeAgoStr}
-                          </span>
-                        )}
-                        {match.isPractice ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal font-semibold flex items-center gap-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-brand-teal" />
-                            Practice
-                          </span>
-                        ) : (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold font-semibold flex items-center gap-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-brand-gold" />
-                            Tournament
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {/* Score */}
-                    <motion.div
-                      className="text-right shrink-0"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.2 * idx }}
-                    >
-                      <span className="text-sm font-black text-warm-800 dark:text-warm-700 tabular-nums">
-                        {match.homeScore} - {match.awayScore}
-                      </span>
-                    </motion.div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-          {recentMatches.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-warm-200 dark:border-warm-300">
-              <button className="w-full text-center text-xs font-semibold text-brand-teal hover:text-brand-teal-dark transition-colors flex items-center justify-center gap-1">
-                View All Matches
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </Card>
+        <MatchHistoryTimeline
+          matches={recentMatches.map((m) => ({
+            id: m.id,
+            homeTeam: m.homeTeam,
+            awayTeam: m.awayTeam,
+            homeScore: m.homeScore,
+            awayScore: m.awayScore,
+            date: m.date,
+            isPractice: m.isPractice,
+            userTeamSide: m.userTeamSide,
+            completedAt: m.completedAt,
+          }))}
+        />
       </motion.div>
-
-      {/* ═══════════════════════════════════════════ */}
-      {/* 4b. MATCH HISTORY TIMELINE with Stats Summary */}
-      {/* ═══════════════════════════════════════════ */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.145 }}
-      >
-        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
-          <Trophy className="w-4 h-4 text-brand-gold" />
-          Match History
-        </h3>
-
-        {/* ── Stats Summary Card ── */}
-        <Card className="p-4 mb-4 shadow-sm glass-card overflow-hidden relative">
-          {/* Subtle gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-red/3 via-transparent to-brand-gold/3 pointer-events-none" />
-          <div className="relative z-10">
-            {/* Win/Loss Record */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-center flex-1">
-                <p className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wider font-bold mb-1">Record</p>
-                <div className="flex items-center justify-center gap-1.5">
-                  <span className="text-lg font-black text-emerald-500">
-                    {recentMatches.filter((m) => getMatchResult(m) === 'W').length}W
-                  </span>
-                  <span className="text-warm-300 dark:text-warm-400 text-sm">-</span>
-                  <span className="text-lg font-black text-red-500">
-                    {recentMatches.filter((m) => getMatchResult(m) === 'L').length}L
-                  </span>
-                  {recentMatches.some((m) => getMatchResult(m) === 'D') && (
-                    <>
-                      <span className="text-warm-300 dark:text-warm-400 text-sm">-</span>
-                      <span className="text-lg font-black text-amber-500">
-                        {recentMatches.filter((m) => getMatchResult(m) === 'D').length}D
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="w-px h-12 bg-warm-200 dark:bg-warm-700" />
-              <div className="text-center flex-1">
-                <p className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wider font-bold mb-1">Avg Points</p>
-                <p className="text-lg font-black text-warm-800 dark:text-warm-700">
-                  <AnimatedValue value={totalMatches > 0 ? parseFloat((totalPoints / totalMatches).toFixed(1)) : 0} decimals={1} />
-                </p>
-              </div>
-              <div className="w-px h-12 bg-warm-200 dark:bg-warm-700" />
-              <div className="text-center flex-1">
-                <p className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wider font-bold mb-1">Best</p>
-                <p className="text-lg font-black text-brand-gold">
-                  {recentMatches.length > 0
-                    ? Math.max(...recentMatches.map((m) => {
-                        if (m.userTeamSide === 'home') return m.homeScore;
-                        if (m.userTeamSide === 'away') return m.awayScore;
-                        return Math.max(m.homeScore, m.awayScore);
-                      }))
-                    : 0}
-                </p>
-              </div>
-            </div>
-
-            {/* Recent Form Indicator (last 5 matches) */}
-            <div>
-              <p className="text-[10px] text-warm-400 dark:text-warm-300 uppercase tracking-wider font-bold mb-2">Recent Form</p>
-              <div className="flex items-center gap-2">
-                {recentMatches.length === 0 ? (
-                  <p className="text-xs text-warm-400 dark:text-warm-300">No matches played yet</p>
-                ) : (
-                  recentMatches.slice(0, 5).map((match, idx) => {
-                    const result = getMatchResult(match);
-                    return (
-                      <motion.div
-                        key={match.id}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ delay: 0.1 + idx * 0.08, type: 'spring', stiffness: 300 }}
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black shadow-sm ${
-                          result === 'W'
-                            ? 'bg-emerald-500 text-white'
-                            : result === 'L'
-                              ? 'bg-red-500 text-white'
-                              : 'bg-amber-500 text-white'
-                        }`}
-                      >
-                        {result}
-                      </motion.div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* ── Vertical Timeline ── */}
-        {recentMatches.length === 0 ? (
-          <Card className="p-6 text-center shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-warm-100 dark:bg-warm-200 flex items-center justify-center mx-auto mb-3">
-              <Swords className="w-6 h-6 text-warm-300 dark:text-warm-400" />
-            </div>
-            <p className="text-sm text-warm-500 dark:text-warm-400">No matches yet</p>
-            <p className="text-xs text-warm-400 dark:text-warm-300 mt-1">Start scoring to see your match history</p>
-          </Card>
-        ) : (
-          <div className="relative pl-6">
-            {/* Timeline vertical line */}
-            <div className="absolute left-2.5 top-2 bottom-2 w-0.5 bg-gradient-to-b from-brand-red via-brand-gold to-brand-teal dark:from-brand-red-light dark:via-brand-gold-light dark:to-brand-teal-light opacity-40" />
-
-            {/* Group matches by date */}
-            {(() => {
-              const groupedByDate: Record<string, RecentMatch[]> = {};
-              recentMatches.slice(0, 8).forEach((match) => {
-                const dateKey = match.date || 'Unknown';
-                if (!groupedByDate[dateKey]) groupedByDate[dateKey] = [];
-                groupedByDate[dateKey].push(match);
-              });
-
-              return Object.entries(groupedByDate).map(([dateKey, matches], groupIdx) => (
-                <div key={dateKey} className="mb-4 last:mb-0">
-                  {/* Date separator */}
-                  <motion.div
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: groupIdx * 0.1 }}
-                    className="flex items-center gap-2 mb-2 -ml-6"
-                  >
-                    {/* Timeline dot for date */}
-                    <div className="w-5 h-5 rounded-full bg-brand-gold/20 border-2 border-brand-gold flex items-center justify-center shrink-0 z-10">
-                      <div className="w-1.5 h-1.5 rounded-full bg-brand-gold" />
-                    </div>
-                    <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-widest bg-warm-100 dark:bg-warm-800/50 px-2.5 py-1 rounded-full">
-                      {dateKey}
-                    </span>
-                  </motion.div>
-
-                  {/* Match cards for this date */}
-                  {matches.map((match, idx) => {
-                    const result = getMatchResult(match);
-                    const isWin = result === 'W';
-                    const timeAgoStr = match.completedAt ? timeAgo(match.completedAt) : '';
-                    return (
-                      <motion.div
-                        key={match.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: groupIdx * 0.1 + idx * 0.08 }}
-                        className={`relative ml-2 mb-3 rounded-xl border-l-4 overflow-hidden shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 ${
-                          isWin
-                            ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-l-emerald-500'
-                            : 'bg-red-50/50 dark:bg-red-900/10 border-l-red-500'
-                        }`}
-                      >
-                        {/* Timeline connector dot */}
-                        <div className={`absolute -left-[21px] top-4 w-3 h-3 rounded-full border-2 z-10 ${
-                          isWin
-                            ? 'bg-emerald-500 border-emerald-300 dark:border-emerald-700'
-                            : 'bg-red-500 border-red-300 dark:border-red-700'
-                        }`} />
-
-                        <div className="p-3.5">
-                          {/* Result badge + match type */}
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <motion.span
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                                  isWin
-                                    ? 'bg-emerald-500 text-white'
-                                    : 'bg-red-500 text-white'
-                                }`}
-                              >
-                                {result === 'W' ? 'WIN' : result === 'L' ? 'LOSS' : 'DRAW'}
-                              </motion.span>
-                              {match.isPractice ? (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal font-bold">Practice</span>
-                              ) : (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold font-bold">Tournament</span>
-                              )}
-                            </div>
-                            {timeAgoStr && (
-                              <span className="text-[9px] text-warm-400 dark:text-warm-500 flex items-center gap-0.5">
-                                <Clock className="w-2.5 h-2.5" />{timeAgoStr}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Teams and score */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 text-sm font-medium text-warm-800 dark:text-warm-700">
-                                <span className="w-2 h-2 rounded-full bg-brand-red shrink-0" />
-                                <span className="truncate">{match.homeTeam}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-sm font-medium text-warm-800 dark:text-warm-700 mt-0.5">
-                                <span className="w-2 h-2 rounded-full bg-brand-teal shrink-0" />
-                                <span className="truncate">{match.awayTeam}</span>
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0 ml-3">
-                              <span className={`text-xl font-black tabular-nums ${
-                                isWin ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                              }`}>
-                                {match.homeScore} - {match.awayScore}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* View Match Details button */}
-                          <motion.button
-                            whileHover={{ x: 3 }}
-                            whileTap={{ scale: 0.97 }}
-                            className="mt-2 text-[10px] font-semibold text-brand-teal dark:text-brand-teal-light hover:text-brand-teal-dark dark:hover:text-brand-teal flex items-center gap-1 transition-colors"
-                          >
-                            View Match Details
-                            <ChevronRight className="w-3 h-3" />
-                          </motion.button>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              ));
-            })()}
-          </div>
-        )}
-      </motion.div>
+      )}
 
       {/* ═══════════════════════════════════════════ */}
       {/* 5. BADGES Section with Categories, Locked & Progress */}
       {/* ═══════════════════════════════════════════ */}
+      {!profileNotFound && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1969,7 +1711,7 @@ export default function ProfileTab() {
             {badgeCategories.map((category) => (
               <div key={category.title}>
                 <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-300 uppercase tracking-wider mb-2">{category.title}</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 justify-center">
                   {category.badges.map((badge, idx) => {
                     const isLocked = badge.premium && !isPremium;
                     return (
@@ -1984,7 +1726,7 @@ export default function ProfileTab() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
-                              className={`relative flex flex-col items-center px-3 py-2.5 rounded-xl border-2 transition-all min-w-[72px] cursor-default ${
+                              className={`relative flex flex-col items-center px-3 py-2.5 rounded-xl border-2 transition-all min-w-[76px] max-w-[90px] cursor-default ${
                                 badge.condition
                                   ? 'bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 border-brand-gold/40 shadow-md badge-unlocked-shimmer'
                                   : isLocked
@@ -2061,10 +1803,12 @@ export default function ProfileTab() {
           </div>
         </PremiumLock>
       </motion.div>
+      )}
 
       {/* ═══════════════════════════════════════════ */}
       {/* 6. PERFORMANCE RADAR/SPIDER CHART */}
       {/* ═══════════════════════════════════════════ */}
+      {!profileNotFound && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -2183,10 +1927,12 @@ export default function ProfileTab() {
           </Card>
         </PremiumLock>
       </motion.div>
+      )}
 
       {/* ═══════════════════════════════════════════ */}
       {/* 7. DETAILED BREAKDOWN with Animated Progress Bars */}
       {/* ═══════════════════════════════════════════ */}
+      {!profileNotFound && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -2254,9 +2000,9 @@ export default function ProfileTab() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.3 }}
-              className="text-center p-3 rounded-xl bg-gradient-to-br from-orange-50/80 to-orange-100/30 dark:from-orange-900/15 dark:to-orange-800/5 border border-orange-200/50 dark:border-orange-800/20 hover:scale-[1.02] transition-transform"
+              className="text-center p-3 rounded-xl bg-gradient-to-br from-orange-50/80 to-orange-100/30 dark:from-orange-900/15 dark:to-orange-800/5 border border-orange-200/50 dark:border-orange-800/20 hover:scale-[1.02] transition-transform feature-btn-hover"
             >
-              <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center mx-auto mb-1.5">
+              <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center mx-auto mb-1.5 glow-pulse">
                 <Zap className="w-4 h-4 text-orange-500" />
               </div>
               <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Bonus Points</p>
@@ -2266,9 +2012,9 @@ export default function ProfileTab() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.35 }}
-              className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50/80 to-purple-100/30 dark:from-purple-900/15 dark:to-purple-800/5 border border-purple-200/50 dark:border-purple-800/20 hover:scale-[1.02] transition-transform"
+              className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50/80 to-purple-100/30 dark:from-purple-900/15 dark:to-purple-800/5 border border-purple-200/50 dark:border-purple-800/20 hover:scale-[1.02] transition-transform feature-btn-hover"
             >
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center mx-auto mb-1.5">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center mx-auto mb-1.5 glow-pulse">
                 <Shield className="w-4 h-4 text-purple-500" />
               </div>
               <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Super Tackles</p>
@@ -2277,6 +2023,7 @@ export default function ProfileTab() {
           </div>
         </PremiumLock>
       </motion.div>
+      )}
 
       {/* ═══════════════════════════════════════════ */}
       {/* 8. FEATURES GRID with Staggered Animation & Tooltips */}
@@ -2314,7 +2061,7 @@ export default function ProfileTab() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.05 * (catIdx * 4 + idx), type: 'spring', stiffness: 200 }}
                       onClick={item.onClick}
-                      className={`w-full flex items-center gap-3 p-3.5 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate relative ${isPremiumFeature ? 'premium-feature-shimmer' : ''}`}
+                      className={`w-full flex items-center gap-3 p-3.5 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate feature-btn-hover relative ${isPremiumFeature ? 'premium-feature-shimmer' : ''}`}
                     >
                       {/* Left border accent - enhanced with gradient */}
                       <div className={`w-1.5 h-10 rounded-full shrink-0 transition-all duration-200 group-hover:h-12 group-hover:w-2 ${

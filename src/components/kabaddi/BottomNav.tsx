@@ -283,14 +283,29 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                       animate={{ scale: isActive ? 1.1 : 1 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                     >
-                      {/* Active background glow */}
+                      {/* Active background glow — enhanced with brand glow pulse */}
                       {isActive && (
                         <motion.div
-                          className="absolute -inset-2 rounded-xl bg-brand-red/8 dark:bg-brand-red/10"
+                          className="absolute -inset-3 rounded-xl"
                           initial={{ scale: 0, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           transition={{ duration: 0.3 }}
-                        />
+                        >
+                          {/* Inner glow */}
+                          <div className="absolute inset-0 rounded-xl bg-brand-red/8 dark:bg-brand-red/10" />
+                          {/* Outer glow ring */}
+                          <motion.div
+                            className="absolute -inset-1 rounded-xl"
+                            animate={{
+                              boxShadow: [
+                                '0 0 4px rgba(220,38,38,0.2), 0 0 8px rgba(245,158,11,0.08)',
+                                '0 0 12px rgba(220,38,38,0.4), 0 0 24px rgba(245,158,11,0.12)',
+                                '0 0 4px rgba(220,38,38,0.2), 0 0 8px rgba(245,158,11,0.08)',
+                              ],
+                            }}
+                            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                          />
+                        </motion.div>
                       )}
                       <Icon
                         className={`w-5 h-5 transition-colors duration-200 relative z-10 ${
@@ -301,14 +316,12 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                         strokeWidth={isActive ? 2.5 : 2}
                       />
 
-                      {/* Notification badge on Home tab - enhanced with glow */}
+                      {/* Notification badge on Home tab - enhanced with prominent pulse */}
                       {tab.id === 'home' && unreadCount > 0 && (
                         <motion.div
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-brand-red/30 ${
-                            unreadCount > 0 ? 'animate-breathe' : ''
-                          }`}
+                          className={`absolute -top-1.5 -right-2 min-w-[18px] h-[18px] rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-brand-red/40 badge-pulse-prominent`}
                           aria-label={`${unreadCount} unread notifications`}
                         >
                           {unreadCount > 99 ? '99+' : unreadCount}
