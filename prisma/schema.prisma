@@ -7,6 +7,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FOR VERCEL DEPLOYMENT: Change the above to:
+//   datasource db {
+//     provider  = "postgresql"
+//     url       = env("DATABASE_URL")
+//     directUrl = env("DIRECT_URL")
+//   }
+// And set DATABASE_URL + DIRECT_URL env vars from your Neon/Vercel Postgres.
+// See .env.example for details.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 model User {
   id             String   @id @default(cuid())
   phone          String   @unique
