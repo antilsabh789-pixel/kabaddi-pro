@@ -3,16 +3,26 @@ import { db } from '@/lib/db';
 
 // Plan prices in paise (1 INR = 100 paise)
 const PLAN_PRICES: Record<string, number> = {
-  monthly: 14900,    // ₹149
+  weekly: 2700,      // ₹27
+  monthly: 9900,     // ₹99
   yearly: 99900,     // ₹999
-  lifetime: 299900,  // ₹2,999
+  lifetime: 319900,  // ₹3,199
 };
 
 // Plan display amounts in rupees (for Cashfree API which takes decimal string)
 const PLAN_AMOUNTS_INR: Record<string, string> = {
-  monthly: '149.00',
+  weekly: '27.00',
+  monthly: '99.00',
   yearly: '999.00',
-  lifetime: '2999.00',
+  lifetime: '3199.00',
+};
+
+// Coupon codes
+const VALID_COUPONS: Record<string, { discount: number; type: 'percent' | 'flat' }> = {
+  'KABADDI50': { discount: 50, type: 'percent' },
+  'FIRST100': { discount: 100, type: 'flat' },
+  'PRO2025': { discount: 25, type: 'percent' },
+  'LAUNCH20': { discount: 20, type: 'percent' },
 };
 
 function getCashfreeConfig() {
@@ -24,10 +34,29 @@ function getCashfreeConfig() {
   };
 }
 
+function calculateDiscount(plan: string, couponCode?: string): { discountPaise: number; finalPaise: number } {
+  const basePaise = PLAN_PRICES[plan] || 0;
+  if (!couponCode || !VALID_COUPONS[couponCode]) {
+    return { discountPaise: 0, finalPaise: basePaise };
+  }
+
+  const coupon = VALID_COUPONS[couponCode];
+  let discountPaise: number;
+
+  if (coupon.type === 'flat') {
+    discountPaise = coupon.discount * 100; // flat rupees → paise
+  } else {
+    discountPaise = Math.floor(basePaise * coupon.discount / 100);
+  }
+
+  const finalPaise = Math.max(100, basePaise - discountPaise); // minimum ₹1
+  return { discountPaise, finalPaise };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, plan } = body;
+    const { userId, plan, couponCode, amount: clientAmount } = body;
 
     if (!userId || !plan) {
       return NextResponse.json(
@@ -38,18 +67,21 @@ export async function POST(request: NextRequest) {
 
     if (!PLAN_PRICES[plan]) {
       return NextResponse.json(
-        { error: 'Invalid plan. Choose monthly, yearly, or lifetime.' },
+        { error: 'Invalid plan. Choose weekly, monthly, yearly, or lifetime.' },
         { status: 400 }
       );
     }
 
-    const amount = PLAN_PRICES[plan];
-    const amountINR = PLAN_AMOUNTS_INR[plan];
+    // Calculate discount if coupon provided
+    const { discountPaise, finalPaise } = calculateDiscount(plan, couponCode);
+    const amount = finalPaise;
+    const amountINR = (amount / 100).toFixed(2);
+
     const config = getCashfreeConfig();
 
     if (!config.appId || !config.secretKey) {
       return NextResponse.json(
-        { error: 'Cashfree credentials not configured' },
+        { error: 'Cashfree credentials not configured. Please contact support.' },
         { status: 500 }
       );
     }
@@ -65,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate a unique order_id for Cashfree
-    const cashfreeOrderId = `kabaddi_pro_${Date.now()}_${userId.slice(-6)}`;
+    const cashfreeOrderId = `kp_${plan}_${Date.now()}_${userId.slice(-6)}`;
 
     // Determine return URL based on environment
     const host = request.headers.get('host') || 'localhost:3000';
@@ -87,7 +119,7 @@ export async function POST(request: NextRequest) {
         return_url: returnUrl,
         notify_url: `${protocol}://${host}/api/payments/webhook`,
       },
-      order_note: `Kabaddi Pro ${plan} plan subscription`,
+      order_note: `Kabaddi Pro ${plan} plan${couponCode ? ` (coupon: ${couponCode})` : ''}`,
     };
 
     const cashfreeResponse = await fetch(`${config.baseUrl}/orders`, {
@@ -132,6 +164,8 @@ export async function POST(request: NextRequest) {
       paymentSessionId: cashfreeData.payment_session_id,
       paymentId: payment.id,
       amount,
+      originalAmount: PLAN_PRICES[plan],
+      discount: discountPaise,
       currency: 'INR',
       orderStatus: cashfreeData.order_status || 'ACTIVE',
       env: process.env.CASHFREE_ENV || 'sandbox',

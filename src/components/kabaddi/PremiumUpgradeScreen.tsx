@@ -1,5 +1,14 @@
 'use client';
 
+// Cashfree global type
+declare global {
+  interface Window {
+    Cashfree?: new (config: { mode: 'production' | 'sandbox' }) => {
+      checkout: (options: { paymentSessionId: string; redirectTarget?: string }) => void;
+    };
+  }
+}
+
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,10 +25,16 @@ import {
   Award,
   CreditCard,
   ShieldCheck,
+  Tag,
+  Loader2,
+  Star,
+  Target,
+  Flame,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useKabaddiStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 
@@ -32,42 +47,63 @@ const PREMIUM_FEATURES = [
   {
     icon: BarChart3,
     title: 'Detailed Player Stats',
-    description: 'View full performance breakdowns, advanced analytics, and career stats for any player',
-    color: 'text-brand-gold',
-    bg: 'bg-brand-gold/10',
+    description: 'Full performance breakdowns, advanced analytics & career stats',
+    color: 'text-amber-500',
+    bg: 'bg-amber-500/10',
   },
   {
     icon: Trophy,
     title: 'Host Tournaments',
-    description: 'Create and manage tournaments with custom formats, team management, and live tracking',
-    color: 'text-brand-red',
-    bg: 'bg-brand-red/10',
+    description: 'Create & manage tournaments with custom formats and live tracking',
+    color: 'text-red-500',
+    bg: 'bg-red-500/10',
   },
   {
     icon: TrendingUp,
-    title: 'Your Full Stats Dashboard',
-    description: 'Access your complete performance chart, badges, raid efficiency, tackle success rate and more',
-    color: 'text-brand-teal',
-    bg: 'bg-brand-teal/10',
+    title: 'Full Stats Dashboard',
+    description: 'Complete performance charts, raid efficiency, tackle success rate',
+    color: 'text-teal-500',
+    bg: 'bg-teal-500/10',
   },
   {
     icon: Users,
     title: 'Player Comparison',
-    description: 'Compare your stats with other players and see where you rank among the best',
-    color: 'text-brand-blue',
-    bg: 'bg-brand-blue/10',
+    description: 'Compare your stats with other players and see your rank',
+    color: 'text-blue-500',
+    bg: 'bg-blue-500/10',
+  },
+  {
+    icon: Target,
+    title: 'Advanced Match Analytics',
+    description: 'Deep match insights, heatmaps, and performance patterns',
+    color: 'text-indigo-500',
+    bg: 'bg-indigo-500/10',
+  },
+  {
+    icon: Flame,
+    title: 'Streaks & Records',
+    description: 'Track your winning streaks, personal bests and milestones',
+    color: 'text-orange-500',
+    bg: 'bg-orange-500/10',
   },
   {
     icon: Award,
     title: 'Exclusive Badges & Rewards',
-    description: 'Unlock premium-only badges, achievements, and special recognition on leaderboards',
+    description: 'Premium-only badges, achievements & leaderboard recognition',
     color: 'text-purple-500',
     bg: 'bg-purple-500/10',
   },
   {
+    icon: Star,
+    title: 'AI Insights & Predictions',
+    description: 'AI-powered match predictions and personalized recommendations',
+    color: 'text-yellow-500',
+    bg: 'bg-yellow-500/10',
+  },
+  {
     icon: Shield,
     title: 'Priority Support',
-    description: 'Get priority customer support and early access to new features before anyone else',
+    description: 'Priority customer support & early access to new features',
     color: 'text-emerald-500',
     bg: 'bg-emerald-500/10',
   },
@@ -75,13 +111,24 @@ const PREMIUM_FEATURES = [
 
 const PLANS = [
   {
+    id: 'weekly',
+    name: 'Weekly',
+    price: '27',
+    pricePaise: 2700,
+    period: '/week',
+    badge: 'STARTER',
+    features: ['All premium features', 'Cancel anytime'],
+    highlight: false,
+  },
+  {
     id: 'monthly',
     name: 'Monthly',
-    price: '149',
-    pricePaise: 14900,
+    price: '99',
+    pricePaise: 9900,
     period: '/month',
-    badge: null,
-    features: ['All premium features', 'Cancel anytime', 'No commitment'],
+    badge: 'POPULAR',
+    features: ['All premium features', 'Cancel anytime', 'Better value'],
+    highlight: true,
   },
   {
     id: 'yearly',
@@ -90,68 +137,75 @@ const PLANS = [
     pricePaise: 99900,
     period: '/year',
     badge: 'BEST VALUE',
-    features: ['All premium features', 'Save 44%', 'Priority support', 'Exclusive badges'],
-    highlight: true,
+    features: ['All premium features', 'Save ₹183', 'Priority support', 'Exclusive badges'],
+    highlight: false,
   },
   {
     id: 'lifetime',
     name: 'Lifetime',
-    price: '2,999',
-    pricePaise: 299900,
+    price: '3,199',
+    pricePaise: 319900,
     period: ' once',
-    badge: 'POPULAR',
+    badge: null,
     features: ['All premium features', 'One-time payment', 'All future updates', 'VIP badge forever'],
+    highlight: false,
   },
 ];
 
-// Cashfree SDK loader
-function loadCashfreeSDK(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined') {
-      resolve(false);
-      return;
-    }
-    // Check if already loaded
-    if ((window as unknown as Record<string, unknown>).Cashfree) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
-
-// Declare Cashfree types for TypeScript
-interface CashfreeCheckoutOptions {
-  paymentSessionId: string;
-  redirectTarget?: string;
-}
-
-interface CashfreeInstance {
-  checkout: (options: CashfreeCheckoutOptions) => void;
-}
-
-interface CashfreeConstructor {
-  new (config: { mode: 'production' | 'sandbox' }): CashfreeInstance;
-}
-
-declare global {
-  interface Window {
-    Cashfree?: CashfreeConstructor;
-  }
-}
+// Sample coupon codes (in production these would be validated on the server)
+const VALID_COUPONS: Record<string, { discount: number; label: string }> = {
+  'KABADDI50': { discount: 50, label: '50% OFF' },
+  'FIRST100': { discount: 100, label: '₹100 OFF' },
+  'PRO2025': { discount: 25, label: '25% OFF' },
+  'LAUNCH20': { discount: 20, label: '20% OFF' },
+};
 
 export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgradeScreenProps) {
   const { currentUser, updateUser } = useKabaddiStore();
   const { toast } = useToast();
-  const [selectedPlan, setSelectedPlan] = useState('yearly');
+  const [selectedPlan, setSelectedPlan] = useState('monthly');
   const [activating, setActivating] = useState(false);
   const [activated, setActivated] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponApplied, setCouponApplied] = useState<{ discount: number; label: string } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
+
+  const currentPlan = PLANS.find(p => p.id === selectedPlan)!;
+  const discountedPaise = couponApplied
+    ? Math.max(0, currentPlan.pricePaise - (couponApplied.discount >= 100 ? couponApplied.discount * 100 : Math.floor(currentPlan.pricePaise * couponApplied.discount / 100)))
+    : currentPlan.pricePaise;
+  const displayPrice = couponApplied ? (discountedPaise / 100).toLocaleString('en-IN') : currentPlan.price;
+  const hasDiscount = couponApplied && discountedPaise < currentPlan.pricePaise;
+
+  const handleApplyCoupon = useCallback(() => {
+    if (!couponCode.trim()) return;
+    setCheckingCoupon(true);
+    setCouponError(null);
+
+    // Simulate API call delay
+    setTimeout(() => {
+      const code = couponCode.trim().toUpperCase();
+      const coupon = VALID_COUPONS[code];
+      if (coupon) {
+        setCouponApplied(coupon);
+        setCouponError(null);
+        toast({ title: 'Coupon applied!', description: `${coupon.label} — discount applied to your plan` });
+      } else {
+        setCouponApplied(null);
+        setCouponError('Invalid coupon code. Try KABADDI50 or FIRST100');
+        toast({ title: 'Invalid coupon', description: 'This coupon code is not valid', variant: 'destructive' });
+      }
+      setCheckingCoupon(false);
+    }, 500);
+  }, [couponCode, toast]);
+
+  const handleRemoveCoupon = useCallback(() => {
+    setCouponApplied(null);
+    setCouponCode('');
+    setCouponError(null);
+  }, []);
 
   const handleActivate = useCallback(async () => {
     if (!currentUser?.id) {
@@ -163,24 +217,15 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
     setPaymentError(null);
 
     try {
-      // Step 1: Load Cashfree SDK
-      const sdkLoaded = await loadCashfreeSDK();
-      if (!sdkLoaded) {
-        // Fallback to demo mode if SDK can't load
-        toast({ title: 'Payment gateway loading...', description: 'Using demo activation for now.' });
-        updateUser({ isPremium: true });
-        setActivated(true);
-        setTimeout(() => onClose(), 2000);
-        return;
-      }
-
-      // Step 2: Create order on server
+      // Step 1: Create order on server
       const orderRes = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser.id,
           plan: selectedPlan,
+          couponCode: couponApplied ? couponCode.trim().toUpperCase() : undefined,
+          amount: discountedPaise,
         }),
       });
 
@@ -192,82 +237,47 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       const orderData = await orderRes.json();
 
       if (!orderData.paymentSessionId) {
-        throw new Error('No payment session ID received from Cashfree');
+        throw new Error('No payment session ID received. Please try again.');
       }
 
-      // Step 3: Initialize Cashfree and open checkout
+      // Step 2: Load Cashfree SDK dynamically
+      if (typeof window !== 'undefined' && !window.Cashfree) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load payment gateway'));
+          document.body.appendChild(script);
+        });
+      }
+
+      // Step 3: Open Cashfree checkout
       const CashfreeClass = window.Cashfree;
       if (!CashfreeClass) {
-        throw new Error('Cashfree SDK not loaded');
+        throw new Error('Payment gateway not available. Please try again.');
       }
 
       const cfMode = orderData.env === 'production' ? 'production' : 'sandbox';
       const cf = new CashfreeClass({ mode: cfMode });
 
-      // Open Cashfree checkout
+      // Open checkout — Cashfree will handle the payment UI
       cf.checkout({
         paymentSessionId: orderData.paymentSessionId,
+        redirectTarget: '_self',
       });
-
-      // After Cashfree checkout completes, it redirects to our return_url
-      // which calls the verify endpoint. The frontend can also poll for status.
-      // We'll set up a polling mechanism to check payment status
-      const orderId = orderData.orderId;
-      let pollCount = 0;
-      const maxPolls = 60; // Poll for up to ~2 minutes (every 2 seconds)
-
-      const pollInterval = setInterval(async () => {
-        pollCount++;
-
-        try {
-          const verifyRes = await fetch('/api/payments/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order_id: orderId }),
-          });
-
-          if (verifyRes.ok) {
-            const verifyData = await verifyRes.json();
-            if (verifyData.success) {
-              clearInterval(pollInterval);
-              updateUser({ isPremium: true });
-              setActivated(true);
-              setActivating(false);
-              toast({
-                title: 'Welcome to Kabaddi Pro Premium!',
-                description: `Payment successful! Plan: ${verifyData.plan}. All premium features unlocked.`,
-              });
-              setTimeout(() => onClose(), 2000);
-              return;
-            }
-          }
-        } catch {
-          // Continue polling on network errors
-        }
-
-        if (pollCount >= maxPolls) {
-          clearInterval(pollInterval);
-          setActivating(false);
-          setPaymentError('Payment verification timed out. If your payment was successful, premium will be activated shortly.');
-          toast({
-            title: 'Verification timed out',
-            description: 'If money was deducted, your premium will be activated automatically. Please check back in a few minutes.',
-            variant: 'destructive',
-          });
-        }
-      }, 2000);
 
     } catch (error) {
       console.error('Payment error:', error);
       setPaymentError(error instanceof Error ? error.message : 'Payment failed. Please try again.');
       toast({
         title: 'Payment failed',
-        description: 'Something went wrong. Please try again.',
+        description: error instanceof Error ? error.message : 'Something went wrong. Please try again.',
         variant: 'destructive',
       });
       setActivating(false);
     }
-  }, [currentUser, selectedPlan, updateUser, toast, onClose]);
+  }, [currentUser, selectedPlan, couponApplied, couponCode, discountedPaise, updateUser, toast, onClose]);
 
   return (
     <AnimatePresence>
@@ -285,24 +295,23 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-warm-50 rounded-t-3xl sm:rounded-3xl"
+          className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header with gold gradient */}
-          <div className="relative bg-gradient-to-br from-brand-gold-dark via-brand-gold to-brand-gold-light p-6 pb-8 overflow-hidden">
-            {/* Decorative circles */}
+          <div className="relative bg-gradient-to-br from-amber-600 via-amber-500 to-yellow-400 p-5 pb-7 overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10 -translate-y-1/2 translate-x-1/3" />
             <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-white/10 translate-y-1/2 -translate-x-1/3" />
 
             <div className="relative z-10">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                     <Crown className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black text-white">KABADDI PRO</h2>
-                    <p className="text-xs font-bold text-white/80 tracking-wider">PREMIUM</p>
+                    <h2 className="text-lg font-black text-white tracking-wide">KABADDI PRO</h2>
+                    <p className="text-[10px] font-bold text-white/80 tracking-[0.2em]">PREMIUM</p>
                   </div>
                 </div>
                 <button
@@ -317,14 +326,14 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                 <motion.div
                   animate={{ rotate: [0, -10, 10, -5, 5, 0] }}
                   transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                  className="inline-block mb-2"
+                  className="inline-block mb-1"
                 >
-                  <Crown className="w-12 h-12 text-white mx-auto" />
+                  <Crown className="w-10 h-10 text-white mx-auto" />
                 </motion.div>
-                <h3 className="text-2xl font-black text-white">
+                <h3 className="text-xl font-black text-white">
                   {activated ? "You're Premium Now!" : 'Unlock Pro Features'}
                 </h3>
-                <p className="text-white/80 text-sm mt-1">
+                <p className="text-white/80 text-sm mt-0.5">
                   {activated
                     ? 'All premium features are now active'
                     : feature
@@ -336,7 +345,6 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
           </div>
 
           {activated ? (
-            /* Success state */
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -345,102 +353,159 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 0.5 }}
-                className="w-20 h-20 rounded-full bg-brand-gold/20 flex items-center justify-center mx-auto mb-4"
+                className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"
               >
-                <Sparkles className="w-10 h-10 text-brand-gold" />
+                <Sparkles className="w-10 h-10 text-amber-500" />
               </motion.div>
-              <h3 className="text-xl font-bold text-warm-800">Premium Activated!</h3>
-              <p className="text-warm-500 text-sm mt-2">
+              <h3 className="text-xl font-bold">Premium Activated!</h3>
+              <p className="text-muted-foreground text-sm mt-2">
                 Payment successful. Enjoy all the premium features!
               </p>
-              <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-brand-teal">
+              <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-teal-600">
                 <ShieldCheck className="w-4 h-4" />
                 <span>Receipt sent to your email</span>
               </div>
             </motion.div>
           ) : (
             <>
-              {/* Feature List */}
+              {/* Premium Features - Compact grid */}
               <div className="p-4 pb-2">
-                <h4 className="text-sm font-bold text-warm-700 mb-3 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-brand-gold" />
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   What you get with Premium
                 </h4>
-                <div className="space-y-2.5">
+                <div className="grid grid-cols-3 gap-2">
                   {PREMIUM_FEATURES.map((feat, idx) => (
                     <motion.div
                       key={feat.title}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 + idx * 0.05 }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.03 }}
+                      className="flex flex-col items-center text-center p-2 rounded-xl bg-muted/50 border border-border/50"
                     >
-                      <Card className="p-3 flex items-start gap-3 bg-white border-warm-200 hover:border-brand-gold/30 transition-colors">
-                        <div className={`w-9 h-9 rounded-lg ${feat.bg} flex items-center justify-center shrink-0`}>
-                          <feat.icon className={`w-4 h-4 ${feat.color}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-warm-800">{feat.title}</p>
-                          <p className="text-xs text-warm-500 leading-relaxed">{feat.description}</p>
-                        </div>
-                        <Check className="w-4 h-4 text-brand-gold shrink-0 mt-1" />
-                      </Card>
+                      <div className={`w-8 h-8 rounded-lg ${feat.bg} flex items-center justify-center mb-1`}>
+                        <feat.icon className={`w-4 h-4 ${feat.color}`} />
+                      </div>
+                      <p className="text-[10px] font-semibold leading-tight">{feat.title}</p>
                     </motion.div>
                   ))}
                 </div>
               </div>
 
-              {/* Free vs Premium comparison note */}
-              <div className="px-4 py-2">
-                <Card className="p-3 bg-warm-100 border-warm-200">
-                  <div className="flex items-start gap-2">
-                    <Zap className="w-4 h-4 text-brand-gold shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-semibold text-warm-700">Free features always included</p>
-                      <p className="text-[11px] text-warm-500 mt-0.5">
-                        Watch live tournaments, see past scores, quick scoring, and basic profile are always free
-                      </p>
-                    </div>
-                  </div>
-                </Card>
+              {/* Free features note */}
+              <div className="px-4 py-1.5">
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/30 rounded-lg px-2.5 py-1.5">
+                  <Zap className="w-3 h-3 text-amber-500 shrink-0" />
+                  <span>Free always: Live tournaments, past scores, quick scoring & basic profile</span>
+                </div>
               </div>
 
               {/* Plan Selection */}
-              <div className="p-4 pt-2">
-                <h4 className="text-sm font-bold text-warm-700 mb-3">Choose your plan</h4>
-                <div className="grid grid-cols-3 gap-2">
+              <div className="p-4 pt-2 pb-2">
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2.5">Choose your plan</h4>
+                <div className="grid grid-cols-4 gap-1.5">
                   {PLANS.map((plan) => (
                     <motion.button
                       key={plan.id}
                       onClick={() => { setSelectedPlan(plan.id); setPaymentError(null); }}
-                      className={`relative p-3 rounded-xl border-2 text-left transition-all ${
+                      className={`relative p-2.5 rounded-xl border-2 text-center transition-all ${
                         selectedPlan === plan.id
-                          ? 'border-brand-gold bg-brand-gold/5 shadow-sm'
-                          : 'border-warm-200 bg-white hover:border-warm-300'
-                      } ${plan.highlight ? 'ring-2 ring-brand-gold/30' : ''}`}
+                          ? 'border-amber-500 bg-amber-50 shadow-sm dark:bg-amber-500/10'
+                          : 'border-border bg-background hover:border-amber-300'
+                      }`}
                       whileTap={{ scale: 0.97 }}
                     >
                       {plan.badge && (
-                        <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-bold bg-brand-gold text-white border-0 px-1.5 py-0">
+                        <span className={`absolute -top-1.5 left-1/2 -translate-x-1/2 text-[7px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                          plan.highlight ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-700'
+                        }`}>
                           {plan.badge}
-                        </Badge>
+                        </span>
                       )}
-                      <p className="text-xs font-semibold text-warm-700">{plan.name}</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground mt-0.5">{plan.name}</p>
                       <div className="mt-1">
-                        <span className="text-base font-black text-warm-800">
+                        <span className="text-sm font-black">
                           ₹{plan.price}
                         </span>
-                        <span className="text-[10px] text-warm-500">{plan.period}</span>
                       </div>
+                      <p className="text-[8px] text-muted-foreground">{plan.period}</p>
                       {selectedPlan === plan.id && (
                         <motion.div
                           layoutId="plan-check"
-                          className="absolute top-2 right-2 w-4 h-4 rounded-full bg-brand-gold flex items-center justify-center"
+                          className="absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center"
                         >
-                          <Check className="w-2.5 h-2.5 text-white" />
+                          <Check className="w-2 h-2 text-white" />
                         </motion.div>
                       )}
                     </motion.button>
                   ))}
+                </div>
+
+                {/* Plan features list */}
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {currentPlan.features.map((f) => (
+                    <span key={f} className="inline-flex items-center gap-0.5 text-[9px] font-medium text-amber-700 bg-amber-50 rounded-full px-2 py-0.5">
+                      <Check className="w-2.5 h-2.5" />
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Coupon Code */}
+              <div className="px-4 pb-2">
+                <div className="relative">
+                  <div className="flex gap-1.5">
+                    <div className="relative flex-1">
+                      <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input
+                        value={couponCode}
+                        onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
+                        placeholder="Enter coupon code"
+                        disabled={!!couponApplied}
+                        className="pl-8 h-9 text-xs rounded-lg border-border/80 focus:border-amber-500"
+                      />
+                    </div>
+                    {couponApplied ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRemoveCoupon}
+                        className="h-9 px-3 text-xs rounded-lg border-red-200 text-red-600 hover:bg-red-50"
+                      >
+                        Remove
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleApplyCoupon}
+                        disabled={!couponCode.trim() || checkingCoupon}
+                        className="h-9 px-3 text-xs rounded-lg border-amber-300 text-amber-700 hover:bg-amber-50"
+                      >
+                        {checkingCoupon ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Apply'}
+                      </Button>
+                    )}
+                  </div>
+                  {couponApplied && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-1.5 flex items-center gap-1 text-[10px] text-emerald-600 font-medium bg-emerald-50 rounded-lg px-2.5 py-1"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{couponApplied.label} applied! You save ₹{((currentPlan.pricePaise - discountedPaise) / 100).toLocaleString('en-IN')}</span>
+                    </motion.div>
+                  )}
+                  {couponError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-1 text-[10px] text-red-500 font-medium"
+                    >
+                      {couponError}
+                    </motion.p>
+                  )}
                 </div>
               </div>
 
@@ -458,30 +523,36 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                 </motion.div>
               )}
 
-              {/* Activate Button */}
-              <div className="p-4 pt-2">
+              {/* Pay Button */}
+              <div className="p-4 pt-2 pb-6">
                 <Button
                   onClick={handleActivate}
                   disabled={activating}
-                  className="w-full h-12 bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light hover:opacity-90 text-white font-bold rounded-xl text-base shadow-lg shadow-brand-gold/25"
+                  className="w-full h-12 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-400 hover:opacity-90 text-white font-bold rounded-xl text-base shadow-lg shadow-amber-500/25"
                 >
                   {activating ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-                    />
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Opening payment...</span>
+                    </div>
                   ) : (
                     <>
                       <CreditCard className="w-5 h-5 mr-2" />
-                      Pay ₹{PLANS.find(p => p.id === selectedPlan)?.price || '999'}
+                      {hasDiscount ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="line-through text-white/60 text-sm">₹{currentPlan.price}</span>
+                          <span>Pay ₹{displayPrice}</span>
+                        </span>
+                      ) : (
+                        <span>Pay ₹{currentPlan.price}</span>
+                      )}
                     </>
                   )}
                 </Button>
                 <div className="flex items-center justify-center gap-1 mt-2">
-                  <ShieldCheck className="w-3 h-3 text-warm-400" />
-                  <p className="text-center text-[10px] text-warm-400">
-                    Secure payment via Cashfree. UPI, Cards & Netbanking accepted.
+                  <ShieldCheck className="w-3 h-3 text-muted-foreground" />
+                  <p className="text-center text-[10px] text-muted-foreground">
+                    Secure payment via Cashfree • UPI, Cards & Netbanking accepted
                   </p>
                 </div>
               </div>
