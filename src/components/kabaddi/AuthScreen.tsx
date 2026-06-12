@@ -1094,6 +1094,9 @@ export default function AuthScreen() {
                       type="button"
                       whileTap={{ scale: 0.9 }}
                       onClick={() => setTermsAccepted(!termsAccepted)}
+                      role="checkbox"
+                      aria-checked={termsAccepted}
+                      aria-label="Accept Terms of Service and Privacy Policy"
                       className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
                         termsAccepted
                           ? 'bg-brand-red border-brand-red'

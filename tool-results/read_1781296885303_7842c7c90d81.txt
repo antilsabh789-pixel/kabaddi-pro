@@ -1175,471 +1175,463 @@
   1175→              </div>
   1176→
   1177→              {/* ── Toggle Login/Signup with animated underline ── */}
-  1178→              <motion.button
-  1179→                whileHover={{ scale: 1.02 }}
-  1180→                whileTap={{ scale: 0.98 }}
-  1181→                className="text-brand-red hover:text-brand-red-light dark:text-brand-red-light dark:hover:text-brand-red text-sm font-medium transition-colors w-full text-center group relative"
-  1182→                onClick={() => {
-  1183→                  setIsSignUp(!isSignUp);
-  1184→                  setError('');
-  1185→                  setConfirmPassword('');
-  1186→                  setTermsAccepted(false);
-  1187→                }}
-  1188→              >
-  1189→                <span className="relative">
-  1190→                  {isSignUp
-  1191→                    ? 'Already have an account? Login'
-  1192→                    : "Don't have an account? Sign Up"}
-  1193→                  {/* Animated underline */}
-  1194→                  <motion.div
-  1195→                    className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] bg-brand-red dark:bg-brand-red-light rounded-full"
-  1196→                    initial={{ scaleX: 0 }}
-  1197→                    whileHover={{ scaleX: 1 }}
-  1198→                    transition={{ duration: 0.3 }}
-  1199→                    style={{ transformOrigin: 'center' }}
-  1200→                  />
-  1201→                </span>
-  1202→              </motion.button>
-  1203→            </motion.div>
-  1204→          )}
-  1205→
-  1206→          {/* ═══════════════════════════════════════════
-  1207→              Stage 2: Details (Gender, Weight, Practice Ground)
-  1208→              ═══════════════════════════════════════════ */}
-  1209→          {stage === 'details' && (
-  1210→            <motion.div
-  1211→              key="details"
-  1212→              custom={direction}
-  1213→              variants={slideVariants}
-  1214→              initial="enter"
-  1215→              animate="center"
-  1216→              exit="exit"
-  1217→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-  1218→              className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
-  1219→            >
-  1220→              {/* Progress dots at top */}
-  1221→              <div className="flex justify-center gap-2 mb-5">
-  1222→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
-  1223→                  <motion.div
-  1224→                    key={s}
-  1225→                    className="h-1.5 rounded-full"
-  1226→                    animate={{
-  1227→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
-  1228→                      backgroundColor:
-  1229→                        stageIndex[stage] === idx
-  1230→                          ? '#DC2626'
-  1231→                          : stageIndex[stage] > idx
-  1232→                            ? '#B91C1C'
-  1233→                            : '#CBD5E1',
-  1234→                    }}
-  1235→                    transition={{ duration: 0.5 }}
-  1236→                  />
-  1237→                ))}
-  1238→              </div>
-  1239→
-  1240→              <motion.button
-  1241→                whileHover={{ x: -3 }}
-  1242→                whileTap={{ scale: 0.95 }}
-  1243→                onClick={goBack}
-  1244→                className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
-  1245→              >
-  1246→                <ArrowLeft className="w-4 h-4 mr-1" />
-  1247→                Back
-  1248→              </motion.button>
-  1249→
-  1250→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">Tell us about yourself</h2>
-  1251→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
-  1252→                Help us personalize your experience
-  1253→              </p>
-  1254→
-  1255→              {/* Gender Selection - Enhanced with gradient backgrounds */}
-  1256→              <div className="w-full mb-5">
-  1257→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-3 block">
-  1258→                  Gender <span className="text-brand-red">*</span>
-  1259→                </label>
-  1260→                <div className="grid grid-cols-2 gap-3">
-  1261→                  {/* Boy Card */}
-  1262→                  <motion.button
-  1263→                    type="button"
-  1264→                    whileHover={{ scale: 1.03, y: -2 }}
-  1265→                    whileTap={{ scale: 0.97 }}
-  1266→                    onClick={() => {
-  1267→                      setGender('boy');
-  1268→                      if (error) setError('');
-  1269→                    }}
-  1270→                    className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
-  1271→                      gender === 'boy'
-  1272→                        ? 'border-brand-blue bg-gradient-to-br from-brand-blue to-brand-blue-dark shadow-lg shadow-brand-blue/25'
-  1273→                        : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-blue/40 hover:shadow-md'
-  1274→                    }`}
-  1275→                  >
-  1276→                    {gender === 'boy' && (
-  1277→                      <motion.div
-  1278→                        initial={{ scale: 0, opacity: 0 }}
-  1279→                        animate={{ scale: 2, opacity: 0.1 }}
-  1280→                        className="absolute w-20 h-20 rounded-full bg-white"
-  1281→                      />
-  1282→                    )}
-  1283→                    <span className={`text-4xl leading-none relative z-10 ${gender === 'boy' ? 'text-white drop-shadow-lg' : 'text-brand-blue'}`}>
-  1284→                      ♂
-  1285→                    </span>
-  1286→                    <span className={`text-sm font-bold relative z-10 ${gender === 'boy' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>
-  1287→                      Boy
-  1288→                    </span>
-  1289→                    {gender === 'boy' && (
-  1290→                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
-  1291→                        <Zap className="w-4 h-4 text-white/60" />
-  1292→                      </motion.div>
-  1293→                    )}
-  1294→                  </motion.button>
-  1295→
-  1296→                  {/* Girl Card */}
-  1297→                  <motion.button
-  1298→                    type="button"
-  1299→                    whileHover={{ scale: 1.03, y: -2 }}
-  1300→                    whileTap={{ scale: 0.97 }}
-  1301→                    onClick={() => {
-  1302→                      setGender('girl');
-  1303→                      if (error) setError('');
-  1304→                    }}
-  1305→                    className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
-  1306→                      gender === 'girl'
-  1307→                        ? 'border-brand-red bg-gradient-to-br from-brand-red to-brand-red-dark shadow-lg shadow-brand-red/25'
-  1308→                        : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-red/40 hover:shadow-md'
-  1309→                    }`}
-  1310→                  >
-  1311→                    {gender === 'girl' && (
-  1312→                      <motion.div
-  1313→                        initial={{ scale: 0, opacity: 0 }}
-  1314→                        animate={{ scale: 2, opacity: 0.1 }}
-  1315→                        className="absolute w-20 h-20 rounded-full bg-white"
-  1316→                      />
-  1317→                    )}
-  1318→                    <span className={`text-4xl leading-none relative z-10 ${gender === 'girl' ? 'text-white drop-shadow-lg' : 'text-brand-red'}`}>
-  1319→                      ♀
-  1320→                    </span>
-  1321→                    <span className={`text-sm font-bold relative z-10 ${gender === 'girl' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>
-  1322→                      Girl
-  1323→                    </span>
-  1324→                    {gender === 'girl' && (
-  1325→                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
-  1326→                        <Zap className="w-4 h-4 text-white/60" />
-  1327→                      </motion.div>
-  1328→                    )}
-  1329→                  </motion.button>
-  1330→                </div>
-  1331→              </div>
-  1332→
-  1333→              {/* Weight Input */}
-  1334→              <div className="w-full mb-3">
-  1335→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
-  1336→                  Weight
-  1337→                </label>
-  1338→                <div className="relative">
-  1339→                  <Weight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
-  1340→                  <Input
-  1341→                    type="number"
-  1342→                    inputMode="numeric"
-  1343→                    placeholder="Enter weight"
-  1344→                    value={weight}
-  1345→                    onChange={(e) => setWeight(e.target.value)}
-  1346→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/60 transition-all"
-  1347→                  />
-  1348→                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 dark:text-warm-500 text-sm font-medium pointer-events-none">
-  1349→                    kg
-  1350→                  </span>
-  1351→                </div>
-  1352→              </div>
-  1353→
-  1354→              {/* Practice Ground Input */}
-  1355→              <div className="w-full mb-4">
-  1356→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
-  1357→                  Practice Ground
-  1358→                </label>
-  1359→                <div className="relative">
-  1360→                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
-  1361→                  <Input
-  1362→                    type="text"
-  1363→                    placeholder="Enter practice ground / academy"
-  1364→                    value={practiceGround}
-  1365→                    onChange={(e) => setPracticeGround(e.target.value)}
-  1366→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/60 transition-all"
-  1367→                  />
-  1368→                </div>
-  1369→              </div>
-  1370→
-  1371→              {/* Position Selection */}
-  1372→              <div className="w-full mb-4">
-  1373→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
-  1374→                  Position
-  1375→                </label>
-  1376→                <div className="grid grid-cols-2 gap-2">
-  1377→                  {[
-  1378→                    { id: 'left-raider', label: 'Left Raider', icon: '⬅️', meaning: 'Attacks from left' },
-  1379→                    { id: 'right-raider', label: 'Right Raider', icon: '➡️', meaning: 'Attacks from right' },
-  1380→                    { id: 'both-raider', label: 'Both Raider', icon: '↔️', meaning: 'Raids both sides' },
-  1381→                    { id: 'left-corner', label: 'Left Corner', icon: '🛡️', meaning: 'Defends left corner' },
-  1382→                    { id: 'right-corner', label: 'Right Corner', icon: '🛡️', meaning: 'Defends right corner' },
-  1383→                    { id: 'left-cover', label: 'Left Cover', icon: '🧱', meaning: 'Cover defender left' },
-  1384→                    { id: 'right-cover', label: 'Right Cover', icon: '🧱', meaning: 'Cover defender right' },
-  1385→                    { id: 'all-rounder', label: 'All-Rounder', icon: '⭐', meaning: 'Raid & defense' },
-  1386→                  ].map((pos) => (
-  1387→                    <motion.button
-  1388→                      key={pos.id}
-  1389→                      type="button"
-  1390→                      whileHover={{ scale: 1.03 }}
-  1391→                      whileTap={{ scale: 0.97 }}
-  1392→                      onClick={() => setPosition(position === pos.id ? '' : pos.id)}
-  1393→                      className={`p-2.5 rounded-xl border-2 text-left transition-all ${
-  1394→                        position === pos.id
-  1395→                          ? 'border-brand-teal bg-brand-teal/10 dark:bg-brand-teal/15 shadow-sm shadow-brand-teal/20'
-  1396→                          : 'border-warm-300/60 dark:border-warm-600/40 bg-white/40 dark:bg-white/3 hover:border-warm-200 hover:shadow-sm'
-  1397→                      }`}
-  1398→                    >
-  1399→                      <div className="flex items-center gap-1">
-  1400→                        <span className="text-sm">{pos.icon}</span>
-  1401→                        <span className={`text-xs font-semibold ${position === pos.id ? 'text-brand-teal dark:text-brand-teal-light' : 'text-warm-700 dark:text-warm-300'}`}>
-  1402→                          {pos.label}
-  1403→                        </span>
-  1404→                      </div>
-  1405→                      <p className="text-[8px] text-warm-400 dark:text-warm-500 mt-0.5 ml-5">{pos.meaning}</p>
-  1406→                    </motion.button>
-  1407→                  ))}
-  1408→                </div>
-  1409→              </div>
-  1410→
-  1411→              {/* Gender-themed accent bar */}
-  1412→              {gender && (
-  1413→                <motion.div
-  1414→                  initial={{ scaleX: 0 }}
-  1415→                  animate={{ scaleX: 1 }}
-  1416→                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-  1417→                  className="w-full h-1 rounded-full mb-4 origin-left"
-  1418→                  style={{ backgroundColor: genderAccent }}
-  1419→                />
-  1420→              )}
-  1421→
-  1422→              {/* Error Message */}
-  1423→              <AnimatePresence>
-  1424→                {error && (
-  1425→                  <motion.p
-  1426→                    initial={{ opacity: 0, y: -8, height: 0 }}
-  1427→                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-  1428→                    exit={{ opacity: 0, y: -8, height: 0 }}
-  1429→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-  1430→                    className="text-brand-red dark:text-brand-red-light text-sm mb-3 text-center w-full flex items-center justify-center gap-1.5"
-  1431→                  >
-  1432→                    <CircleDot className="w-3.5 h-3.5 shrink-0" />
-  1433→                    {error}
-  1434→                  </motion.p>
-  1435→                )}
-  1436→              </AnimatePresence>
-  1437→
-  1438→              {/* Continue Button */}
-  1439→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-  1440→                <Button
-  1441→                  onClick={handleDetailsContinue}
-  1442→                  disabled={!gender}
-  1443→                  className={`w-full h-12 font-semibold text-base rounded-xl disabled:opacity-40 text-white transition-all shadow-lg relative overflow-hidden group ${
-  1444→                    gender === 'boy'
-  1445→                      ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue shadow-brand-blue/25'
-  1446→                      : gender === 'girl'
-  1447→                        ? 'bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red shadow-brand-red/25'
-  1448→                        : 'bg-gradient-to-r from-brand-red-dark to-brand-red hover:from-brand-red hover:to-brand-red-light shadow-brand-red/25'
-  1449→                  }`}
-  1450→                >
-  1451→                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-transparent group-hover:via-white/20 transition-all duration-500 -translate-x-full group-hover:translate-x-full" />
-  1452→                  <span className="relative z-10 flex items-center justify-center gap-1.5">
-  1453→                    Continue
-  1454→                    <ChevronRight className="w-4 h-4" />
-  1455→                  </span>
-  1456→                </Button>
-  1457→              </motion.div>
-  1458→            </motion.div>
-  1459→          )}
-  1460→
-  1461→          {/* ═══════════════════════════════════════════
-  1462→              Stage 3: Role Selection
-  1463→              ═══════════════════════════════════════════ */}
-  1464→          {stage === 'role' && (
-  1465→            <motion.div
-  1466→              key="role"
-  1467→              custom={direction}
-  1468→              variants={slideVariants}
-  1469→              initial="enter"
-  1470→              animate="center"
-  1471→              exit="exit"
-  1472→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-  1473→              className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
-  1474→            >
-  1475→              {/* Progress dots at top */}
-  1476→              <div className="flex justify-center gap-2 mb-5">
-  1477→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
-  1478→                  <motion.div
-  1479→                    key={s}
-  1480→                    className="h-1.5 rounded-full"
-  1481→                    animate={{
-  1482→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
-  1483→                      backgroundColor:
-  1484→                        stageIndex[stage] === idx
-  1485→                          ? '#DC2626'
-  1486→                          : stageIndex[stage] > idx
-  1487→                            ? '#B91C1C'
-  1488→                            : '#CBD5E1',
-  1489→                    }}
-  1490→                    transition={{ duration: 0.5 }}
-  1491→                  />
-  1492→                ))}
-  1493→              </div>
-  1494→
-  1495→              <motion.button
-  1496→                whileHover={{ x: -3 }}
-  1497→                whileTap={{ scale: 0.95 }}
-  1498→                onClick={goBack}
-  1499→                className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
-  1500→              >
-  1501→                <ArrowLeft className="w-4 h-4 mr-1" />
-  1502→                Back
-  1503→              </motion.button>
-  1504→
-  1505→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">
-  1506→                What&apos;s your role?
-  1507→              </h2>
-  1508→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
-  1509→                Select one or more roles that apply to you
-  1510→              </p>
-  1511→
-  1512→              {/* Subtle kabaddi-themed background illustration */}
-  1513→              <div className="absolute inset-0 pointer-events-none opacity-[0.02] dark:opacity-[0.03] overflow-hidden rounded-2xl">
-  1514→                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border-4 border-brand-red" />
-  1515→                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-red" />
-  1516→              </div>
-  1517→
-  1518→              <div className="w-full flex flex-col gap-4 mb-6 relative z-10">
-  1519→                {roles.map((role, idx) => {
-  1520→                  const isSelected = selectedRoles.has(role.id);
-  1521→                  const Icon = role.icon;
-  1522→                  return (
-  1523→                    <motion.button
-  1524→                      key={role.id}
-  1525→                      initial={{ opacity: 0, y: 20 }}
-  1526→                      animate={{ opacity: 1, y: 0 }}
-  1527→                      transition={{ delay: idx * 0.15, type: 'spring', stiffness: 300, damping: 25 }}
-  1528→                      whileHover={{ scale: 1.02, y: -2 }}
-  1529→                      whileTap={{ scale: 0.98 }}
-  1530→                      onClick={() => toggleRole(role.id)}
-  1531→                      className={`w-full relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left overflow-hidden ${
-  1532→                        isSelected
-  1533→                          ? `bg-gradient-to-r ${role.color} ${role.borderColor} shadow-lg ${role.glowColor}`
-  1534→                          : 'bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 hover:border-warm-200 hover:shadow-md'
-  1535→                      }`}
-  1536→                    >
-  1537→                      {!isSelected && (
-  1538→                        <div className="absolute inset-0 rounded-2xl opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-brand-red/5 via-brand-gold/5 to-brand-red/5 pointer-events-none" />
-  1539→                      )}
-  1540→
-  1541→                      {isSelected && (
-  1542→                        <div className="absolute inset-0 card-shine">
-  1543→                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ animation: 'shimmer 3s ease-in-out infinite' }} />
-  1544→                        </div>
-  1545→                      )}
-  1546→
-  1547→                      <div
-  1548→                        className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 relative z-10 ${
-  1549→                          isSelected
-  1550→                            ? 'bg-white/20'
-  1551→                            : 'bg-warm-200/60 dark:bg-warm-600/20'
-  1552→                        }`}
-  1553→                      >
-  1554→                        <Icon
-  1555→                          className={`w-7 h-7 ${isSelected ? role.animClass : ''} ${
-  1556→                            isSelected ? 'text-white' : 'text-warm-500 dark:text-warm-400'
-  1557→                          }`}
-  1558→                        />
+  1178→              <button
+  1179→                className="text-brand-red hover:text-brand-red-light dark:text-brand-red-light dark:hover:text-brand-red text-sm font-medium transition-colors w-full text-center group relative pointer-events-auto"
+  1180→                onClick={() => {
+  1181→                  setIsSignUp(!isSignUp);
+  1182→                  setError('');
+  1183→                  setConfirmPassword('');
+  1184→                  setTermsAccepted(false);
+  1185→                }}
+  1186→              >
+  1187→                <span className="relative">
+  1188→                  {isSignUp
+  1189→                    ? 'Already have an account? Login'
+  1190→                    : "Don't have an account? Sign Up"}
+  1191→                  {/* Animated underline via CSS — no motion.div that can swallow events */}
+  1192→                  <span className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] bg-brand-red dark:bg-brand-red-light rounded-full origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+  1193→                </span>
+  1194→              </button>
+  1195→            </motion.div>
+  1196→          )}
+  1197→
+  1198→          {/* ═══════════════════════════════════════════
+  1199→              Stage 2: Details (Gender, Weight, Practice Ground)
+  1200→              ═══════════════════════════════════════════ */}
+  1201→          {stage === 'details' && (
+  1202→            <motion.div
+  1203→              key="details"
+  1204→              custom={direction}
+  1205→              variants={slideVariants}
+  1206→              initial="enter"
+  1207→              animate="center"
+  1208→              exit="exit"
+  1209→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1210→              className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+  1211→            >
+  1212→              {/* Progress dots at top */}
+  1213→              <div className="flex justify-center gap-2 mb-5">
+  1214→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+  1215→                  <motion.div
+  1216→                    key={s}
+  1217→                    className="h-1.5 rounded-full"
+  1218→                    animate={{
+  1219→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+  1220→                      backgroundColor:
+  1221→                        stageIndex[stage] === idx
+  1222→                          ? '#DC2626'
+  1223→                          : stageIndex[stage] > idx
+  1224→                            ? '#B91C1C'
+  1225→                            : '#CBD5E1',
+  1226→                    }}
+  1227→                    transition={{ duration: 0.5 }}
+  1228→                  />
+  1229→                ))}
+  1230→              </div>
+  1231→
+  1232→              <motion.button
+  1233→                whileHover={{ x: -3 }}
+  1234→                whileTap={{ scale: 0.95 }}
+  1235→                onClick={goBack}
+  1236→                className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
+  1237→              >
+  1238→                <ArrowLeft className="w-4 h-4 mr-1" />
+  1239→                Back
+  1240→              </motion.button>
+  1241→
+  1242→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">Tell us about yourself</h2>
+  1243→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+  1244→                Help us personalize your experience
+  1245→              </p>
+  1246→
+  1247→              {/* Gender Selection - Enhanced with gradient backgrounds */}
+  1248→              <div className="w-full mb-5">
+  1249→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-3 block">
+  1250→                  Gender <span className="text-brand-red">*</span>
+  1251→                </label>
+  1252→                <div className="grid grid-cols-2 gap-3">
+  1253→                  {/* Boy Card */}
+  1254→                  <motion.button
+  1255→                    type="button"
+  1256→                    whileHover={{ scale: 1.03, y: -2 }}
+  1257→                    whileTap={{ scale: 0.97 }}
+  1258→                    onClick={() => {
+  1259→                      setGender('boy');
+  1260→                      if (error) setError('');
+  1261→                    }}
+  1262→                    className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
+  1263→                      gender === 'boy'
+  1264→                        ? 'border-brand-blue bg-gradient-to-br from-brand-blue to-brand-blue-dark shadow-lg shadow-brand-blue/25'
+  1265→                        : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-blue/40 hover:shadow-md'
+  1266→                    }`}
+  1267→                  >
+  1268→                    {gender === 'boy' && (
+  1269→                      <motion.div
+  1270→                        initial={{ scale: 0, opacity: 0 }}
+  1271→                        animate={{ scale: 2, opacity: 0.1 }}
+  1272→                        className="absolute w-20 h-20 rounded-full bg-white"
+  1273→                      />
+  1274→                    )}
+  1275→                    <span className={`text-4xl leading-none relative z-10 ${gender === 'boy' ? 'text-white drop-shadow-lg' : 'text-brand-blue'}`}>
+  1276→                      ♂
+  1277→                    </span>
+  1278→                    <span className={`text-sm font-bold relative z-10 ${gender === 'boy' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>
+  1279→                      Boy
+  1280→                    </span>
+  1281→                    {gender === 'boy' && (
+  1282→                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
+  1283→                        <Zap className="w-4 h-4 text-white/60" />
+  1284→                      </motion.div>
+  1285→                    )}
+  1286→                  </motion.button>
+  1287→
+  1288→                  {/* Girl Card */}
+  1289→                  <motion.button
+  1290→                    type="button"
+  1291→                    whileHover={{ scale: 1.03, y: -2 }}
+  1292→                    whileTap={{ scale: 0.97 }}
+  1293→                    onClick={() => {
+  1294→                      setGender('girl');
+  1295→                      if (error) setError('');
+  1296→                    }}
+  1297→                    className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
+  1298→                      gender === 'girl'
+  1299→                        ? 'border-brand-red bg-gradient-to-br from-brand-red to-brand-red-dark shadow-lg shadow-brand-red/25'
+  1300→                        : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-red/40 hover:shadow-md'
+  1301→                    }`}
+  1302→                  >
+  1303→                    {gender === 'girl' && (
+  1304→                      <motion.div
+  1305→                        initial={{ scale: 0, opacity: 0 }}
+  1306→                        animate={{ scale: 2, opacity: 0.1 }}
+  1307→                        className="absolute w-20 h-20 rounded-full bg-white"
+  1308→                      />
+  1309→                    )}
+  1310→                    <span className={`text-4xl leading-none relative z-10 ${gender === 'girl' ? 'text-white drop-shadow-lg' : 'text-brand-red'}`}>
+  1311→                      ♀
+  1312→                    </span>
+  1313→                    <span className={`text-sm font-bold relative z-10 ${gender === 'girl' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>
+  1314→                      Girl
+  1315→                    </span>
+  1316→                    {gender === 'girl' && (
+  1317→                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
+  1318→                        <Zap className="w-4 h-4 text-white/60" />
+  1319→                      </motion.div>
+  1320→                    )}
+  1321→                  </motion.button>
+  1322→                </div>
+  1323→              </div>
+  1324→
+  1325→              {/* Weight Input */}
+  1326→              <div className="w-full mb-3">
+  1327→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+  1328→                  Weight
+  1329→                </label>
+  1330→                <div className="relative">
+  1331→                  <Weight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+  1332→                  <Input
+  1333→                    type="number"
+  1334→                    inputMode="numeric"
+  1335→                    placeholder="Enter weight"
+  1336→                    value={weight}
+  1337→                    onChange={(e) => setWeight(e.target.value)}
+  1338→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/60 transition-all"
+  1339→                  />
+  1340→                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 dark:text-warm-500 text-sm font-medium pointer-events-none">
+  1341→                    kg
+  1342→                  </span>
+  1343→                </div>
+  1344→              </div>
+  1345→
+  1346→              {/* Practice Ground Input */}
+  1347→              <div className="w-full mb-4">
+  1348→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+  1349→                  Practice Ground
+  1350→                </label>
+  1351→                <div className="relative">
+  1352→                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+  1353→                  <Input
+  1354→                    type="text"
+  1355→                    placeholder="Enter practice ground / academy"
+  1356→                    value={practiceGround}
+  1357→                    onChange={(e) => setPracticeGround(e.target.value)}
+  1358→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/60 transition-all"
+  1359→                  />
+  1360→                </div>
+  1361→              </div>
+  1362→
+  1363→              {/* Position Selection */}
+  1364→              <div className="w-full mb-4">
+  1365→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+  1366→                  Position
+  1367→                </label>
+  1368→                <div className="grid grid-cols-2 gap-2">
+  1369→                  {[
+  1370→                    { id: 'left-raider', label: 'Left Raider', icon: '⬅️', meaning: 'Attacks from left' },
+  1371→                    { id: 'right-raider', label: 'Right Raider', icon: '➡️', meaning: 'Attacks from right' },
+  1372→                    { id: 'both-raider', label: 'Both Raider', icon: '↔️', meaning: 'Raids both sides' },
+  1373→                    { id: 'left-corner', label: 'Left Corner', icon: '🛡️', meaning: 'Defends left corner' },
+  1374→                    { id: 'right-corner', label: 'Right Corner', icon: '🛡️', meaning: 'Defends right corner' },
+  1375→                    { id: 'left-cover', label: 'Left Cover', icon: '🧱', meaning: 'Cover defender left' },
+  1376→                    { id: 'right-cover', label: 'Right Cover', icon: '🧱', meaning: 'Cover defender right' },
+  1377→                    { id: 'all-rounder', label: 'All-Rounder', icon: '⭐', meaning: 'Raid & defense' },
+  1378→                  ].map((pos) => (
+  1379→                    <motion.button
+  1380→                      key={pos.id}
+  1381→                      type="button"
+  1382→                      whileHover={{ scale: 1.03 }}
+  1383→                      whileTap={{ scale: 0.97 }}
+  1384→                      onClick={() => setPosition(position === pos.id ? '' : pos.id)}
+  1385→                      className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+  1386→                        position === pos.id
+  1387→                          ? 'border-brand-teal bg-brand-teal/10 dark:bg-brand-teal/15 shadow-sm shadow-brand-teal/20'
+  1388→                          : 'border-warm-300/60 dark:border-warm-600/40 bg-white/40 dark:bg-white/3 hover:border-warm-200 hover:shadow-sm'
+  1389→                      }`}
+  1390→                    >
+  1391→                      <div className="flex items-center gap-1">
+  1392→                        <span className="text-sm">{pos.icon}</span>
+  1393→                        <span className={`text-xs font-semibold ${position === pos.id ? 'text-brand-teal dark:text-brand-teal-light' : 'text-warm-700 dark:text-warm-300'}`}>
+  1394→                          {pos.label}
+  1395→                        </span>
+  1396→                      </div>
+  1397→                      <p className="text-[8px] text-warm-400 dark:text-warm-500 mt-0.5 ml-5">{pos.meaning}</p>
+  1398→                    </motion.button>
+  1399→                  ))}
+  1400→                </div>
+  1401→              </div>
+  1402→
+  1403→              {/* Gender-themed accent bar */}
+  1404→              {gender && (
+  1405→                <motion.div
+  1406→                  initial={{ scaleX: 0 }}
+  1407→                  animate={{ scaleX: 1 }}
+  1408→                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+  1409→                  className="w-full h-1 rounded-full mb-4 origin-left"
+  1410→                  style={{ backgroundColor: genderAccent }}
+  1411→                />
+  1412→              )}
+  1413→
+  1414→              {/* Error Message */}
+  1415→              <AnimatePresence>
+  1416→                {error && (
+  1417→                  <motion.p
+  1418→                    initial={{ opacity: 0, y: -8, height: 0 }}
+  1419→                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+  1420→                    exit={{ opacity: 0, y: -8, height: 0 }}
+  1421→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+  1422→                    className="text-brand-red dark:text-brand-red-light text-sm mb-3 text-center w-full flex items-center justify-center gap-1.5"
+  1423→                  >
+  1424→                    <CircleDot className="w-3.5 h-3.5 shrink-0" />
+  1425→                    {error}
+  1426→                  </motion.p>
+  1427→                )}
+  1428→              </AnimatePresence>
+  1429→
+  1430→              {/* Continue Button */}
+  1431→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+  1432→                <Button
+  1433→                  onClick={handleDetailsContinue}
+  1434→                  disabled={!gender}
+  1435→                  className={`w-full h-12 font-semibold text-base rounded-xl disabled:opacity-40 text-white transition-all shadow-lg relative overflow-hidden group ${
+  1436→                    gender === 'boy'
+  1437→                      ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue shadow-brand-blue/25'
+  1438→                      : gender === 'girl'
+  1439→                        ? 'bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red shadow-brand-red/25'
+  1440→                        : 'bg-gradient-to-r from-brand-red-dark to-brand-red hover:from-brand-red hover:to-brand-red-light shadow-brand-red/25'
+  1441→                  }`}
+  1442→                >
+  1443→                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-transparent group-hover:via-white/20 transition-all duration-500 -translate-x-full group-hover:translate-x-full" />
+  1444→                  <span className="relative z-10 flex items-center justify-center gap-1.5">
+  1445→                    Continue
+  1446→                    <ChevronRight className="w-4 h-4" />
+  1447→                  </span>
+  1448→                </Button>
+  1449→              </motion.div>
+  1450→            </motion.div>
+  1451→          )}
+  1452→
+  1453→          {/* ═══════════════════════════════════════════
+  1454→              Stage 3: Role Selection
+  1455→              ═══════════════════════════════════════════ */}
+  1456→          {stage === 'role' && (
+  1457→            <motion.div
+  1458→              key="role"
+  1459→              custom={direction}
+  1460→              variants={slideVariants}
+  1461→              initial="enter"
+  1462→              animate="center"
+  1463→              exit="exit"
+  1464→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1465→              className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+  1466→            >
+  1467→              {/* Progress dots at top */}
+  1468→              <div className="flex justify-center gap-2 mb-5">
+  1469→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+  1470→                  <motion.div
+  1471→                    key={s}
+  1472→                    className="h-1.5 rounded-full"
+  1473→                    animate={{
+  1474→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+  1475→                      backgroundColor:
+  1476→                        stageIndex[stage] === idx
+  1477→                          ? '#DC2626'
+  1478→                          : stageIndex[stage] > idx
+  1479→                            ? '#B91C1C'
+  1480→                            : '#CBD5E1',
+  1481→                    }}
+  1482→                    transition={{ duration: 0.5 }}
+  1483→                  />
+  1484→                ))}
+  1485→              </div>
+  1486→
+  1487→              <motion.button
+  1488→                whileHover={{ x: -3 }}
+  1489→                whileTap={{ scale: 0.95 }}
+  1490→                onClick={goBack}
+  1491→                className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
+  1492→              >
+  1493→                <ArrowLeft className="w-4 h-4 mr-1" />
+  1494→                Back
+  1495→              </motion.button>
+  1496→
+  1497→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">
+  1498→                What&apos;s your role?
+  1499→              </h2>
+  1500→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+  1501→                Select one or more roles that apply to you
+  1502→              </p>
+  1503→
+  1504→              {/* Subtle kabaddi-themed background illustration */}
+  1505→              <div className="absolute inset-0 pointer-events-none opacity-[0.02] dark:opacity-[0.03] overflow-hidden rounded-2xl">
+  1506→                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border-4 border-brand-red" />
+  1507→                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-red" />
+  1508→              </div>
+  1509→
+  1510→              <div className="w-full flex flex-col gap-4 mb-6 relative z-10">
+  1511→                {roles.map((role, idx) => {
+  1512→                  const isSelected = selectedRoles.has(role.id);
+  1513→                  const Icon = role.icon;
+  1514→                  return (
+  1515→                    <motion.button
+  1516→                      key={role.id}
+  1517→                      initial={{ opacity: 0, y: 20 }}
+  1518→                      animate={{ opacity: 1, y: 0 }}
+  1519→                      transition={{ delay: idx * 0.15, type: 'spring', stiffness: 300, damping: 25 }}
+  1520→                      whileHover={{ scale: 1.02, y: -2 }}
+  1521→                      whileTap={{ scale: 0.98 }}
+  1522→                      onClick={() => toggleRole(role.id)}
+  1523→                      className={`w-full relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left overflow-hidden ${
+  1524→                        isSelected
+  1525→                          ? `bg-gradient-to-r ${role.color} ${role.borderColor} shadow-lg ${role.glowColor}`
+  1526→                          : 'bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 hover:border-warm-200 hover:shadow-md'
+  1527→                      }`}
+  1528→                    >
+  1529→                      {!isSelected && (
+  1530→                        <div className="absolute inset-0 rounded-2xl opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-brand-red/5 via-brand-gold/5 to-brand-red/5 pointer-events-none" />
+  1531→                      )}
+  1532→
+  1533→                      {isSelected && (
+  1534→                        <div className="absolute inset-0 card-shine">
+  1535→                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ animation: 'shimmer 3s ease-in-out infinite' }} />
+  1536→                        </div>
+  1537→                      )}
+  1538→
+  1539→                      <div
+  1540→                        className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 relative z-10 ${
+  1541→                          isSelected
+  1542→                            ? 'bg-white/20'
+  1543→                            : 'bg-warm-200/60 dark:bg-warm-600/20'
+  1544→                        }`}
+  1545→                      >
+  1546→                        <Icon
+  1547→                          className={`w-7 h-7 ${isSelected ? role.animClass : ''} ${
+  1548→                            isSelected ? 'text-white' : 'text-warm-500 dark:text-warm-400'
+  1549→                          }`}
+  1550→                        />
+  1551→                      </div>
+  1552→                      <div className="flex-1 min-w-0 relative z-10">
+  1553→                        <div className={`font-bold text-base ${isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'}`}>
+  1554→                          {role.title}
+  1555→                        </div>
+  1556→                        <div className={`text-xs mt-0.5 ${isSelected ? 'text-white/70' : 'text-warm-500 dark:text-warm-400'}`}>
+  1557→                          {role.description}
+  1558→                        </div>
   1559→                      </div>
-  1560→                      <div className="flex-1 min-w-0 relative z-10">
-  1561→                        <div className={`font-bold text-base ${isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'}`}>
-  1562→                          {role.title}
-  1563→                        </div>
-  1564→                        <div className={`text-xs mt-0.5 ${isSelected ? 'text-white/70' : 'text-warm-500 dark:text-warm-400'}`}>
-  1565→                          {role.description}
-  1566→                        </div>
-  1567→                      </div>
-  1568→                      <div
-  1569→                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all relative z-10 ${
-  1570→                          isSelected
-  1571→                            ? 'border-white bg-white'
-  1572→                            : 'border-warm-300 dark:border-warm-500'
-  1573→                        }`}
-  1574→                      >
-  1575→                        {isSelected && (
-  1576→                          <motion.div
-  1577→                            initial={{ scale: 0 }}
-  1578→                            animate={{ scale: 1 }}
-  1579→                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-  1580→                            className="w-3 h-3 rounded-full bg-warm-50"
-  1581→                          />
-  1582→                        )}
-  1583→                      </div>
-  1584→                    </motion.button>
-  1585→                  );
-  1586→                })}
-  1587→              </div>
-  1588→
-  1589→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-  1590→                <Button
-  1591→                  onClick={handleGetStarted}
-  1592→                  disabled={isSubmitting || selectedRoles.size === 0}
-  1593→                  className={`w-full h-12 font-semibold text-base rounded-xl disabled:opacity-40 text-white transition-all shadow-lg relative overflow-hidden group ${
-  1594→                    gender === 'boy'
-  1595→                      ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue shadow-brand-blue/25'
-  1596→                      : gender === 'girl'
-  1597→                        ? 'bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red shadow-brand-red/25'
-  1598→                        : 'bg-gradient-to-r from-brand-red-dark to-brand-red hover:from-brand-red hover:to-brand-red-light shadow-brand-red/25'
-  1599→                  }`}
-  1600→                >
-  1601→                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-transparent group-hover:via-white/20 transition-all duration-500 -translate-x-full group-hover:translate-x-full" />
-  1602→                  <span className="relative z-10 flex items-center justify-center gap-1.5">
-  1603→                    {isSubmitting ? (
-  1604→                      <>
-  1605→                        <Loader2 className="w-4 h-4 animate-spin" />
-  1606→                        Setting up...
-  1607→                      </>
-  1608→                    ) : (
-  1609→                      <>
-  1610→                        Get Started
-  1611→                        <ChevronRight className="w-4 h-4" />
-  1612→                      </>
-  1613→                    )}
-  1614→                  </span>
-  1615→                </Button>
-  1616→              </motion.div>
-  1617→            </motion.div>
-  1618→          )}
-  1619→        </AnimatePresence>
-  1620→      </div>
-  1621→
-  1622→      {/* ── Bottom Progress dots ── */}
-  1623→      <div className="flex gap-2 mt-8 relative z-10">
-  1624→        {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
-  1625→          <motion.div
-  1626→            key={s}
-  1627→            className="h-1.5 rounded-full"
-  1628→            animate={{
-  1629→              width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
-  1630→              backgroundColor:
-  1631→                stageIndex[stage] === idx
-  1632→                  ? '#DC2626'
-  1633→                  : stageIndex[stage] > idx
-  1634→                    ? '#B91C1C'
-  1635→                    : undefined,
-  1636→            }}
-  1637→            transition={{ duration: 0.5 }}
-  1638→            {...(stageIndex[stage] < idx ? { style: { backgroundColor: '#CBD5E1' } } : {})}
-  1639→          />
-  1640→        ))}
-  1641→      </div>
-  1642→    </div>
-  1643→  );
-  1644→}
-  1645→
+  1560→                      <div
+  1561→                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all relative z-10 ${
+  1562→                          isSelected
+  1563→                            ? 'border-white bg-white'
+  1564→                            : 'border-warm-300 dark:border-warm-500'
+  1565→                        }`}
+  1566→                      >
+  1567→                        {isSelected && (
+  1568→                          <motion.div
+  1569→                            initial={{ scale: 0 }}
+  1570→                            animate={{ scale: 1 }}
+  1571→                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+  1572→                            className="w-3 h-3 rounded-full bg-warm-50"
+  1573→                          />
+  1574→                        )}
+  1575→                      </div>
+  1576→                    </motion.button>
+  1577→                  );
+  1578→                })}
+  1579→              </div>
+  1580→
+  1581→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+  1582→                <Button
+  1583→                  onClick={handleGetStarted}
+  1584→                  disabled={isSubmitting || selectedRoles.size === 0}
+  1585→                  className={`w-full h-12 font-semibold text-base rounded-xl disabled:opacity-40 text-white transition-all shadow-lg relative overflow-hidden group ${
+  1586→                    gender === 'boy'
+  1587→                      ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue shadow-brand-blue/25'
+  1588→                      : gender === 'girl'
+  1589→                        ? 'bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red shadow-brand-red/25'
+  1590→                        : 'bg-gradient-to-r from-brand-red-dark to-brand-red hover:from-brand-red hover:to-brand-red-light shadow-brand-red/25'
+  1591→                  }`}
+  1592→                >
+  1593→                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-transparent group-hover:via-white/20 transition-all duration-500 -translate-x-full group-hover:translate-x-full" />
+  1594→                  <span className="relative z-10 flex items-center justify-center gap-1.5">
+  1595→                    {isSubmitting ? (
+  1596→                      <>
+  1597→                        <Loader2 className="w-4 h-4 animate-spin" />
+  1598→                        Setting up...
+  1599→                      </>
+  1600→                    ) : (
+  1601→                      <>
+  1602→                        Get Started
+  1603→                        <ChevronRight className="w-4 h-4" />
+  1604→                      </>
+  1605→                    )}
+  1606→                  </span>
+  1607→                </Button>
+  1608→              </motion.div>
+  1609→            </motion.div>
+  1610→          )}
+  1611→        </AnimatePresence>
+  1612→      </div>
+  1613→
+  1614→      {/* ── Bottom Progress dots ── */}
+  1615→      <div className="flex gap-2 mt-8 relative z-10">
+  1616→        {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+  1617→          <motion.div
+  1618→            key={s}
+  1619→            className="h-1.5 rounded-full"
+  1620→            animate={{
+  1621→              width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+  1622→              backgroundColor:
+  1623→                stageIndex[stage] === idx
+  1624→                  ? '#DC2626'
+  1625→                  : stageIndex[stage] > idx
+  1626→                    ? '#B91C1C'
+  1627→                    : undefined,
+  1628→            }}
+  1629→            transition={{ duration: 0.5 }}
+  1630→            {...(stageIndex[stage] < idx ? { style: { backgroundColor: '#CBD5E1' } } : {})}
+  1631→          />
+  1632→        ))}
+  1633→      </div>
+  1634→    </div>
+  1635→  );
+  1636→}
+  1637→

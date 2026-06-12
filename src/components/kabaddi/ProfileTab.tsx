@@ -248,8 +248,8 @@ export default function ProfileTab() {
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Simulated member since date
-  const memberSince = currentUser?.id ? new Date(parseInt(currentUser.id.substring(0, 8), 16) * 1000 || Date.now() - 30 * 86400000) : new Date(Date.now() - 30 * 86400000);
+  // Member since date - use createdAt timestamp, fallback to 30 days ago
+  const memberSince = currentUser?.createdAt ? new Date(currentUser.createdAt) : new Date(Date.now() - 30 * 86400000);
 
   const isPremium = currentUser?.isPremium || false;
 
@@ -518,7 +518,16 @@ export default function ProfileTab() {
   const totalMatches = profileData.tournamentMatches + profileData.practiceMatches;
   const raidSuccessRate = profileData.totalRaids > 0 ? (profileData.successfulRaids / profileData.totalRaids) * 100 : 0;
   const tackleSuccessRate = profileData.totalTackles > 0 ? (profileData.successfulTackles / profileData.totalTackles) * 100 : 0;
-  const playerLevel = getPlayerLevel(totalMatches, totalPoints);
+
+  // Use calculated level if player has match history, otherwise use self-reported experience
+  const calculatedLevel = getPlayerLevel(totalMatches, totalPoints);
+  const experienceMap: Record<string, { label: string; color: string; icon: string; progress: number }> = {
+    beginner: { label: 'Beginner', color: 'from-slate-400 to-slate-500', icon: '🌱', progress: 10 },
+    intermediate: { label: 'Intermediate', color: 'from-teal-500 to-emerald-500', icon: '⚡', progress: 40 },
+    advanced: { label: 'Advanced', color: 'from-red-500 to-orange-500', icon: '🔥', progress: 70 },
+  };
+  const selfReportedLevel = currentUser?.experienceLevel ? experienceMap[currentUser.experienceLevel] : null;
+  const playerLevel = totalMatches > 0 ? calculatedLevel : (selfReportedLevel || calculatedLevel);
 
   const performanceData = [
     { name: 'Raids', value: profileData.successfulRaids },
@@ -1402,9 +1411,9 @@ export default function ProfileTab() {
         className="grid grid-cols-3 gap-3"
       >
         {[
-          { label: 'Raid Points', value: raidPoints, icon: Zap, color: 'orange', sparkData: raidSparkline, trend: 12, glow: 'stat-glow-orange', ringColor: '#EA580C', ringBg: '#EA580C20', pct: Math.min((raidPoints / Math.max(totalPoints, 1)) * 100, 100) },
-          { label: 'Tackle Points', value: tacklePoints, icon: Shield, color: 'emerald', sparkData: tackleSparkline, trend: 8, glow: 'stat-glow-emerald', ringColor: '#059669', ringBg: '#05966920', pct: Math.min((tacklePoints / Math.max(totalPoints, 1)) * 100, 100) },
-          { label: 'Rating', value: parseFloat(profileData.overallRating.toFixed(1)), icon: Swords, color: 'amber', sparkData: ratingSparkline, trend: -3, decimals: 1, glow: 'stat-glow-amber', ringColor: '#D97706', ringBg: '#D9770620', pct: Math.min(profileData.overallRating * 10, 100) },
+          { label: 'Raid Points', value: raidPoints, icon: Zap, color: 'orange', sparkData: raidSparkline, trend: raidPoints > 0 ? 12 : 0, glow: 'stat-glow-orange', ringColor: '#EA580C', ringBg: '#EA580C20', pct: Math.min((raidPoints / Math.max(totalPoints, 1)) * 100, 100) },
+          { label: 'Tackle Points', value: tacklePoints, icon: Shield, color: 'emerald', sparkData: tackleSparkline, trend: tacklePoints > 0 ? 8 : 0, glow: 'stat-glow-emerald', ringColor: '#059669', ringBg: '#05966920', pct: Math.min((tacklePoints / Math.max(totalPoints, 1)) * 100, 100) },
+          { label: 'Rating', value: parseFloat(profileData.overallRating.toFixed(1)), icon: Swords, color: 'amber', sparkData: ratingSparkline, trend: profileData.overallRating > 0 ? -3 : 0, decimals: 1, glow: 'stat-glow-amber', ringColor: '#D97706', ringBg: '#D9770620', pct: Math.min(profileData.overallRating * 10, 100) },
         ].map((stat, idx) => {
           const IconComp = stat.icon;
           const circumference = 2 * Math.PI * 28;

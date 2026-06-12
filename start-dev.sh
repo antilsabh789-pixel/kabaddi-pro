@@ -1,4 +1,3 @@
 #!/bin/bash
-export DATABASE_URL="postgresql://neondb_owner:npg_kO2QUYoG6RJH@ep-wandering-tooth-aian558e-pooler.c-4.us-east-1.aws.neon.tech/neondb?connect_timeout=15&sslmode=require"
-export DIRECT_URL="postgresql://neondb_owner:npg_kO2QUYoG6RJH@ep-wandering-tooth-aian558e.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
-exec npx next dev -p 3000
+cd /home/z/my-project
+NODE_OPTIONS="--max-old-space-size=512" npx next dev -p 3000 -H 0.0.0.0 2>&1 | tee /home/z/my-project/dev.log

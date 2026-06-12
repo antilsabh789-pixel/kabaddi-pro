@@ -15,6 +15,8 @@ export interface CurrentUser {
   email?: string;
   isPremium?: boolean;
   isAdmin?: boolean;
+  experienceLevel?: OnboardingExperience;
+  createdAt?: number;
 }
 
 export interface MatchPlayer {
@@ -377,7 +379,7 @@ export const useKabaddiStore = create<KabaddiState>()(
         set({
           isAuthenticated: true,
           isOnboarded: !!(user.name && user.gender),
-          currentUser: user,
+          currentUser: { ...user, createdAt: user.createdAt || Date.now() },
         }),
 
       logout: () =>
@@ -683,6 +685,8 @@ export const useKabaddiStore = create<KabaddiState>()(
                 ...state.currentUser,
                 ...(state.onboardingProfile.position && { role: state.onboardingProfile.position }),
                 ...(state.onboardingProfile.weightCategory && { weight: state.onboardingProfile.weightCategory }),
+                ...(state.onboardingProfile.experience && { experienceLevel: state.onboardingProfile.experience }),
+                createdAt: state.currentUser.createdAt || Date.now(),
               }
             : null,
         })),
