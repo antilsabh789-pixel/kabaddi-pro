@@ -7,11 +7,6 @@
  * 
  * NO DEMO MODE - Always uses real SMS providers.
  * If credentials are missing, the OTP send will FAIL (not fall back to demo).
- * 
- * Setup:
- * 1. Set OTP_PROVIDER in .env (msg91 | twilio)
- * 2. Add provider-specific credentials in .env
- * 3. Restart the dev server
  */
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -29,6 +24,7 @@ export interface OTPProviderConfig {
   // MSG91
   msg91AuthKey?: string;
   msg91TemplateId?: string;
+  msg91SenderId?: string;
   // Twilio
   twilioAccountSid?: string;
   twilioAuthToken?: string;
@@ -44,6 +40,7 @@ function getConfig(): OTPProviderConfig {
     provider,
     msg91AuthKey: process.env.MSG91_AUTH_KEY,
     msg91TemplateId: process.env.MSG91_TEMPLATE_ID,
+    msg91SenderId: process.env.MSG91_SENDER_ID,
     twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
     twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER,
@@ -58,7 +55,7 @@ function getConfig(): OTPProviderConfig {
 function validateConfig(config: OTPProviderConfig): string | null {
   if (config.provider === 'msg91') {
     if (!config.msg91AuthKey) return 'MSG91_AUTH_KEY is required when OTP_PROVIDER=msg91';
-    if (!config.msg91TemplateId) return 'MSG91_TEMPLATE_ID is required when OTP_PROVIDER=msg91';
+    // Template ID is optional - we can use MSG91's built-in OTP service without it
   }
   if (config.provider === 'twilio') {
     if (!config.twilioAccountSid) return 'TWILIO_ACCOUNT_SID is required when OTP_PROVIDER=twilio';
@@ -70,6 +67,10 @@ function validateConfig(config: OTPProviderConfig): string | null {
 // ─── MSG91 Provider ─────────────────────────────────────────────
 // MSG91 is India's most popular SMS/OTP provider
 // Docs: https://docs.msg91.com
+//
+// Two methods:
+// 1. With template_id: Uses custom DLT-approved template (requires sender ID)
+// 2. Without template_id: Uses MSG91's built-in OTP service (MSG91's own sender)
 
 async function sendViaMSG91(
   phone: string,
@@ -77,22 +78,34 @@ async function sendViaMSG91(
   config: OTPProviderConfig
 ): Promise<OTPResult> {
   const authKey = config.msg91AuthKey!;
-  const templateId = config.msg91TemplateId!;
 
   try {
+    // Build the request body
+    const requestBody: Record<string, string> = {
+      mobile: phone, // Format: 91XXXXXXXXXX (10 digits with country code)
+      otp: otp,
+      OTP: otp, // Template variable
+    };
+
+    // Add template_id if available (for custom DLT template)
+    if (config.msg91TemplateId) {
+      requestBody.template_id = config.msg91TemplateId;
+    }
+
+    // Add sender ID if available (required for custom templates)
+    if (config.msg91SenderId) {
+      requestBody.sender = config.msg91SenderId;
+    }
+
+    console.log('[MSG91] Sending OTP to:', phone, 'with template:', !!config.msg91TemplateId, 'sender:', config.msg91SenderId || 'default');
+
     const response = await fetch('https://control.msg91.com/api/v5/otp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'authkey': authKey,
       },
-      body: JSON.stringify({
-        template_id: templateId,
-        mobile: phone, // Format: +91XXXXXXXXXX or 91XXXXXXXXXX
-        otp: otp,
-        // Additional template variables
-        OTP: otp,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await response.json();
@@ -106,6 +119,7 @@ async function sendViaMSG91(
       };
     }
 
+    console.log('[MSG91] OTP sent successfully, request_id:', data.request_id);
     return {
       success: true,
       message: 'OTP sent successfully via MSG91',
@@ -145,7 +159,7 @@ async function verifyViaMSG91(
 
     const data = await response.json();
 
-    if (data.type === 'success') {
+    if (data.type === 'success' || data.message?.toLowerCase().includes('verified')) {
       return { valid: true, message: 'OTP verified successfully' };
     }
 
