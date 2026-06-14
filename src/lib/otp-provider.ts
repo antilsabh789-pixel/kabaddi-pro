@@ -274,6 +274,9 @@ async function sendViaFast2SMS(
 }
 
 // ─── MSG91 Provider ─────────────────────────────────────────────
+// WARNING: MSG91 has a known issue where it returns "success" even when
+// SMS credits are 0. The API accepts the request but SMS is NEVER delivered.
+// We check the balance BEFORE sending to avoid this silent failure.
 
 async function sendViaMSG91(
   phone: string,
@@ -284,6 +287,20 @@ async function sendViaMSG91(
   const mobile10 = sanitizePhone(phone);
   const mobileWithCC = '91' + mobile10;
   const message = `Your Kabaddi Pro verification code is ${otp}. Do not share with anyone. Valid for 5 minutes.`;
+
+  // ── Pre-check: Verify SMS credits exist ──
+  // MSG91 returns "success" even with 0 credits, so we must check first
+  const balanceInfo = await checkMSG91Balance(authKey);
+  if (balanceInfo.balance !== null && balanceInfo.balance <= 0) {
+    console.warn('[MSG91] ❌ SMS balance is 0 - SMS will NOT deliver even if API returns success');
+    return {
+      success: false,
+      message: `MSG91: SMS balance is ${balanceInfo.balance}. Purchase SMS credits at MSG91 Dashboard → SMS → Buy Credits (NOT wallet top-up).`,
+      provider: 'msg91',
+      method: 'balance-check',
+    };
+  }
+  console.log('[MSG91] Balance check: SMS credits =', balanceInfo.balance);
 
   // ── Method 1: Direct SMS API (transactional) ──────────────
   try {
