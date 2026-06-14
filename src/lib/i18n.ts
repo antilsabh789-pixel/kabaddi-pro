@@ -283,6 +283,35 @@ export const translations: TranslationMap = {
   'sponsors.gold': { en: 'Gold', hi: 'स्वर्ण' },
   'sponsors.silver': { en: 'Silver', hi: 'रजत' },
   'sponsors.bronze': { en: 'Bronze', hi: 'कांस्य' },
+
+  // ─── Coaches Corner ───
+  'coach.title': { en: "COACH'S CORNER", hi: 'कोच कॉर्नर' },
+  'coach.myAcademy': { en: 'My Academy', hi: 'मेरी अकादमी' },
+  'coach.manageGround': { en: 'Manage Ground', hi: 'मैदान प्रबंधन' },
+  'coach.manageTeam': { en: 'Manage Team', hi: 'टीम प्रबंधन' },
+  'coach.attendance': { en: 'Attendance', hi: 'उपस्थिति' },
+  'coach.rules': { en: 'Rules', hi: 'नियम' },
+  'coach.practiceSchedule': { en: 'Practice Schedule', hi: 'अभ्यास शेड्यूल' },
+  'coach.sundayHoliday': { en: 'Sunday Holiday', hi: 'रविवार छुट्टी' },
+  'coach.oneTimePractice': { en: 'One Time Practice', hi: 'एक बार अभ्यास' },
+  'coach.bothTimePractice': { en: 'Both Time Practice', hi: 'दोनों समय अभ्यास' },
+  'coach.addPlayer': { en: 'Add Player', hi: 'खिलाड़ी जोड़ें' },
+  'coach.removePlayer': { en: 'Remove Player', hi: 'खिलाड़ी हटाएं' },
+  'coach.createAcademy': { en: 'Create Academy', hi: 'अकादमी बनाएं' },
+  'coach.academyName': { en: 'Academy Name', hi: 'अकादमी का नाम' },
+  'coach.groundLocation': { en: 'Ground Location', hi: 'मैदान का स्थान' },
+  'coach.totalPlayers': { en: 'Total Players', hi: 'कुल खिलाड़ी' },
+  'coach.noAcademy': { en: 'No academy yet. Create one to start managing!', hi: 'अभी कोई अकादमी नहीं। प्रबंधन शुरू करने के लिए बनाएं!' },
+  'coach.registerPlayer': { en: 'Register Player', hi: 'खिलाड़ी पंजीकृत करें' },
+
+  // ─── Footer ───
+  'footer.madeFor': { en: 'Made for Kabaddi Lovers', hi: 'कबड्डी प्रेमियों के लिए बनाया' },
+  'footer.madeIn': { en: 'Made in Haryana with ❤️', hi: 'हरियाणा में बनाया ❤️ के साथ' },
+
+  // ─── Premium ───
+  'premium.compareTeams': { en: 'Compare Teams', hi: 'टीमों की तुलना' },
+  'premium.viewStats': { en: 'View Player Stats', hi: 'खिलाड़ी आंकड़े देखें' },
+  'premium.goldenName': { en: 'PRO', hi: 'प्रो' },
 };
 
 export function t(key: string, lang?: Language): string {

@@ -262,7 +262,7 @@ export default function DailyChallengeScreen({ onClose }: DailyChallengeScreenPr
   const levelProgress = (USER_STATS.currentXP / USER_STATS.levelXP) * 100;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-950 overflow-y-auto">
       <Confetti active={showConfetti} />
 
       {/* ─── Header ─────────────────────────────────────────────── */}

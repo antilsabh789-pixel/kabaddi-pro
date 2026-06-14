@@ -1,0 +1,502 @@
+  1655→            </Card>
+  1656→          </motion.div>
+  1657→          <motion.div
+  1658→            initial={{ opacity: 0, x: 15 }}
+  1659→            animate={{ opacity: 1, x: 0 }}
+  1660→            transition={{ delay: 0.4 }}
+  1661→            whileHover={{ scale: 1.02, y: -2 }}
+  1662→            className="transition-transform"
+  1663→          >
+  1664→            <Card className="p-3 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/20 shadow-sm relative overflow-hidden">
+  1665→              {/* Decorative gradient accent */}
+  1666→              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
+  1667→              <div className="flex items-center gap-1.5 mb-2">
+  1668→                <span className="text-sm">🏆</span>
+  1669→                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Tournament</span>
+  1670→              </div>
+  1671→              <div className="space-y-1.5">
+  1672→                <div className="flex justify-between text-[11px]">
+  1673→                  <span className="text-warm-500 dark:text-warm-400">Matches</span>
+  1674→                  <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.tournamentMatches}</span>
+  1675→                </div>
+  1676→                <div className="flex justify-between text-[11px]">
+  1677→                  <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
+  1678→                  <span className="text-orange-500 font-semibold">{profileData.tournamentRaidPoints}</span>
+  1679→                </div>
+  1680→                <div className="flex justify-between text-[11px]">
+  1681→                  <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
+  1682→                  <span className="text-emerald-500 font-semibold">{profileData.tournamentTacklePoints}</span>
+  1683→                </div>
+  1684→                <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+  1685→                  <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
+  1686→                  <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.tournamentTotalPoints}</span>
+  1687→                </div>
+  1688→              </div>
+  1689→            </Card>
+  1690→          </motion.div>
+  1691→        </div>
+  1692→      </motion.div>
+  1693→      )}
+  1694→
+  1695→      {/* ═══════════════════════════════════════════ */}
+  1696→      {/* 4. MATCH HISTORY TIMELINE (Enhanced) */}
+  1697→      {/* ═══════════════════════════════════════════ */}
+  1698→      {!profileNotFound && (
+  1699→      <motion.div
+  1700→        initial={{ opacity: 0, y: 10 }}
+  1701→        animate={{ opacity: 1, y: 0 }}
+  1702→        transition={{ delay: 0.14 }}
+  1703→      >
+  1704→        <MatchHistoryTimeline
+  1705→          matches={recentMatches.map((m) => ({
+  1706→            id: m.id,
+  1707→            homeTeam: m.homeTeam,
+  1708→            awayTeam: m.awayTeam,
+  1709→            homeScore: m.homeScore,
+  1710→            awayScore: m.awayScore,
+  1711→            date: m.date,
+  1712→            isPractice: m.isPractice,
+  1713→            userTeamSide: m.userTeamSide,
+  1714→            completedAt: m.completedAt,
+  1715→          }))}
+  1716→        />
+  1717→      </motion.div>
+  1718→      )}
+  1719→
+  1720→      {/* ═══════════════════════════════════════════ */}
+  1721→      {/* 5. BADGES Section with Categories, Locked & Progress */}
+  1722→      {/* ═══════════════════════════════════════════ */}
+  1723→      {!profileNotFound && (
+  1724→      <motion.div
+  1725→        initial={{ opacity: 0, y: 10 }}
+  1726→        animate={{ opacity: 1, y: 0 }}
+  1727→        transition={{ delay: 0.15 }}
+  1728→      >
+  1729→        <PremiumLock feature="Detailed Badges">
+  1730→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1731→            <Award className="w-4 h-4 text-brand-gold" />
+  1732→            Badges
+  1733→          </h3>
+  1734→          <div className="space-y-4">
+  1735→            {badgeCategories.map((category) => (
+  1736→              <div key={category.title}>
+  1737→                <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-300 uppercase tracking-wider mb-2">{category.title}</p>
+  1738→                <div className="flex flex-wrap gap-2 justify-center">
+  1739→                  {category.badges.map((badge, idx) => {
+  1740→                    const isLocked = badge.premium && !isPremium;
+  1741→                    return (
+  1742→                      <motion.div
+  1743→                        key={badge.label}
+  1744→                        initial={{ opacity: 0, scale: 0.8, y: 10 }}
+  1745→                        animate={{ opacity: 1, scale: 1, y: 0 }}
+  1746→                        transition={{ delay: 0.06 * idx, type: 'spring', stiffness: 300 }}
+  1747→                        whileHover={{ scale: 1.08, y: -2 }}
+  1748→                        className="transition-transform"
+  1749→                      >
+  1750→                        <Tooltip>
+  1751→                          <TooltipTrigger asChild>
+  1752→                            <div
+  1753→                              className={`relative flex flex-col items-center px-3 py-2.5 rounded-xl border-2 transition-all min-w-[76px] max-w-[90px] cursor-default ${
+  1754→                                badge.condition
+  1755→                                  ? 'bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 border-brand-gold/40 shadow-md badge-unlocked-shimmer'
+  1756→                                  : isLocked
+  1757→                                    ? 'bg-warm-100/30 dark:bg-warm-200/20 border-warm-200/60 dark:border-warm-300/50 badge-locked relative overflow-hidden'
+  1758→                                    : 'bg-warm-100 dark:bg-warm-200/50 border-warm-200 dark:border-warm-300 hover:border-brand-gold/30'
+  1759→                              }`}
+  1760→                            >
+  1761→                              {/* Locked badge shimmer effect */}
+  1762→                              {isLocked && (
+  1763→                                <motion.div
+  1764→                                  className="absolute inset-0 pointer-events-none"
+  1765→                                  style={{
+  1766→                                    background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)',
+  1767→                                    backgroundSize: '200% 100%',
+  1768→                                  }}
+  1769→                                  animate={{ backgroundPosition: ['200% 0%', '-200% 0%'] }}
+  1770→                                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+  1771→                                />
+  1772→                              )}
+  1773→                              <motion.span
+  1774→                                className="text-xl relative z-10"
+  1775→                                animate={badge.condition ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : {}}
+  1776→                                transition={badge.condition ? { duration: 2.5, repeat: Infinity, repeatDelay: 4 } : {}}
+  1777→                              >
+  1778→                                {isLocked ? <Lock className="w-4 h-4 text-warm-400" /> : badge.icon}
+  1779→                              </motion.span>
+  1780→                              <span className={`text-[9px] font-bold mt-1 relative z-10 ${
+  1781→                                badge.condition ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'
+  1782→                              }`}>
+  1783→                                {badge.label}
+  1784→                              </span>
+  1785→                              {/* Progress indicator for partially completed - enhanced */}
+  1786→                              {!badge.condition && !isLocked && badge.progress > 0 && (
+  1787→                                <div className="w-full mt-1 relative z-10">
+  1788→                                  <div className="w-full h-1.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+  1789→                                    <motion.div
+  1790→                                      initial={{ width: 0 }}
+  1791→                                      animate={{ width: `${badge.progress}%` }}
+  1792→                                      transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+  1793→                                      className="h-full rounded-full bg-gradient-to-r from-brand-gold/60 to-brand-gold"
+  1794→                                    />
+  1795→                                  </div>
+  1796→                                  <span className="text-[7px] text-warm-400 font-medium">{badge.progress.toFixed(0)}%</span>
+  1797→                                </div>
+  1798→                              )}
+  1799→                              {isLocked && (
+  1800→                                <span className="text-[7px] font-bold text-brand-gold/60 mt-0.5 flex items-center gap-0.5 relative z-10">
+  1801→                                  <Crown className="w-2 h-2" /> PRO
+  1802→                                </span>
+  1803→                              )}
+  1804→                              {/* Unlocked checkmark */}
+  1805→                              {badge.condition && (
+  1806→                                <motion.div
+  1807→                                  initial={{ scale: 0 }}
+  1808→                                  animate={{ scale: 1 }}
+  1809→                                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm"
+  1810→                                >
+  1811→                                  <Check className="w-2.5 h-2.5 text-white" />
+  1812→                                </motion.div>
+  1813→                              )}
+  1814→                            </div>
+  1815→                          </TooltipTrigger>
+  1816→                          <TooltipContent side="bottom">
+  1817→                            <p className="font-semibold">{badge.condition ? '✨ Unlocked!' : `${badge.threshold} needed`}</p>
+  1818→                            {!badge.condition && <p className="text-[9px] opacity-70">{badge.progress.toFixed(0)}% progress</p>}
+  1819→                          </TooltipContent>
+  1820→                        </Tooltip>
+  1821→                      </motion.div>
+  1822→                    );
+  1823→                  })}
+  1824→                </div>
+  1825→              </div>
+  1826→            ))}
+  1827→          </div>
+  1828→        </PremiumLock>
+  1829→      </motion.div>
+  1830→      )}
+  1831→
+  1832→      {/* ═══════════════════════════════════════════ */}
+  1833→      {/* 6. PERFORMANCE RADAR/SPIDER CHART */}
+  1834→      {/* ═══════════════════════════════════════════ */}
+  1835→      {!profileNotFound && (
+  1836→      <motion.div
+  1837→        initial={{ opacity: 0, y: 10 }}
+  1838→        animate={{ opacity: 1, y: 0 }}
+  1839→        transition={{ delay: 0.2 }}
+  1840→      >
+  1841→        <PremiumLock feature="Performance Analytics">
+  1842→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1843→            <Gauge className="w-4 h-4 text-brand-red" />
+  1844→            Performance Radar
+  1845→          </h3>
+  1846→          <Card className="p-4 shadow-sm glass-card relative overflow-hidden">
+  1847→            {/* Decorative gradient corner accent */}
+  1848→            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-brand-red/5 to-transparent pointer-events-none" />
+  1849→            <div className="h-60">
+  1850→              <ResponsiveContainer width="100%" height="100%">
+  1851→                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="72%">
+  1852→                  <PolarGrid stroke="var(--border)" strokeOpacity={0.3} />
+  1853→                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--color-warm-500)' }} />
+  1854→                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+  1855→                  {/* Average player overlay - lighter, dashed */}
+  1856→                  <Radar
+  1857→                    name="Average"
+  1858→                    dataKey="avg"
+  1859→                    stroke="#94A3B8"
+  1860→                    fill="#94A3B8"
+  1861→                    fillOpacity={0.08}
+  1862→                    strokeDasharray="5 5"
+  1863→                    strokeWidth={1}
+  1864→                    animationBegin={0}
+  1865→                    animationDuration={800}
+  1866→                  />
+  1867→                  {/* Player's stats - enhanced with glow */}
+  1868→                  <Radar
+  1869→                    name="You"
+  1870→                    dataKey="player"
+  1871→                    stroke="#DC2626"
+  1872→                    fill="#DC2626"
+  1873→                    fillOpacity={0.25}
+  1874→                    strokeWidth={2.5}
+  1875→                    animationBegin={400}
+  1876→                    animationDuration={1200}
+  1877→                    animationEasing="ease-out"
+  1878→                  />
+  1879→                </RadarChart>
+  1880→              </ResponsiveContainer>
+  1881→            </div>
+  1882→            {/* Legend - enhanced with comparison */}
+  1883→            <div className="flex items-center justify-center gap-4 mt-2">
+  1884→              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-red/10">
+  1885→                <div className="w-3 h-1.5 rounded-full bg-brand-red" />
+  1886→                <span className="text-[10px] font-semibold text-brand-red">You</span>
+  1887→              </div>
+  1888→              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warm-200/50 dark:bg-warm-300/30">
+  1889→                <div className="w-3 h-1.5 rounded-full bg-slate-400 opacity-50" />
+  1890→                <span className="text-[10px] font-medium text-warm-500 dark:text-warm-400">Avg Player</span>
+  1891→              </div>
+  1892→            </div>
+  1893→            {/* Skill highlights with pulse on max stat */}
+  1894→            <div className="grid grid-cols-3 gap-2 mt-3">
+  1895→              {radarData.slice(0, 3).map((skill) => {
+  1896→                const isMax = skill.player === Math.max(...radarData.map(s => s.player));
+  1897→                return (
+  1898→                  <motion.div
+  1899→                    key={skill.subject}
+  1900→                    className={`text-center p-1.5 rounded-lg ${
+  1901→                      isMax
+  1902→                        ? 'bg-brand-red/10 border border-brand-red/20 ring-1 ring-brand-red/10'
+  1903→                        : 'bg-warm-100/50 dark:bg-warm-200/30'
+  1904→                    }`}
+  1905→                    whileHover={{ scale: 1.05 }}
+  1906→                  >
+  1907→                    <p className="text-[9px] text-warm-400 uppercase font-semibold">{skill.subject}</p>
+  1908→                    <div className="flex items-center justify-center gap-1">
+  1909→                      <p className={`text-sm font-black ${isMax ? 'text-brand-red' : 'text-warm-800 dark:text-warm-700'}`}>{Math.round(skill.player)}</p>
+  1910→                      {isMax && (
+  1911→                        <motion.span
+  1912→                          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
+  1913→                          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+  1914→                          className="text-[8px]"
+  1915→                        >
+  1916→                          🔥
+  1917→                        </motion.span>
+  1918→                      )}
+  1919→                    </div>
+  1920→                    {/* Comparison vs average */}
+  1921→                    {skill.player > skill.avg && (
+  1922→                      <span className="text-[7px] text-emerald-500 font-bold">+{Math.round(skill.player - skill.avg)} vs avg</span>
+  1923→                    )}
+  1924→                  </motion.div>
+  1925→                );
+  1926→              })}
+  1927→            </div>
+  1928→          </Card>
+  1929→
+  1930→          {/* Bar Chart - legacy performance data */}
+  1931→          <Card className="p-4 shadow-sm mt-3">
+  1932→            <h4 className="text-xs font-semibold text-warm-600 dark:text-warm-500 mb-2">Performance Summary</h4>
+  1933→            <div className="h-36">
+  1934→              <ResponsiveContainer width="100%" height="100%">
+  1935→                <BarChart data={performanceData} barSize={40}>
+  1936→                  <XAxis
+  1937→                    dataKey="name"
+  1938→                    axisLine={false}
+  1939→                    tickLine={false}
+  1940→                    tick={{ fontSize: 11, fill: '#8B7355' }}
+  1941→                  />
+  1942→                  <YAxis hide />
+  1943→                  <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={1000} animationEasing="ease-out">
+  1944→                    {performanceData.map((_, index) => (
+  1945→                      <Cell key={`cell-${index}`} fill={barColors[index]} />
+  1946→                    ))}
+  1947→                  </Bar>
+  1948→                </BarChart>
+  1949→              </ResponsiveContainer>
+  1950→            </div>
+  1951→          </Card>
+  1952→        </PremiumLock>
+  1953→      </motion.div>
+  1954→      )}
+  1955→
+  1956→      {/* ═══════════════════════════════════════════ */}
+  1957→      {/* 7. DETAILED BREAKDOWN with Animated Progress Bars */}
+  1958→      {/* ═══════════════════════════════════════════ */}
+  1959→      {!profileNotFound && (
+  1960→      <motion.div
+  1961→        initial={{ opacity: 0, y: 10 }}
+  1962→        animate={{ opacity: 1, y: 0 }}
+  1963→        transition={{ delay: 0.22 }}
+  1964→      >
+  1965→        <PremiumLock feature="Detailed Stats" compact>
+  1966→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  1967→            <Swords className="w-4 h-4 text-brand-red" />
+  1968→            Detailed Breakdown
+  1969→          </h3>
+  1970→          <Card className="p-4 shadow-sm glass-card">
+  1971→            <div className="space-y-4">
+  1972→              {detailedStats.map((stat, idx) => {
+  1973→                const IconComp = stat.icon;
+  1974→                const diff = stat.value - stat.prev;
+  1975→                return (
+  1976→                  <motion.div
+  1977→                    key={stat.label}
+  1978→                    initial={{ opacity: 0, x: -10 }}
+  1979→                    animate={{ opacity: 1, x: 0 }}
+  1980→                    transition={{ delay: 0.08 * idx }}
+  1981→                    className="progress-glow rounded-lg p-1 -m-1"
+  1982→                  >
+  1983→                    <div className="flex items-center justify-between mb-1.5">
+  1984→                      <div className="flex items-center gap-2">
+  1985→                        <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-sm`}>
+  1986→                          <IconComp className="w-3.5 h-3.5 text-white" />
+  1987→                        </div>
+  1988→                        <span className="text-sm font-semibold text-warm-700 dark:text-warm-600">{stat.label}</span>
+  1989→                      </div>
+  1990→                      <div className="flex items-center gap-2">
+  1991→                        <span className="text-sm font-black text-warm-800 dark:text-warm-700 tabular-nums">{stat.value.toFixed(0)}%</span>
+  1992→                        {diff !== 0 && (
+  1993→                          <span className={`text-[9px] font-bold flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${
+  1994→                            diff > 0 ? 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400' : 'text-red-600 bg-red-500/10 dark:text-red-400'
+  1995→                          }`}>
+  1996→                            {diff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+  1997→                            {Math.abs(diff).toFixed(0)}%
+  1998→                          </span>
+  1999→                        )}
+  2000→                      </div>
+  2001→                    </div>
+  2002→                    <div className="w-full h-3 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+  2003→                      <motion.div
+  2004→                        initial={{ width: 0 }}
+  2005→                        animate={{ width: `${Math.min(stat.value, 100)}%` }}
+  2006→                        transition={{ duration: 1.5, ease: 'easeOut', delay: 0.2 + idx * 0.1 }}
+  2007→                        className={`h-full rounded-full bg-gradient-to-r ${stat.color} relative`}
+  2008→                      >
+  2009→                        {/* Shine effect on progress bar */}
+  2010→                        <div className="absolute inset-0 rounded-full overflow-hidden">
+  2011→                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
+  2012→                        </div>
+  2013→                      </motion.div>
+  2014→                    </div>
+  2015→                  </motion.div>
+  2016→                );
+  2017→              })}
+  2018→            </div>
+  2019→          </Card>
+  2020→
+  2021→          {/* Quick stat grid - enhanced */}
+  2022→          <div className="grid grid-cols-2 gap-3 mt-3">
+  2023→            <motion.div
+  2024→              initial={{ opacity: 0, scale: 0.9 }}
+  2025→              animate={{ opacity: 1, scale: 1 }}
+  2026→              transition={{ delay: 0.3 }}
+  2027→              className="text-center p-3 rounded-xl bg-gradient-to-br from-orange-50/80 to-orange-100/30 dark:from-orange-900/15 dark:to-orange-800/5 border border-orange-200/50 dark:border-orange-800/20 hover:scale-[1.02] transition-transform feature-btn-hover"
+  2028→            >
+  2029→              <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center mx-auto mb-1.5 glow-pulse">
+  2030→                <Zap className="w-4 h-4 text-orange-500" />
+  2031→              </div>
+  2032→              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Bonus Points</p>
+  2033→              <p className="text-xl font-black text-orange-500"><AnimatedValue value={profileData.bonusPoints} /></p>
+  2034→            </motion.div>
+  2035→            <motion.div
+  2036→              initial={{ opacity: 0, scale: 0.9 }}
+  2037→              animate={{ opacity: 1, scale: 1 }}
+  2038→              transition={{ delay: 0.35 }}
+  2039→              className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50/80 to-purple-100/30 dark:from-purple-900/15 dark:to-purple-800/5 border border-purple-200/50 dark:border-purple-800/20 hover:scale-[1.02] transition-transform feature-btn-hover"
+  2040→            >
+  2041→              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center mx-auto mb-1.5 glow-pulse">
+  2042→                <Shield className="w-4 h-4 text-purple-500" />
+  2043→              </div>
+  2044→              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Super Tackles</p>
+  2045→              <p className="text-xl font-black text-purple-500"><AnimatedValue value={profileData.superTackles} /></p>
+  2046→            </motion.div>
+  2047→          </div>
+  2048→        </PremiumLock>
+  2049→      </motion.div>
+  2050→      )}
+  2051→
+  2052→      {/* ═══════════════════════════════════════════ */}
+  2053→      {/* 8. FEATURES GRID with Staggered Animation & Tooltips */}
+  2054→      {/* ═══════════════════════════════════════════ */}
+  2055→      <motion.div
+  2056→        initial={{ opacity: 0, y: 10 }}
+  2057→        animate={{ opacity: 1, y: 0 }}
+  2058→        transition={{ delay: 0.26 }}
+  2059→      >
+  2060→        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  2061→          <Settings className="w-4 h-4 text-warm-500" />
+  2062→          Features
+  2063→        </h3>
+  2064→        <div className="space-y-5">
+  2065→          {featureCategories.map((category, catIdx) => (
+  2066→            <div key={category.title}>
+  2067→              {/* Enhanced visual category header */}
+  2068→              <div className="flex items-center gap-2 mb-2.5 ml-1">
+  2069→                <div className={`w-1.5 h-1.5 rounded-full ${
+  2070→                  catIdx === 0 ? 'bg-brand-teal' :
+  2071→                  catIdx === 1 ? 'bg-brand-gold' :
+  2072→                  'bg-brand-red'
+  2073→                }`} />
+  2074→                <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-widest">{category.title}</p>
+  2075→                <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
+  2076→              </div>
+  2077→              <Card className="shadow-sm overflow-hidden divide-y divide-warm-100 dark:divide-warm-700/50">
+  2078→                {category.items.map((item, idx) => {
+  2079→                  const IconComp = item.icon;
+  2080→                  const isPremiumFeature = item.premium && !isPremium;
+  2081→                  return (
+  2082→                    <motion.button
+  2083→                      key={item.label}
+  2084→                      initial={{ opacity: 0, x: -5 }}
+  2085→                      animate={{ opacity: 1, x: 0 }}
+  2086→                      transition={{ delay: 0.05 * (catIdx * 4 + idx), type: 'spring', stiffness: 200 }}
+  2087→                      onClick={item.onClick}
+  2088→                      className={`w-full flex items-center gap-3 p-3.5 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate feature-btn-hover relative ${isPremiumFeature ? 'premium-feature-shimmer' : ''}`}
+  2089→                    >
+  2090→                      {/* Left border accent - enhanced with gradient */}
+  2091→                      <div className={`w-1.5 h-10 rounded-full shrink-0 transition-all duration-200 group-hover:h-12 group-hover:w-2 ${
+  2092→                        item.color === 'brand-teal' ? 'bg-gradient-to-b from-brand-teal to-emerald-600' :
+  2093→                        item.color === 'brand-gold' ? 'bg-gradient-to-b from-brand-gold to-amber-600' :
+  2094→                        item.color === 'brand-red' ? 'bg-gradient-to-b from-brand-red to-red-700' :
+  2095→                        item.color === 'brand-navy' ? 'bg-gradient-to-b from-brand-navy to-slate-700' :
+  2096→                        item.color === 'purple-500' ? 'bg-gradient-to-b from-purple-500 to-purple-700' :
+  2097→                        item.color === 'emerald-500' ? 'bg-gradient-to-b from-emerald-500 to-emerald-700' :
+  2098→                        'bg-warm-400'
+  2099→                      }`} />
+  2100→                      {/* Icon with color coding - enhanced with gradient bg and glow */}
+  2101→                      <motion.div
+  2102→                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-all duration-200 relative ${
+  2103→                          item.color === 'brand-teal' ? 'bg-brand-teal/10' :
+  2104→                          item.color === 'brand-gold' ? 'bg-brand-gold/10' :
+  2105→                          item.color === 'brand-red' ? 'bg-brand-red/10' :
+  2106→                          item.color === 'brand-navy' ? 'bg-brand-navy/10' :
+  2107→                          item.color === 'purple-500' ? 'bg-purple-500/10' :
+  2108→                          item.color === 'emerald-500' ? 'bg-emerald-500/10' :
+  2109→                          'bg-warm-200/50'
+  2110→                        }`}
+  2111→                        whileHover={{
+  2112→                          boxShadow: item.color === 'brand-teal' ? '0 0 12px rgba(20, 184, 166, 0.3)' :
+  2113→                            item.color === 'brand-gold' ? '0 0 12px rgba(245, 158, 11, 0.3)' :
+  2114→                            item.color === 'brand-red' ? '0 0 12px rgba(220, 38, 38, 0.3)' :
+  2115→                            item.color === 'brand-navy' ? '0 0 12px rgba(30, 41, 59, 0.3)' :
+  2116→                            '0 0 8px rgba(100, 116, 139, 0.2)',
+  2117→                        }}
+  2118→                      >
+  2119→                        <IconComp className={`w-4.5 h-4.5 ${
+  2120→                          item.color === 'brand-teal' ? 'text-brand-teal' :
+  2121→                          item.color === 'brand-gold' ? 'text-brand-gold' :
+  2122→                          item.color === 'brand-red' ? 'text-brand-red' :
+  2123→                          item.color === 'brand-navy' ? 'text-brand-navy' :
+  2124→                          item.color === 'purple-500' ? 'text-purple-500' :
+  2125→                          item.color === 'emerald-500' ? 'text-emerald-500' :
+  2126→                          'text-warm-500'
+  2127→                        }`} />
+  2128→                      </motion.div>
+  2129→                      {/* Label and description */}
+  2130→                      <div className="flex-1 min-w-0 relative z-10">
+  2131→                        <div className="flex items-center gap-1.5">
+  2132→                          <p className="text-xs font-semibold text-warm-800 dark:text-warm-700">{item.label}</p>
+  2133→                          {isPremiumFeature && (
+  2134→                            <span className="text-[7px] font-bold text-brand-gold bg-brand-gold/15 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+  2135→                              <Crown className="w-2 h-2" /> PRO
+  2136→                            </span>
+  2137→                          )}
+  2138→                        </div>
+  2139→                        <p className="text-[10px] text-warm-400 dark:text-warm-300">{item.desc}</p>
+  2140→                      </div>
+  2141→                      {/* Premium lock overlay for locked features */}
+  2142→                      {isPremiumFeature && (
+  2143→                        <div className="shrink-0 w-8 h-8 rounded-full bg-brand-gold/10 flex items-center justify-center">
+  2144→                          <Lock className="w-3.5 h-3.5 text-brand-gold/60" />
+  2145→                        </div>
+  2146→                      )}
+  2147→                      {/* Chevron - only for non-premium-locked items */}
+  2148→                      {!isPremiumFeature && (
+  2149→                        <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0 chevron-icon relative z-10" />
+  2150→                      )}
+  2151→                    </motion.button>
+  2152→                  );
+  2153→                })}
+  2154→              </Card>
+
+[showing lines 1655-2154 of 2552; use offset=2155 with limit to continue reading]

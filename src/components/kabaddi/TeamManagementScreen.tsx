@@ -16,6 +16,8 @@ import {
   Check,
   Sparkles,
   Lock,
+  Camera,
+  ImageIcon,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -107,6 +109,23 @@ const KABADDI_COLORS = [
 
 const TEAM_COLORS = KABADDI_COLORS.map((c) => c.value);
 
+// ─── Warrior Images ────────────────────────────────────────────────
+
+const WARRIOR_IMAGES = [
+  { id: 'warrior-1', name: 'Lion Warrior', src: '/warriors/warrior_1.png', bg: 'from-red-600 to-orange-600' },
+  { id: 'warrior-2', name: 'Eagle Warrior', src: '/warriors/warrior_2.png', bg: 'from-blue-600 to-cyan-600' },
+  { id: 'warrior-3', name: 'Tiger Warrior', src: '/warriors/warrior_3.png', bg: 'from-amber-600 to-yellow-600' },
+  { id: 'warrior-4', name: 'Bull Warrior', src: '/warriors/warrior_4.png', bg: 'from-gray-700 to-gray-900' },
+  { id: 'warrior-5', name: 'Cobra Warrior', src: '/warriors/warrior_5.png', bg: 'from-green-600 to-emerald-600' },
+  { id: 'warrior-6', name: 'Panther Warrior', src: '/warriors/warrior_6.png', bg: 'from-purple-600 to-violet-600' },
+  { id: 'warrior-7', name: 'Bear Warrior', src: '/warriors/warrior_7.png', bg: 'from-amber-800 to-amber-600' },
+  { id: 'warrior-8', name: 'Wolf Warrior', src: '/warriors/warrior_8.png', bg: 'from-slate-600 to-slate-800' },
+  { id: 'warrior-9', name: 'Hawk Warrior', src: '/warriors/warrior_9.png', bg: 'from-teal-600 to-teal-800' },
+  { id: 'warrior-10', name: 'Rhino Warrior', src: '/warriors/warrior_10.png', bg: 'from-stone-600 to-stone-800' },
+  { id: 'warrior-11', name: 'Dragon Warrior', src: '/warriors/warrior_11.png', bg: 'from-red-700 to-red-900' },
+  { id: 'warrior-12', name: 'Phoenix Warrior', src: '/warriors/warrior_12.png', bg: 'from-orange-500 to-red-600' },
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────
 
 function getInitials(name: string | null | undefined): string {
@@ -153,6 +172,10 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamShortName, setNewTeamShortName] = useState('');
   const [newTeamColor, setNewTeamColor] = useState(TEAM_COLORS[0]);
+  const [newTeamWarrior, setNewTeamWarrior] = useState<string>(WARRIOR_IMAGES[0].id);
+  const [newTeamCustomAvatar, setNewTeamCustomAvatar] = useState<string | null>(null);
+  const [warriorPickerOpen, setWarriorPickerOpen] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
   const [shortNameManuallySet, setShortNameManuallySet] = useState(false);
 
   // Search Players Dialog
@@ -245,6 +268,50 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
 
   // ─── Create team ─────────────────────────────────────────────
 
+  // ─── Handle avatar upload ────────────────────────────────────────
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!currentUser) return;
+    setUploadLoading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const fileData = e.target?.result as string;
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileData,
+            fileName: file.name,
+            fileType: file.type,
+            userId: currentUser.id,
+          }),
+        });
+        if (!res.ok) throw new Error('Upload failed');
+        const data = await res.json();
+        setNewTeamCustomAvatar(data.url);
+        setNewTeamWarrior(''); // Clear warrior selection when custom avatar is chosen
+        toast({ title: 'Avatar Uploaded', description: 'Custom team avatar has been set.' });
+        setUploadLoading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Upload error:', err);
+      toast({ title: 'Upload Failed', description: 'Failed to upload avatar image.', variant: 'destructive' });
+      setUploadLoading(false);
+    }
+  };
+
+  // Get the effective team avatar URL
+  const getTeamAvatar = (logo: string | null): string | null => {
+    if (!logo) return null;
+    // Check if it's a warrior ID reference
+    const warrior = WARRIOR_IMAGES.find(w => w.id === logo);
+    if (warrior) return warrior.src;
+    // Otherwise it's a custom uploaded URL
+    return logo;
+  };
+
   const handleCreateTeam = async () => {
     if (!currentUser || !newTeamName.trim()) return;
     if (newTeamName.trim().length < 3) {
@@ -265,6 +332,8 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
     }
     setActionLoading(true);
     try {
+      // Determine logo: custom avatar URL takes priority, then warrior ID
+      const logoValue = newTeamCustomAvatar || newTeamWarrior || undefined;
       const res = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -272,6 +341,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
           name: newTeamName.trim(),
           shortName: newTeamShortName.trim().slice(0, 3).toUpperCase() || undefined,
           color: newTeamColor,
+          logo: logoValue,
           memberIds: [currentUser.id],
           captainId: currentUser.id,
         }),
@@ -289,6 +359,8 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
       setNewTeamName('');
       setNewTeamShortName('');
       setNewTeamColor(TEAM_COLORS[0]);
+      setNewTeamWarrior(WARRIOR_IMAGES[0].id);
+      setNewTeamCustomAvatar(null);
       setShortNameManuallySet(false);
       fetchTeams();
       // Auto-navigate to new team detail
@@ -656,17 +728,27 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                       >
                         <CardContent className="p-4">
                           <div className="flex items-center gap-3">
-                            {/* Color badge */}
-                            <div
-                              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0 shadow-sm"
-                              style={{
-                                backgroundColor: team.color || '#DC2626',
-                              }}
-                            >
-                              {team.shortName
-                                ? team.shortName.slice(0, 2)
-                                : team.name.charAt(0).toUpperCase()}
-                            </div>
+                            {/* Color badge / Warrior logo */}
+                            {getTeamAvatar(team.logo) ? (
+                              <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-sm border-2 border-warm-200 dark:border-warm-600">
+                                <img
+                                  src={getTeamAvatar(team.logo)!}
+                                  alt={team.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0 shadow-sm"
+                                style={{
+                                  backgroundColor: team.color || '#DC2626',
+                                }}
+                              >
+                                {team.shortName
+                                  ? team.shortName.slice(0, 2)
+                                  : team.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
 
                             {/* Team info */}
                             <div className="flex-1 min-w-0">
@@ -963,16 +1045,26 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
 
               {/* Preview */}
               <div className="flex items-center gap-3 mt-3 p-3 bg-white/60 dark:bg-warm-700/60 backdrop-blur-sm rounded-xl border border-warm-200/60 dark:border-warm-600/60">
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
-                  style={{ backgroundColor: newTeamColor }}
-                >
-                  {newTeamShortName
-                    ? newTeamShortName.slice(0, 2)
-                    : newTeamName
-                    ? newTeamName.charAt(0).toUpperCase()
-                    : '?'}
-                </div>
+                {newTeamCustomAvatar ? (
+                  <div className="w-12 h-12 rounded-lg overflow-hidden shadow-sm border-2 border-warm-200 dark:border-warm-600">
+                    <img src={newTeamCustomAvatar} alt="Team avatar" className="w-full h-full object-cover" />
+                  </div>
+                ) : WARRIOR_IMAGES.find(w => w.id === newTeamWarrior) ? (
+                  <div className="w-12 h-12 rounded-lg overflow-hidden shadow-sm border-2 border-warm-200 dark:border-warm-600">
+                    <img src={WARRIOR_IMAGES.find(w => w.id === newTeamWarrior)!.src} alt="Warrior avatar" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div
+                    className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                    style={{ backgroundColor: newTeamColor }}
+                  >
+                    {newTeamShortName
+                      ? newTeamShortName.slice(0, 2)
+                      : newTeamName
+                      ? newTeamName.charAt(0).toUpperCase()
+                      : '?'}
+                  </div>
+                )}
                 <div>
                   <p className="font-bold text-warm-800 dark:text-warm-100 text-sm">
                     {newTeamName || 'Team Name'}
@@ -989,6 +1081,125 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Team Avatar / Profile Picture */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
+                Team Avatar
+              </label>
+
+              {/* Current avatar display */}
+              <div className="flex items-center gap-3">
+                {newTeamCustomAvatar ? (
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md border-2 border-brand-teal">
+                    <img src={newTeamCustomAvatar} alt="Custom avatar" className="w-full h-full object-cover" />
+                  </div>
+                ) : WARRIOR_IMAGES.find(w => w.id === newTeamWarrior) ? (
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md border-2 border-brand-teal">
+                    <img src={WARRIOR_IMAGES.find(w => w.id === newTeamWarrior)!.src} alt="Warrior avatar" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md"
+                    style={{ backgroundColor: newTeamColor }}
+                  >
+                    ?
+                  </div>
+                )}
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-warm-700 dark:text-warm-300">
+                    {newTeamCustomAvatar ? 'Custom Avatar' : WARRIOR_IMAGES.find(w => w.id === newTeamWarrior)?.name || 'Select Avatar'}
+                  </p>
+                  <p className="text-xs text-warm-400 dark:text-warm-500">
+                    Choose a warrior or upload your own
+                  </p>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setWarriorPickerOpen(true)}
+                  className="flex-1 rounded-xl border-brand-red/30 text-brand-red hover:bg-brand-red/10 text-xs font-semibold"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 mr-1.5" />
+                  Choose Warrior
+                </Button>
+                <label className="flex-1 cursor-pointer">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full rounded-xl border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 text-xs font-semibold"
+                    disabled={uploadLoading}
+                    asChild
+                  >
+                    <span>
+                      {uploadLoading ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-3.5 h-3.5 border-2 border-brand-teal/30 border-t-brand-teal rounded-full animate-spin" />
+                          Uploading...
+                        </span>
+                      ) : (
+                        <>
+                          <Camera className="w-3.5 h-3.5 mr-1.5" />
+                          Upload from Gallery
+                        </>
+                      )}
+                    </span>
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleAvatarUpload(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+
+              {/* Quick warrior strip (small preview) */}
+              {!newTeamCustomAvatar && (
+                <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                  {WARRIOR_IMAGES.map((warrior) => (
+                    <button
+                      key={warrior.id}
+                      onClick={() => {
+                        setNewTeamWarrior(warrior.id);
+                        setNewTeamCustomAvatar(null);
+                      }}
+                      className={`shrink-0 w-10 h-10 rounded-lg overflow-hidden transition-all duration-200 border-2 ${
+                        newTeamWarrior === warrior.id
+                          ? 'border-brand-red shadow-md scale-110'
+                          : 'border-warm-200 dark:border-warm-600 hover:border-warm-300 dark:hover:border-warm-500 hover:scale-105'
+                      }`}
+                      title={warrior.name}
+                    >
+                      <img src={warrior.src} alt={warrior.name} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Clear custom avatar button */}
+              {newTeamCustomAvatar && (
+                <button
+                  onClick={() => {
+                    setNewTeamCustomAvatar(null);
+                    setNewTeamWarrior(WARRIOR_IMAGES[0].id);
+                  }}
+                  className="text-xs text-warm-500 dark:text-warm-400 hover:text-brand-red transition-colors flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" />
+                  Remove custom avatar
+                </button>
+              )}
             </div>
 
             {/* Free tier limit notice */}
@@ -1226,6 +1437,65 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
               })
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Warrior Avatar Picker Dialog ═══ */}
+      <Dialog open={warriorPickerOpen} onOpenChange={setWarriorPickerOpen}>
+        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-brand-red flex items-center justify-center">
+                <Shield className="w-3.5 h-3.5 text-white" />
+              </div>
+              Choose Team Avatar
+            </DialogTitle>
+            <DialogDescription className="text-warm-500 dark:text-warm-400">
+              Select a fierce warrior avatar for your Kabaddi team
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 py-3 max-h-96 overflow-y-auto custom-scrollbar">
+            {WARRIOR_IMAGES.map((warrior) => (
+              <motion.button
+                key={warrior.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setNewTeamWarrior(warrior.id);
+                  setNewTeamCustomAvatar(null);
+                  setWarriorPickerOpen(false);
+                }}
+                className={`relative flex flex-col items-center gap-2 p-3 rounded-2xl transition-all duration-200 border-2 ${
+                  newTeamWarrior === warrior.id && !newTeamCustomAvatar
+                    ? 'border-brand-red shadow-lg scale-105 bg-brand-red/5 dark:bg-brand-red/10'
+                    : 'border-warm-200 dark:border-warm-600 hover:border-warm-300 dark:hover:border-warm-500 bg-white dark:bg-warm-700'
+                }`}
+              >
+                <div className="w-16 h-16 rounded-xl overflow-hidden shadow-sm border border-warm-200 dark:border-warm-600">
+                  <img src={warrior.src} alt={warrior.name} className="w-full h-full object-cover" />
+                </div>
+                <span className="text-[10px] font-semibold text-warm-700 dark:text-warm-300 truncate w-full text-center leading-tight">
+                  {warrior.name}
+                </span>
+                {newTeamWarrior === warrior.id && !newTeamCustomAvatar && (
+                  <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-brand-red flex items-center justify-center shadow-md">
+                    <Check className="w-3 h-3 text-white" />
+                  </div>
+                )}
+              </motion.button>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setWarriorPickerOpen(false)}
+              className="rounded-xl border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </motion.div>

@@ -1,0 +1,502 @@
+  1500→        </section>
+  1501→      )}
+  1502→
+  1503→      {/* ─── Live Matches (FREE) ─── */}
+  1504→      <section className="px-4 mt-5">
+  1505→        <div className="flex items-center justify-between mb-3 section-header-decorated">
+  1506→          <div className="flex items-center gap-2">
+  1507→            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
+  1508→              Live Matches
+  1509→            </h3>
+  1510→            <span className="relative flex h-2.5 w-2.5">
+  1511→              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
+  1512→              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
+  1513→            </span>
+  1514→            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] border-0 font-semibold">
+  1515→              FREE
+  1516→            </Badge>
+  1517→          </div>
+  1518→        </div>
+  1519→
+  1520→        {/* Gender Filter Toggles */}
+  1521→        <div className="flex items-center gap-2 mb-3">
+  1522→          <button
+  1523→            onClick={() => setGenderFilter('all')}
+  1524→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1525→              genderFilter === 'all'
+  1526→                ? 'bg-warm-800 dark:bg-warm-100 text-warm-50 dark:text-warm-900 shadow-sm'
+  1527→                : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+  1528→            }`}
+  1529→          >
+  1530→            All
+  1531→          </button>
+  1532→          <button
+  1533→            onClick={() => setGenderFilter('boys')}
+  1534→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1535→              genderFilter === 'boys'
+  1536→                ? 'bg-brand-blue text-white shadow-sm'
+  1537→                : 'bg-brand-blue/10 text-brand-blue dark:text-brand-navy-light hover:bg-brand-blue/20'
+  1538→            }`}
+  1539→          >
+  1540→            ♂ Boys
+  1541→          </button>
+  1542→          <button
+  1543→            onClick={() => setGenderFilter('girls')}
+  1544→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1545→              genderFilter === 'girls'
+  1546→                ? 'bg-brand-red text-white shadow-sm'
+  1547→                : 'bg-brand-red/10 text-brand-red hover:bg-brand-red/20'
+  1548→            }`}
+  1549→          >
+  1550→            ♀ Girls
+  1551→          </button>
+  1552→        </div>
+  1553→
+  1554→        <AnimatePresence mode="wait">
+  1555→          {loading ? (
+  1556→            <motion.div
+  1557→              key="loading"
+  1558→              className="flex flex-col gap-3"
+  1559→              initial={{ opacity: 0 }}
+  1560→              animate={{ opacity: 1 }}
+  1561→              exit={{ opacity: 0 }}
+  1562→            >
+  1563→              <LiveMatchSkeleton />
+  1564→              <LiveMatchSkeleton />
+  1565→            </motion.div>
+  1566→          ) : filteredMatches.length > 0 ? (
+  1567→            <motion.div
+  1568→              key="matches"
+  1569→              className="flex flex-col gap-3"
+  1570→              variants={stagger}
+  1571→              initial="hidden"
+  1572→              animate="show"
+  1573→            >
+  1574→              {filteredMatches.map((match) => (
+  1575→                <motion.div key={match.id} variants={fadeUp}>
+  1576→                  <motion.div
+  1577→                    variants={cardHover}
+  1578→                    initial="rest"
+  1579→                    whileHover="hover"
+  1580→                    whileTap={{ scale: 0.98 }}
+  1581→                  >
+  1582→                    <Card
+  1583→                      className="bg-warm-100 dark:bg-warm-800 cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden relative live-card-glow"
+  1584→                      style={{
+  1585→                        borderColor: 'transparent',
+  1586→                        boxShadow: `0 0 0 1px rgba(220,38,38,0.15), 0 4px 24px -4px ${match.homeTeam.color || '#DC2626'}15, 0 4px 24px -4px ${match.awayTeam.color || '#1E293B'}15`,
+  1587→                      }}
+  1588→                      onClick={() => handleMatchClick(match)}
+  1589→                    >
+  1590→                      {/* Team color gradient border strip at top */}
+  1591→                      <div
+  1592→                        className="h-2 w-full relative"
+  1593→                        style={{
+  1594→                          background: `linear-gradient(90deg, ${match.homeTeam.color || '#DC2626'}, ${match.awayTeam.color || '#1E293B'})`,
+  1595→                        }}
+  1596→                      >
+  1597→                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+  1598→                      </div>
+  1599→                      {/* Subtle background glow matching dominant team color */}
+  1600→                      <div
+  1601→                        className="absolute inset-0 pointer-events-none"
+  1602→                        style={{
+  1603→                          background: `radial-gradient(ellipse at 30% 50%, ${match.homeScore >= match.awayScore ? (match.homeTeam.color || '#DC2626') : (match.awayTeam.color || '#1E293B')}08, transparent 70%)`,
+  1604→                        }}
+  1605→                      />
+  1606→                      {/* Animated background particles */}
+  1607→                      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+  1608→                        {[...Array(4)].map((_, i) => (
+  1609→                          <motion.div
+  1610→                            key={`particle-${match.id}-${i}`}
+  1611→                            className="absolute w-1 h-1 rounded-full"
+  1612→                            style={{
+  1613→                              left: `${20 + i * 20}%`,
+  1614→                              top: '60%',
+  1615→                              backgroundColor: i % 2 === 0 ? 'rgba(220,38,38,0.15)' : 'rgba(245,158,11,0.15)',
+  1616→                            }}
+  1617→                            animate={{
+  1618→                              y: [0, -20, -30],
+  1619→                              opacity: [0.3, 0.5, 0],
+  1620→                              scale: [1, 1.2, 0.8],
+  1621→                            }}
+  1622→                            transition={{
+  1623→                              duration: 2.5,
+  1624→                              repeat: Infinity,
+  1625→                              delay: i * 0.6,
+  1626→                              ease: 'easeOut',
+  1627→                            }}
+  1628→                          />
+  1629→                        ))}
+  1630→                      </div>
+  1631→                      {/* Animated court line pattern inside live card */}
+  1632→                      <div className="absolute inset-0 overflow-hidden pointer-events-none court-line-animated">
+  1633→                        <div className="absolute top-1/2 left-[8%] right-[8%] h-px bg-gradient-to-r from-transparent via-brand-gold/12 to-transparent" />
+  1634→                        <div className="absolute top-[30%] left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-brand-red/8 to-transparent" />
+  1635→                        <div className="absolute top-[70%] left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-brand-red/8 to-transparent" />
+  1636→                        <div className="absolute top-[25%] bottom-[25%] left-1/2 w-px bg-gradient-to-b from-transparent via-brand-gold/10 to-transparent" />
+  1637→                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-brand-gold/10" />
+  1638→                        <div className="absolute top-1/2 left-[20%] -translate-y-1/2 w-6 h-8 border border-brand-red/8 rounded-sm" />
+  1639→                        <div className="absolute top-1/2 right-[20%] -translate-y-1/2 w-6 h-8 border border-brand-red/8 rounded-sm" />
+  1640→                      </div>
+  1641→                      <CardContent className="p-4 relative z-10">
+  1642→                        {/* Confetti on score change */}
+  1643→                        <ConfettiParticles trigger={match.homeScore + match.awayScore} />
+  1644→                        <div className="flex items-center justify-between mb-3">
+  1645→                          <div className="flex items-center gap-2">
+  1646→                            {/* Enhanced pulsing LIVE indicator with ring animation */}
+  1647→                            <Badge
+  1648→                              variant="secondary"
+  1649→                              className="bg-brand-red/20 text-brand-red text-[10px] font-bold border border-brand-red/20 px-2.5 py-1 flex items-center gap-1.5 live-badge-dramatic relative"
+  1650→                            >
+  1651→                              <span className="relative flex h-2.5 w-2.5">
+  1652→                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
+  1653→                                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-brand-red/30 ring-2 ring-brand-red/20" />
+  1654→                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
+  1655→                              </span>
+  1656→                              LIVE
+  1657→                            </Badge>
+  1658→                            {match.gender && (
+  1659→                              <Badge
+  1660→                                variant="secondary"
+  1661→                                className={`text-[10px] font-semibold border-0 px-2 py-0.5 ${
+  1662→                                  match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
+  1663→                                    ? 'bg-brand-red/15 text-brand-red'
+  1664→                                    : 'bg-brand-blue/15 text-brand-blue dark:text-brand-navy-light'
+  1665→                                }`}
+  1666→                              >
+  1667→                                {match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
+  1668→                                  ? '♀ Girls Match'
+  1669→                                  : '♂ Boys Match'}
+  1670→                              </Badge>
+  1671→                            )}
+  1672→                          </div>
+  1673→                          <span className="text-xs text-warm-500 dark:text-warm-400 font-medium bg-warm-200/50 dark:bg-warm-700/50 px-2 py-0.5 rounded-md">
+  1674→                            {halfLabel(match.half)}
+  1675→                          </span>
+  1676→                        </div>
+  1677→                        <div className="flex items-center justify-between">
+  1678→                          <div className="flex flex-col items-center gap-1 flex-1">
+  1679→                            <div
+  1680→                              className="w-12 h-12 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-md relative"
+  1681→                              style={{
+  1682→                                borderColor: match.homeTeam.color || '#DC2626',
+  1683→                                borderWidth: 3,
+  1684→                                boxShadow: `0 2px 12px ${match.homeTeam.color || '#DC2626'}25`,
+  1685→                              }}
+  1686→                            >
+  1687→                              {getTeamShortName(match.homeTeam)}
+  1688→                            </div>
+  1689→                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight font-medium">
+  1690→                              {match.homeTeam.name}
+  1691→                            </span>
+  1692→                          </div>
+  1693→                          <div className="flex items-center gap-2 px-3">
+  1694→                            <span className="text-4xl font-black tabular-nums" style={{ color: match.homeTeam.color || '#DC2626' }}>
+  1695→                              <NumberTicker value={match.homeScore} />
+  1696→                            </span>
+  1697→                            <div className="flex flex-col items-center gap-0.5">
+  1698→                              <span className="text-warm-400 text-[10px] font-bold uppercase tracking-wider">
+  1699→                                vs
+  1700→                              </span>
+  1701→                              <div className="w-1 h-1 rounded-full bg-brand-red animate-pulse" />
+  1702→                            </div>
+  1703→                            <span className="text-4xl font-black tabular-nums" style={{ color: match.awayTeam.color || '#1E293B' }}>
+  1704→                              <NumberTicker value={match.awayScore} />
+  1705→                            </span>
+  1706→                          </div>
+  1707→                          {/* Mini team formation visualization */}
+  1708→                          <div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none overflow-hidden opacity-20">
+  1709→                            <svg className="w-full h-full" viewBox="0 0 200 20" preserveAspectRatio="none">
+  1710→                              {/* Home team dots (left side) */}
+  1711→                              <circle cx="30" cy="10" r="2.5" fill={match.homeTeam.color || '#DC2626'} />
+  1712→                              <circle cx="45" cy="5" r="2" fill={match.homeTeam.color || '#DC2626'} />
+  1713→                              <circle cx="45" cy="15" r="2" fill={match.homeTeam.color || '#DC2626'} />
+  1714→                              <circle cx="60" cy="8" r="2" fill={match.homeTeam.color || '#DC2626'} />
+  1715→                              <circle cx="60" cy="14" r="2" fill={match.homeTeam.color || '#DC2626'} />
+  1716→                              {/* Away team dots (right side) */}
+  1717→                              <circle cx="170" cy="10" r="2.5" fill={match.awayTeam.color || '#1E293B'} />
+  1718→                              <circle cx="155" cy="5" r="2" fill={match.awayTeam.color || '#1E293B'} />
+  1719→                              <circle cx="155" cy="15" r="2" fill={match.awayTeam.color || '#1E293B'} />
+  1720→                              <circle cx="140" cy="8" r="2" fill={match.awayTeam.color || '#1E293B'} />
+  1721→                              <circle cx="140" cy="14" r="2" fill={match.awayTeam.color || '#1E293B'} />
+  1722→                              {/* Center line */}
+  1723→                              <line x1="100" y1="0" x2="100" y2="20" stroke="rgba(245,158,11,0.3)" strokeWidth="0.5" />
+  1724→                            </svg>
+  1725→                          </div>
+  1726→                          <div className="flex flex-col items-center gap-1 flex-1">
+  1727→                            <div
+  1728→                              className="w-12 h-12 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-md relative"
+  1729→                              style={{
+  1730→                                borderColor: match.awayTeam.color || '#1E293B',
+  1731→                                borderWidth: 3,
+  1732→                                boxShadow: `0 2px 12px ${match.awayTeam.color || '#1E293B'}25`,
+  1733→                              }}
+  1734→                            >
+  1735→                              {getTeamShortName(match.awayTeam)}
+  1736→                            </div>
+  1737→                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight font-medium">
+  1738→                              {match.awayTeam.name}
+  1739→                            </span>
+  1740→                          </div>
+  1741→                        </div>
+  1742→                        {/* Mini Scoreboard Visualization - colored team bars showing score proportion */}
+  1743→                        <div className="mt-3 px-2">
+  1744→                          <div className="flex items-center justify-between mb-1">
+  1745→                            <span className="text-[9px] font-bold text-warm-500 dark:text-warm-400 uppercase">
+  1746→                              {halfLabel(match.half)}
+  1747→                            </span>
+  1748→                            <span className="text-[9px] font-medium text-warm-400 dark:text-warm-500">
+  1749→                              {match.half === 1 ? '1st' : '2nd'} Half
+  1750→                            </span>
+  1751→                          </div>
+  1752→                          {/* Score proportion bar */}
+  1753→                          <div className="h-2.5 w-full rounded-full overflow-hidden flex gap-0.5">
+  1754→                            <motion.div
+  1755→                              className="h-full rounded-l-full relative"
+  1756→                              style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+  1757→                              initial={{ width: '0%' }}
+  1758→                              animate={{
+  1759→                                width: `${((match.homeScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+  1760→                              }}
+  1761→                              transition={{ duration: 0.8, ease: 'easeOut' }}
+  1762→                            >
+  1763→                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+  1764→                            </motion.div>
+  1765→                            <motion.div
+  1766→                              className="h-full rounded-r-full relative"
+  1767→                              style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+  1768→                              initial={{ width: '0%' }}
+  1769→                              animate={{
+  1770→                                width: `${((match.awayScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+  1771→                              }}
+  1772→                              transition={{ duration: 0.8, ease: 'easeOut' }}
+  1773→                            >
+  1774→                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent animate-[shimmer_5s_ease-in-out_infinite]" />
+  1775→                            </motion.div>
+  1776→                          </div>
+  1777→                        </div>
+  1778→                        {match.tournament && (
+  1779→                          <p className="text-[10px] text-warm-500 dark:text-warm-400 text-center mt-2">
+  1780→                            {match.tournament.name}
+  1781→                          </p>
+  1782→                        )}
+  1783→                      </CardContent>
+  1784→                      {/* Live Commentary Feed - Enhanced */}
+  1785→                      {activeMatch && activeMatch.id === match.id && activeMatch.events.length > 0 ? (
+  1786→                        <LiveMatchCommentaryFeed
+  1787→                          events={activeMatch.events}
+  1788→                          match={{
+  1789→                            homeTeamId: match.homeTeam.id,
+  1790→                            awayTeamId: match.awayTeam.id,
+  1791→                            homeTeam: match.homeTeam.name,
+  1792→                            awayTeam: match.awayTeam.name,
+  1793→                            homeTeamColor: match.homeTeam.color ?? '#DC2626',
+  1794→                            awayTeamColor: match.awayTeam.color ?? '#1E293B',
+  1795→                            currentHalf: activeMatch.currentHalf,
+  1796→                          }}
+  1797→                          maxEvents={5}
+  1798→                        />
+  1799→                      ) : (
+  1800→                        <LiveCommentaryTicker
+  1801→                          mode="compact"
+  1802→                          events={[]}
+  1803→                          match={{
+  1804→                            homeTeamId: match.homeTeam.id,
+  1805→                            awayTeamId: match.awayTeam.id,
+  1806→                            homeTeam: match.homeTeam.name,
+  1807→                            awayTeam: match.awayTeam.name,
+  1808→                            homeTeamColor: match.homeTeam.color ?? '#DC2626',
+  1809→                            awayTeamColor: match.awayTeam.color ?? '#1E293B',
+  1810→                          }}
+  1811→                          onExpand={() => handleMatchClick(match)}
+  1812→                        />
+  1813→                      )}
+  1814→                    </Card>
+  1815→                  </motion.div>
+  1816→                </motion.div>
+  1817→              ))}
+  1818→            </motion.div>
+  1819→          ) : (
+  1820→            <motion.div
+  1821→              key="empty"
+  1822→              initial={{ opacity: 0, y: 8 }}
+  1823→              animate={{ opacity: 1, y: 0 }}
+  1824→              exit={{ opacity: 0 }}
+  1825→            >
+  1826→              <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
+  1827→                <CardContent className="flex flex-col items-center justify-center py-10 px-4">
+  1828→                  <div className="relative mb-4">
+  1829→                    <div className="w-16 h-16 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center empty-state-pulse">
+  1830→                      <span className="text-2xl">🏟️</span>
+  1831→                    </div>
+  1832→                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-gold/20 flex items-center justify-center empty-state-pulse" style={{ animationDelay: '0.5s' }}>
+  1833→                      <span className="text-[9px]">⏳</span>
+  1834→                    </div>
+  1835→                  </div>
+  1836→                  <p className="text-warm-700 dark:text-warm-200 text-sm font-bold">
+  1837→                    {genderFilter !== 'all'
+  1838→                      ? `No live ${genderFilter} matches right now`
+  1839→                      : 'No Live Matches'}
+  1840→                  </p>
+  1841→                  <p className="text-warm-500 dark:text-warm-400 text-xs mt-1 text-center">
+  1842→                    Matches will appear here when they go live — stay tuned! 🏏
+  1843→                  </p>
+  1844→                  <Button
+  1845→                    variant="outline"
+  1846→                    size="sm"
+  1847→                    className="mt-4 text-brand-red border-brand-red/30 hover:bg-brand-red/10 text-xs font-semibold"
+  1848→                    onClick={() => {
+  1849→                      // Navigate to quick score via store
+  1850→                      toast({ title: 'Start Scoring', description: 'Go to the Quick Score tab to start a match!' });
+  1851→                    }}
+  1852→                  >
+  1853→                    <Play className="w-3 h-3 mr-1" />
+  1854→                    Start Scoring
+  1855→                  </Button>
+  1856→                </CardContent>
+  1857→              </Card>
+  1858→            </motion.div>
+  1859→          )}
+  1860→        </AnimatePresence>
+  1861→      </section>
+  1862→
+  1863→      {/* ─── Gradient Separator ─── */}
+  1864→      {!loading && recentMatches.length > 0 && (
+  1865→        <div className="px-4 mt-5">
+  1866→          <div className="section-gradient-separator" />
+  1867→        </div>
+  1868→      )}
+  1869→
+  1870→      {/* ─── Recent Results / Match History ─── */}
+  1871→      {!loading && recentMatches.length > 0 && (
+  1872→        <section className="px-4 mt-6">
+  1873→          <div className="flex items-center justify-between mb-3 section-header-decorated">
+  1874→            <div className="flex items-center gap-2">
+  1875→              <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Recent Results</h3>
+  1876→              <Clock className="w-4 h-4 text-warm-400" />
+  1877→            </div>
+  1878→          </div>
+  1879→          <motion.div
+  1880→            className="flex flex-col gap-3"
+  1881→            variants={stagger}
+  1882→            initial="hidden"
+  1883→            animate="show"
+  1884→          >
+  1885→            {recentMatches.slice(0, 5).map((match) => {
+  1886→              const isHomeWin = match.homeScore > match.awayScore;
+  1887→              const isDraw = match.homeScore === match.awayScore;
+  1888→              return (
+  1889→                <motion.div key={match.id} variants={fadeUp}>
+  1890→                  <Card
+  1891→                    className="cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden relative"
+  1892→                    style={{
+  1893→                      backgroundColor: isHomeWin
+  1894→                        ? `linear-gradient(135deg, ${match.homeTeam.color || '#DC2626'}08, transparent 60%)`
+  1895→                        : !isDraw
+  1896→                          ? `linear-gradient(135deg, ${match.awayTeam.color || '#1E293B'}08, transparent 60%)`
+  1897→                          : undefined,
+  1898→                      boxShadow: `0 0 0 1px rgba(16,185,129,0.1), 0 2px 12px -2px rgba(0,0,0,0.06)`,
+  1899→                    }}
+  1900→                    onClick={() => handleRecentMatchClick(match)}
+  1901→                  >
+  1902→                    {/* Subtle gradient background based on winning team color */}
+  1903→                    <div
+  1904→                      className="absolute inset-0 pointer-events-none"
+  1905→                      style={{
+  1906→                        background: isHomeWin && !isDraw
+  1907→                          ? `linear-gradient(135deg, ${match.homeTeam.color || '#DC2626'}08, transparent 50%)`
+  1908→                          : !isDraw
+  1909→                            ? `linear-gradient(135deg, ${match.awayTeam.color || '#1E293B'}08, transparent 50%)`
+  1910→                            : 'linear-gradient(135deg, rgba(245,158,11,0.04), transparent 50%)',
+  1911→                      }}
+  1912→                    />
+  1913→                    {/* Left color accent strip */}
+  1914→                    <div
+  1915→                      className="absolute left-0 top-0 bottom-0 w-1"
+  1916→                      style={{
+  1917→                        background: isHomeWin && !isDraw
+  1918→                          ? match.homeTeam.color || '#DC2626'
+  1919→                          : !isDraw
+  1920→                            ? match.awayTeam.color || '#1E293B'
+  1921→                            : '#F59E0B',
+  1922→                      }}
+  1923→                    />
+  1924→                    <CardContent className="p-4 relative z-10">
+  1925→                      <div className="flex items-center justify-between mb-2">
+  1926→                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/20 px-2 py-0.5 flex items-center gap-1">
+  1927→                          <motion.span
+  1928→                            initial={{ scale: 0 }}
+  1929→                            animate={{ scale: 1 }}
+  1930→                            transition={{ type: 'spring', damping: 12, stiffness: 300, delay: 0.2 }}
+  1931→                          >
+  1932→                            <Check className="w-2.5 h-2.5" />
+  1933→                          </motion.span>
+  1934→                          COMPLETED
+  1935→                        </Badge>
+  1936→                        <span className="text-[10px] text-warm-400 dark:text-warm-500">
+  1937→                          {formatTimeAgo(match.completedAt)}
+  1938→                        </span>
+  1939→                      </div>
+  1940→                      <div className="flex items-center justify-between">
+  1941→                        <div className="flex items-center gap-2 flex-1 min-w-0">
+  1942→                          <div
+  1943→                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-md relative"
+  1944→                            style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+  1945→                          >
+  1946→                            {getTeamShortName(match.homeTeam)}
+  1947→                            {/* Victory crown for winning team */}
+  1948→                            {isHomeWin && !isDraw && (
+  1949→                              <motion.div
+  1950→                                className="absolute -top-2 left-1/2 -translate-x-1/2"
+  1951→                                initial={{ scale: 0, y: 4 }}
+  1952→                                animate={{ scale: 1, y: 0 }}
+  1953→                                transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.3 }}
+  1954→                              >
+  1955→                                <Crown className="w-3 h-3 text-brand-gold drop-shadow-sm" />
+  1956→                              </motion.div>
+  1957→                            )}
+  1958→                          </div>
+  1959→                          <span className={`text-sm font-semibold truncate ${isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+  1960→                            {match.homeTeam.name}
+  1961→                          </span>
+  1962→                        </div>
+  1963→                        <div className="flex items-center gap-2 px-3">
+  1964→                          <span className={`text-2xl font-black tabular-nums ${isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-400 dark:text-warm-500'}`} style={isHomeWin && !isDraw ? { color: match.homeTeam.color || undefined } : undefined}>
+  1965→                            {match.homeScore}
+  1966→                          </span>
+  1967→                          <span className="text-warm-300 dark:text-warm-600 text-xs font-medium">-</span>
+  1968→                          <span className={`text-2xl font-black tabular-nums ${!isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-400 dark:text-warm-500'}`} style={!isHomeWin && !isDraw ? { color: match.awayTeam.color || undefined } : undefined}>
+  1969→                            {match.awayScore}
+  1970→                          </span>
+  1971→                        </div>
+  1972→                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+  1973→                          <span className={`text-sm font-semibold truncate ${!isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+  1974→                            {match.awayTeam.name}
+  1975→                          </span>
+  1976→                          <div
+  1977→                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-md relative"
+  1978→                            style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+  1979→                          >
+  1980→                            {getTeamShortName(match.awayTeam)}
+  1981→                            {/* Victory crown for winning team */}
+  1982→                            {!isHomeWin && !isDraw && (
+  1983→                              <motion.div
+  1984→                                className="absolute -top-2 left-1/2 -translate-x-1/2"
+  1985→                                initial={{ scale: 0, y: 4 }}
+  1986→                                animate={{ scale: 1, y: 0 }}
+  1987→                                transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.3 }}
+  1988→                              >
+  1989→                                <Crown className="w-3 h-3 text-brand-gold drop-shadow-sm" />
+  1990→                              </motion.div>
+  1991→                            )}
+  1992→                          </div>
+  1993→                        </div>
+  1994→                      </div>
+  1995→                      {/* Score proportion mini-bar */}
+  1996→                      <div className="mt-2 h-1 rounded-full overflow-hidden flex gap-px">
+  1997→                        <div
+  1998→                          className="h-full rounded-l-full transition-all duration-500"
+  1999→                          style={{
+
+[showing lines 1500-1999 of 3133; use offset=2000 with limit to continue reading]

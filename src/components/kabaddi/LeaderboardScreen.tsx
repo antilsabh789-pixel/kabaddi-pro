@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trophy, Shield, Swords, Star, Lock, Crown, TrendingUp, TrendingDown, Users, Calendar, Award } from 'lucide-react';
+import { X, Trophy, Shield, Swords, Star, Lock, Crown, TrendingUp, TrendingDown, Users, Calendar, Award, Dumbbell } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ interface LeaderboardEntry {
 }
 
 type Category = 'raiders' | 'defenders' | 'allrounders' | 'matches' | 'rating';
+type TabMode = 'tournament' | 'practice';
 type GenderFilter = 'all' | 'male' | 'female';
 type TimePeriod = 'week' | 'month' | 'alltime';
 
@@ -51,6 +52,7 @@ interface LeaderboardScreenProps {
 export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
   const isPremium = useKabaddiStore((s) => s.currentUser?.isPremium) || false;
   const currentUser = useKabaddiStore((s) => s.currentUser);
+  const [tabMode, setTabMode] = useState<TabMode>('tournament');
   const [category, setCategory] = useState<Category>('raiders');
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('alltime');
@@ -66,6 +68,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
         gender: genderFilter,
         period: timePeriod,
         limit: '20',
+        mode: tabMode,
       });
       const res = await fetch(`/api/leaderboard?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -77,7 +80,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
     } finally {
       setLoading(false);
     }
-  }, [category, genderFilter, timePeriod]);
+  }, [category, genderFilter, timePeriod, tabMode]);
 
   useEffect(() => {
     fetchLeaderboard();
@@ -119,6 +122,11 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
   const visibleListEntries = isPremium ? listEntries : [];
   const lockedCount = !isPremium ? Math.max(0, entries.length - 3) : 0;
 
+  const isTournament = tabMode === 'tournament';
+  const accentColor = isTournament ? 'brand-gold' : 'emerald';
+  const modeLabel = isTournament ? 'Tournament' : 'Practice';
+  const modeIcon = isTournament ? '🏆' : '🏋️';
+
   return (
     <AnimatePresence>
       {showUpgrade && (
@@ -137,14 +145,20 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
         <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-800/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-600/30">
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center">
-                <Trophy className="w-4 h-4 text-white" />
+              <div className={`w-8 h-8 rounded-lg ${isTournament ? 'bg-gradient-to-br from-brand-gold to-brand-gold-dark' : 'bg-gradient-to-br from-emerald-400 to-teal-500'} flex items-center justify-center`}>
+                {isTournament ? (
+                  <Trophy className="w-4 h-4 text-white" />
+                ) : (
+                  <Dumbbell className="w-4 h-4 text-white" />
+                )}
               </div>
               <div>
                 <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">
                   LEADERBOARD
                 </h1>
-                <p className="text-[9px] text-warm-400 dark:text-warm-500 font-medium">Tournament matches only</p>
+                <p className={`text-[9px] font-medium ${isTournament ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {modeIcon} {modeLabel} matches only
+                </p>
               </div>
             </div>
             <button
@@ -152,6 +166,34 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
               className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-600 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 dark:hover:bg-warm-500 transition-colors"
             >
               <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Tournament / Practice Tab Toggle */}
+          <div className="flex gap-1 px-4 pb-2">
+            <button
+              onClick={() => setTabMode('tournament')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                tabMode === 'tournament'
+                  ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-md'
+                  : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-600'
+              }`}
+            >
+              <Trophy className="w-3.5 h-3.5" />
+              Tournament
+              <span className="text-[9px] font-normal opacity-80">🏆 Counts</span>
+            </button>
+            <button
+              onClick={() => setTabMode('practice')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                tabMode === 'practice'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
+                  : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-600'
+              }`}
+            >
+              <Dumbbell className="w-3.5 h-3.5" />
+              Practice
+              <span className="text-[9px] font-normal opacity-80">🏋️ Training</span>
             </button>
           </div>
 
@@ -165,7 +207,9 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                   onClick={() => setCategory(cat.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                     category === cat.id
-                      ? 'bg-brand-red text-white shadow-sm'
+                      ? isTournament
+                        ? 'bg-brand-red text-white shadow-sm'
+                        : 'bg-emerald-600 text-white shadow-sm'
                       : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-600'
                   }`}
                 >
@@ -203,7 +247,9 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                   onClick={() => setTimePeriod(t.id)}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
                     timePeriod === t.id
-                      ? 'bg-brand-gold text-white'
+                      ? isTournament
+                        ? 'bg-brand-gold text-white'
+                        : 'bg-emerald-500 text-white'
                       : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-600'
                   }`}
                 >
@@ -242,9 +288,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                     >
                       <div className={`w-[100px] rounded-2xl p-3 ${getPodiumClass(2)}`}>
                         <div className="flex flex-col items-center text-center">
-                          {/* Rank */}
                           <span className="text-2xl mb-1">{getRankIcon(2)}</span>
-                          {/* Avatar */}
                           <div className="relative mb-2">
                             <div className="w-14 h-14 rounded-full bg-warm-200 dark:bg-warm-600 border-2 border-slate-400/40 flex items-center justify-center overflow-hidden">
                               {podiumEntries[1].avatar ? (
@@ -268,8 +312,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                           <p className="text-[9px] text-warm-400 dark:text-warm-500">{podiumEntries[1].statLabel}</p>
                         </div>
                       </div>
-                      {/* Podium platform */}
-                      <div className="w-[100px] h-16 rounded-b-lg bg-gradient-to-t from-slate-300/30 to-slate-200/20 dark:from-slate-500/30 dark:to-slate-600/20 border-t-2 border-slate-400/40 mt-1" />
+                      <div className={`w-[100px] h-16 rounded-b-lg ${isTournament ? 'bg-gradient-to-t from-slate-300/30 to-slate-200/20 dark:from-slate-500/30 dark:to-slate-600/20 border-t-2 border-slate-400/40' : 'bg-gradient-to-t from-emerald-300/30 to-emerald-200/20 dark:from-emerald-500/30 dark:to-emerald-600/20 border-t-2 border-emerald-400/40'} mt-1`} />
                     </motion.div>
                   )}
 
@@ -283,13 +326,11 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                     >
                       <div className={`w-[120px] rounded-2xl p-3 ${getPodiumClass(1)} animate-shimmer-slow`}>
                         <div className="flex flex-col items-center text-center">
-                          {/* Crown */}
                           <div className="mb-1">
-                            <Crown className="w-6 h-6 text-brand-gold animate-float-gentle" />
+                            <Crown className={`w-6 h-6 ${isTournament ? 'text-brand-gold' : 'text-emerald-400'} animate-float-gentle`} />
                           </div>
-                          {/* Avatar */}
                           <div className="relative mb-2">
-                            <div className="w-16 h-16 rounded-full bg-warm-200 dark:bg-warm-600 border-2 border-yellow-400/60 flex items-center justify-center overflow-hidden shadow-lg shadow-brand-gold/20">
+                            <div className={`w-16 h-16 rounded-full bg-warm-200 dark:bg-warm-600 border-2 ${isTournament ? 'border-yellow-400/60 shadow-lg shadow-brand-gold/20' : 'border-emerald-400/60 shadow-lg shadow-emerald-400/20'} flex items-center justify-center overflow-hidden`}>
                               {podiumEntries[0].avatar ? (
                                 <img src={podiumEntries[0].avatar} alt={podiumEntries[0].name} className="w-full h-full object-cover" />
                               ) : (
@@ -306,14 +347,13 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                           <p className="text-[9px] text-warm-500 dark:text-warm-400 truncate w-full">
                             {podiumEntries[0].teamNames[0] || 'No team'}
                           </p>
-                          <p className="text-brand-gold-dark dark:text-brand-gold font-black text-2xl mt-1">
+                          <p className={`font-black text-2xl mt-1 ${isTournament ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-emerald-600 dark:text-emerald-400'}`}>
                             {podiumEntries[0].stat}
                           </p>
                           <p className="text-[9px] text-warm-400 dark:text-warm-500">{podiumEntries[0].statLabel}</p>
                         </div>
                       </div>
-                      {/* Podium platform - tallest */}
-                      <div className="w-[120px] h-24 rounded-b-lg bg-gradient-to-t from-yellow-500/20 to-yellow-400/10 dark:from-yellow-600/20 dark:to-yellow-500/10 border-t-2 border-brand-gold/50 mt-1" />
+                      <div className={`w-[120px] h-24 rounded-b-lg ${isTournament ? 'bg-gradient-to-t from-yellow-500/20 to-yellow-400/10 dark:from-yellow-600/20 dark:to-yellow-500/10 border-t-2 border-brand-gold/50' : 'bg-gradient-to-t from-emerald-500/20 to-emerald-400/10 dark:from-emerald-600/20 dark:to-emerald-500/10 border-t-2 border-emerald-400/50'} mt-1`} />
                     </motion.div>
                   )}
 
@@ -351,7 +391,6 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                           <p className="text-[9px] text-warm-400 dark:text-warm-500">{podiumEntries[2].statLabel}</p>
                         </div>
                       </div>
-                      {/* Podium platform - shortest */}
                       <div className="w-[100px] h-12 rounded-b-lg bg-gradient-to-t from-amber-600/20 to-amber-500/10 dark:from-amber-700/20 dark:to-amber-600/10 border-t-2 border-amber-600/40 mt-1" />
                     </motion.div>
                   )}
@@ -368,20 +407,20 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.04 }}
                     >
-                      <Card className="bg-warm-100/60 dark:bg-warm-700/40 border-warm-200 dark:border-warm-600/30 py-0 gap-0 overflow-hidden hover:border-brand-gold/30 transition-colors">
+                      <Card className={`border-warm-200 dark:border-warm-600/30 py-0 gap-0 overflow-hidden transition-colors ${isTournament ? 'bg-warm-100/60 dark:bg-warm-700/40 hover:border-brand-gold/30' : 'bg-emerald-50/40 dark:bg-emerald-900/10 hover:border-emerald-400/30'}`}>
                         <CardContent className="p-3 flex items-center gap-3">
                           {/* Rank */}
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-warm-200 dark:bg-warm-600">
-                            <span className="text-sm font-bold text-warm-600 dark:text-warm-300">#{entry.rank}</span>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isTournament ? 'bg-warm-200 dark:bg-warm-600' : 'bg-emerald-100 dark:bg-emerald-800/40'}`}>
+                            <span className={`text-sm font-bold ${isTournament ? 'text-warm-600 dark:text-warm-300' : 'text-emerald-700 dark:text-emerald-300'}`}>#{entry.rank}</span>
                           </div>
 
                           {/* Avatar */}
                           <div className="relative shrink-0">
-                            <div className="w-10 h-10 rounded-full bg-warm-200 dark:bg-warm-600 border-2 border-warm-100 dark:border-warm-500 flex items-center justify-center overflow-hidden">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ${isTournament ? 'bg-warm-200 dark:bg-warm-600 border-2 border-warm-100 dark:border-warm-500' : 'bg-emerald-100 dark:bg-emerald-800/40 border-2 border-emerald-200 dark:border-emerald-700'}`}>
                               {entry.avatar ? (
                                 <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
                               ) : (
-                                <span className="text-sm font-bold text-warm-500 dark:text-warm-300">
+                                <span className={`text-sm font-bold ${isTournament ? 'text-warm-500 dark:text-warm-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
                                   {entry.name.charAt(0).toUpperCase()}
                                 </span>
                               )}
@@ -395,7 +434,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                             </p>
                             <div className="flex items-center gap-1.5">
                               {entry.playerCode && (
-                                <span className="text-[9px] font-mono font-semibold text-brand-red bg-brand-red/10 px-1 py-0.5 rounded">
+                                <span className={`text-[9px] font-mono font-semibold px-1 py-0.5 rounded ${isTournament ? 'text-brand-red bg-brand-red/10' : 'text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-800/40'}`}>
                                   {entry.playerCode}
                                 </span>
                               )}
@@ -413,13 +452,13 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                               initial={{ width: 0 }}
                               animate={{ width: `${(entry.stat / getMaxStat()) * 100}%` }}
                               transition={{ duration: 0.6, delay: idx * 0.05, ease: 'easeOut' }}
-                              className="h-full bg-gradient-to-r from-brand-gold to-brand-gold-light rounded-full"
+                              className={`h-full rounded-full ${isTournament ? 'bg-gradient-to-r from-brand-gold to-brand-gold-light' : 'bg-gradient-to-r from-emerald-400 to-teal-400'}`}
                             />
                           </div>
 
                           {/* Stat */}
                           <div className="text-right shrink-0">
-                            <p className="font-black text-sm text-brand-gold-dark dark:text-brand-gold">
+                            <p className={`font-black text-sm ${isTournament ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-emerald-600 dark:text-emerald-400'}`}>
                               {entry.stat}
                             </p>
                             <p className="text-[10px] text-warm-400 dark:text-warm-500">{entry.statLabel}</p>
@@ -439,13 +478,13 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                   transition={{ delay: 0.4 }}
                   className="mt-2"
                 >
-                  <Card className="bg-brand-gold/10 dark:bg-brand-gold/5 border-brand-gold/30 border py-0 gap-0">
+                  <Card className={`border py-0 gap-0 ${isTournament ? 'bg-brand-gold/10 dark:bg-brand-gold/5 border-brand-gold/30' : 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-400/30'}`}>
                     <CardContent className="p-3 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-brand-gold/20">
-                        <span className="text-sm font-bold text-brand-gold-dark dark:text-brand-gold">#{userEntry.rank}</span>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isTournament ? 'bg-brand-gold/20' : 'bg-emerald-100 dark:bg-emerald-800/30'}`}>
+                        <span className={`text-sm font-bold ${isTournament ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-emerald-700 dark:text-emerald-300'}`}>#{userEntry.rank}</span>
                       </div>
                       <div className="relative shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-warm-200 dark:bg-warm-600 border-2 border-brand-gold/30 flex items-center justify-center overflow-hidden">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ${isTournament ? 'bg-warm-200 dark:bg-warm-600 border-2 border-brand-gold/30' : 'bg-emerald-100 dark:bg-emerald-800/40 border-2 border-emerald-400/30'}`}>
                           {userEntry.avatar ? (
                             <img src={userEntry.avatar} alt={userEntry.name} className="w-full h-full object-cover" />
                           ) : (
@@ -458,14 +497,14 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-sm truncate text-warm-800 dark:text-warm-100">
                           {userEntry.name}
-                          <span className="text-[10px] font-normal text-brand-gold ml-1.5">You</span>
+                          <span className={`text-[10px] font-normal ml-1.5 ${isTournament ? 'text-brand-gold' : 'text-emerald-600 dark:text-emerald-400'}`}>You</span>
                         </p>
                         <p className="text-xs text-warm-500 dark:text-warm-400 truncate">
                           {userEntry.teamNames[0] || 'No team'}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-black text-sm text-brand-gold-dark dark:text-brand-gold">
+                        <p className={`font-black text-sm ${isTournament ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-emerald-600 dark:text-emerald-400'}`}>
                           {userEntry.stat}
                         </p>
                         <p className="text-[10px] text-warm-400 dark:text-warm-500">{userEntry.statLabel}</p>
@@ -484,11 +523,11 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                   className="mt-2"
                 >
                   <Card
-                    className="bg-gradient-to-r from-brand-gold/10 to-brand-gold/5 border-brand-gold/30 border py-0 gap-0 cursor-pointer"
+                    className={`border py-0 gap-0 cursor-pointer ${isTournament ? 'bg-gradient-to-r from-brand-gold/10 to-brand-gold/5 border-brand-gold/30' : 'bg-gradient-to-r from-emerald-500/10 to-teal-500/5 border-emerald-400/30'}`}
                     onClick={() => setShowUpgrade(true)}
                   >
                     <CardContent className="p-4 flex flex-col items-center gap-3">
-                      <div className="flex items-center gap-2 text-brand-gold">
+                      <div className={`flex items-center gap-2 ${isTournament ? 'text-brand-gold' : 'text-emerald-500'}`}>
                         <Lock className="w-5 h-5" />
                         <Crown className="w-5 h-5" />
                       </div>
@@ -500,7 +539,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                       </p>
                       <Button
                         size="sm"
-                        className="bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white font-bold rounded-xl"
+                        className={`font-bold rounded-xl ${isTournament ? 'bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white' : 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white'}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           setShowUpgrade(true);
@@ -516,10 +555,16 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
             </motion.div>
           ) : (
             <div className="flex flex-col items-center justify-center py-16">
-              <Trophy className="w-12 h-12 text-warm-300 dark:text-warm-600 mb-3" />
+              {isTournament ? (
+                <Trophy className="w-12 h-12 text-warm-300 dark:text-warm-600 mb-3" />
+              ) : (
+                <Dumbbell className="w-12 h-12 text-warm-300 dark:text-warm-600 mb-3" />
+              )}
               <p className="text-warm-600 dark:text-warm-300 text-sm font-medium">No players found</p>
               <p className="text-warm-400 dark:text-warm-500 text-xs mt-1">
-                Play tournament matches to see players ranked here
+                {isTournament
+                  ? 'Play tournament matches to see players ranked here'
+                  : 'Play practice matches to see training stats here'}
               </p>
             </div>
           )}

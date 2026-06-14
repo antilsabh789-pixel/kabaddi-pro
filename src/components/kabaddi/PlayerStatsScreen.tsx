@@ -844,10 +844,15 @@ export default function PlayerStatsScreen({ userId, onClose }: PlayerStatsScreen
         >
           <Card className="overflow-hidden border-0 shadow-sm">
             <div className="p-4 bg-gradient-to-br from-warm-50 to-warm-100 dark:from-warm-800 dark:to-warm-850">
-              <h3 className="text-sm font-bold text-warm-800 dark:text-warm-200 mb-3 flex items-center gap-2">
-                <Award className="w-4 h-4 text-brand-teal" />
-                Match Breakdown
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-warm-800 dark:text-warm-200 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-brand-teal" />
+                  Match Breakdown
+                </h3>
+                <span className="text-[9px] font-semibold text-amber-500 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/5 px-2 py-0.5 rounded-full">
+                  🏆 Tournament = Leaderboard
+                </span>
+              </div>
 
               {/* Segmented Toggle */}
               <div className="flex bg-warm-200 dark:bg-warm-700 rounded-lg p-1 mb-4">
@@ -857,7 +862,9 @@ export default function PlayerStatsScreen({ userId, onClose }: PlayerStatsScreen
                     onClick={() => setMatchType(type)}
                     className={`flex-1 py-2 px-3 rounded-md text-xs font-bold transition-all duration-200 ${
                       matchType === type
-                        ? 'bg-white dark:bg-warm-800 text-warm-800 dark:text-warm-100 shadow-sm'
+                        ? type === 'tournament'
+                          ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 shadow-sm border border-amber-200 dark:border-amber-700'
+                          : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 shadow-sm border border-emerald-200 dark:border-emerald-700'
                         : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
                     }`}
                   >
@@ -918,6 +925,18 @@ export default function PlayerStatsScreen({ userId, onClose }: PlayerStatsScreen
                   </div>
                 </motion.div>
               </AnimatePresence>
+
+              {/* Practice note */}
+              {matchType === 'practice' && (
+                <motion.div
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-3 flex items-center gap-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-2.5 py-1.5"
+                >
+                  <span>🏋️</span>
+                  <span className="font-medium">Practice stats don't count towards leaderboard, awards or rankings</span>
+                </motion.div>
+              )}
             </div>
           </Card>
         </motion.div>

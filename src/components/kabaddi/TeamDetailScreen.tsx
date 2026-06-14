@@ -128,6 +128,30 @@ function hexToRgb(hex: string | null): string {
   return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
 }
 
+// ─── Warrior Images ────────────────────────────────────────────────
+
+const WARRIOR_IMAGES = [
+  { id: 'warrior-1', name: 'Lion Warrior', src: '/warriors/warrior_1.png' },
+  { id: 'warrior-2', name: 'Eagle Warrior', src: '/warriors/warrior_2.png' },
+  { id: 'warrior-3', name: 'Tiger Warrior', src: '/warriors/warrior_3.png' },
+  { id: 'warrior-4', name: 'Bull Warrior', src: '/warriors/warrior_4.png' },
+  { id: 'warrior-5', name: 'Cobra Warrior', src: '/warriors/warrior_5.png' },
+  { id: 'warrior-6', name: 'Panther Warrior', src: '/warriors/warrior_6.png' },
+  { id: 'warrior-7', name: 'Bear Warrior', src: '/warriors/warrior_7.png' },
+  { id: 'warrior-8', name: 'Wolf Warrior', src: '/warriors/warrior_8.png' },
+  { id: 'warrior-9', name: 'Hawk Warrior', src: '/warriors/warrior_9.png' },
+  { id: 'warrior-10', name: 'Rhino Warrior', src: '/warriors/warrior_10.png' },
+  { id: 'warrior-11', name: 'Dragon Warrior', src: '/warriors/warrior_11.png' },
+  { id: 'warrior-12', name: 'Phoenix Warrior', src: '/warriors/warrior_12.png' },
+];
+
+function getTeamAvatar(logo: string | null): string | null {
+  if (!logo) return null;
+  const warrior = WARRIOR_IMAGES.find(w => w.id === logo);
+  if (warrior) return warrior.src;
+  return logo;
+}
+
 // ─── Component ────────────────────────────────────────────────────
 
 export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetailScreenProps) {
@@ -553,14 +577,20 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
             >
               <CardContent className="p-5">
                 <div className="flex items-center gap-4">
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl shrink-0 shadow-lg"
-                    style={{ backgroundColor: teamColor }}
-                  >
-                    {team.shortName
-                      ? team.shortName.slice(0, 3)
-                      : team.name.charAt(0).toUpperCase()}
-                  </div>
+                  {getTeamAvatar(team.logo) ? (
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-lg border-2 border-white/20">
+                      <img src={getTeamAvatar(team.logo)!} alt={team.name} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl shrink-0 shadow-lg"
+                      style={{ backgroundColor: teamColor }}
+                    >
+                      {team.shortName
+                        ? team.shortName.slice(0, 3)
+                        : team.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <h2 className="text-xl font-black text-warm-800 dark:text-warm-100 truncate">
                       {team.name}

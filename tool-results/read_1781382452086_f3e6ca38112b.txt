@@ -1,0 +1,1643 @@
+     1→'use client';
+     2→
+     3→import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Trophy, Shield, Megaphone, ChevronRight, ArrowLeft,
+     7→  Phone, Eye, EyeOff, User, Lock, Weight, MapPin,
+     8→  CircleDot, Zap, Check, Loader2, KeyRound, ArrowRight, Mail
+     9→} from 'lucide-react';
+    10→import { Button } from '@/components/ui/button';
+    11→import { Input } from '@/components/ui/input';
+    12→import { useKabaddiStore } from '@/lib/store';
+    13→
+    14→type Stage = 'auth' | 'details' | 'role';
+    15→type ForgotStage = 'phone' | 'otp' | 'new-password' | 'success';
+    16→
+    17→const roles = [
+    18→  {
+    19→    id: 'player',
+    20→    title: 'Player',
+    21→    description: 'Track your raids, tackles, and performance stats',
+    22→    icon: Shield,
+    23→    color: 'from-brand-red to-brand-red-dark',
+    24→    borderColor: 'border-brand-red/40',
+    25→    glowColor: 'shadow-brand-red/20',
+    26→    animClass: 'animate-pulse',
+    27→  },
+    28→  {
+    29→    id: 'coach',
+    30→    title: 'Coach',
+    31→    description: 'Manage teams, strategies, and match tactics',
+    32→    icon: Megaphone,
+    33→    color: 'from-brand-green to-brand-green-dark',
+    34→    borderColor: 'border-brand-green/40',
+    35→    glowColor: 'shadow-brand-green/20',
+    36→    animClass: 'animate-bounce',
+    37→  },
+    38→] as const;
+    39→
+    40→const slideVariants = {
+    41→  enter: (direction: number) => ({
+    42→    x: direction > 0 ? 300 : -300,
+    43→    opacity: 0,
+    44→  }),
+    45→  center: {
+    46→    x: 0,
+    47→    opacity: 1,
+    48→  },
+    49→  exit: (direction: number) => ({
+    50→    x: direction < 0 ? 300 : -300,
+    51→    opacity: 0,
+    52→  }),
+    53→};
+    54→
+    55→/* ── Password Strength Helper ── */
+    56→function getPasswordStrength(pwd: string): { label: string; color: string; pct: number; barColor: string } {
+    57→  if (!pwd) return { label: '', color: '', pct: 0, barColor: '' };
+    58→  let score = 0;
+    59→  if (pwd.length >= 6) score++;
+    60→  if (pwd.length >= 8) score++;
+    61→  if (/[A-Z]/.test(pwd)) score++;
+    62→  if (/[0-9]/.test(pwd)) score++;
+    63→  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    64→
+    65→  if (score <= 1) return { label: 'Weak', color: 'text-red-500', pct: 25, barColor: 'bg-red-500' };
+    66→  if (score <= 2) return { label: 'Medium', color: 'text-amber-500', pct: 50, barColor: 'bg-amber-500' };
+    67→  if (score <= 3) return { label: 'Strong', color: 'text-emerald-500', pct: 75, barColor: 'bg-emerald-500' };
+    68→  return { label: 'Very Strong', color: 'text-teal-500', pct: 100, barColor: 'bg-teal-500' };
+    69→}
+    70→
+    71→/* ── Floating gold particles for background ── */
+    72→function FloatingParticles() {
+    73→  const particles = useMemo(
+    74→    () =>
+    75→      Array.from({ length: 24 }, (_, i) => ({
+    76→        id: i,
+    77→        left: `${Math.random() * 100}%`,
+    78→        top: `${Math.random() * 100}%`,
+    79→        size: 2 + Math.random() * 5,
+    80→        delay: Math.random() * 5,
+    81→        duration: 6 + Math.random() * 10,
+    82→        opacity: 0.15 + Math.random() * 0.3,
+    83→      })),
+    84→    [],
+    85→  );
+    86→
+    87→  return (
+    88→    <>
+    89→      {particles.map((p) => (
+    90→        <motion.div
+    91→          key={p.id}
+    92→          className="absolute rounded-full bg-brand-gold/70 dark:bg-brand-gold/40"
+    93→          style={{
+    94→            left: p.left,
+    95→            top: p.top,
+    96→            width: p.size,
+    97→            height: p.size,
+    98→            opacity: p.opacity,
+    99→          }}
+   100→          animate={{
+   101→            y: [0, -30, 0],
+   102→            x: [0, Math.random() > 0.5 ? 10 : -10, 0],
+   103→            opacity: [p.opacity, p.opacity * 0.4, p.opacity],
+   104→          }}
+   105→          transition={{
+   106→            duration: p.duration,
+   107→            delay: p.delay,
+   108→            repeat: Infinity,
+   109→            ease: 'easeInOut',
+   110→          }}
+   111→        />
+   112→      ))}
+   113→    </>
+   114→  );
+   115→}
+   116→
+   117→/* ── Kabaddi court pattern lines ── */
+   118→function CourtPattern() {
+   119→  return (
+   120→    <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.04] dark:opacity-[0.06]">
+   121→      {/* Horizontal court lines */}
+   122→      {[20, 40, 60, 80].map((top) => (
+   123→        <div
+   124→          key={`h-${top}`}
+   125→          className="absolute left-0 right-0 border-t border-brand-gold/60"
+   126→          style={{ top: `${top}%` }}
+   127→        />
+   128→      ))}
+   129→      {/* Vertical center line */}
+   130→      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 border-l border-brand-gold/60" />
+   131→      {/* Center circle */}
+   132→      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 md:w-56 md:h-56 rounded-full border-2 border-brand-gold/60" />
+   133→      {/* Bonus area circles */}
+   134→      <div className="absolute top-[30%] left-1/2 -translate-x-1/2 w-20 h-20 md:w-28 md:h-28 rounded-full border border-brand-gold/60" />
+   135→      <div className="absolute top-[62%] left-1/2 -translate-x-1/2 w-20 h-20 md:w-28 md:h-28 rounded-full border border-brand-gold/60" />
+   136→      {/* Crossed lines */}
+   137→      <div className="absolute top-0 left-0 right-0 bottom-0" style={{ transform: 'rotate(45deg)', transformOrigin: 'center' }}>
+   138→        <div className="absolute top-1/2 left-0 right-0 border-t border-brand-gold/40" />
+   139→      </div>
+   140→      <div className="absolute top-0 left-0 right-0 bottom-0" style={{ transform: 'rotate(-45deg)', transformOrigin: 'center' }}>
+   141→        <div className="absolute top-1/2 left-0 right-0 border-t border-brand-gold/40" />
+   142→      </div>
+   143→    </div>
+   144→  );
+   145→}
+   146→
+   147→/* ── Success Checkmark Animation ── */
+   148→function SuccessCheckmark() {
+   149→  return (
+   150→    <motion.div
+   151→      initial={{ scale: 0 }}
+   152→      animate={{ scale: 1 }}
+   153→      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+   154→      className="w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center mx-auto mb-4"
+   155→    >
+   156→      <motion.div
+   157→        initial={{ scale: 0, rotate: -90 }}
+   158→        animate={{ scale: 1, rotate: 0 }}
+   159→        transition={{ delay: 0.2, type: 'spring', stiffness: 400, damping: 15 }}
+   160→      >
+   161→        <Check className="w-8 h-8 text-white" strokeWidth={3} />
+   162→      </motion.div>
+   163→    </motion.div>
+   164→  );
+   165→}
+   166→
+   167→/* ── OTP Input Boxes ── */
+   168→function OTPInput({ value, onChange, length = 6 }: { value: string; onChange: (val: string) => void; length?: number }) {
+   169→  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+   170→
+   171→  const handleChange = (index: number, digit: string) => {
+   172→    if (!/^\d*$/.test(digit)) return;
+   173→    const newVal = value.split('');
+   174→    newVal[index] = digit;
+   175→    const combined = newVal.join('');
+   176→    onChange(combined);
+   177→    if (digit && index < length - 1) {
+   178→      inputRefs.current[index + 1]?.focus();
+   179→    }
+   180→  };
+   181→
+   182→  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+   183→    if (e.key === 'Backspace' && !value[index] && index > 0) {
+   184→      inputRefs.current[index - 1]?.focus();
+   185→    }
+   186→  };
+   187→
+   188→  const handlePaste = (e: React.ClipboardEvent) => {
+   189→    e.preventDefault();
+   190→    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
+   191→    onChange(pasted.padEnd(length, ''));
+   192→    const focusIdx = Math.min(pasted.length, length - 1);
+   193→    inputRefs.current[focusIdx]?.focus();
+   194→  };
+   195→
+   196→  return (
+   197→    <div className="flex gap-2 justify-center" onPaste={handlePaste}>
+   198→      {Array.from({ length }, (_, i) => (
+   199→        <motion.div
+   200→          key={i}
+   201→          initial={{ opacity: 0, y: 10 }}
+   202→          animate={{ opacity: 1, y: 0 }}
+   203→          transition={{ delay: i * 0.05 }}
+   204→        >
+   205→          <input
+   206→            ref={(el) => { inputRefs.current[i] = el; }}
+   207→            type="text"
+   208→            inputMode="numeric"
+   209→            maxLength={1}
+   210→            value={value[i] || ''}
+   211→            onChange={(e) => handleChange(i, e.target.value)}
+   212→            onKeyDown={(e) => handleKeyDown(i, e)}
+   213→            className="w-11 h-13 text-center text-lg font-bold rounded-xl border-2 border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 text-warm-800 dark:text-warm-100 focus:border-brand-red focus:ring-2 focus:ring-brand-red/30 outline-none transition-all"
+   214→            style={{ height: 52 }}
+   215→          />
+   216→        </motion.div>
+   217→      ))}
+   218→    </div>
+   219→  );
+   220→}
+   221→
+   222→export default function AuthScreen() {
+   223→  const [stage, setStage] = useState<Stage>('auth');
+   224→  const [isSignUp, setIsSignUp] = useState(false);
+   225→  const [phone, setPhone] = useState('');
+   226→  const [name, setName] = useState('');
+   227→  const [password, setPassword] = useState('');
+   228→  const [confirmPassword, setConfirmPassword] = useState('');
+   229→  const [showPassword, setShowPassword] = useState(false);
+   230→  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+   231→  const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
+   232→  const [isSubmitting, setIsSubmitting] = useState(false);
+   233→  const [direction, setDirection] = useState(1);
+   234→  const [countryCode] = useState('+91');
+   235→  const [error, setError] = useState('');
+   236→  const [termsAccepted, setTermsAccepted] = useState(false);
+   237→
+   238→  // New fields
+   239→  const [gender, setGender] = useState<'boy' | 'girl' | ''>('');
+   240→  const [weight, setWeight] = useState('');
+   241→  const [practiceGround, setPracticeGround] = useState('');
+   242→  const [position, setPosition] = useState('');
+   243→
+   244→  // Forgot password flow
+   245→  const [showForgot, setShowForgot] = useState(false);
+   246→  const [forgotStage, setForgotStage] = useState<ForgotStage>('phone');
+   247→  const [forgotPhone, setForgotPhone] = useState('');
+   248→  const [otpValue, setOtpValue] = useState('');
+   249→  const [newPassword, setNewPassword] = useState('');
+   250→  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+   251→  const [showNewPassword, setShowNewPassword] = useState(false);
+   252→  const [forgotError, setForgotError] = useState('');
+   253→  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+   254→  const [showSuccess, setShowSuccess] = useState(false);
+   255→
+   256→  const login = useKabaddiStore((s) => s.login);
+   257→  const setOnboarded = useKabaddiStore((s) => s.setOnboarded);
+   258→
+   259→  const passwordStrength = getPasswordStrength(password);
+   260→
+   261→  const goNext = useCallback((next: Stage) => {
+   262→    setDirection(1);
+   263→    setStage(next);
+   264→  }, []);
+   265→
+   266→  const goBack = useCallback(() => {
+   267→    setDirection(-1);
+   268→    if (stage === 'role') setStage('details');
+   269→    else if (stage === 'details') setStage('auth');
+   270→  }, [stage]);
+   271→
+   272→  const toggleRole = useCallback((roleId: string) => {
+   273→    setSelectedRoles((prev) => {
+   274→      const next = new Set(prev);
+   275→      if (next.has(roleId)) {
+   276→        next.delete(roleId);
+   277→      } else {
+   278→        next.add(roleId);
+   279→      }
+   280→      return next;
+   281→    });
+   282→  }, []);
+   283→
+   284→  const handleAuth = useCallback(async () => {
+   285→    setError('');
+   286→
+   287→    if (phone.length !== 10) {
+   288→      setError('Please enter a valid 10-digit phone number');
+   289→      return;
+   290→    }
+   291→    if (password.length < 6) {
+   292→      setError('Password must be at least 6 characters');
+   293→      return;
+   294→    }
+   295→    if (isSignUp && !name.trim()) {
+   296→      setError('Please enter your name');
+   297→      return;
+   298→    }
+   299→    if (isSignUp && password !== confirmPassword) {
+   300→      setError('Passwords do not match');
+   301→      return;
+   302→    }
+   303→    if (isSignUp && !termsAccepted) {
+   304→      setError('Please accept the Terms & Conditions');
+   305→      return;
+   306→    }
+   307→
+   308→    setIsSubmitting(true);
+   309→    try {
+   310→      const res = await fetch('/api/auth', {
+   311→        method: 'POST',
+   312→        headers: { 'Content-Type': 'application/json' },
+   313→        body: JSON.stringify({
+   314→          phone: `${countryCode}${phone}`,
+   315→          name: name.trim(),
+   316→          password,
+   317→          role: selectedRoles.values().next().value ?? 'player',
+   318→          action: isSignUp ? 'register' : 'login',
+   319→          gender: gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : undefined,
+   320→          weight: weight ? `${weight}kg` : undefined,
+   321→          practiceGround: practiceGround || undefined,
+   322→          position: position || undefined,
+   323→        }),
+   324→      });
+   325→
+   326→      const data = await res.json();
+   327→
+   328→      if (!res.ok) {
+   329→        setError(data.error || 'Authentication failed');
+   330→        return;
+   331→      }
+   332→
+   333→      const user = data.user;
+   334→      // Set user state directly
+   335→      login({
+   336→        id: user.id,
+   337→        phone: user.phone,
+   338→        playerCode: user.playerCode || undefined,
+   339→        name: user.name || name.trim(),
+   340→        role: user.role || 'player',
+   341→        avatar: user.avatar || '',
+   342→        isPremium: user.isPremium || false,
+   343→        isAdmin: user.isAdmin || false,
+   344→        gender: user.gender || (gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : undefined),
+   345→        weight: user.weight || (weight ? `${weight}kg` : undefined),
+   346→        practiceGround: user.practiceGround || practiceGround || undefined,
+   347→        position: user.position || position || undefined,
+   348→        jerseyNumber: user.jerseyNumber || undefined,
+   349→      });
+   350→
+   351→      // Show success animation briefly
+   352→      setShowSuccess(true);
+   353→      setTimeout(() => {
+   354→        setShowSuccess(false);
+   355→        if (isSignUp) {
+   356→          goNext('details');
+   357→        } else {
+   358→          setOnboarded(true);
+   359→        }
+   360→      }, 800);
+   361→    } catch {
+   362→      setError('Something went wrong. Please try again.');
+   363→    } finally {
+   364→      setIsSubmitting(false);
+   365→    }
+   366→  }, [phone, name, password, confirmPassword, isSignUp, selectedRoles, countryCode, login, setOnboarded, goNext, gender, weight, practiceGround, termsAccepted]);
+   367→
+   368→  const handleDetailsContinue = useCallback(() => {
+   369→    setError('');
+   370→    if (!gender) {
+   371→      setError('Please select your gender');
+   372→      return;
+   373→    }
+   374→
+   375→    // Update user details via API
+   376→    const currentUser = useKabaddiStore.getState().currentUser;
+   377→    if (currentUser?.id) {
+   378→      fetch('/api/auth', {
+   379→        method: 'POST',
+   380→        headers: { 'Content-Type': 'application/json' },
+   381→        body: JSON.stringify({
+   382→          userId: currentUser.id,
+   383→          action: 'update-details',
+   384→          gender: gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender,
+   385→          weight: weight ? `${weight}kg` : undefined,
+   386→          practiceGround: practiceGround || undefined,
+   387→        }),
+   388→      }).catch(() => {});
+   389→
+   390→      // Update position on player profile
+   391→      if (position) {
+   392→        fetch(`/api/players/${currentUser.id}`, {
+   393→          method: 'PUT',
+   394→          headers: { 'Content-Type': 'application/json' },
+   395→          body: JSON.stringify({ position }),
+   396→        }).catch(() => {});
+   397→      }
+   398→    }
+   399→
+   400→    // Update local state
+   401→    useKabaddiStore.getState().updateUser({
+   402→      gender: gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender,
+   403→      weight: weight ? `${weight}kg` : undefined,
+   404→      practiceGround: practiceGround || undefined,
+   405→      position: position || undefined,
+   406→    });
+   407→
+   408→    goNext('role');
+   409→  }, [gender, weight, practiceGround, position, goNext]);
+   410→
+   411→  const handleGetStarted = useCallback(async () => {
+   412→    setIsSubmitting(true);
+   413→    try {
+   414→      // Update user role via API
+   415→      const currentUser = useKabaddiStore.getState().currentUser;
+   416→      if (currentUser?.id) {
+   417→        const roleValue = Array.from(selectedRoles).join(',') || 'player';
+   418→        await fetch('/api/auth', {
+   419→          method: 'POST',
+   420→          headers: { 'Content-Type': 'application/json' },
+   421→          body: JSON.stringify({
+   422→            userId: currentUser.id,
+   423→            action: 'update-details',
+   424→            role: roleValue,
+   425→          }),
+   426→        });
+   427→
+   428→        // Update local state
+   429→        useKabaddiStore.getState().updateUser({ role: roleValue });
+   430→      }
+   431→      setOnboarded(true);
+   432→    } finally {
+   433→      setIsSubmitting(false);
+   434→    }
+   435→  }, [setOnboarded, selectedRoles]);
+   436→
+   437→  /* ── Forgot Password Handlers ── */
+   438→  const handleForgotSendOTP = useCallback(async () => {
+   439→    setForgotError('');
+   440→    if (forgotPhone.length !== 10) {
+   441→      setForgotError('Please enter a valid 10-digit phone number');
+   442→      return;
+   443→    }
+   444→    setForgotSubmitting(true);
+   445→    try {
+   446→      const res = await fetch('/api/auth', {
+   447→        method: 'POST',
+   448→        headers: { 'Content-Type': 'application/json' },
+   449→        body: JSON.stringify({
+   450→          action: 'forgot-password',
+   451→          phone: `+91${forgotPhone}`,
+   452→        }),
+   453→      });
+   454→      const data = await res.json();
+   455→      if (!res.ok) {
+   456→        setForgotError(data.error || 'Failed to send OTP');
+   457→        return;
+   458→      }
+   459→      setForgotStage('otp');
+   460→    } catch {
+   461→      setForgotError('Something went wrong. Please try again.');
+   462→    } finally {
+   463→      setForgotSubmitting(false);
+   464→    }
+   465→  }, [forgotPhone]);
+   466→
+   467→  const handleVerifyOTP = useCallback(async () => {
+   468→    setForgotError('');
+   469→    if (otpValue.length !== 6) {
+   470→      setForgotError('Please enter the 6-digit OTP');
+   471→      return;
+   472→    }
+   473→    setForgotSubmitting(true);
+   474→    try {
+   475→      const res = await fetch('/api/auth', {
+   476→        method: 'POST',
+   477→        headers: { 'Content-Type': 'application/json' },
+   478→        body: JSON.stringify({
+   479→          action: 'verify-otp',
+   480→          phone: `+91${forgotPhone}`,
+   481→          otp: otpValue,
+   482→        }),
+   483→      });
+   484→      const data = await res.json();
+   485→      if (!res.ok) {
+   486→        setForgotError(data.error || 'Invalid OTP');
+   487→        return;
+   488→      }
+   489→      setForgotStage('new-password');
+   490→    } catch {
+   491→      setForgotError('Something went wrong. Please try again.');
+   492→    } finally {
+   493→      setForgotSubmitting(false);
+   494→    }
+   495→  }, [otpValue, forgotPhone]);
+   496→
+   497→  const handleResetPassword = useCallback(async () => {
+   498→    setForgotError('');
+   499→    if (newPassword.length < 6) {
+   500→      setForgotError('Password must be at least 6 characters');
+   501→      return;
+   502→    }
+   503→    if (newPassword !== confirmNewPassword) {
+   504→      setForgotError('Passwords do not match');
+   505→      return;
+   506→    }
+   507→    setForgotSubmitting(true);
+   508→    try {
+   509→      const res = await fetch('/api/auth', {
+   510→        method: 'POST',
+   511→        headers: { 'Content-Type': 'application/json' },
+   512→        body: JSON.stringify({
+   513→          action: 'reset-password',
+   514→          phone: `+91${forgotPhone}`,
+   515→          otp: otpValue,
+   516→          password: newPassword,
+   517→        }),
+   518→      });
+   519→      const data = await res.json();
+   520→      if (!res.ok) {
+   521→        setForgotError(data.error || 'Failed to reset password');
+   522→        return;
+   523→      }
+   524→      setForgotStage('success');
+   525→    } catch {
+   526→      setForgotError('Something went wrong. Please try again.');
+   527→    } finally {
+   528→      setForgotSubmitting(false);
+   529→    }
+   530→  }, [newPassword, confirmNewPassword, forgotPhone, otpValue]);
+   531→
+   532→  const stageIndex: Record<Stage, number> = { auth: 0, details: 1, role: 2 };
+   533→
+   534→  // Gender-based accent color
+   535→  const genderAccent = gender === 'boy' ? '#1E293B' : gender === 'girl' ? '#DC2626' : '';
+   536→
+   537→  return (
+   538→    <div className="min-h-screen bg-gradient-to-br from-warm-50 via-white to-warm-100 dark:from-brand-navy-dark dark:via-brand-navy-dark dark:to-brand-navy flex flex-col items-center justify-center px-4 relative overflow-hidden">
+   539→      {/* ── Animated Background ── */}
+   540→      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+   541→        {/* Rich gradient overlay: dark red to deep navy */}
+   542→        <div className="absolute inset-0 bg-gradient-to-br from-brand-red/5 via-transparent to-brand-navy/10 dark:from-brand-red/8 dark:via-transparent dark:to-brand-navy/15" />
+   543→
+   544→        {/* Gradient blobs */}
+   545→        <div className="absolute -top-40 -right-40 w-96 h-96 bg-brand-red/8 dark:bg-brand-red/5 rounded-full blur-3xl" />
+   546→        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-brand-red-dark/8 dark:bg-brand-red-dark/5 rounded-full blur-3xl" />
+   547→        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-brand-red/12 dark:bg-brand-red/6 rounded-full blur-3xl" />
+   548→        <div className="absolute bottom-1/4 right-0 w-64 h-64 bg-brand-gold/8 dark:bg-brand-gold/5 rounded-full blur-3xl" />
+   549→        <div className="absolute top-10 left-10 w-48 h-48 bg-brand-teal/6 dark:bg-brand-teal/4 rounded-full blur-3xl" />
+   550→
+   551→        {/* Kabaddi court pattern */}
+   552→        <CourtPattern />
+   553→
+   554→        {/* Floating gold particles */}
+   555→        <FloatingParticles />
+   556→
+   557→        {/* Slow-spinning decorative ring */}
+   558→        <div
+   559→          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full border border-brand-gold/5 dark:border-brand-gold/3"
+   560→          style={{ animation: 'spin-slow 60s linear infinite' }}
+   561→        />
+   562→        <div
+   563→          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] rounded-full border border-brand-red/5 dark:border-brand-red/3"
+   564→          style={{ animation: 'spin-slow 45s linear infinite reverse' }}
+   565→        />
+   566→      </div>
+   567→
+   568→      {/* ── Success Overlay ── */}
+   569→      <AnimatePresence>
+   570→        {showSuccess && (
+   571→          <motion.div
+   572→            initial={{ opacity: 0 }}
+   573→            animate={{ opacity: 1 }}
+   574→            exit={{ opacity: 0 }}
+   575→            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center"
+   576→          >
+   577→            <SuccessCheckmark />
+   578→          </motion.div>
+   579→        )}
+   580→      </AnimatePresence>
+   581→
+   582→      {/* ── Forgot Password Modal ── */}
+   583→      <AnimatePresence>
+   584→        {showForgot && (
+   585→          <motion.div
+   586→            initial={{ opacity: 0 }}
+   587→            animate={{ opacity: 1 }}
+   588→            exit={{ opacity: 0 }}
+   589→            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4"
+   590→            onClick={(e) => { if (e.target === e.currentTarget) { setShowForgot(false); setForgotStage('phone'); setForgotPhone(''); setOtpValue(''); setNewPassword(''); setConfirmNewPassword(''); setForgotError(''); } }}
+   591→          >
+   592→            <motion.div
+   593→              initial={{ scale: 0.9, y: 30 }}
+   594→              animate={{ scale: 1, y: 0 }}
+   595→              exit={{ scale: 0.9, y: 30 }}
+   596→              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+   597→              className="w-full max-w-sm bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6 shadow-2xl"
+   598→            >
+   599→              <AnimatePresence mode="wait">
+   600→                {/* ── Stage: Phone ── */}
+   601→                {forgotStage === 'phone' && (
+   602→                  <motion.div key="forgot-phone" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+   603→                    <div className="flex items-center gap-3 mb-4">
+   604→                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
+   605→                        <KeyRound className="w-6 h-6 text-white" />
+   606→                      </div>
+   607→                      <div>
+   608→                        <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100">Reset Password</h3>
+   609→                        <p className="text-xs text-warm-500 dark:text-warm-400">We&apos;ll send you an OTP to verify</p>
+   610→                      </div>
+   611→                    </div>
+   612→
+   613→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">Phone Number</label>
+   614→                    <div className="flex gap-2 mb-4">
+   615→                      <div className="flex items-center justify-center h-12 px-3 rounded-xl bg-brand-red/10 border border-brand-red/30 text-brand-red font-bold text-sm shrink-0">
+   616→                        +91
+   617→                      </div>
+   618→                      <Input
+   619→                        type="tel"
+   620→                        inputMode="numeric"
+   621→                        maxLength={10}
+   622→                        placeholder="Enter phone number"
+   623→                        value={forgotPhone}
+   624→                        onChange={(e) => {
+   625→                          const val = e.target.value.replace(/\D/g, '');
+   626→                          setForgotPhone(val);
+   627→                          if (forgotError) setForgotError('');
+   628→                        }}
+   629→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl"
+   630→                      />
+   631→                    </div>
+   632→
+   633→                    <AnimatePresence>
+   634→                      {forgotError && (
+   635→                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-brand-red text-xs mb-3 text-center">{forgotError}</motion.p>
+   636→                      )}
+   637→                    </AnimatePresence>
+   638→
+   639→                    <Button
+   640→                      onClick={handleForgotSendOTP}
+   641→                      disabled={forgotSubmitting || forgotPhone.length !== 10}
+   642→                      className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-red/25"
+   643→                    >
+   644→                      {forgotSubmitting ? (
+   645→                        <div className="flex items-center gap-2">
+   646→                          <Loader2 className="w-4 h-4 animate-spin" />
+   647→                          Sending OTP...
+   648→                        </div>
+   649→                      ) : (
+   650→                        <>Send OTP <ArrowRight className="w-4 h-4 ml-1" /></>
+   651→                      )}
+   652→                    </Button>
+   653→                  </motion.div>
+   654→                )}
+   655→
+   656→                {/* ── Stage: OTP ── */}
+   657→                {forgotStage === 'otp' && (
+   658→                  <motion.div key="forgot-otp" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+   659→                    <div className="flex items-center gap-3 mb-4">
+   660→                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center">
+   661→                        <Mail className="w-6 h-6 text-white" />
+   662→                      </div>
+   663→                      <div>
+   664→                        <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100">Enter OTP</h3>
+   665→                        <p className="text-xs text-warm-500 dark:text-warm-400">Sent to +91{forgotPhone}</p>
+   666→                      </div>
+   667→                    </div>
+   668→
+   669→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-3 block">6-Digit Code</label>
+   670→                    <div className="mb-4">
+   671→                      <OTPInput value={otpValue} onChange={setOtpValue} />
+   672→                    </div>
+   673→                    <p className="text-[10px] text-warm-400 dark:text-warm-500 text-center mb-4">Demo OTP: 123456</p>
+   674→
+   675→                    <AnimatePresence>
+   676→                      {forgotError && (
+   677→                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-brand-red text-xs mb-3 text-center">{forgotError}</motion.p>
+   678→                      )}
+   679→                    </AnimatePresence>
+   680→
+   681→                    <Button
+   682→                      onClick={handleVerifyOTP}
+   683→                      disabled={forgotSubmitting || otpValue.length !== 6}
+   684→                      className="w-full h-12 bg-gradient-to-r from-brand-gold to-brand-gold-dark hover:from-brand-gold hover:to-brand-gold text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-gold/25"
+   685→                    >
+   686→                      {forgotSubmitting ? (
+   687→                        <div className="flex items-center gap-2">
+   688→                          <Loader2 className="w-4 h-4 animate-spin" />
+   689→                          Verifying...
+   690→                        </div>
+   691→                      ) : (
+   692→                        <>Verify OTP <ArrowRight className="w-4 h-4 ml-1" /></>
+   693→                      )}
+   694→                    </Button>
+   695→                  </motion.div>
+   696→                )}
+   697→
+   698→                {/* ── Stage: New Password ── */}
+   699→                {forgotStage === 'new-password' && (
+   700→                  <motion.div key="forgot-newpw" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+   701→                    <div className="flex items-center gap-3 mb-4">
+   702→                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-teal to-emerald-600 flex items-center justify-center">
+   703→                        <Lock className="w-6 h-6 text-white" />
+   704→                      </div>
+   705→                      <div>
+   706→                        <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100">New Password</h3>
+   707→                        <p className="text-xs text-warm-500 dark:text-warm-400">Choose a strong password</p>
+   708→                      </div>
+   709→                    </div>
+   710→
+   711→                    <div className="relative mb-3">
+   712→                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+   713→                      <Input
+   714→                        type={showNewPassword ? 'text' : 'password'}
+   715→                        placeholder="New password"
+   716→                        value={newPassword}
+   717→                        onChange={(e) => { setNewPassword(e.target.value); if (forgotError) setForgotError(''); }}
+   718→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10 pr-12"
+   719→                      />
+   720→                      <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-brand-teal">
+   721→                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+   722→                      </button>
+   723→                    </div>
+   724→
+   725→                    {/* Password strength indicator */}
+   726→                    {newPassword && (
+   727→                      <div className="mb-3">
+   728→                        <div className="w-full h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
+   729→                          <motion.div
+   730→                            initial={{ width: 0 }}
+   731→                            animate={{ width: `${getPasswordStrength(newPassword).pct}%` }}
+   732→                            className={`h-full rounded-full ${getPasswordStrength(newPassword).barColor}`}
+   733→                          />
+   734→                        </div>
+   735→                        <p className={`text-[10px] mt-1 font-medium ${getPasswordStrength(newPassword).color}`}>
+   736→                          {getPasswordStrength(newPassword).label}
+   737→                        </p>
+   738→                      </div>
+   739→                    )}
+   740→
+   741→                    <div className="relative mb-4">
+   742→                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+   743→                      <Input
+   744→                        type="password"
+   745→                        placeholder="Confirm new password"
+   746→                        value={confirmNewPassword}
+   747→                        onChange={(e) => { setConfirmNewPassword(e.target.value); if (forgotError) setForgotError(''); }}
+   748→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
+   749→                      />
+   750→                    </div>
+   751→
+   752→                    {confirmNewPassword && newPassword !== confirmNewPassword && (
+   753→                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-red-500 text-xs mb-3">Passwords do not match</motion.p>
+   754→                    )}
+   755→
+   756→                    <AnimatePresence>
+   757→                      {forgotError && (
+   758→                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-brand-red text-xs mb-3 text-center">{forgotError}</motion.p>
+   759→                      )}
+   760→                    </AnimatePresence>
+   761→
+   762→                    <Button
+   763→                      onClick={handleResetPassword}
+   764→                      disabled={forgotSubmitting || newPassword.length < 6 || newPassword !== confirmNewPassword}
+   765→                      className="w-full h-12 bg-gradient-to-r from-brand-teal to-emerald-600 hover:from-brand-teal hover:to-emerald-500 text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-teal/25"
+   766→                    >
+   767→                      {forgotSubmitting ? (
+   768→                        <div className="flex items-center gap-2">
+   769→                          <Loader2 className="w-4 h-4 animate-spin" />
+   770→                          Resetting...
+   771→                        </div>
+   772→                      ) : (
+   773→                        <>Reset Password <ArrowRight className="w-4 h-4 ml-1" /></>
+   774→                      )}
+   775→                    </Button>
+   776→                  </motion.div>
+   777→                )}
+   778→
+   779→                {/* ── Stage: Success ── */}
+   780→                {forgotStage === 'success' && (
+   781→                  <motion.div key="forgot-success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="text-center py-4">
+   782→                    <SuccessCheckmark />
+   783→                    <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100 mb-1">Password Reset!</h3>
+   784→                    <p className="text-sm text-warm-500 dark:text-warm-400 mb-6">Your password has been changed successfully.</p>
+   785→                    <Button
+   786→                      onClick={() => {
+   787→                        setShowForgot(false);
+   788→                        setForgotStage('phone');
+   789→                        setForgotPhone('');
+   790→                        setOtpValue('');
+   791→                        setNewPassword('');
+   792→                        setConfirmNewPassword('');
+   793→                        setForgotError('');
+   794→                      }}
+   795→                      className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold rounded-xl shadow-lg shadow-brand-red/25"
+   796→                    >
+   797→                      Login Now <ArrowRight className="w-4 h-4 ml-1" />
+   798→                    </Button>
+   799→                  </motion.div>
+   800→                )}
+   801→              </AnimatePresence>
+   802→            </motion.div>
+   803→          </motion.div>
+   804→        )}
+   805→      </AnimatePresence>
+   806→
+   807→      {/* ── Enhanced Logo Section with Scale-In ── */}
+   808→      <motion.div
+   809→        className="flex flex-col items-center mb-8 relative z-10"
+   810→        initial={{ opacity: 0, scale: 0.8 }}
+   811→        animate={{ opacity: 1, scale: 1 }}
+   812→        transition={{ duration: 0.6, ease: 'easeOut', type: 'spring', stiffness: 200 }}
+   813→      >
+   814→        {/* Pulsing glow ring around logo */}
+   815→        <div className="relative mb-4">
+   816→          {/* Outer pulsing glow */}
+   817→          <div className="absolute -inset-3 rounded-2xl bg-brand-red/20 dark:bg-brand-red/10 blur-lg pulse-glow" />
+   818→          {/* Spinning border ring */}
+   819→          <div
+   820→            className="absolute -inset-1.5 rounded-2xl border-2 border-brand-gold/30 dark:border-brand-gold/20"
+   821→            style={{ animation: 'spin-slow 20s linear infinite' }}
+   822→          />
+   823→          {/* Logo icon - scale-in on mount */}
+   824→          <motion.div
+   825→            initial={{ scale: 0 }}
+   826→            animate={{ scale: 1 }}
+   827→            transition={{ delay: 0.2, type: 'spring', stiffness: 300, damping: 15 }}
+   828→            whileHover={{ scale: 1.08, rotate: 5 }}
+   829→            whileTap={{ scale: 0.95 }}
+   830→            className="w-18 h-18 rounded-2xl bg-gradient-to-br from-brand-red via-brand-red-dark to-brand-red flex items-center justify-center shadow-xl shadow-brand-red/40 cursor-pointer relative z-10"
+   831→            style={{ width: 72, height: 72 }}
+   832→          >
+   833→            <Trophy className="w-9 h-9 text-white drop-shadow-lg" />
+   834→          </motion.div>
+   835→        </div>
+   836→
+   837→        {/* KABADDI PRO with gradient text */}
+   838→        <motion.h1
+   839→          initial={{ opacity: 0, y: 10 }}
+   840→          animate={{ opacity: 1, y: 0 }}
+   841→          transition={{ delay: 0.3 }}
+   842→          className="text-3xl font-black tracking-wider"
+   843→        >
+   844→          <span className="gradient-text">KABADDI</span>{' '}
+   845→          <span className="gradient-text">PRO</span>
+   846→        </motion.h1>
+   847→
+   848→        {/* Tagline with fade-in */}
+   849→        <motion.p
+   850→          initial={{ opacity: 0, y: 8 }}
+   851→          animate={{ opacity: 1, y: 0 }}
+   852→          transition={{ delay: 0.4, duration: 0.5 }}
+   853→          className="text-warm-500 dark:text-warm-400 text-xs tracking-widest mt-1.5 font-medium uppercase"
+   854→        >
+   855→          Live Scoring &amp; Tournaments
+   856→        </motion.p>
+   857→      </motion.div>
+   858→
+   859→      {/* ── Stage content ── */}
+   860→      <div className="w-full max-w-sm relative z-10">
+   861→        <AnimatePresence mode="wait" custom={direction}>
+   862→
+   863→          {/* ═══════════════════════════════════════════
+   864→              Stage 1: Login / Sign Up
+   865→              ═══════════════════════════════════════════ */}
+   866→          {stage === 'auth' && (
+   867→            <motion.div
+   868→              key="auth"
+   869→              custom={direction}
+   870→              variants={slideVariants}
+   871→              initial="enter"
+   872→              animate="center"
+   873→              exit="exit"
+   874→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+   875→              className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+   876→            >
+   877→              {/* Progress dots at top */}
+   878→              <div className="flex justify-center gap-2 mb-5">
+   879→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+   880→                  <motion.div
+   881→                    key={s}
+   882→                    className="h-1.5 rounded-full transition-all duration-500"
+   883→                    animate={{
+   884→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+   885→                      backgroundColor:
+   886→                        stageIndex[stage] === idx
+   887→                          ? '#DC2626'
+   888→                          : stageIndex[stage] > idx
+   889→                            ? '#B91C1C'
+   890→                            : '#CBD5E1',
+   891→                    }}
+   892→                  />
+   893→                ))}
+   894→              </div>
+   895→
+   896→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1 text-center">
+   897→                {isSignUp ? 'Create Account' : 'Welcome Back!'}
+   898→              </h2>
+   899→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+   900→                {isSignUp
+   901→                  ? 'Sign up to get started with Kabaddi Pro'
+   902→                  : 'Login to your Kabaddi Pro account'}
+   903→              </p>
+   904→
+   905→              {/* ── Signup: Name field with user icon ── */}
+   906→              <AnimatePresence>
+   907→                {isSignUp && (
+   908→                  <motion.div
+   909→                    initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+   910→                    animate={{ opacity: 1, height: 'auto', marginBottom: 12 }}
+   911→                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+   912→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+   913→                    className="w-full overflow-hidden"
+   914→                  >
+   915→                    <div className="relative">
+   916→                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 dark:text-brand-red-light/60 pointer-events-none" />
+   917→                      <Input
+   918→                        type="text"
+   919→                        placeholder="Enter your name"
+   920→                        value={name}
+   921→                        onChange={(e) => {
+   922→                          setName(e.target.value);
+   923→                          if (error) setError('');
+   924→                        }}
+   925→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+   926→                      />
+   927→                    </div>
+   928→                  </motion.div>
+   929→                )}
+   930→              </AnimatePresence>
+   931→
+   932→              {/* ── Phone Input with +91 chip ── */}
+   933→              <div className="w-full flex gap-2 mb-3">
+   934→                <div className="flex items-center justify-center h-12 px-3 rounded-xl bg-brand-red/10 border border-brand-red/30 text-brand-red dark:text-brand-red-light font-bold text-sm shrink-0 gap-1.5">
+   935→                  <Phone className="w-3.5 h-3.5" />
+   936→                  +91
+   937→                </div>
+   938→                <motion.div className="flex-1 relative" whileFocus={{ scale: 1.01 }}>
+   939→                  <Input
+   940→                    type="tel"
+   941→                    inputMode="numeric"
+   942→                    maxLength={10}
+   943→                    placeholder="Enter 10-digit number"
+   944→                    value={phone}
+   945→                    onChange={(e) => {
+   946→                      const val = e.target.value.replace(/\D/g, '');
+   947→                      setPhone(val);
+   948→                      if (error) setError('');
+   949→                    }}
+   950→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+   951→                  />
+   952→                </motion.div>
+   953→              </div>
+   954→
+   955→              {/* ── Password Input with show/hide toggle ── */}
+   956→              <div className="w-full relative mb-1">
+   957→                <div className="relative">
+   958→                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 dark:text-brand-red-light/60 pointer-events-none" />
+   959→                  <Input
+   960→                    type={showPassword ? 'text' : 'password'}
+   961→                    placeholder={isSignUp ? 'Create a password' : 'Enter password'}
+   962→                    value={password}
+   963→                    onChange={(e) => {
+   964→                      setPassword(e.target.value);
+   965→                      if (error) setError('');
+   966→                    }}
+   967→                    onKeyDown={(e) => {
+   968→                      if (e.key === 'Enter' && !isSignUp) handleAuth();
+   969→                    }}
+   970→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+   971→                  />
+   972→                  <motion.button
+   973→                    type="button"
+   974→                    whileHover={{ scale: 1.1 }}
+   975→                    whileTap={{ scale: 0.9 }}
+   976→                    onClick={() => setShowPassword(!showPassword)}
+   977→                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-warm-400 hover:text-brand-red dark:text-warm-500 dark:hover:text-brand-red-light transition-colors"
+   978→                  >
+   979→                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+   980→                  </motion.button>
+   981→                </div>
+   982→
+   983→                {/* ── Password Strength Indicator (Signup) ── */}
+   984→                {isSignUp && password && (
+   985→                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-2 mb-1">
+   986→                    <div className="w-full h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
+   987→                      <motion.div
+   988→                        initial={{ width: 0 }}
+   989→                        animate={{ width: `${passwordStrength.pct}%` }}
+   990→                        className={`h-full rounded-full transition-colors ${passwordStrength.barColor}`}
+   991→                      />
+   992→                    </div>
+   993→                    <p className={`text-[10px] mt-1 font-medium ${passwordStrength.color}`}>
+   994→                      {passwordStrength.label}
+   995→                    </p>
+   996→                  </motion.div>
+   997→                )}
+   998→
+   999→                {!isSignUp && password && password.length < 6 && (
+  1000→                  <motion.p
+  1001→                    initial={{ opacity: 0, x: -8 }}
+  1002→                    animate={{ opacity: 1, x: 0 }}
+  1003→                    className="text-xs text-warm-400 dark:text-warm-500 mt-1.5 ml-1"
+  1004→                  >
+  1005→                    Password must be at least 6 characters
+  1006→                  </motion.p>
+  1007→                )}
+  1008→              </div>
+  1009→
+  1010→              {/* ── Forgot Password Link ── */}
+  1011→              {!isSignUp && (
+  1012→                <div className="flex justify-end mb-3">
+  1013→                  <motion.button
+  1014→                    whileHover={{ x: 2 }}
+  1015→                    whileTap={{ scale: 0.95 }}
+  1016→                    onClick={() => { setShowForgot(true); setForgotStage('phone'); }}
+  1017→                    className="text-xs font-medium text-brand-red dark:text-brand-red-light hover:text-brand-red-dark dark:hover:text-brand-red transition-colors"
+  1018→                  >
+  1019→                    Forgot Password?
+  1020→                  </motion.button>
+  1021→                </div>
+  1022→              )}
+  1023→
+  1024→              {/* ── Confirm Password (Signup only) with match/mismatch indicator ── */}
+  1025→              <AnimatePresence>
+  1026→                {isSignUp && (
+  1027→                  <motion.div
+  1028→                    initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+  1029→                    animate={{ opacity: 1, height: 'auto', marginBottom: 12 }}
+  1030→                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+  1031→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+  1032→                    className="w-full overflow-hidden"
+  1033→                  >
+  1034→                    <div className="relative">
+  1035→                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 dark:text-brand-red-light/60 pointer-events-none" />
+  1036→                      <Input
+  1037→                        type={showConfirmPassword ? 'text' : 'password'}
+  1038→                        placeholder="Confirm password"
+  1039→                        value={confirmPassword}
+  1040→                        onChange={(e) => {
+  1041→                          setConfirmPassword(e.target.value);
+  1042→                          if (error) setError('');
+  1043→                        }}
+  1044→                        onKeyDown={(e) => {
+  1045→                          if (e.key === 'Enter') handleAuth();
+  1046→                        }}
+  1047→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+  1048→                      />
+  1049→                      <motion.button
+  1050→                        type="button"
+  1051→                        whileHover={{ scale: 1.1 }}
+  1052→                        whileTap={{ scale: 0.9 }}
+  1053→                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+  1054→                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-warm-400 hover:text-brand-red dark:text-warm-500 dark:hover:text-brand-red-light transition-colors"
+  1055→                      >
+  1056→                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+  1057→                      </motion.button>
+  1058→                    </div>
+  1059→                    {/* Match/mismatch indicator */}
+  1060→                    {confirmPassword && (
+  1061→                      <motion.div
+  1062→                        initial={{ opacity: 0 }}
+  1063→                        animate={{ opacity: 1 }}
+  1064→                        className="flex items-center gap-1.5 mt-1.5 ml-1"
+  1065→                      >
+  1066→                        {password === confirmPassword ? (
+  1067→                          <>
+  1068→                            <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+  1069→                              <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+  1070→                            </div>
+  1071→                            <span className="text-xs font-medium text-emerald-500">Passwords match</span>
+  1072→                          </>
+  1073→                        ) : (
+  1074→                          <>
+  1075→                            <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
+  1076→                              <CircleDot className="w-2.5 h-2.5 text-white" />
+  1077→                            </div>
+  1078→                            <span className="text-xs font-medium text-red-500">Passwords do not match</span>
+  1079→                          </>
+  1080→                        )}
+  1081→                      </motion.div>
+  1082→                    )}
+  1083→                  </motion.div>
+  1084→                )}
+  1085→              </AnimatePresence>
+  1086→
+  1087→              {/* ── Terms & Conditions Checkbox (Signup) ── */}
+  1088→              <AnimatePresence>
+  1089→                {isSignUp && (
+  1090→                  <motion.div
+  1091→                    initial={{ opacity: 0, height: 0 }}
+  1092→                    animate={{ opacity: 1, height: 'auto' }}
+  1093→                    exit={{ opacity: 0, height: 0 }}
+  1094→                    className="flex items-start gap-2.5 mb-4"
+  1095→                  >
+  1096→                    <motion.button
+  1097→                      type="button"
+  1098→                      whileTap={{ scale: 0.9 }}
+  1099→                      onClick={() => setTermsAccepted(!termsAccepted)}
+  1100→                      role="checkbox"
+  1101→                      aria-checked={termsAccepted}
+  1102→                      aria-label="Accept Terms of Service and Privacy Policy"
+  1103→                      className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+  1104→                        termsAccepted
+  1105→                          ? 'bg-brand-red border-brand-red'
+  1106→                          : 'border-warm-300 dark:border-warm-600 bg-white/40 dark:bg-white/5'
+  1107→                      }`}
+  1108→                    >
+  1109→                      {termsAccepted && (
+  1110→                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}>
+  1111→                          <Check className="w-3 h-3 text-white" strokeWidth={3} />
+  1112→                        </motion.div>
+  1113→                      )}
+  1114→                    </motion.button>
+  1115→                    <p className="text-[11px] text-warm-500 dark:text-warm-400 leading-relaxed">
+  1116→                      I agree to the{' '}
+  1117→                      <span className="text-brand-red dark:text-brand-red-light font-medium">Terms of Service</span>{' '}
+  1118→                      and{' '}
+  1119→                      <span className="text-brand-red dark:text-brand-red-light font-medium">Privacy Policy</span>
+  1120→                    </p>
+  1121→                  </motion.div>
+  1122→                )}
+  1123→              </AnimatePresence>
+  1124→
+  1125→              {/* Error Message */}
+  1126→              <AnimatePresence>
+  1127→                {error && (
+  1128→                  <motion.p
+  1129→                    initial={{ opacity: 0, y: -8, height: 0 }}
+  1130→                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+  1131→                    exit={{ opacity: 0, y: -8, height: 0 }}
+  1132→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+  1133→                    className="text-brand-red dark:text-brand-red-light text-sm mb-3 text-center w-full flex items-center justify-center gap-1.5"
+  1134→                  >
+  1135→                    <CircleDot className="w-3.5 h-3.5 shrink-0" />
+  1136→                    {error}
+  1137→                  </motion.p>
+  1138→                )}
+  1139→              </AnimatePresence>
+  1140→
+  1141→              {/* ── Submit Button with gradient + shimmer ── */}
+  1142→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+  1143→                <Button
+  1144→                  onClick={handleAuth}
+  1145→                  disabled={
+  1146→                    isSubmitting ||
+  1147→                    phone.length !== 10 ||
+  1148→                    password.length < 6 ||
+  1149→                    (isSignUp && (!confirmPassword || password !== confirmPassword || !termsAccepted))
+  1150→                  }
+  1151→                  className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold text-base rounded-xl disabled:opacity-40 shadow-lg shadow-brand-red/25 hover:shadow-xl hover:shadow-brand-red/30 transition-all relative overflow-hidden group"
+  1152→                >
+  1153→                  {/* Shimmer hover effect */}
+  1154→                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-transparent group-hover:via-white/20 transition-all duration-500 -translate-x-full group-hover:translate-x-full" />
+  1155→                  <span className="relative z-10 flex items-center justify-center gap-1.5">
+  1156→                    {isSubmitting ? (
+  1157→                      <>
+  1158→                        <Loader2 className="w-4 h-4 animate-spin" />
+  1159→                        Please wait...
+  1160→                      </>
+  1161→                    ) : isSignUp ? (
+  1162→                      <>
+  1163→                        Create Account
+  1164→                        <ChevronRight className="w-4 h-4" />
+  1165→                      </>
+  1166→                    ) : (
+  1167→                      <>
+  1168→                        Login
+  1169→                        <ChevronRight className="w-4 h-4" />
+  1170→                      </>
+  1171→                    )}
+  1172→                  </span>
+  1173→                </Button>
+  1174→              </motion.div>
+  1175→
+  1176→              {/* ── OR divider ── */}
+  1177→              <div className="flex items-center gap-3 my-5">
+  1178→                <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
+  1179→                <span className="text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-widest">OR</span>
+  1180→                <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
+  1181→              </div>
+  1182→
+  1183→              {/* ── Toggle Login/Signup with animated underline ── */}
+  1184→              <button
+  1185→                className="text-brand-red hover:text-brand-red-light dark:text-brand-red-light dark:hover:text-brand-red text-sm font-medium transition-colors w-full text-center group relative pointer-events-auto"
+  1186→                onClick={() => {
+  1187→                  setIsSignUp(!isSignUp);
+  1188→                  setError('');
+  1189→                  setConfirmPassword('');
+  1190→                  setTermsAccepted(false);
+  1191→                }}
+  1192→              >
+  1193→                <span className="relative">
+  1194→                  {isSignUp
+  1195→                    ? 'Already have an account? Login'
+  1196→                    : "Don't have an account? Sign Up"}
+  1197→                  {/* Animated underline via CSS — no motion.div that can swallow events */}
+  1198→                  <span className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] bg-brand-red dark:bg-brand-red-light rounded-full origin-center scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+  1199→                </span>
+  1200→              </button>
+  1201→            </motion.div>
+  1202→          )}
+  1203→
+  1204→          {/* ═══════════════════════════════════════════
+  1205→              Stage 2: Details (Gender, Weight, Practice Ground)
+  1206→              ═══════════════════════════════════════════ */}
+  1207→          {stage === 'details' && (
+  1208→            <motion.div
+  1209→              key="details"
+  1210→              custom={direction}
+  1211→              variants={slideVariants}
+  1212→              initial="enter"
+  1213→              animate="center"
+  1214→              exit="exit"
+  1215→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1216→              className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+  1217→            >
+  1218→              {/* Progress dots at top */}
+  1219→              <div className="flex justify-center gap-2 mb-5">
+  1220→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+  1221→                  <motion.div
+  1222→                    key={s}
+  1223→                    className="h-1.5 rounded-full"
+  1224→                    animate={{
+  1225→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+  1226→                      backgroundColor:
+  1227→                        stageIndex[stage] === idx
+  1228→                          ? '#DC2626'
+  1229→                          : stageIndex[stage] > idx
+  1230→                            ? '#B91C1C'
+  1231→                            : '#CBD5E1',
+  1232→                    }}
+  1233→                    transition={{ duration: 0.5 }}
+  1234→                  />
+  1235→                ))}
+  1236→              </div>
+  1237→
+  1238→              <motion.button
+  1239→                whileHover={{ x: -3 }}
+  1240→                whileTap={{ scale: 0.95 }}
+  1241→                onClick={goBack}
+  1242→                className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
+  1243→              >
+  1244→                <ArrowLeft className="w-4 h-4 mr-1" />
+  1245→                Back
+  1246→              </motion.button>
+  1247→
+  1248→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">Tell us about yourself</h2>
+  1249→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+  1250→                Help us personalize your experience
+  1251→              </p>
+  1252→
+  1253→              {/* Gender Selection - Enhanced with gradient backgrounds */}
+  1254→              <div className="w-full mb-5">
+  1255→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-3 block">
+  1256→                  Gender <span className="text-brand-red">*</span>
+  1257→                </label>
+  1258→                <div className="grid grid-cols-2 gap-3">
+  1259→                  {/* Boy Card */}
+  1260→                  <motion.button
+  1261→                    type="button"
+  1262→                    whileHover={{ scale: 1.03, y: -2 }}
+  1263→                    whileTap={{ scale: 0.97 }}
+  1264→                    onClick={() => {
+  1265→                      setGender('boy');
+  1266→                      if (error) setError('');
+  1267→                    }}
+  1268→                    className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
+  1269→                      gender === 'boy'
+  1270→                        ? 'border-brand-blue bg-gradient-to-br from-brand-blue to-brand-blue-dark shadow-lg shadow-brand-blue/25'
+  1271→                        : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-blue/40 hover:shadow-md'
+  1272→                    }`}
+  1273→                  >
+  1274→                    {gender === 'boy' && (
+  1275→                      <motion.div
+  1276→                        initial={{ scale: 0, opacity: 0 }}
+  1277→                        animate={{ scale: 2, opacity: 0.1 }}
+  1278→                        className="absolute w-20 h-20 rounded-full bg-white"
+  1279→                      />
+  1280→                    )}
+  1281→                    <span className={`text-4xl leading-none relative z-10 ${gender === 'boy' ? 'text-white drop-shadow-lg' : 'text-brand-blue'}`}>
+  1282→                      ♂
+  1283→                    </span>
+  1284→                    <span className={`text-sm font-bold relative z-10 ${gender === 'boy' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>
+  1285→                      Boy
+  1286→                    </span>
+  1287→                    {gender === 'boy' && (
+  1288→                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
+  1289→                        <Zap className="w-4 h-4 text-white/60" />
+  1290→                      </motion.div>
+  1291→                    )}
+  1292→                  </motion.button>
+  1293→
+  1294→                  {/* Girl Card */}
+  1295→                  <motion.button
+  1296→                    type="button"
+  1297→                    whileHover={{ scale: 1.03, y: -2 }}
+  1298→                    whileTap={{ scale: 0.97 }}
+  1299→                    onClick={() => {
+  1300→                      setGender('girl');
+  1301→                      if (error) setError('');
+  1302→                    }}
+  1303→                    className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
+  1304→                      gender === 'girl'
+  1305→                        ? 'border-brand-red bg-gradient-to-br from-brand-red to-brand-red-dark shadow-lg shadow-brand-red/25'
+  1306→                        : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-red/40 hover:shadow-md'
+  1307→                    }`}
+  1308→                  >
+  1309→                    {gender === 'girl' && (
+  1310→                      <motion.div
+  1311→                        initial={{ scale: 0, opacity: 0 }}
+  1312→                        animate={{ scale: 2, opacity: 0.1 }}
+  1313→                        className="absolute w-20 h-20 rounded-full bg-white"
+  1314→                      />
+  1315→                    )}
+  1316→                    <span className={`text-4xl leading-none relative z-10 ${gender === 'girl' ? 'text-white drop-shadow-lg' : 'text-brand-red'}`}>
+  1317→                      ♀
+  1318→                    </span>
+  1319→                    <span className={`text-sm font-bold relative z-10 ${gender === 'girl' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>
+  1320→                      Girl
+  1321→                    </span>
+  1322→                    {gender === 'girl' && (
+  1323→                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
+  1324→                        <Zap className="w-4 h-4 text-white/60" />
+  1325→                      </motion.div>
+  1326→                    )}
+  1327→                  </motion.button>
+  1328→                </div>
+  1329→              </div>
+  1330→
+  1331→              {/* Weight Input */}
+  1332→              <div className="w-full mb-3">
+  1333→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+  1334→                  Weight
+  1335→                </label>
+  1336→                <div className="relative">
+  1337→                  <Weight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+  1338→                  <Input
+  1339→                    type="number"
+  1340→                    inputMode="numeric"
+  1341→                    placeholder="Enter weight"
+  1342→                    value={weight}
+  1343→                    onChange={(e) => setWeight(e.target.value)}
+  1344→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/60 transition-all"
+  1345→                  />
+  1346→                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 dark:text-warm-500 text-sm font-medium pointer-events-none">
+  1347→                    kg
+  1348→                  </span>
+  1349→                </div>
+  1350→              </div>
+  1351→
+  1352→              {/* Practice Ground Input */}
+  1353→              <div className="w-full mb-4">
+  1354→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+  1355→                  Practice Ground
+  1356→                </label>
+  1357→                <div className="relative">
+  1358→                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+  1359→                  <Input
+  1360→                    type="text"
+  1361→                    placeholder="Enter practice ground / academy"
+  1362→                    value={practiceGround}
+  1363→                    onChange={(e) => setPracticeGround(e.target.value)}
+  1364→                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal/60 transition-all"
+  1365→                  />
+  1366→                </div>
+  1367→              </div>
+  1368→
+  1369→              {/* Position Selection */}
+  1370→              <div className="w-full mb-4">
+  1371→                <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+  1372→                  Position
+  1373→                </label>
+  1374→                <div className="grid grid-cols-2 gap-2">
+  1375→                  {[
+  1376→                    { id: 'left-raider', label: 'Left Raider', icon: '⬅️', meaning: 'Attacks from left' },
+  1377→                    { id: 'right-raider', label: 'Right Raider', icon: '➡️', meaning: 'Attacks from right' },
+  1378→                    { id: 'both-raider', label: 'Both Raider', icon: '↔️', meaning: 'Raids both sides' },
+  1379→                    { id: 'left-corner', label: 'Left Corner', icon: '🛡️', meaning: 'Defends left corner' },
+  1380→                    { id: 'right-corner', label: 'Right Corner', icon: '🛡️', meaning: 'Defends right corner' },
+  1381→                    { id: 'left-cover', label: 'Left Cover', icon: '🧱', meaning: 'Cover defender left' },
+  1382→                    { id: 'right-cover', label: 'Right Cover', icon: '🧱', meaning: 'Cover defender right' },
+  1383→                    { id: 'all-rounder', label: 'All-Rounder', icon: '⭐', meaning: 'Raid & defense' },
+  1384→                  ].map((pos) => (
+  1385→                    <motion.button
+  1386→                      key={pos.id}
+  1387→                      type="button"
+  1388→                      whileHover={{ scale: 1.03 }}
+  1389→                      whileTap={{ scale: 0.97 }}
+  1390→                      onClick={() => setPosition(position === pos.id ? '' : pos.id)}
+  1391→                      className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+  1392→                        position === pos.id
+  1393→                          ? 'border-brand-teal bg-brand-teal/10 dark:bg-brand-teal/15 shadow-sm shadow-brand-teal/20'
+  1394→                          : 'border-warm-300/60 dark:border-warm-600/40 bg-white/40 dark:bg-white/3 hover:border-warm-200 hover:shadow-sm'
+  1395→                      }`}
+  1396→                    >
+  1397→                      <div className="flex items-center gap-1">
+  1398→                        <span className="text-sm">{pos.icon}</span>
+  1399→                        <span className={`text-xs font-semibold ${position === pos.id ? 'text-brand-teal dark:text-brand-teal-light' : 'text-warm-700 dark:text-warm-300'}`}>
+  1400→                          {pos.label}
+  1401→                        </span>
+  1402→                      </div>
+  1403→                      <p className="text-[8px] text-warm-400 dark:text-warm-500 mt-0.5 ml-5">{pos.meaning}</p>
+  1404→                    </motion.button>
+  1405→                  ))}
+  1406→                </div>
+  1407→              </div>
+  1408→
+  1409→              {/* Gender-themed accent bar */}
+  1410→              {gender && (
+  1411→                <motion.div
+  1412→                  initial={{ scaleX: 0 }}
+  1413→                  animate={{ scaleX: 1 }}
+  1414→                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+  1415→                  className="w-full h-1 rounded-full mb-4 origin-left"
+  1416→                  style={{ backgroundColor: genderAccent }}
+  1417→                />
+  1418→              )}
+  1419→
+  1420→              {/* Error Message */}
+  1421→              <AnimatePresence>
+  1422→                {error && (
+  1423→                  <motion.p
+  1424→                    initial={{ opacity: 0, y: -8, height: 0 }}
+  1425→                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+  1426→                    exit={{ opacity: 0, y: -8, height: 0 }}
+  1427→                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+  1428→                    className="text-brand-red dark:text-brand-red-light text-sm mb-3 text-center w-full flex items-center justify-center gap-1.5"
+  1429→                  >
+  1430→                    <CircleDot className="w-3.5 h-3.5 shrink-0" />
+  1431→                    {error}
+  1432→                  </motion.p>
+  1433→                )}
+  1434→              </AnimatePresence>
+  1435→
+  1436→              {/* Continue Button */}
+  1437→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+  1438→                <Button
+  1439→                  onClick={handleDetailsContinue}
+  1440→                  disabled={!gender}
+  1441→                  className={`w-full h-12 font-semibold text-base rounded-xl disabled:opacity-40 text-white transition-all shadow-lg relative overflow-hidden group ${
+  1442→                    gender === 'boy'
+  1443→                      ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue shadow-brand-blue/25'
+  1444→                      : gender === 'girl'
+  1445→                        ? 'bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red shadow-brand-red/25'
+  1446→                        : 'bg-gradient-to-r from-brand-red-dark to-brand-red hover:from-brand-red hover:to-brand-red-light shadow-brand-red/25'
+  1447→                  }`}
+  1448→                >
+  1449→                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-transparent group-hover:via-white/20 transition-all duration-500 -translate-x-full group-hover:translate-x-full" />
+  1450→                  <span className="relative z-10 flex items-center justify-center gap-1.5">
+  1451→                    Continue
+  1452→                    <ChevronRight className="w-4 h-4" />
+  1453→                  </span>
+  1454→                </Button>
+  1455→              </motion.div>
+  1456→            </motion.div>
+  1457→          )}
+  1458→
+  1459→          {/* ═══════════════════════════════════════════
+  1460→              Stage 3: Role Selection
+  1461→              ═══════════════════════════════════════════ */}
+  1462→          {stage === 'role' && (
+  1463→            <motion.div
+  1464→              key="role"
+  1465→              custom={direction}
+  1466→              variants={slideVariants}
+  1467→              initial="enter"
+  1468→              animate="center"
+  1469→              exit="exit"
+  1470→              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1471→              className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+  1472→            >
+  1473→              {/* Progress dots at top */}
+  1474→              <div className="flex justify-center gap-2 mb-5">
+  1475→                {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+  1476→                  <motion.div
+  1477→                    key={s}
+  1478→                    className="h-1.5 rounded-full"
+  1479→                    animate={{
+  1480→                      width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+  1481→                      backgroundColor:
+  1482→                        stageIndex[stage] === idx
+  1483→                          ? '#DC2626'
+  1484→                          : stageIndex[stage] > idx
+  1485→                            ? '#B91C1C'
+  1486→                            : '#CBD5E1',
+  1487→                    }}
+  1488→                    transition={{ duration: 0.5 }}
+  1489→                  />
+  1490→                ))}
+  1491→              </div>
+  1492→
+  1493→              <motion.button
+  1494→                whileHover={{ x: -3 }}
+  1495→                whileTap={{ scale: 0.95 }}
+  1496→                onClick={goBack}
+  1497→                className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
+  1498→              >
+  1499→                <ArrowLeft className="w-4 h-4 mr-1" />
+  1500→                Back
+  1501→              </motion.button>
+  1502→
+  1503→              <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">
+  1504→                What&apos;s your role?
+  1505→              </h2>
+  1506→              <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+  1507→                Select one or more roles that apply to you
+  1508→              </p>
+  1509→
+  1510→              {/* Subtle kabaddi-themed background illustration */}
+  1511→              <div className="absolute inset-0 pointer-events-none opacity-[0.02] dark:opacity-[0.03] overflow-hidden rounded-2xl">
+  1512→                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border-4 border-brand-red" />
+  1513→                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-red" />
+  1514→              </div>
+  1515→
+  1516→              <div className="w-full flex flex-col gap-4 mb-6 relative z-10">
+  1517→                {roles.map((role, idx) => {
+  1518→                  const isSelected = selectedRoles.has(role.id);
+  1519→                  const Icon = role.icon;
+  1520→                  return (
+  1521→                    <motion.button
+  1522→                      key={role.id}
+  1523→                      initial={{ opacity: 0, y: 20 }}
+  1524→                      animate={{ opacity: 1, y: 0 }}
+  1525→                      transition={{ delay: idx * 0.15, type: 'spring', stiffness: 300, damping: 25 }}
+  1526→                      whileHover={{ scale: 1.02, y: -2 }}
+  1527→                      whileTap={{ scale: 0.98 }}
+  1528→                      onClick={() => toggleRole(role.id)}
+  1529→                      className={`w-full relative flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left overflow-hidden ${
+  1530→                        isSelected
+  1531→                          ? `bg-gradient-to-r ${role.color} ${role.borderColor} shadow-lg ${role.glowColor}`
+  1532→                          : 'bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 hover:border-warm-200 hover:shadow-md'
+  1533→                      }`}
+  1534→                    >
+  1535→                      {!isSelected && (
+  1536→                        <div className="absolute inset-0 rounded-2xl opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-brand-red/5 via-brand-gold/5 to-brand-red/5 pointer-events-none" />
+  1537→                      )}
+  1538→
+  1539→                      {isSelected && (
+  1540→                        <div className="absolute inset-0 card-shine">
+  1541→                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ animation: 'shimmer 3s ease-in-out infinite' }} />
+  1542→                        </div>
+  1543→                      )}
+  1544→
+  1545→                      <div
+  1546→                        className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 relative z-10 ${
+  1547→                          isSelected
+  1548→                            ? 'bg-white/20'
+  1549→                            : 'bg-warm-200/60 dark:bg-warm-600/20'
+  1550→                        }`}
+  1551→                      >
+  1552→                        <Icon
+  1553→                          className={`w-7 h-7 ${isSelected ? role.animClass : ''} ${
+  1554→                            isSelected ? 'text-white' : 'text-warm-500 dark:text-warm-400'
+  1555→                          }`}
+  1556→                        />
+  1557→                      </div>
+  1558→                      <div className="flex-1 min-w-0 relative z-10">
+  1559→                        <div className={`font-bold text-base ${isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'}`}>
+  1560→                          {role.title}
+  1561→                        </div>
+  1562→                        <div className={`text-xs mt-0.5 ${isSelected ? 'text-white/70' : 'text-warm-500 dark:text-warm-400'}`}>
+  1563→                          {role.description}
+  1564→                        </div>
+  1565→                      </div>
+  1566→                      <div
+  1567→                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all relative z-10 ${
+  1568→                          isSelected
+  1569→                            ? 'border-white bg-white'
+  1570→                            : 'border-warm-300 dark:border-warm-500'
+  1571→                        }`}
+  1572→                      >
+  1573→                        {isSelected && (
+  1574→                          <motion.div
+  1575→                            initial={{ scale: 0 }}
+  1576→                            animate={{ scale: 1 }}
+  1577→                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+  1578→                            className="w-3 h-3 rounded-full bg-warm-50"
+  1579→                          />
+  1580→                        )}
+  1581→                      </div>
+  1582→                    </motion.button>
+  1583→                  );
+  1584→                })}
+  1585→              </div>
+  1586→
+  1587→              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+  1588→                <Button
+  1589→                  onClick={handleGetStarted}
+  1590→                  disabled={isSubmitting || selectedRoles.size === 0}
+  1591→                  className={`w-full h-12 font-semibold text-base rounded-xl disabled:opacity-40 text-white transition-all shadow-lg relative overflow-hidden group ${
+  1592→                    gender === 'boy'
+  1593→                      ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark hover:from-brand-blue-light hover:to-brand-blue shadow-brand-blue/25'
+  1594→                      : gender === 'girl'
+  1595→                        ? 'bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red shadow-brand-red/25'
+  1596→                        : 'bg-gradient-to-r from-brand-red-dark to-brand-red hover:from-brand-red hover:to-brand-red-light shadow-brand-red/25'
+  1597→                  }`}
+  1598→                >
+  1599→                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-transparent group-hover:via-white/20 transition-all duration-500 -translate-x-full group-hover:translate-x-full" />
+  1600→                  <span className="relative z-10 flex items-center justify-center gap-1.5">
+  1601→                    {isSubmitting ? (
+  1602→                      <>
+  1603→                        <Loader2 className="w-4 h-4 animate-spin" />
+  1604→                        Setting up...
+  1605→                      </>
+  1606→                    ) : (
+  1607→                      <>
+  1608→                        Get Started
+  1609→                        <ChevronRight className="w-4 h-4" />
+  1610→                      </>
+  1611→                    )}
+  1612→                  </span>
+  1613→                </Button>
+  1614→              </motion.div>
+  1615→            </motion.div>
+  1616→          )}
+  1617→        </AnimatePresence>
+  1618→      </div>
+  1619→
+  1620→      {/* ── Bottom Progress dots ── */}
+  1621→      <div className="flex gap-2 mt-8 relative z-10">
+  1622→        {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+  1623→          <motion.div
+  1624→            key={s}
+  1625→            className="h-1.5 rounded-full"
+  1626→            animate={{
+  1627→              width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+  1628→              backgroundColor:
+  1629→                stageIndex[stage] === idx
+  1630→                  ? '#DC2626'
+  1631→                  : stageIndex[stage] > idx
+  1632→                    ? '#B91C1C'
+  1633→                    : undefined,
+  1634→            }}
+  1635→            transition={{ duration: 0.5 }}
+  1636→            {...(stageIndex[stage] < idx ? { style: { backgroundColor: '#CBD5E1' } } : {})}
+  1637→          />
+  1638→        ))}
+  1639→      </div>
+  1640→    </div>
+  1641→  );
+  1642→}
+  1643→

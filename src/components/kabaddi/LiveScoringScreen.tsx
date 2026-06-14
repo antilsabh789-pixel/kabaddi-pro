@@ -5,14 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Undo2, Pause, Play, Square, Timer, Swords, X, Check,
   Crown, Share2, Zap, Shield, Hand, Clock, ArrowLeftRight,
-  ChevronUp, AlertTriangle, Sparkles, Flame, Star,
-  Users, ArrowRight, Target, RotateCcw, Trophy,
-  MessageSquare, ChevronDown,
+  ChevronUp, AlertTriangle, Sparkles, Flame,
+  ArrowRight, ArrowRightLeft,
+  MessageSquare, ChevronDown, UserPlus,
 } from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer, type MatchEvent } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import ShareScorecard from './ShareScorecard';
-import LiveCommentaryTicker, { toCommentaryMatchInfo } from './LiveCommentaryTicker';
+import ScorerTransferScreen from './ScorerTransferScreen';
 import { matchNotification } from '@/lib/notifications';
 import { triggerFeedback, SoundType, vibrate } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,8 @@ type ActionTab = 'raid' | 'defense' | 'special' | 'cards';
 const RAID_TIME_LIMIT = 30; // seconds
 const ON_COURT_MAX = 7; // kabaddi standard: 7 players on court
 const RAID_GAP_TIMEOUT = 5; // seconds after raid ends before auto-pause
+const MAX_TIMEOUTS = 2; // max timeouts per team (practice matches)
+const TIMEOUT_DURATION = 120; // 2 minutes timeout duration
 
 // ─── Confetti Particle ──────────────────────────────────────────────
 
@@ -265,7 +267,7 @@ function AllOutCelebration({
   onDismiss: () => void;
 }) {
   useEffect(() => {
-    const timer = setTimeout(onDismiss, 2500);
+    const timer = setTimeout(onDismiss, 2000);
     return () => clearTimeout(timer);
   }, [onDismiss]);
 
@@ -274,33 +276,141 @@ function AllOutCelebration({
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
+      transition={{ duration: 0.2 }}
       className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
     >
+      {/* Full screen team color flash */}
+      <motion.div
+        initial={{ opacity: 0.6 }}
+        animate={{ opacity: 0 }}
+        transition={{ duration: 0.8 }}
+        className="absolute inset-0"
+        style={{ backgroundColor: teamColor }}
+      />
+
       <motion.div
         initial={{ scale: 0.3, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', damping: 10, stiffness: 200 }}
-        className="px-8 py-6 rounded-2xl text-center"
+        className="relative px-8 py-6 rounded-2xl text-center"
         style={{
-          background: `linear-gradient(135deg, ${teamColor}40, ${teamColor}20)`,
-          boxShadow: `0 0 40px ${teamColor}40`,
+          background: `linear-gradient(135deg, ${teamColor}50, ${teamColor}25)`,
+          boxShadow: `0 0 60px ${teamColor}60`,
         }}
       >
         <motion.div
           animate={{ scale: [1, 1.3, 1], rotate: [0, 10, -10, 0] }}
-          transition={{ duration: 0.6, repeat: 2 }}
-          className="text-5xl mb-2"
+          transition={{ duration: 0.5, repeat: 2 }}
+          className="text-5xl mb-1"
         >
           💥
         </motion.div>
-        <h3 className="text-2xl font-black" style={{ color: teamColor }}>
+        <motion.h3
+          animate={{ scale: [1, 1.08, 1] }}
+          transition={{ duration: 0.3, repeat: 2 }}
+          className="text-2xl font-black"
+          style={{ color: teamColor }}
+        >
           ALL OUT!
-        </h3>
-        <p className="text-sm font-bold text-gray-700 dark:text-warm-200 mt-1">
-          {teamName} eliminates all opponents!
+        </motion.h3>
+        <p className="text-xs font-bold text-white/90 mt-0.5 drop-shadow-lg">
+          {teamName} • +2 pts • All revive
         </p>
-        <p className="text-xs text-gray-500 dark:text-warm-400 mt-0.5">
-          +2 bonus points
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── Super Raid Celebration Overlay ─────────────────────────────────
+
+function SuperRaidCelebration({
+  teamName,
+  teamColor,
+  playerName,
+  onDismiss,
+}: {
+  teamName: string;
+  teamColor: string;
+  playerName: string;
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 2000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
+    >
+      {/* Fire-themed background flash */}
+      <motion.div
+        initial={{ opacity: 0.6 }}
+        animate={{ opacity: 0 }}
+        transition={{ duration: 0.8 }}
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.3), rgba(234,179,8,0.2))' }}
+      />
+
+      {/* Fire particles - reduced count */}
+      {Array.from({ length: 10 }).map((_, i) => (
+        <motion.div
+          key={i}
+          initial={{
+            y: 0,
+            x: ((i * 37) % 200) - 100,
+            opacity: 1,
+            scale: 1,
+          }}
+          animate={{
+            y: -150 - (i % 3) * 40,
+            x: ((i * 37) % 200) - 100 + ((i % 2 === 0 ? 1 : -1) * (i % 5) * 8),
+            opacity: 0,
+            scale: 0.3,
+          }}
+          transition={{
+            duration: 1 + (i % 3) * 0.3,
+            delay: i * 0.04,
+            ease: 'easeOut',
+          }}
+          className="absolute text-xl"
+          style={{ left: `${40 + (i * 3) % 20}%`, bottom: '35%' }}
+        >
+          {i % 3 === 0 ? '🔥' : i % 3 === 1 ? '✨' : '💥'}
+        </motion.div>
+      ))}
+
+      <motion.div
+        initial={{ scale: 0.3, opacity: 0, rotate: -10 }}
+        animate={{ scale: 1, opacity: 1, rotate: 0 }}
+        transition={{ type: 'spring', damping: 15, stiffness: 250 }}
+        className="relative px-6 py-4 rounded-2xl text-center"
+        style={{
+          background: `linear-gradient(135deg, #ea580c50, #eab30830)`,
+          boxShadow: `0 0 40px rgba(234,88,12,0.4), 0 0 80px rgba(234,179,8,0.2)`,
+        }}
+      >
+        <motion.div
+          animate={{ scale: [1, 1.3, 1], rotate: [0, 8, -8, 0] }}
+          transition={{ duration: 0.4, repeat: 2 }}
+          className="text-5xl mb-1"
+        >
+          🔥
+        </motion.div>
+        <motion.h3
+          animate={{ scale: [1, 1.08, 1] }}
+          transition={{ duration: 0.3, repeat: 2 }}
+          className="text-2xl font-black"
+          style={{ color: '#ea580c' }}
+        >
+          SUPER RAID!
+        </motion.h3>
+        <p className="text-xs font-bold text-white/90 mt-0.5 drop-shadow-lg">
+          {playerName} • 3+ pts • {teamName}
         </p>
       </motion.div>
     </motion.div>
@@ -398,6 +508,7 @@ function EventLogEntry({ event, matchInfo }: { event: MatchEvent; matchInfo: { h
     do_or_die_raid: '🔥',
     all_out: '💥',
     empty_raid: '⏭',
+    self_out: '🚫',
     substitution: '🔄',
     timeout: '📋',
     yellow_card: '🟨',
@@ -414,6 +525,7 @@ function EventLogEntry({ event, matchInfo }: { event: MatchEvent; matchInfo: { h
     do_or_die_raid: 'Do-or-Die',
     all_out: 'All Out',
     empty_raid: 'Empty',
+    self_out: 'Self-Out',
     substitution: 'Sub',
     timeout: 'Timeout',
     yellow_card: 'Yellow Card',
@@ -452,7 +564,7 @@ function AnimatedScore({ value, color }: { value: number; color: string }) {
       initial={{ scale: 1.5, opacity: 0.5 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', damping: 12, stiffness: 300 }}
-      className="text-6xl font-black tabular-nums leading-none"
+      className="text-3xl font-black tabular-nums leading-none"
       style={{ color }}
     >
       {value}
@@ -476,6 +588,7 @@ export default function LiveScoringScreen() {
     switchRaidQueue,
     callTimeout,
     addNotification,
+    addPlayerToMatch,
   } = useKabaddiStore();
 
   const { toast } = useToast();
@@ -493,8 +606,14 @@ export default function LiveScoringScreen() {
   const [raidGapTimer, setRaidGapTimer] = useState<number | null>(null);
   const raidGapRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Track consecutive empty raids for do-or-die
-  const consecutiveEmptyRaidsRef = useRef<number>(0);
+  // Track consecutive empty raids per team for do-or-die
+  const consecutiveEmptyRaidsRef = useRef<Record<string, number>>({});
+
+  // Self-out confirmation state
+  const [selfOutConfirm, setSelfOutConfirm] = useState<MatchPlayer | null>(null);
+
+  // Super raid celebration state
+  const [superRaidCelebration, setSuperRaidCelebration] = useState<{ teamName: string; teamColor: string; playerName: string } | null>(null);
   // Track if 5-min warning has fired for current half
   const fiveMinWarningFiredRef = useRef<boolean>(false);
 
@@ -505,9 +624,19 @@ export default function LiveScoringScreen() {
   const [selectedDefenders, setSelectedDefenders] = useState<Set<string>>(new Set());
   const [bonusPoint, setBonusPoint] = useState(false);
 
+  // Turn transition lock: briefly prevents raider selection after a raid ends
+  // This ensures the state fully resets before the next team can pick a raider
+  const [isTurnTransitioning, setIsTurnTransitioning] = useState(false);
+
   // Substitute mode
   const [showSubMode, setShowSubMode] = useState<'home' | 'away' | null>(null);
   const [subOutPlayer, setSubOutPlayer] = useState<MatchPlayer | null>(null);
+
+  // Add player mid-match
+  const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [addPlayerTeam, setAddPlayerTeam] = useState<'home' | 'away' | null>(null);
+  const [addPlayerName, setAddPlayerName] = useState('');
+  const [addPlayerJersey, setAddPlayerJersey] = useState('');
 
   // Match end state
   const [showEndMatchConfirm, setShowEndMatchConfirm] = useState(false);
@@ -529,7 +658,8 @@ export default function LiveScoringScreen() {
   const [allOutCelebration, setAllOutCelebration] = useState<{ teamName: string; teamColor: string } | null>(null);
   const [eventConfirm, setEventConfirm] = useState<{ message: string; teamColor: string } | null>(null);
   const [showTimeoutOverlay, setShowTimeoutOverlay] = useState(false);
-  const [timeoutCountdown, setTimeoutCountdown] = useState(30);
+  const [timeoutCountdown, setTimeoutCountdown] = useState(TIMEOUT_DURATION);
+  const [timeoutTeam, setTimeoutTeam] = useState<'home' | 'away'>('home');
   const timeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Player profiles (avatars)
@@ -540,6 +670,7 @@ export default function LiveScoringScreen() {
 
   // Event log state
   const [showFullLog, setShowFullLog] = useState(false);
+  const [showScorerTransfer, setShowScorerTransfer] = useState(false);
   const eventLogRef = useRef<HTMLDivElement>(null);
 
   const match = activeMatch;
@@ -725,13 +856,13 @@ export default function LiveScoringScreen() {
     };
   }, [raidGapTimer !== null, raidPhase, hasStartedRaiding, isPaused]);
 
-  // ═══ TIMEOUT COUNTDOWN ═══
+  // ═══ TIMEOUT COUNTDOWN (2 minutes) ═══
   useEffect(() => {
     if (!showTimeoutOverlay) {
       if (timeoutRef.current) clearInterval(timeoutRef.current);
       return;
     }
-    setTimeoutCountdown(30);
+    setTimeoutCountdown(TIMEOUT_DURATION);
     timeoutRef.current = setInterval(() => {
       setTimeoutCountdown(prev => {
         if (prev <= 1) {
@@ -745,6 +876,14 @@ export default function LiveScoringScreen() {
       if (timeoutRef.current) clearInterval(timeoutRef.current);
     };
   }, [showTimeoutOverlay]);
+
+  // Auto-resume when timeout reaches 0
+  useEffect(() => {
+    if (showTimeoutOverlay && timeoutCountdown === 0) {
+      setShowTimeoutOverlay(false);
+      setIsPaused(false);
+    }
+  }, [showTimeoutOverlay, timeoutCountdown]);
 
   // ═══ AUTO-SCROLL EVENT LOG ═══
   useEffect(() => {
@@ -856,10 +995,27 @@ export default function LiveScoringScreen() {
     const onCourtOut = onCourt.filter(p => outIds.includes(p.id));
     return { onCourt, substitutes, onCourtActive, onCourtOut };
   };
+
+  // ═══ SCORE BREAKDOWN ═══
+  const homeRaidPoints = match.events
+    .filter(e => e.teamId === match.homeTeamId && ['raid_point', 'bonus_point', 'super_raid', 'do_or_die_raid', 'all_out'].includes(e.eventType))
+    .reduce((sum, e) => sum + e.value, 0);
+  const homeTacklePoints = match.events
+    .filter(e => e.teamId === match.homeTeamId && ['tackle_point', 'super_tackle'].includes(e.eventType))
+    .reduce((sum, e) => sum + e.value, 0);
+  const awayRaidPoints = match.events
+    .filter(e => e.teamId === match.awayTeamId && ['raid_point', 'bonus_point', 'super_raid', 'do_or_die_raid', 'all_out'].includes(e.eventType))
+    .reduce((sum, e) => sum + e.value, 0);
+  const awayTacklePoints = match.events
+    .filter(e => e.teamId === match.awayTeamId && ['tackle_point', 'super_tackle'].includes(e.eventType))
+    .reduce((sum, e) => sum + e.value, 0);
+
   // Handle raider selection → starts raid timer AND match timer
   const handleSelectRaider = (player: MatchPlayer) => {
     if (raidingOutIds.includes(player.id)) return;
     if (raidPhase !== 'idle') return;
+    // Strict turn lock: prevent selection during turn transition
+    if (isTurnTransitioning) return;
 
     if (!hasStartedRaiding) setHasStartedRaiding(true);
     if (isPaused) setIsPaused(false);
@@ -874,7 +1030,11 @@ export default function LiveScoringScreen() {
 
     setRaidTimer(RAID_TIME_LIMIT);
 
-    if (match.isDoOrDie) {
+    // Check if THIS team has a pending do-or-die
+    const raidingTeamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    const isTeamDoOrDie = match.isDoOrDie && match.doOrDieTeamId === raidingTeamId;
+
+    if (isTeamDoOrDie) {
       triggerFeedback(SoundType.DO_OR_DIE);
     } else {
       triggerFeedback(SoundType.WHISTLE);
@@ -906,6 +1066,10 @@ export default function LiveScoringScreen() {
   const processRaidResult = (result: RaidResult, touchedDefenders: Set<string>, hasBonus: boolean) => {
     if (!match || !raider) return;
 
+    // Activate turn lock IMMEDIATELY to prevent any race conditions
+    // during the state transition (addBatchEvents flips raidQueue in the store)
+    setIsTurnTransitioning(true);
+
     if (!hasStartedRaiding) setHasStartedRaiding(true);
 
     // Stop raid timer
@@ -933,6 +1097,19 @@ export default function LiveScoringScreen() {
           half: match.currentHalf, playerId: raider.id, playerName: raider.name,
           value: 1, details: JSON.stringify({ raiderId: raider.id }),
         });
+      }
+
+      // Super Raid auto-detection: 3+ points in a single raid
+      const totalRaidPoints = touchCount + (hasBonus ? 1 : 0);
+      if (totalRaidPoints >= 3) {
+        events.push({
+          matchId: match.id, eventType: 'super_raid', teamId: raidingTeamId,
+          half: match.currentHalf, playerId: raider.id, playerName: raider.name,
+          value: 1,
+          details: JSON.stringify({ raiderId: raider.id, touchCount, bonusPoint: hasBonus }),
+        });
+        // Show super raid celebration
+        setSuperRaidCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor, playerName: raider.name });
       }
 
       // All out check
@@ -972,33 +1149,55 @@ export default function LiveScoringScreen() {
         });
       }
     } else if (result === 'empty') {
-      events.push({
-        matchId: match.id, eventType: 'empty_raid', teamId: raidingTeamId,
-        half: match.currentHalf, playerId: raider.id, playerName: raider.name, value: 0,
-      });
+      // Do-or-Die: if this team has a pending do-or-die and raider has empty raid, raider is OUT
+      const isTeamDoOrDie = match.isDoOrDie && match.doOrDieTeamId === raidingTeamId;
+      if (isTeamDoOrDie) {
+        // Do-or-die raid failed! Raider is out, defending team gets +1
+        events.push({
+          matchId: match.id, eventType: 'do_or_die_raid', teamId: defendingTeamId,
+          half: match.currentHalf, playerId: raider.id, playerName: raider.name,
+          value: 1,
+          details: JSON.stringify({ raiderId: raider.id, failed: true }),
+        });
+        // Reset empty raid counter for the raiding team since they scored 0
+        consecutiveEmptyRaidsRef.current[raidingTeamId] = 0;
+      } else {
+        events.push({
+          matchId: match.id, eventType: 'empty_raid', teamId: raidingTeamId,
+          half: match.currentHalf, playerId: raider.id, playerName: raider.name, value: 0,
+        });
 
-      consecutiveEmptyRaidsRef.current += 1;
+        // Track consecutive empty raids per team
+        consecutiveEmptyRaidsRef.current[raidingTeamId] = (consecutiveEmptyRaidsRef.current[raidingTeamId] || 0) + 1;
+      }
     }
 
     // Reset consecutive empty raids on any successful raid (points scored)
     if (result === 'success') {
-      consecutiveEmptyRaidsRef.current = 0;
+      consecutiveEmptyRaidsRef.current[raidingTeamId] = 0;
     }
     if (result === 'caught') {
-      consecutiveEmptyRaidsRef.current = 0;
+      // Defending team scored, reset THEIR counter
+      consecutiveEmptyRaidsRef.current[defendingTeamId] = 0;
     }
 
-    // ═══ DO-OR-DIE LOGIC ═══
-    if (consecutiveEmptyRaidsRef.current >= 2) {
-      setDoOrDie(true);
+    // ═══ DO-OR-DIE LOGIC (per team) ═══
+    // Evaluate BEFORE the turn swaps (addBatchEvents flips raidQueue)
+    const raidingEmptyCount = consecutiveEmptyRaidsRef.current[raidingTeamId] || 0;
+    if (raidingEmptyCount >= 2) {
+      // Do-or-die applies to this team's NEXT raid (after opponent raids)
+      setDoOrDie(true, raidingTeamId);
       triggerFeedback(SoundType.DO_OR_DIE);
       toast({
         title: '🔥 DO OR DIE RAID!',
-        description: 'Next raider must score — or raider is out!',
+        description: `${raidingTeamName}'s next raid must score — or raider is out!`,
         duration: 3000,
       });
     } else {
-      setDoOrDie(false);
+      // Clear do-or-die ONLY if it belonged to this team
+      if (match.doOrDieTeamId === raidingTeamId) {
+        setDoOrDie(false);
+      }
     }
 
     if (events.length > 0) {
@@ -1014,12 +1213,20 @@ export default function LiveScoringScreen() {
         : 'Empty raid recorded';
     setEventConfirm({ message: confirmMsg, teamColor: result === 'caught' ? defendingTeamColor : raidingTeamColor });
 
-    // Reset raid state
+    // ═══ STRICT TURN TRANSITION ═══
+    // Turn lock was already activated at the top of this function.
+    // Now reset ALL raid state completely before the next team can select.
     setRaidPhase('idle');
     setRaider(null);
     setRaidResult(null);
     setSelectedDefenders(new Set());
     setBonusPoint(false);
+
+    // Release the turn lock after a brief delay (800ms) to allow state to settle
+    // and give visual feedback that the turn has swapped
+    setTimeout(() => {
+      setIsTurnTransitioning(false);
+    }, 800);
 
     // Start 5-second raid gap timer
     setRaidGapTimer(RAID_GAP_TIMEOUT);
@@ -1101,7 +1308,8 @@ export default function LiveScoringScreen() {
       setRaidPhase('idle');
       setRaider(null);
       setDoOrDie(false);
-      consecutiveEmptyRaidsRef.current = 0;
+      setIsTurnTransitioning(false);
+      consecutiveEmptyRaidsRef.current = {};
       fiveMinWarningFiredRef.current = false;
       setShowEndHalfConfirm(false);
       setShowHalfTimeTransition(true);
@@ -1140,10 +1348,22 @@ export default function LiveScoringScreen() {
     toast({ title: 'Last raid undone', duration: 1500 });
   };
 
-  const handleTimeout = () => {
+  const handleTimeout = (team?: 'home' | 'away') => {
+    const timeoutFor = team || raidingTeam;
+    const currentTimeouts = timeoutFor === 'home' ? match.homeTimeouts : match.awayTimeouts;
+
+    if (currentTimeouts >= MAX_TIMEOUTS) {
+      toast({
+        title: 'No timeouts left!',
+        description: `${timeoutFor === 'home' ? match.homeTeam : match.awayTeam} has used all ${MAX_TIMEOUTS} timeouts`,
+        duration: 2000,
+      });
+      return;
+    }
+
     if (!hasStartedRaiding) setHasStartedRaiding(true);
-    const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
-    callTimeout(raidingTeam);
+    const teamId = timeoutFor === 'home' ? match.homeTeamId : match.awayTeamId;
+    callTimeout(timeoutFor);
     setIsPaused(true);
     if (raidTimerRef.current) clearInterval(raidTimerRef.current);
     clearRaidGap();
@@ -1151,12 +1371,19 @@ export default function LiveScoringScreen() {
       matchId: match.id, eventType: 'timeout', teamId,
       half: match.currentHalf, value: 0,
     });
+    setTimeoutTeam(timeoutFor);
     setShowTimeoutOverlay(true);
   };
 
   // Quick action handlers for special events
   const handleBonusPoint = () => {
     if (!match) return;
+    // Bonus point validation: only available with 6+ active defenders
+    const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
+    if (activeDefenders.length < 6) {
+      toast({ title: 'Bonus not available', description: 'Bonus only with 6+ defenders on court', duration: 2000 });
+      return;
+    }
     const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
     addEvent({
       matchId: match.id, eventType: 'bonus_point', teamId,
@@ -1213,6 +1440,39 @@ export default function LiveScoringScreen() {
     setEventConfirm({ message: `${defendingTeamName} +1 Super Tackle!`, teamColor: defendingTeamColor });
   };
 
+  // Self-out handler
+  const handleSelfOut = (selfOutPlayer: MatchPlayer) => {
+    if (!match || !raider) return;
+    const raidingTeamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+
+    const events: Omit<MatchEvent, 'id' | 'timestamp'>[] = [];
+
+    events.push({
+      matchId: match.id, eventType: 'self_out', teamId: raidingTeamId,
+      half: match.currentHalf,
+      value: 1,
+      playerId: selfOutPlayer.id,
+      playerName: selfOutPlayer.name,
+      details: JSON.stringify({ selfOutPlayerId: selfOutPlayer.id, raiderId: raider?.id }),
+    });
+
+    // Check if self-out triggers an all-out
+    const { onCourt } = splitLineup(fullDefendingLineup, defendingOutIds);
+    const defendingOnCourtOut = onCourt.filter(p => [...defendingOutIds, selfOutPlayer.id].includes(p.id)).length;
+    if (defendingOnCourtOut >= onCourt.length) {
+      events.push({
+        matchId: match.id, eventType: 'all_out', teamId: raidingTeamId,
+        half: match.currentHalf, value: 2,
+      });
+      setAllOutCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor });
+    }
+
+    addBatchEvents(events);
+    triggerFeedback(SoundType.WHISTLE);
+    setEventConfirm({ message: `${selfOutPlayer.name} self-out! +1 ${raidingTeamName}`, teamColor: raidingTeamColor });
+    setSelfOutConfirm(null);
+  };
+
   // Substitute handler
   const handleSub = (outPlayer: MatchPlayer, inPlayer: MatchPlayer) => {
     const teamId = outPlayer.team === 'home' ? match.homeTeamId : match.awayTeamId;
@@ -1255,12 +1515,38 @@ export default function LiveScoringScreen() {
     toast({ title: `${inPlayer.name} subs in for ${outPlayer.name}`, duration: 2000 });
   };
 
-  // ─── Player Circle Component ───
+  // Add player mid-match handler
+  const handleAddPlayer = () => {
+    if (!addPlayerTeam || !addPlayerName.trim()) return;
+    const lineup = addPlayerTeam === 'home' ? match.homeLineup : match.awayLineup;
+    const maxSquad = match.playersPerSide + 5;
+    if (lineup.length >= maxSquad) {
+      toast({ title: 'Squad full', description: `Maximum ${maxSquad} players allowed`, duration: 2000 });
+      return;
+    }
+    const newPlayer: MatchPlayer = {
+      id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      name: addPlayerName.trim(),
+      jerseyNumber: addPlayerJersey ? parseInt(addPlayerJersey) || lineup.length + 1 : lineup.length + 1,
+      team: addPlayerTeam,
+    };
+    addPlayerToMatch(addPlayerTeam, newPlayer);
+    const teamName = addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam;
+    toast({ title: `${newPlayer.name} added to ${teamName}`, description: `#${newPlayer.jerseyNumber} • Squad: ${lineup.length + 1}`, duration: 2000 });
+    triggerFeedback(SoundType.WHISTLE);
+    setAddPlayerName('');
+    setAddPlayerJersey('');
+    setShowAddPlayer(false);
+    setAddPlayerTeam(null);
+  };
+
+  // ─── Player Circle Component (Enhanced) ───
   const PlayerCircle = ({
     player,
     isOut,
     isRaiding,
     isSelectable,
+    isDefending,
     isSelected,
     teamColor,
     onSelect,
@@ -1271,6 +1557,8 @@ export default function LiveScoringScreen() {
     isOut: boolean;
     isRaiding?: boolean;
     isSelectable?: boolean;
+    /** True when this player is on the defending team and cannot be selected as raider */
+    isDefending?: boolean;
     isSelected?: boolean;
     teamColor: string;
     onSelect?: (p: MatchPlayer) => void;
@@ -1280,72 +1568,109 @@ export default function LiveScoringScreen() {
     const profile = playerProfiles[player.id];
     const initials = player.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
     const isSmall = size === 'small';
-    const circleSize = isSmall ? 'w-10 h-10' : 'w-14 h-14';
-    const textSize = isSmall ? 'text-xs' : 'text-base';
-    const nameWidth = isSmall ? 'max-w-[52px]' : 'max-w-[64px]';
-    const nameSize = isSmall ? 'text-[8px]' : 'text-[10px]';
+    const circleSize = isSmall ? 'w-9 h-9' : 'w-12 h-12';
+    const nameSize = isSmall ? 'text-[7px]' : 'text-[8px]';
+    const nameWidth = isSmall ? 'max-w-[40px]' : 'max-w-[52px]';
 
-    // Player stat bubbles
+    // Player stat bubbles (only for normal size)
     const pts = !isSmall ? getPlayerPoints(player.id) : null;
 
     return (
       <motion.button
         whileTap={isSelectable && !isOut ? { scale: 0.9 } : {}}
         onClick={() => isSelectable && !isOut && onSelect?.(player)}
-        className={`relative flex flex-col items-center gap-1 transition-all ${
+        className={`relative flex flex-col items-center gap-0.5 transition-all ${
           isSelectable && !isOut ? 'cursor-pointer' : 'cursor-default'
-        } ${isOut ? 'opacity-35' : ''}`}
+        } ${isOut ? 'opacity-40' : isDefending ? 'opacity-50' : ''}`}
       >
         <div
           className={`relative ${circleSize} rounded-full overflow-hidden transition-all ${
             isRaiding
-              ? 'ring-[3px] ring-yellow-400 ring-offset-2 shadow-lg shadow-yellow-400/30'
+              ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-gray-900'
               : isSelected
-                ? 'ring-[3px] ring-white ring-offset-2 scale-110'
+                ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900 scale-110'
                 : ''
           }`}
           style={{
-            borderWidth: '3px',
-            borderStyle: isOut ? 'dashed' : 'solid',
-            borderColor: isOut ? '#d1d5db' : teamColor,
+            borderWidth: '2px',
+            borderStyle: isOut ? 'dashed' : isDefending ? 'dotted' : 'solid',
+            borderColor: isOut ? '#6b7280' : isDefending ? '#6b7280' : teamColor,
           }}
         >
           {profile?.avatar ? (
-            <img src={profile.avatar} alt={player.name} className="w-full h-full object-cover" />
+            <img
+              src={profile.avatar}
+              alt={player.name}
+              className="w-full h-full object-cover"
+              style={{ filter: isOut ? 'grayscale(100%)' : 'none' }}
+            />
           ) : (
             <div
               className="w-full h-full flex items-center justify-center"
-              style={{ backgroundColor: isOut ? '#f3f4f6' : `${teamColor}22` }}
+              style={{ backgroundColor: isOut ? '#374151' : `${teamColor}22` }}
             >
-              <span className={`${textSize} font-bold`} style={{ color: isOut ? '#9ca3af' : teamColor }}>
+              <span className={`${isSmall ? 'text-[9px]' : 'text-xs'} font-bold`} style={{ color: isOut ? '#6b7280' : teamColor }}>
                 {initials}
               </span>
             </div>
           )}
 
+          {/* OUT overlay with red X - more prominent */}
           {isOut && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <span className="text-white font-black tracking-wider" style={{ fontSize: isSmall ? '6px' : '8px' }}>OUT</span>
+            <div className="absolute inset-0 bg-red-900/60 flex items-center justify-center">
+              <div className="relative">
+                <X className={`${isSmall ? 'w-4 h-4' : 'w-5 h-5'} text-red-400 font-black drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]`} strokeWidth={3} />
+              </div>
             </div>
           )}
 
+          {/* Selected checkmark */}
           {isSelected && showCheck && (
-            <div className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center border-2 border-white">
-              <Check className="w-2.5 h-2.5 text-white" />
+            <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 flex items-center justify-center border border-white">
+              <Check className="w-2 h-2 text-white" />
             </div>
           )}
 
-          <div
-            className="absolute -bottom-0.5 -right-0.5 min-w-[16px] h-[16px] rounded-full flex items-center justify-center font-black border-2 border-white shadow-sm"
-            style={{ backgroundColor: isOut ? '#e5e7eb' : teamColor, color: '#fff', fontSize: isSmall ? '6px' : '8px' }}
-          >
-            {player.jerseyNumber || '?'}
-          </div>
+          {/* Jersey number badge at bottom-right */}
+          {player.jerseyNumber && (
+            <div
+              className="absolute -bottom-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full flex items-center justify-center font-black border border-white shadow-sm"
+              style={{
+                backgroundColor: isOut ? '#4b5563' : teamColor,
+                color: '#fff',
+                fontSize: '7px',
+              }}
+            >
+              {player.jerseyNumber}
+            </div>
+          )}
         </div>
+
+        {/* Raiding glow animation - enhanced breathing gold glow */}
+        {isRaiding && (
+          <>
+            <motion.div
+              className="absolute inset-0 rounded-full"
+              animate={{
+                boxShadow: [
+                  `0 0 8px 2px rgba(234, 179, 8, 0.3)`,
+                  `0 0 20px 8px rgba(234, 179, 8, 0.6)`,
+                  `0 0 8px 2px rgba(234, 179, 8, 0.3)`,
+                ]
+              }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <motion.div
+              className="absolute -inset-1 rounded-full border-2 border-yellow-400"
+              animate={{ opacity: [0.3, 0.8, 0.3], scale: [0.95, 1.05, 0.95] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </>
+        )}
 
         {/* Player name */}
         <span className={`${nameSize} font-semibold leading-tight truncate ${nameWidth} text-center ${
-          isOut ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-warm-200'
+          isOut ? 'text-gray-500 line-through' : 'text-gray-300 dark:text-warm-300'
         }`}>
           {player.name.split(' ').length > 1
             ? `${player.name.split(' ')[0]} ${player.name.split(' ')[1][0]}.`
@@ -1357,13 +1682,13 @@ export default function LiveScoringScreen() {
         {pts && (pts.raid > 0 || pts.tackle > 0) && !isOut && (
           <div className="flex items-center gap-0.5">
             {pts.raid > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[7px] font-bold px-1 py-0 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                <Zap className="w-2 h-2" />{pts.raid}
+              <span className="inline-flex items-center gap-0.5 text-[6px] font-bold px-0.5 rounded-full bg-red-900/40 text-red-400">
+                <Zap className="w-1.5 h-1.5" />{pts.raid}
               </span>
             )}
             {pts.tackle > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[7px] font-bold px-1 py-0 rounded-full bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400">
-                <Shield className="w-2 h-2" />{pts.tackle}
+              <span className="inline-flex items-center gap-0.5 text-[6px] font-bold px-0.5 rounded-full bg-teal-900/40 text-teal-400">
+                <Shield className="w-1.5 h-1.5" />{pts.tackle}
               </span>
             )}
           </div>
@@ -1372,119 +1697,180 @@ export default function LiveScoringScreen() {
     );
   };
 
-  // ─── Render Team Section ───
-  const TeamSection = ({
+  // ─── Render Team Half (Vertical Split) ───
+  const TeamHalf = ({
     side,
     teamName,
     teamColor,
     score,
+    raidPts,
+    tacklePts,
     fullLineup,
     outIds,
     isRaidingSide,
+    timeoutsUsed,
   }: {
     side: 'home' | 'away';
     teamName: string;
     teamColor: string;
     score: number;
+    raidPts: number;
+    tacklePts: number;
     fullLineup: MatchPlayer[];
     outIds: string[];
     isRaidingSide: boolean;
+    timeoutsUsed: number;
   }) => {
     const isIdle = raidPhase === 'idle';
-    const canSelect = isRaidingSide && isIdle;
+    // Strict turn lock: can only select raider when it's your turn AND not in transition
+    const canSelect = isRaidingSide && isIdle && !isTurnTransitioning;
     const { onCourt, substitutes, onCourtActive, onCourtOut } = splitLineup(fullLineup, outIds);
+    const timeoutsLeft = Math.max(0, MAX_TIMEOUTS - timeoutsUsed);
 
     return (
-      <div className={`relative px-3 pt-3 pb-2 transition-all ${
+      <div className={`flex flex-col h-full transition-colors duration-300 ${
         isRaidingSide && isIdle
-          ? 'bg-gradient-to-b from-gray-900 to-gray-950 dark:from-warm-800 dark:to-warm-900'
-          : 'bg-gray-900 dark:bg-warm-800'
+          ? 'bg-gradient-to-b from-gray-900 to-gray-950'
+          : isRaidingSide
+            ? 'bg-gradient-to-b from-gray-900/90 to-gray-950/90'
+            : 'bg-gray-900/95'
       }`}>
-        {/* Team header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+        {/* Compact team info bar with turn indicator */}
+        <div className="flex items-center justify-between px-2 py-1.5 border-b" style={{ borderColor: `${teamColor}30` }}>
+          <div className="flex items-center gap-1.5">
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm"
+              className="w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[8px]"
               style={{ backgroundColor: teamColor }}
             >
               {teamName.charAt(0)}
             </div>
-            <div>
-              <div className="text-sm font-bold text-gray-100 dark:text-warm-100 truncate max-w-[100px]">{teamName}</div>
-              <div className="text-[10px] text-gray-400 dark:text-warm-500">
-                {onCourtActive.length} on court
-                {onCourtOut.length > 0 && ` · ${onCourtOut.length} out`}
-                {substitutes.length > 0 && ` · ${substitutes.length} sub`}
-              </div>
-            </div>
+            <span className="text-[9px] font-bold text-gray-200 truncate max-w-[55px]">
+              {teamName}
+            </span>
+            {/* Turn indicator badge */}
+            {isRaidingSide ? (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="inline-flex items-center gap-0.5 text-[6px] font-black px-1 py-0.5 rounded-full bg-emerald-900/50 text-emerald-400 uppercase tracking-wider"
+              >
+                <Swords className="w-2 h-2" />
+                RAID
+              </motion.span>
+            ) : (
+              <span className="inline-flex items-center gap-0.5 text-[6px] font-bold px-1 py-0.5 rounded-full bg-gray-800/50 text-gray-500 uppercase tracking-wider">
+                <Shield className="w-2 h-2" />
+                DEF
+              </span>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            {/* Sub button */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[7px] text-gray-400">
+              {onCourtActive.length}/{onCourt.length}
+            </span>
+            {onCourtOut.length > 0 && (
+              <span className="text-[7px] font-bold text-red-400">
+                {onCourtOut.length} out
+              </span>
+            )}
+            <span className="text-[7px] text-orange-400/70">
+              ⏱{timeoutsLeft}
+            </span>
+            {/* Substitute button */}
             {substitutes.length > 0 && (
               <button
                 onClick={() => setShowSubMode(side)}
-                className="text-[9px] font-bold px-2 py-1 rounded-lg bg-gray-700 dark:bg-warm-700 text-gray-300 dark:text-warm-400 hover:bg-gray-600 dark:hover:bg-warm-600 transition-colors flex items-center gap-0.5"
+                className="flex items-center gap-0.5 text-[7px] font-bold px-1.5 py-0.5 rounded-md transition-colors"
+                style={{
+                  backgroundColor: `${teamColor}20`,
+                  color: teamColor,
+                }}
               >
-                <ArrowLeftRight className="w-3 h-3" />
+                <ArrowLeftRight className="w-2.5 h-2.5" />
                 SUB
               </button>
             )}
           </div>
         </div>
 
-        {/* On Court players (first 7) */}
-        <div className="flex flex-wrap justify-center gap-x-3 gap-y-2">
+        {/* On Court players (2-column grid) */}
+        <div className="grid grid-cols-2 gap-x-1 gap-y-1 px-1 py-1.5">
           {onCourt.map(player => (
-            <PlayerCircle
-              key={player.id}
-              player={player}
-              isOut={outIds.includes(player.id)}
-              isRaiding={isRaidingSide && raider?.id === player.id && raidPhase !== 'idle'}
-              isSelectable={canSelect && !outIds.includes(player.id)}
-              teamColor={teamColor}
-              onSelect={handleSelectRaider}
-            />
+            <div key={player.id} className="flex justify-center">
+              <PlayerCircle
+                player={player}
+                isOut={outIds.includes(player.id)}
+                isRaiding={isRaidingSide && raider?.id === player.id && raidPhase !== 'idle'}
+                isSelectable={canSelect && !outIds.includes(player.id)}
+                isDefending={!isRaidingSide && !outIds.includes(player.id) && raidPhase === 'idle'}
+                teamColor={teamColor}
+                onSelect={handleSelectRaider}
+              />
+            </div>
           ))}
         </div>
 
-        {/* Substitutes (rest) */}
+        {/* Substitutes section */}
         {substitutes.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-dashed border-gray-700 dark:border-warm-600">
-            <div className="text-[8px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1.5 text-center">
-              Substitutes
-            </div>
-            <div className="flex flex-wrap justify-center gap-x-2 gap-y-1">
-              {substitutes.map(player => (
-                <PlayerCircle
-                  key={player.id}
-                  player={player}
-                  isOut={false}
-                  isSelectable={false}
-                  teamColor={teamColor}
-                  size="small"
-                />
-              ))}
+          <div className="mt-auto px-1 pb-1">
+            <div className="border-t border-dashed border-gray-700 pt-1.5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">
+                  Subs ({substitutes.length})
+                </span>
+                <button
+                  onClick={() => setShowSubMode(side)}
+                  className="flex items-center gap-0.5 text-[7px] font-bold px-1.5 py-0.5 rounded-md transition-colors"
+                  style={{
+                    backgroundColor: `${teamColor}25`,
+                    color: teamColor,
+                  }}
+                >
+                  <ArrowLeftRight className="w-2.5 h-2.5" />
+                  SUB
+                </button>
+              </div>
+              <div className="flex flex-wrap justify-center gap-x-1 gap-y-0.5">
+                {substitutes.map(player => (
+                  <PlayerCircle
+                    key={player.id}
+                    player={player}
+                    isOut={false}
+                    isSelectable={false}
+                    teamColor={teamColor}
+                    size="small"
+                  />
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Raid indicator with animated arrow */}
+        {/* Raid / Defending indicator */}
         {isRaidingSide && isIdle && (
           <motion.div
-            animate={{ opacity: [0.5, 1, 0.5] }}
+            animate={{ opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 2, repeat: Infinity }}
-            className="mt-2 text-center"
+            className="px-2 pb-1.5 text-center"
           >
             <span
-              className="inline-flex items-center gap-1 text-[10px] font-bold px-3 py-1 rounded-full"
-              style={{ backgroundColor: `${teamColor}25`, color: teamColor }}
+              className="inline-flex items-center gap-0.5 text-[7px] font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: `${teamColor}20`, color: teamColor }}
             >
-              <motion.span animate={{ y: [0, -3, 0] }} transition={{ duration: 0.8, repeat: Infinity }}>
-                <ChevronUp className="w-3 h-3" />
+              <motion.span animate={{ y: [0, -2, 0] }} transition={{ duration: 0.8, repeat: Infinity }}>
+                <ChevronUp className="w-2 h-2" />
               </motion.span>
-              TAP A PLAYER TO RAID
+              TAP TO RAID
             </span>
           </motion.div>
+        )}
+        {!isRaidingSide && isIdle && (
+          <div className="px-2 pb-1.5 text-center">
+            <span className="inline-flex items-center gap-0.5 text-[7px] font-bold px-2 py-0.5 rounded-full bg-gray-800/40 text-gray-600 uppercase tracking-wider">
+              <Shield className="w-2 h-2" />
+              DEFENDING
+            </span>
+          </div>
         )}
       </div>
     );
@@ -1506,10 +1892,18 @@ export default function LiveScoringScreen() {
   const allEvents = match.events;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] bg-gray-950 dark:bg-warm-950">
+    <div className="flex flex-col h-screen bg-gray-950 dark:bg-warm-950">
       {/* Share Scorecard Overlay */}
       {showShareScorecard && savedMatchData && (
         <ShareScorecard onClose={() => setShowShareScorecard(false)} matchData={savedMatchData} />
+      )}
+
+      {/* Scorer Transfer Overlay */}
+      {showScorerTransfer && (
+        <ScorerTransferScreen
+          onClose={() => setShowScorerTransfer(false)}
+          activeMatch={match}
+        />
       )}
 
       {/* Match End Celebration */}
@@ -1556,7 +1950,63 @@ export default function LiveScoringScreen() {
         )}
       </AnimatePresence>
 
-      {/* Timeout Overlay */}
+      {/* Super Raid Celebration */}
+      <AnimatePresence>
+        {superRaidCelebration && (
+          <SuperRaidCelebration
+            teamName={superRaidCelebration.teamName}
+            teamColor={superRaidCelebration.teamColor}
+            playerName={superRaidCelebration.playerName}
+            onDismiss={() => setSuperRaidCelebration(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Self-Out Confirmation Popup */}
+      <AnimatePresence>
+        {selfOutConfirm && raidPhase === 'result' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="w-full max-w-xs rounded-2xl p-5 text-center bg-gray-900 dark:bg-warm-800 border border-red-700/50"
+            >
+              <div className="text-3xl mb-2">🚫</div>
+              <h3 className="text-base font-black text-gray-100 dark:text-warm-100">Self-Out?</h3>
+              <p className="text-sm text-gray-400 dark:text-warm-400 mt-1">
+                Did <span className="font-bold text-white">{selfOutConfirm.name}</span> step off the mat?
+              </p>
+              <p className="text-[10px] text-gray-500 mt-1">
+                {raidingTeamName} gets +1 point
+              </p>
+              <div className="flex gap-3 mt-4">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setSelfOutConfirm(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-700 dark:bg-warm-700 text-gray-300 font-bold text-sm"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleSelfOut(selfOutConfirm)}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm"
+                >
+                  Confirm Self-Out
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Timeout Overlay (2 minutes) */}
       <AnimatePresence>
         {showTimeoutOverlay && (
           <motion.div
@@ -1570,23 +2020,28 @@ export default function LiveScoringScreen() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               className="w-full max-w-xs rounded-2xl p-6 text-center bg-gray-900 dark:bg-warm-800 border border-gray-700 dark:border-warm-700"
+              style={{ borderTopColor: timeoutTeam === 'home' ? match.homeTeamColor : match.awayTeamColor, borderTopWidth: '4px' }}
             >
               <Hand className="w-10 h-10 text-orange-500 mx-auto mb-3" />
               <h3 className="text-lg font-black text-gray-100 dark:text-warm-100">Timeout</h3>
               <p className="text-sm text-gray-400 dark:text-warm-400 mb-3">
-                {raidingTeamName} called a timeout
+                {timeoutTeam === 'home' ? match.homeTeam : match.awayTeam} called a timeout
               </p>
-              <div className="relative w-20 h-20 mx-auto mb-3">
-                <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-                  <circle cx="40" cy="40" r="35" fill="none" stroke="#374151" strokeWidth="4" />
-                  <circle cx="40" cy="40" r="35" fill="none" stroke="#f97316" strokeWidth="4"
-                    strokeDasharray={`${2 * Math.PI * 35}`}
-                    strokeDashoffset={`${2 * Math.PI * 35 * (1 - timeoutCountdown / 30)}`}
+              <div className="relative w-24 h-24 mx-auto mb-3">
+                <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
+                  <circle cx="48" cy="48" r="42" fill="none" stroke="#374151" strokeWidth="4" />
+                  <circle cx="48" cy="48" r="42" fill="none" stroke="#f97316" strokeWidth="4"
+                    strokeDasharray={`${2 * Math.PI * 42}`}
+                    strokeDashoffset={`${2 * Math.PI * 42 * (1 - timeoutCountdown / TIMEOUT_DURATION)}`}
                     strokeLinecap="round" className="transition-all duration-1000" />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-black text-orange-500">{timeoutCountdown}</span>
+                  <span className="text-2xl font-black text-orange-500 font-mono">{formatTime(timeoutCountdown)}</span>
                 </div>
+              </div>
+              <div className="flex items-center justify-center gap-1 mb-3 text-[10px] text-gray-400">
+                <Clock className="w-3 h-3" />
+                <span>{Math.floor(timeoutCountdown / 60)}:{(timeoutCountdown % 60).toString().padStart(2, '0')} remaining</span>
               </div>
               <button
                 onClick={() => {
@@ -1635,66 +2090,86 @@ export default function LiveScoringScreen() {
 
               {(() => {
                 const lineup = showSubMode === 'home' ? match.homeLineup : match.awayLineup;
+                const teamColor = showSubMode === 'home' ? match.homeTeamColor : match.awayTeamColor;
                 const outIds = showSubMode === 'home' ? match.homeOutPlayerIds : match.awayOutPlayerIds;
-                const color = showSubMode === 'home' ? match.homeTeamColor : match.awayTeamColor;
-                const { onCourt, substitutes } = splitLineup(lineup, outIds);
+                const { onCourt, substitutes: subs } = splitLineup(lineup, outIds);
 
                 return (
-                  <>
-                    {!subOutPlayer && (
-                      <>
-                        <div className="text-[10px] font-bold text-red-400 uppercase mb-2">
-                          1. Tap player going OUT
-                        </div>
-                        <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 mb-4">
-                          {onCourt.map(player => (
-                            <PlayerCircle
+                  <div>
+                    {/* On court players */}
+                    <div className="mb-3">
+                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">On Court — Tap to sub OUT</div>
+                      <div className="flex flex-wrap gap-2">
+                        {onCourt.map(player => {
+                          const isOut = outIds.includes(player.id);
+                          const isSelected = subOutPlayer?.id === player.id;
+                          return (
+                            <button
                               key={player.id}
-                              player={player}
-                              isOut={outIds.includes(player.id)}
-                              isSelectable={!outIds.includes(player.id)}
-                              teamColor={color}
-                              onSelect={(p) => setSubOutPlayer(p)}
-                            />
-                          ))}
-                        </div>
-                      </>
-                    )}
+                              onClick={() => {
+                                if (subOutPlayer?.id === player.id) {
+                                  setSubOutPlayer(null);
+                                } else {
+                                  setSubOutPlayer(player);
+                                }
+                              }}
+                              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all ${
+                                isSelected
+                                  ? 'bg-red-900/30 ring-2 ring-red-500'
+                                  : isOut
+                                    ? 'opacity-40'
+                                    : 'hover:bg-gray-800'
+                              }`}
+                            >
+                              <PlayerCircle
+                                player={player}
+                                isOut={isOut}
+                                isSelectable={!isOut}
+                                teamColor={teamColor}
+                              />
+                              {isSelected && (
+                                <span className="text-[8px] font-bold text-red-400">OUT →</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                    {subOutPlayer && (
-                      <>
-                        <div className="text-[10px] font-bold text-red-400 uppercase mb-2">
-                          Going OUT:
-                        </div>
-                        <div className="flex justify-center mb-3">
-                          <PlayerCircle player={subOutPlayer} isOut={false} teamColor={color} />
-                        </div>
-
-                        <div className="text-[10px] font-bold text-green-400 uppercase mb-2">
-                          2. Tap substitute coming IN
-                        </div>
-                        <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 mb-3">
-                          {substitutes.map(player => (
-                            <PlayerCircle
+                    {/* Substitutes */}
+                    <div className="border-t border-dashed border-gray-700 pt-3">
+                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Substitutes — Tap to sub IN</div>
+                      <div className="flex flex-wrap gap-2">
+                        {subs.map(player => {
+                          const canSubIn = !!subOutPlayer;
+                          const isSelected = false;
+                          return (
+                            <button
                               key={player.id}
-                              player={player}
-                              isOut={false}
-                              isSelectable={true}
-                              teamColor={color}
-                              onSelect={(p) => handleSub(subOutPlayer, p)}
-                            />
-                          ))}
-                        </div>
-
-                        <button
-                          onClick={() => setSubOutPlayer(null)}
-                          className="w-full py-2 rounded-xl bg-gray-700 dark:bg-warm-700 text-gray-300 dark:text-warm-300 font-bold text-sm"
-                        >
-                          Cancel selection
-                        </button>
-                      </>
-                    )}
-                  </>
+                              onClick={() => {
+                                if (subOutPlayer) {
+                                  handleSub(subOutPlayer, player);
+                                }
+                              }}
+                              disabled={!canSubIn}
+                              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all ${
+                                canSubIn
+                                  ? 'hover:bg-green-900/20 cursor-pointer'
+                                  : 'opacity-50 cursor-not-allowed'
+                              } ${canSubIn && subOutPlayer ? 'ring-1 ring-green-800' : ''}`}
+                            >
+                              <PlayerCircle
+                                player={player}
+                                isOut={false}
+                                teamColor={teamColor}
+                                size="small"
+                              />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 );
               })()}
             </motion.div>
@@ -1752,27 +2227,18 @@ export default function LiveScoringScreen() {
         )}
       </AnimatePresence>
 
-      {/* ═══ ENHANCED SCORE HEADER — Dark Theme with Team Color Gradients ═══ */}
-      <div className="relative overflow-hidden" style={{
-        background: `linear-gradient(135deg, ${match.homeTeamColor}30, #111827, ${match.awayTeamColor}30)`,
+      {/* ═══ SCORE HEADER — Home | Timer | Away ═══ */}
+      <div className="relative overflow-hidden shrink-0" style={{
+        background: `linear-gradient(135deg, ${match.homeTeamColor}25, #111827, ${match.awayTeamColor}25)`,
       }}>
-        {/* Subtle animated background stripes */}
-        <div className="absolute inset-0 opacity-5">
-          <motion.div
-            animate={{ x: ['-100%', '100%'] }}
-            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            className="absolute inset-y-0 w-[200%] bg-gradient-to-r from-transparent via-white/10 to-transparent"
-          />
-        </div>
-
         {/* Top info row */}
-        <div className="relative px-4 pt-2 pb-1 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] bg-gray-700/80 px-2 py-0.5 rounded font-medium text-gray-300">
+        <div className="relative px-2 pt-1.5 pb-0.5 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="text-[8px] bg-gray-700/80 px-1.5 py-0.5 rounded font-medium text-gray-300">
               7v7
             </span>
             {match.isPractice && (
-              <span className="text-[10px] bg-green-900/60 text-green-300 px-2 py-0.5 rounded font-medium">Practice</span>
+              <span className="text-[8px] bg-green-900/60 text-green-300 px-1.5 py-0.5 rounded font-medium">Practice</span>
             )}
           </div>
           {/* Half indicator badge */}
@@ -1780,7 +2246,7 @@ export default function LiveScoringScreen() {
             key={halfLabel}
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className={`text-[9px] font-black tracking-[0.15em] px-3 py-0.5 rounded-full ${
+            className={`text-[8px] font-black tracking-[0.12em] px-2 py-0.5 rounded-full ${
               halfLabel === 'HALF TIME' || halfLabel === 'FULL TIME'
                 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                 : halfLabel === 'NOT STARTED'
@@ -1790,62 +2256,82 @@ export default function LiveScoringScreen() {
           >
             {halfLabel}
           </motion.div>
-          <div className="text-[10px] text-gray-400 font-medium">
-            {match.gender === 'male' ? '♂ Boys' : '♀ Girls'}
+          <div className="text-[8px] text-gray-400 font-medium">
+            {match.gender === 'male' ? '♂' : '♀'}
           </div>
         </div>
 
-        {/* Score center — Large with animated counters */}
-        <div className="relative px-4 pb-2 flex items-center justify-between">
-          {/* Home team */}
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg" style={{ backgroundColor: match.homeTeamColor, boxShadow: `0 0 12px ${match.homeTeamColor}40` }}>
+        {/* Score center — Home | Timer | Away */}
+        <div className="relative px-2 pb-1.5 flex items-center">
+          {/* Home team score */}
+          <div className="flex-1 flex flex-col items-center gap-0.5">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-lg" style={{ backgroundColor: match.homeTeamColor, boxShadow: `0 0 10px ${match.homeTeamColor}40` }}>
               {match.homeTeam.charAt(0)}
             </div>
-            <span className="text-[10px] font-bold text-gray-300 truncate max-w-[70px]">{match.homeTeam}</span>
+            <span className="text-[9px] font-bold text-gray-300 truncate max-w-[60px]">{match.homeTeam}</span>
             <AnimatedScore value={match.homeScore} color={match.homeTeamColor} />
+            <div className="flex items-center gap-1">
+              <span className="text-[7px] font-bold text-red-400/80">⚔{homeRaidPoints}</span>
+              <span className="text-[7px] text-gray-600">·</span>
+              <span className="text-[7px] font-bold text-teal-400/80">🛡{homeTacklePoints}</span>
+            </div>
           </div>
 
           {/* Center: Timer + VS */}
-          <div className="flex flex-col items-center gap-0.5 px-4">
-            {/* Current raider indicator arrow */}
+          <div className="flex flex-col items-center gap-0.5 px-3">
+            {/* Prominent turn indicator badge */}
             {hasStartedRaiding && raidPhase === 'idle' && (
               <motion.div
-                animate={{ x: raidingTeam === 'home' ? [-4, 4, -4] : [4, -4, 4] }}
-                transition={{ duration: 1, repeat: Infinity }}
-                className="mb-1"
+                key={raidingTeam}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full mb-0.5"
+                style={{ backgroundColor: `${raidingTeamColor}25` }}
               >
-                <ArrowRight className="w-4 h-4" style={{ color: raidingTeamColor, transform: raidingTeam === 'home' ? 'scaleX(-1)' : 'none' }} />
+                <motion.div
+                  animate={{ x: raidingTeam === 'home' ? [-2, 2, -2] : [2, -2, 2] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                >
+                  <Swords className="w-3 h-3" style={{ color: raidingTeamColor }} />
+                </motion.div>
+                <span className="text-[7px] font-black tracking-wider" style={{ color: raidingTeamColor }}>
+                  {raidingTeamName}
+                </span>
               </motion.div>
             )}
-            {/* Do-or-Die flame */}
-            {match.isDoOrDie && raidPhase === 'idle' && (
+            {/* Do-or-Die flame — only show when the current raiding team has do-or-die */}
+            {match.isDoOrDie && match.doOrDieTeamId === (raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId) && raidPhase === 'idle' && (
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 0.5, repeat: Infinity }}
-                className="text-lg"
+                className="text-base"
               >
                 🔥
               </motion.div>
             )}
             <div className={cn(
-              'text-2xl font-mono font-black tracking-wider',
+              'text-xl font-mono font-black tracking-wider',
               isTimerPulsing && 'animate-pulse'
             )} style={{ color: isTimerPulsing ? '#ef4444' : '#e5e7eb' }}>
               {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
             </div>
-            <span className="text-[9px] text-gray-500 font-medium">
-              Half {match.currentHalf} · {match.halfDuration}min
+            <span className="text-[7px] text-gray-500 font-medium">
+              H{match.currentHalf} · {match.halfDuration}min
             </span>
           </div>
 
-          {/* Away team */}
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg" style={{ backgroundColor: match.awayTeamColor, boxShadow: `0 0 12px ${match.awayTeamColor}40` }}>
+          {/* Away team score */}
+          <div className="flex-1 flex flex-col items-center gap-0.5">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-lg" style={{ backgroundColor: match.awayTeamColor, boxShadow: `0 0 10px ${match.awayTeamColor}40` }}>
               {match.awayTeam.charAt(0)}
             </div>
-            <span className="text-[10px] font-bold text-gray-300 truncate max-w-[70px]">{match.awayTeam}</span>
+            <span className="text-[9px] font-bold text-gray-300 truncate max-w-[60px]">{match.awayTeam}</span>
             <AnimatedScore value={match.awayScore} color={match.awayTeamColor} />
+            <div className="flex items-center gap-1">
+              <span className="text-[7px] font-bold text-red-400/80">⚔{awayRaidPoints}</span>
+              <span className="text-[7px] text-gray-600">·</span>
+              <span className="text-[7px] font-bold text-teal-400/80">🛡{awayTacklePoints}</span>
+            </div>
           </div>
         </div>
 
@@ -1853,16 +2339,16 @@ export default function LiveScoringScreen() {
         <AnimatePresence>
           {raidTimer !== null && raidPhase !== 'idle' && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-              <div className="px-4 pb-2">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: raidTimerColor }} />
-                  <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="px-3 pb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3 h-3 flex-shrink-0" style={{ color: raidTimerColor }} />
+                  <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
                     <motion.div className="h-full rounded-full" style={{ backgroundColor: raidTimerColor }} animate={{ width: `${raidTimerPercent}%` }} transition={{ duration: 0.5 }} />
                   </div>
-                  <span className="text-sm font-mono font-black min-w-[28px] text-right" style={{ color: raidTimerColor }}>{raidTimer}</span>
+                  <span className="text-xs font-mono font-black min-w-[24px] text-right" style={{ color: raidTimerColor }}>{raidTimer}</span>
                 </div>
                 {raidTimer <= 5 && raidTimer > 0 && (
-                  <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 0.5, repeat: Infinity }} className="text-center text-[9px] font-bold mt-0.5" style={{ color: raidTimerColor }}>
+                  <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 0.5, repeat: Infinity }} className="text-center text-[8px] font-bold mt-0.5" style={{ color: raidTimerColor }}>
                     RAID TIME RUNNING OUT!
                   </motion.div>
                 )}
@@ -1875,9 +2361,9 @@ export default function LiveScoringScreen() {
         <AnimatePresence>
           {showGapIndicator && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-              <div className="px-4 pb-1.5 flex items-center justify-center gap-2">
+              <div className="px-3 pb-1 flex items-center justify-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-[9px] text-amber-400 font-bold">
+                <span className="text-[8px] text-amber-400 font-bold">
                   Timer pauses in {raidGapTimer}s — Select a raider!
                 </span>
               </div>
@@ -1886,19 +2372,114 @@ export default function LiveScoringScreen() {
         </AnimatePresence>
       </div>
 
-      {/* ═══ TEAM SECTIONS — Dark Theme ═══ */}
-      <div className="flex-1 overflow-y-auto">
-        <TeamSection
-          side="home" teamName={match.homeTeam} teamColor={match.homeTeamColor}
-          score={match.homeScore} fullLineup={match.homeLineup}
-          outIds={match.homeOutPlayerIds} isRaidingSide={raidingTeam === 'home'}
-        />
-        <div className="h-px bg-gray-700 dark:bg-warm-700 mx-4" />
-        <TeamSection
-          side="away" teamName={match.awayTeam} teamColor={match.awayTeamColor}
-          score={match.awayScore} fullLineup={match.awayLineup}
-          outIds={match.awayOutPlayerIds} isRaidingSide={raidingTeam === 'away'}
-        />
+      {/* ═══ TURN INDICATOR — Always visible during idle, enhanced during transition ═══ */}
+      {hasStartedRaiding && raidPhase === 'idle' && (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={raidingTeam + (isTurnTransitioning ? '-swap' : '-idle')}
+            initial={{ opacity: 0, scaleY: 0 }}
+            animate={{ opacity: 1, scaleY: 1 }}
+            exit={{ opacity: 0, scaleY: 0 }}
+            transition={{ duration: 0.3 }}
+            className="origin-top overflow-hidden"
+          >
+            <div
+              className="flex items-center justify-center gap-2 py-1.5 px-3"
+              style={{
+                backgroundColor: isTurnTransitioning ? `${raidingTeamColor}25` : `${raidingTeamColor}10`,
+                borderBottom: `2px solid ${raidingTeamColor}${isTurnTransitioning ? '60' : '25'}`,
+              }}
+            >
+              {isTurnTransitioning ? (
+                /* Dramatic turn-swap animation */
+                <motion.div
+                  className="flex items-center gap-2"
+                  initial={{ x: raidingTeam === 'home' ? 30 : -30, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ type: 'spring', damping: 12, stiffness: 200 }}
+                >
+                  <motion.div
+                    animate={{ rotate: [0, raidingTeam === 'home' ? -180 : 180, 0] }}
+                    transition={{ duration: 0.6, ease: 'easeInOut' }}
+                  >
+                    <ArrowRightLeft className="w-4 h-4" style={{ color: raidingTeamColor }} />
+                  </motion.div>
+                  <span className="text-[10px] font-black tracking-wider" style={{ color: raidingTeamColor }}>
+                    TURN → {raidingTeamName}'S RAID
+                  </span>
+                  {match.isDoOrDie && match.doOrDieTeamId === (raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId) && (
+                    <motion.span
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ duration: 0.5, repeat: Infinity }}
+                      className="text-xs"
+                    >
+                      🔥
+                    </motion.span>
+                  )}
+                </motion.div>
+              ) : (
+                /* Subtle persistent turn indicator */
+                <div className="flex items-center gap-1.5">
+                  <motion.div
+                    animate={{ scale: [1, 1.15, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Swords className="w-3 h-3" style={{ color: raidingTeamColor }} />
+                  </motion.div>
+                  <span className="text-[9px] font-black tracking-wider" style={{ color: raidingTeamColor }}>
+                    {raidingTeamName}'S RAID
+                  </span>
+                  {match.isDoOrDie && match.doOrDieTeamId === (raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId) && (
+                    <motion.div
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ duration: 0.5, repeat: Infinity }}
+                    >
+                      <Flame className="w-3 h-3 text-orange-500" />
+                    </motion.div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      )}
+
+      {/* ═══ VERTICAL SPLIT: Team Sections Side by Side ═══ */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Home Team - Left Half */}
+        <div className="flex-1 overflow-y-auto min-w-0">
+          <TeamHalf
+            side="home"
+            teamName={match.homeTeam}
+            teamColor={match.homeTeamColor}
+            score={match.homeScore}
+            raidPts={homeRaidPoints}
+            tacklePts={homeTacklePoints}
+            fullLineup={match.homeLineup}
+            outIds={match.homeOutPlayerIds}
+            isRaidingSide={raidingTeam === 'home'}
+            timeoutsUsed={match.homeTimeouts}
+          />
+        </div>
+
+        {/* Center Divider - thin line */}
+        <div className="w-px shrink-0 bg-gray-700/60" />
+
+        {/* Away Team - Right Half */}
+        <div className="flex-1 overflow-y-auto min-w-0">
+          <TeamHalf
+            side="away"
+            teamName={match.awayTeam}
+            teamColor={match.awayTeamColor}
+            score={match.awayScore}
+            raidPts={awayRaidPoints}
+            tacklePts={awayTacklePoints}
+            fullLineup={match.awayLineup}
+            outIds={match.awayOutPlayerIds}
+            isRaidingSide={raidingTeam === 'away'}
+            timeoutsUsed={match.awayTimeouts}
+          />
+        </div>
       </div>
 
       {/* ═══ RAID FLOW OVERLAYS — Tabbed Quick Actions ═══ */}
@@ -1974,6 +2555,24 @@ export default function LiveScoringScreen() {
                         <span className="text-[10px] font-bold text-gray-400">Empty Raid</span>
                       </motion.button>
                     </div>
+                    {/* Self-Out button */}
+                    <motion.button
+                      whileTap={{ scale: 0.92 }}
+                      onClick={() => {
+                        // Show defending team players to pick who self-outed
+                        const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
+                        if (activeDefenders.length > 0) {
+                          // Set self-out confirm to first active defender - user can tap a defender below
+                          setActionTab('defense');
+                        }
+                      }}
+                      className="w-full py-2.5 px-2 rounded-xl flex items-center justify-center gap-2 transition-all"
+                      style={{ background: 'linear-gradient(135deg, #f9731625, #f9731608)', border: '2px solid #f9731650' }}
+                    >
+                      <div className="text-base">🚫</div>
+                      <span className="text-[10px] font-bold text-orange-400">SELF-OUT</span>
+                      <span className="text-[8px] text-orange-400/70">Defender steps off mat</span>
+                    </motion.button>
                   </motion.div>
                 )}
 
@@ -1990,28 +2589,64 @@ export default function LiveScoringScreen() {
                         <span className="text-[10px] font-bold text-purple-400">Super Tackle</span>
                       </motion.button>
                     </div>
-                  </motion.div>
-                )}
-
-                {actionTab === 'special' && (
-                  <motion.div key="special" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
-                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Special Events</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleBonusPoint} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #eab30825, #eab30808)', border: '2px solid #eab30850' }}>
-                        <div className="text-xl">🎯</div>
-                        <span className="text-[10px] font-bold text-yellow-400">Bonus Point</span>
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleAllOut} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, ${raidingTeamColor}25, ${raidingTeamColor}08)`, border: `2px solid ${raidingTeamColor}50` }}>
-                        <div className="text-xl">💥</div>
-                        <span className="text-[10px] font-bold" style={{ color: raidingTeamColor }}>All Out</span>
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleTimeout} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #f9731625, #f9731608)', border: '2px solid #f9731650' }}>
-                        <div className="text-xl">📋</div>
-                        <span className="text-[10px] font-bold text-orange-400">Timeout</span>
-                      </motion.button>
+                    {/* Self-out: tap a defender to declare self-out */}
+                    <div className="border-t border-gray-700 pt-2 mt-2">
+                      <div className="text-[9px] font-bold text-orange-400/80 uppercase tracking-wider mb-1.5">🚫 Tap defender for Self-Out</div>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {(() => {
+                          const { onCourt, onCourtActive } = splitLineup(fullDefendingLineup, defendingOutIds);
+                          return onCourt.filter(p => !defendingOutIds.includes(p.id)).map(player => (
+                            <button
+                              key={player.id}
+                              onClick={() => setSelfOutConfirm(player)}
+                              className="flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all hover:bg-orange-900/20 active:bg-orange-900/30"
+                            >
+                              <PlayerCircle
+                                player={player}
+                                isOut={false}
+                                isSelectable={false}
+                                teamColor={defendingTeamColor}
+                                size="small"
+                              />
+                              <span className="text-[7px] font-bold text-orange-400">Self-Out</span>
+                            </button>
+                          ));
+                        })()}
+                      </div>
                     </div>
                   </motion.div>
                 )}
+
+                {actionTab === 'special' && (() => {
+                  const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
+                  const canGetBonus = activeDefenders.length >= 6;
+                  return (
+                    <motion.div key="special" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+                      <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Special Events</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <motion.button
+                          whileTap={canGetBonus ? { scale: 0.92 } : {}}
+                          onClick={canGetBonus ? handleBonusPoint : undefined}
+                          className={`py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all ${!canGetBonus ? 'opacity-40 cursor-not-allowed' : ''}`}
+                          style={{ background: 'linear-gradient(135deg, #eab30825, #eab30808)', border: `2px solid ${canGetBonus ? '#eab30850' : '#9ca3af30'}` }}
+                          title={canGetBonus ? 'Bonus Point' : 'Bonus only with 6+ defenders'}
+                        >
+                          <div className="text-xl">🎯</div>
+                          <span className={`text-[10px] font-bold ${canGetBonus ? 'text-yellow-400' : 'text-gray-500'}`}>Bonus Point</span>
+                          {!canGetBonus && <span className="text-[7px] text-gray-500">Need 6+ defenders</span>}
+                        </motion.button>
+                        <motion.button whileTap={{ scale: 0.92 }} onClick={handleAllOut} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, ${raidingTeamColor}25, ${raidingTeamColor}08)`, border: `2px solid ${raidingTeamColor}50` }}>
+                          <div className="text-xl">💥</div>
+                          <span className="text-[10px] font-bold" style={{ color: raidingTeamColor }}>All Out</span>
+                        </motion.button>
+                        <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleTimeout()} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #f9731625, #f9731608)', border: '2px solid #f9731650' }}>
+                          <div className="text-xl">📋</div>
+                          <span className="text-[10px] font-bold text-orange-400">Timeout</span>
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
 
                 {actionTab === 'cards' && (
                   <motion.div key="cards" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
@@ -2060,7 +2695,7 @@ export default function LiveScoringScreen() {
               </div>
 
               {/* Only show on-court defenders (first 7) */}
-              <div className="flex flex-wrap justify-center gap-x-4 gap-y-3 py-3">
+              <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 py-2">
                 {(() => {
                   const { onCourt } = splitLineup(fullDefendingLineup, defendingOutIds);
                   return onCourt.map(player => {
@@ -2076,14 +2711,23 @@ export default function LiveScoringScreen() {
                 })()}
               </div>
 
-              {raidResult === 'success' && (
-                <button onClick={() => setBonusPoint(!bonusPoint)}
-                  className={`mt-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                    bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : 'bg-gray-800 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-gray-400 dark:text-warm-400'
-                  }`}>
-                  <span className="text-lg">⭐</span>Bonus Point {bonusPoint ? 'ON' : 'OFF'}
-                </button>
-              )}
+              {raidResult === 'success' && (() => {
+                const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
+                const canGetBonus = activeDefenders.length >= 6;
+                return (
+                  <button
+                    onClick={() => canGetBonus && setBonusPoint(!bonusPoint)}
+                    disabled={!canGetBonus}
+                    className={`mt-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                      bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : canGetBonus ? 'bg-gray-800 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-gray-400 dark:text-warm-400' : 'bg-gray-800/50 dark:bg-warm-700/50 border-2 border-gray-700 dark:border-warm-600 text-gray-600 dark:text-warm-600 cursor-not-allowed opacity-50'
+                    }`}
+                    title={canGetBonus ? 'Toggle Bonus Point' : 'Bonus only with 6+ defenders on court'}
+                  >
+                    <span className="text-lg">⭐</span>Bonus Point {bonusPoint ? 'ON' : 'OFF'}
+                    {!canGetBonus && <span className="text-[8px] ml-1">(6+ defenders needed)</span>}
+                  </button>
+                );
+              })()}
 
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex-1">
@@ -2115,74 +2759,207 @@ export default function LiveScoringScreen() {
         )}
       </AnimatePresence>
 
-      {/* ═══ EVENT LOG / COMMENTARY ═══ */}
-      <div className="bg-gray-900 dark:bg-warm-900 border-t border-gray-700 dark:border-warm-700">
-        {/* Compact event log */}
-        <div className="px-3 py-1.5">
-          {allEvents.length > 0 && (
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5">
-                <MessageSquare className="w-3 h-3 text-gray-500" />
-                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Live Events</span>
-              </div>
-              <button
-                onClick={() => setShowFullLog(!showFullLog)}
-                className="flex items-center gap-0.5 text-[9px] font-bold text-gray-400 hover:text-gray-300 transition-colors"
-              >
-                {showFullLog ? 'Less' : `View All (${allEvents.length})`}
-                <ChevronDown className={cn('w-3 h-3 transition-transform', showFullLog && 'rotate-180')} />
-              </button>
+      {/* ═══ REVIVAL / COURT-ENTRY PANEL ═══ */}
+      {(() => {
+        const homeOut = match.homeLineup.filter(p => match.homeOutPlayerIds.includes(p.id));
+        const awayOut = match.awayLineup.filter(p => match.awayOutPlayerIds.includes(p.id));
+        const hasOut = homeOut.length > 0 || awayOut.length > 0;
+        if (!hasOut) return null;
+        return (
+          <div className="bg-gray-900/80 dark:bg-warm-900/80 border-t border-gray-700/50 dark:border-warm-700/50 shrink-0 px-2 py-1">
+            <div className="flex items-center gap-2">
+              {homeOut.length > 0 && (
+                <div className="flex-1 flex items-center gap-1 overflow-x-auto custom-scrollbar">
+                  <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider shrink-0">OUT</span>
+                  {homeOut.map(p => (
+                    <motion.div
+                      key={p.id}
+                      initial={{ scale: 0.8, opacity: 0.5 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full"
+                      style={{ backgroundColor: `${match.homeTeamColor}20`, border: `1px solid ${match.homeTeamColor}40` }}
+                    >
+                      <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[6px] font-bold text-white" style={{ backgroundColor: match.homeTeamColor }}>
+                        {p.jerseyNumber || '#'}
+                      </span>
+                      <span className="text-[8px] font-medium text-gray-300 truncate max-w-[40px]">{p.name.split(' ')[0]}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+              {homeOut.length > 0 && awayOut.length > 0 && (
+                <div className="w-px h-4 bg-gray-700 shrink-0" />
+              )}
+              {awayOut.length > 0 && (
+                <div className="flex-1 flex items-center gap-1 overflow-x-auto custom-scrollbar">
+                  {awayOut.map(p => (
+                    <motion.div
+                      key={p.id}
+                      initial={{ scale: 0.8, opacity: 0.5 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full"
+                      style={{ backgroundColor: `${match.awayTeamColor}20`, border: `1px solid ${match.awayTeamColor}40` }}
+                    >
+                      <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[6px] font-bold text-white" style={{ backgroundColor: match.awayTeamColor }}>
+                        {p.jerseyNumber || '#'}
+                      </span>
+                      <span className="text-[8px] font-medium text-gray-300 truncate max-w-[40px]">{p.name.split(' ')[0]}</span>
+                    </motion.div>
+                  ))}
+                  <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider shrink-0 ml-auto">OUT</span>
+                </div>
+              )}
             </div>
-          )}
-
-          <div
-            ref={eventLogRef}
-            className={cn(
-              'overflow-y-auto custom-scrollbar transition-all duration-300',
-              showFullLog ? 'max-h-40' : 'max-h-16'
-            )}
-          >
-            {(showFullLog ? allEvents : recentEvents).map((event, i) => (
-              <EventLogEntry
-                key={event.id}
-                event={event}
-                matchInfo={{ homeTeamId: match.homeTeamId, homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor }}
-              />
-            ))}
-            {allEvents.length === 0 && (
-              <div className="text-[10px] text-gray-600 text-center py-2">No events yet — start scoring!</div>
-            )}
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
-      {/* ═══ BOTTOM CONTROL BAR — Enhanced ═══ */}
-      <div className="border-t border-gray-700 dark:border-warm-700 bg-gray-900 dark:bg-warm-800 px-3 py-2.5">
-        <div className="grid grid-cols-5 gap-1">
+      {/* ═══ BOTTOM CONTROL BAR ═══ */}
+      <div className="border-t border-gray-700 dark:border-warm-700 bg-gray-900 dark:bg-warm-800 px-2 py-1.5 shrink-0">
+        <div className="grid grid-cols-6 gap-0.5">
           <button onClick={handleUndo} disabled={match.events.length === 0} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700 disabled:opacity-30">
-            <div className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"><Undo2 className="w-4 h-4 text-gray-400 dark:text-warm-300" /></div>
-            <span className="text-[9px] font-semibold text-gray-400 dark:text-warm-400">UNDO</span>
+            <div className="w-7 h-7 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"><Undo2 className="w-3.5 h-3.5 text-gray-400 dark:text-warm-300" /></div>
+            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">UNDO</span>
           </button>
           <button onClick={handlePause} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isPaused ? 'bg-teal-900/40 text-teal-400' : 'bg-gray-700 dark:bg-warm-700 text-gray-400 dark:text-warm-300'}`}>
-              {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isPaused ? 'bg-teal-900/40 text-teal-400' : 'bg-gray-700 dark:bg-warm-700 text-gray-400 dark:text-warm-300'}`}>
+              {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
             </div>
-            <span className="text-[9px] font-semibold text-gray-400 dark:text-warm-400">{isPaused ? 'PLAY' : 'PAUSE'}</span>
+            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">{isPaused ? 'PLAY' : 'PAUSE'}</span>
           </button>
-          <button onClick={handleTimeout} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
-            <div className="w-8 h-8 rounded-full bg-orange-900/30 flex items-center justify-center"><Hand className="w-4 h-4 text-orange-400" /></div>
-            <span className="text-[9px] font-semibold text-gray-400 dark:text-warm-400">TIMEOUT</span>
+          <button onClick={() => setShowAddPlayer(true)} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
+            <div className="w-7 h-7 rounded-full bg-emerald-900/30 flex items-center justify-center"><UserPlus className="w-3.5 h-3.5 text-emerald-400" /></div>
+            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">ADD</span>
+          </button>
+          <button onClick={() => handleTimeout()} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
+            <div className="w-7 h-7 rounded-full bg-orange-900/30 flex items-center justify-center"><Hand className="w-3.5 h-3.5 text-orange-400" /></div>
+            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">TIMEOUT</span>
           </button>
           <button onClick={handleEndHalf} className={`flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors ${showEndHalfConfirm ? 'bg-yellow-900/20' : 'active:bg-gray-800 dark:active:bg-warm-700'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${showEndHalfConfirm ? 'bg-yellow-800 text-yellow-300 animate-pulse' : 'bg-yellow-900/30 text-yellow-400'}`}><Timer className="w-4 h-4" /></div>
-            <span className={`text-[9px] font-semibold ${showEndHalfConfirm ? 'text-yellow-300' : 'text-gray-400 dark:text-warm-400'}`}>{showEndHalfConfirm ? 'CONFIRM?' : `END H${match.currentHalf}`}</span>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${showEndHalfConfirm ? 'bg-yellow-800 text-yellow-300 animate-pulse' : 'bg-yellow-900/30 text-yellow-400'}`}><Timer className="w-3.5 h-3.5" /></div>
+            <span className={`text-[8px] font-semibold ${showEndHalfConfirm ? 'text-yellow-300' : 'text-gray-400 dark:text-warm-400'}`}>{showEndHalfConfirm ? 'SURE?' : `H${match.currentHalf}`}</span>
           </button>
           <button onClick={handleEndMatch} className={`flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors ${showEndMatchConfirm ? 'bg-red-900/20' : 'active:bg-gray-800 dark:active:bg-warm-700'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${showEndMatchConfirm ? 'bg-red-800 text-red-300 animate-pulse' : 'bg-red-900/30 text-red-400'}`}><Square className="w-4 h-4" /></div>
-            <span className={`text-[9px] font-semibold ${showEndMatchConfirm ? 'text-red-300' : 'text-gray-400 dark:text-warm-400'}`}>{showEndMatchConfirm ? 'CONFIRM?' : 'END'}</span>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${showEndMatchConfirm ? 'bg-red-800 text-red-300 animate-pulse' : 'bg-red-900/30 text-red-400'}`}><Square className="w-3.5 h-3.5" /></div>
+            <span className={`text-[8px] font-semibold ${showEndMatchConfirm ? 'text-red-300' : 'text-gray-400 dark:text-warm-400'}`}>{showEndMatchConfirm ? 'SURE?' : 'END'}</span>
           </button>
         </div>
       </div>
+
+      {/* ═══ ADD PLAYER MODAL ═══ */}
+      <AnimatePresence>
+        {showAddPlayer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center"
+            onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerJersey(''); }}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Handle bar */}
+              <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-4" />
+
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-emerald-400" />
+                Add Player
+              </h3>
+
+              {/* Team Selection */}
+              {!addPlayerTeam ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-400">Which team is the player joining?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setAddPlayerTeam('home')}
+                      className="flex items-center gap-2 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                      style={{ backgroundColor: `${match.homeTeamColor}15` }}
+                    >
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.homeTeamColor }}>
+                        {match.homeTeam.charAt(0)}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-white">{match.homeTeam}</p>
+                        <p className="text-[10px] text-gray-400">{match.homeLineup.length} players</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setAddPlayerTeam('away')}
+                      className="flex items-center gap-2 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                      style={{ backgroundColor: `${match.awayTeamColor}15` }}
+                    >
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.awayTeamColor }}>
+                        {match.awayTeam.charAt(0)}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-white">{match.awayTeam}</p>
+                        <p className="text-[10px] text-gray-400">{match.awayLineup.length} players</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Player Details Form */
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: addPlayerTeam === 'home' ? match.homeTeamColor : match.awayTeamColor }}>
+                      {(addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam).charAt(0)}
+                    </div>
+                    <span className="text-sm font-semibold text-white">{addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam}</span>
+                    <button onClick={() => setAddPlayerTeam(null)} className="ml-auto text-[10px] text-gray-400 hover:text-white">Change</button>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Player Name *</label>
+                    <input
+                      type="text"
+                      value={addPlayerName}
+                      onChange={(e) => setAddPlayerName(e.target.value)}
+                      placeholder="Enter player name"
+                      className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jersey Number</label>
+                    <input
+                      type="number"
+                      value={addPlayerJersey}
+                      onChange={(e) => setAddPlayerJersey(e.target.value)}
+                      placeholder="Auto-assign"
+                      className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerJersey(''); }}
+                      className="flex-1 py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddPlayer}
+                      disabled={!addPlayerName.trim()}
+                      className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Add Player
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Shield, Swords, Share2, Download, Link2, X,
   Maximize2, RotateCcw, Trophy, Target, Flame,
-  TrendingUp, Award,
+  TrendingUp, Award, Crown, Lock,
 } from 'lucide-react';
 import { useKabaddiStore, type CurrentUser } from '@/lib/store';
+import { t } from '@/lib/i18n';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { toPng } from 'html-to-image';
+import PremiumLock from './PremiumLock';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -175,10 +177,15 @@ function CircularRating({ rating, size = 48 }: { rating: number; size?: number }
 // ─── Main Component ──────────────────────────────────────────────────
 
 export default function PlayerProfileCard({ player: playerProp, profile: profileProp, compact = false }: PlayerProfileCardProps) {
+  const viewerIsPremium = useKabaddiStore((s) => s.currentUser?.isPremium) || false;
+  const viewerId = useKabaddiStore((s) => s.currentUser?.id);
+  const language = useKabaddiStore((s) => s.language);
   const storeUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
 
   const player = playerProp || storeUser;
+  const isOwnProfile = viewerId === player?.id;
+  const canSeeStats = viewerIsPremium || isOwnProfile;
   const [flipped, setFlipped] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -233,10 +240,17 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
   const position = profile?.position || null;
   const posType = getPositionType(position);
   const posColor = getPositionColor(position);
-  const totalPoints = profile?.totalPoints || (profile?.raidPoints || 0) + (profile?.tacklePoints || 0);
-  const raidPoints = profile?.raidPoints || 0;
-  const tacklePoints = profile?.tacklePoints || 0;
-  const matches = profile?.totalMatches || (profile?.tournamentMatches || 0) + (profile?.practiceMatches || 0);
+  // Use TOURNAMENT-ONLY stats for main card display (leaderboard/awards use these)
+  const totalPoints = profile?.tournamentTotalPoints || (profile?.tournamentRaidPoints || 0) + (profile?.tournamentTacklePoints || 0);
+  const raidPoints = profile?.tournamentRaidPoints || 0;
+  const tacklePoints = profile?.tournamentTacklePoints || 0;
+  const matches = profile?.tournamentMatches || 0;
+
+  // Practice stats (shown separately, not in main display)
+  const practiceTotalPoints = profile?.practiceTotalPoints || 0;
+  const practiceRaidPoints = profile?.practiceRaidPoints || 0;
+  const practiceTacklePoints = profile?.practiceTacklePoints || 0;
+  const practiceMatches = profile?.practiceMatches || 0;
 
   // ─── Share Functionality ─────────────────────────────────────────
 
@@ -407,12 +421,17 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
         </div>
 
         {/* Player Name with gradient text */}
-        <h2 className={`${compact ? 'text-lg' : 'text-2xl'} font-black text-center leading-tight`}>
-          <span className="bg-gradient-to-r from-white via-yellow-100 to-white bg-clip-text text-transparent drop-shadow-lg">
+        <h2 className={`${compact ? 'text-lg' : 'text-2xl'} font-black text-center leading-tight flex items-center justify-center gap-1.5`}>
+          <span className={`bg-gradient-to-r ${player?.isPremium ? 'from-brand-gold via-brand-gold-light to-brand-gold' : 'from-white via-yellow-100 to-white'} bg-clip-text text-transparent drop-shadow-lg`}>
             {player?.name || 'Player'}
           </span>
-          {player?.gender === 'male' && <span className="ml-1.5 text-blue-300 text-lg">♂</span>}
-          {player?.gender === 'female' && <span className="ml-1.5 text-pink-300 text-lg">♀</span>}
+          {player?.isPremium && (
+            <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[8px] border-0 font-bold px-1 py-0">
+              <Crown className="w-2.5 h-2.5 mr-0.5" />PRO
+            </Badge>
+          )}
+          {player?.gender === 'male' && <span className="text-blue-300 text-lg">♂</span>}
+          {player?.gender === 'female' && <span className="text-pink-300 text-lg">♀</span>}
         </h2>
 
         {/* Player Code badge */}
@@ -452,7 +471,8 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
         )}
 
         {/* Stats Row */}
-        <div className={`mt-5 grid grid-cols-4 gap-2 w-full ${compact ? '' : 'max-w-[300px]'}`}>
+        <div className={`relative mt-5 w-full ${compact ? '' : 'max-w-[300px]'}`}>
+          <div className={`grid grid-cols-4 gap-2 ${!canSeeStats ? 'blur-sm select-none' : ''}`}>
           {[
             { label: 'Total Pts', value: totalPoints, iconType: 'total' as const, color: 'text-amber-300' },
             { label: 'Raid Pts', value: raidPoints, iconType: 'raid' as const, color: 'text-red-300' },
@@ -467,6 +487,16 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
               <div className="text-[8px] text-white/60 uppercase tracking-wider font-medium">{stat.label}</div>
             </div>
           ))}
+          </div>
+          {!canSeeStats && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl">
+              <div className="text-center">
+                <Crown className="w-8 h-8 text-brand-gold mx-auto mb-2" />
+                <p className="text-sm font-bold text-white">Premium Only</p>
+                <p className="text-xs text-white/60">Go Premium to view detailed stats</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -516,7 +546,16 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
         </div>
 
         {/* Performance Chart */}
-        <div className="mb-4">
+        <div className="mb-4 relative">
+          {!canSeeStats && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl">
+              <div className="text-center">
+                <Lock className="w-6 h-6 text-yellow-400 mx-auto mb-1.5" />
+                <p className="text-xs font-bold text-white">PRO Only</p>
+              </div>
+            </div>
+          )}
+          <div className={!canSeeStats ? 'blur-sm select-none pointer-events-none' : ''}>
           <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-2.5">Performance Breakdown</h4>
           <div className="space-y-2.5">
             {performanceBars.map((bar) => {
@@ -542,10 +581,20 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
               );
             })}
           </div>
+          </div>
         </div>
 
         {/* Success Rates */}
-        <div className="grid grid-cols-2 gap-2.5 mb-4">
+        <div className="grid grid-cols-2 gap-2.5 mb-4 relative">
+          {!canSeeStats && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl">
+              <div className="text-center">
+                <Crown className="w-6 h-6 text-yellow-400 mx-auto mb-1.5" />
+                <p className="text-xs font-bold text-white">Premium Stats</p>
+              </div>
+            </div>
+          )}
+          <div className={!canSeeStats ? 'blur-sm select-none pointer-events-none' : ''}>
           <div className="bg-white/5 rounded-xl p-3 border border-white/10">
             <div className="flex items-center gap-1.5 mb-1">
               <Zap className="w-3 h-3 text-red-400" />
@@ -561,6 +610,8 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
               />
             </div>
           </div>
+          </div>
+          <div className={!canSeeStats ? 'blur-sm select-none pointer-events-none' : ''}>
           <div className="bg-white/5 rounded-xl p-3 border border-white/10">
             <div className="flex items-center gap-1.5 mb-1">
               <Shield className="w-3 h-3 text-blue-400" />
@@ -576,27 +627,38 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
               />
             </div>
           </div>
+          </div>
         </div>
 
         {/* Season Highlights */}
-        <div>
+        <div className="relative">
+          {!canSeeStats && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl">
+              <div className="text-center">
+                <Lock className="w-5 h-5 text-yellow-400 mx-auto mb-1" />
+                <p className="text-[10px] font-bold text-white">Unlock with PRO</p>
+              </div>
+            </div>
+          )}
+          <div className={!canSeeStats ? 'blur-sm select-none pointer-events-none' : ''}>
           <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-2">Season Highlights</h4>
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
               <Trophy className="w-3.5 h-3.5 text-amber-400 mx-auto mb-1" />
-              <p className="text-sm font-bold text-white">{(profile?.tournamentMatches || 0) + (profile?.practiceMatches || 0)}</p>
-              <p className="text-[8px] text-white/40">Matches</p>
+              <p className="text-sm font-bold text-white">{matches}</p>
+              <p className="text-[8px] text-white/40">Tourney Matches</p>
             </div>
             <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400 mx-auto mb-1" />
               <p className="text-sm font-bold text-white">{totalPoints}</p>
-              <p className="text-[8px] text-white/40">Total Pts</p>
+              <p className="text-[8px] text-white/40">Tourney Pts</p>
             </div>
             <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
               <Award className="w-3.5 h-3.5 text-purple-400 mx-auto mb-1" />
               <p className="text-sm font-bold text-white">{profile?.playerOfMonth || 0}</p>
               <p className="text-[8px] text-white/40">POTM</p>
             </div>
+          </div>
           </div>
         </div>
 
@@ -711,7 +773,17 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-4 gap-3 mt-6">
+                <div className="relative mt-6">
+                  {!canSeeStats && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl">
+                      <div className="text-center">
+                        <Lock className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+                        <p className="text-sm font-bold text-white">Premium Only</p>
+                        <p className="text-xs text-white/60">Go Premium to view detailed stats</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`grid grid-cols-4 gap-3 ${!canSeeStats ? 'blur-sm select-none' : ''}`}>
                   {[
                     { label: 'Total Pts', value: totalPoints, iconType: 'total' as const, color: 'text-amber-300' },
                     { label: 'Raid Pts', value: raidPoints, iconType: 'raid' as const, color: 'text-red-300' },
@@ -726,10 +798,20 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
                       <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium mt-0.5">{stat.label}</div>
                     </div>
                   ))}
+                  </div>
                 </div>
 
                 {/* Detailed Performance */}
-                <div className="mt-6 bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="mt-6 relative">
+                  {!canSeeStats && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl">
+                      <div className="text-center">
+                        <Crown className="w-7 h-7 text-yellow-400 mx-auto mb-1.5" />
+                        <p className="text-sm font-bold text-white">PRO Stats</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 ${!canSeeStats ? 'blur-sm select-none pointer-events-none' : ''}`}>
                   <h4 className="text-xs font-bold text-white/60 uppercase tracking-wider mb-3">Performance Breakdown</h4>
                   <div className="space-y-3">
                     {performanceBars.map((bar) => {
@@ -755,10 +837,20 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
                       );
                     })}
                   </div>
+                  </div>
                 </div>
 
                 {/* Success Rates Row */}
-                <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="relative mt-4">
+                  {!canSeeStats && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl">
+                      <div className="text-center">
+                        <Lock className="w-6 h-6 text-yellow-400 mx-auto mb-1" />
+                        <p className="text-xs font-bold text-white">Unlock with PRO</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`grid grid-cols-2 gap-3 ${!canSeeStats ? 'blur-sm select-none pointer-events-none' : ''}`}>
                   <div className="bg-white/5 rounded-xl p-3 border border-white/10">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Zap className="w-3.5 h-3.5 text-red-400" />
@@ -789,21 +881,31 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
                       />
                     </div>
                   </div>
+                  </div>
                 </div>
 
                 {/* Season Highlights */}
-                <div className="mt-4 bg-white/5 rounded-xl p-3 border border-white/10">
+                <div className="mt-4 relative">
+                  {!canSeeStats && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl">
+                      <div className="text-center">
+                        <Crown className="w-6 h-6 text-yellow-400 mx-auto mb-1" />
+                        <p className="text-xs font-bold text-white">Premium Feature</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`bg-white/5 rounded-xl p-3 border border-white/10 ${!canSeeStats ? 'blur-sm select-none pointer-events-none' : ''}`}>
                   <h4 className="text-[11px] font-bold text-white/50 uppercase tracking-wider mb-2.5">Season Highlights</h4>
                   <div className="grid grid-cols-4 gap-2">
                     <div className="text-center">
                       <Trophy className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-                      <p className="text-base font-bold text-white">{(profile?.tournamentMatches || 0) + (profile?.practiceMatches || 0)}</p>
-                      <p className="text-[8px] text-white/40">Matches</p>
+                      <p className="text-base font-bold text-white">{matches}</p>
+                      <p className="text-[8px] text-white/40">Tourney Matches</p>
                     </div>
                     <div className="text-center">
                       <TrendingUp className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
                       <p className="text-base font-bold text-white">{totalPoints}</p>
-                      <p className="text-[8px] text-white/40">Total Pts</p>
+                      <p className="text-[8px] text-white/40">Tourney Pts</p>
                     </div>
                     <div className="text-center">
                       <Award className="w-4 h-4 text-purple-400 mx-auto mb-1" />
@@ -816,10 +918,20 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
                       <p className="text-[8px] text-white/40">S.Tackles</p>
                     </div>
                   </div>
+                  </div>
                 </div>
 
                 {/* Match History Summary */}
-                <div className="mt-4 bg-white/5 rounded-xl p-3 border border-white/10">
+                <div className="mt-4 relative">
+                  {!canSeeStats && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl">
+                      <div className="text-center">
+                        <Lock className="w-5 h-5 text-yellow-400 mx-auto mb-1" />
+                        <p className="text-[10px] font-bold text-white">PRO Only</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`bg-white/5 rounded-xl p-3 border border-white/10 ${!canSeeStats ? 'blur-sm select-none pointer-events-none' : ''}`}>
                   <h4 className="text-[11px] font-bold text-white/50 uppercase tracking-wider mb-2">Match Summary</h4>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
@@ -836,6 +948,7 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
                         <p className="text-[8px] text-white/40">Tournament</p>
                       </div>
                     </div>
+                  </div>
                   </div>
                 </div>
               </div>

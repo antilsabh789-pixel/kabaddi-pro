@@ -78,6 +78,8 @@
   --color-warm-600: #475569;
   --color-warm-700: #334155;
   --color-warm-800: #1E293B;
+  --color-warm-900: #0F172A;
+  --color-warm-950: #0B1120;
 }
 
 :root {
@@ -158,6 +160,8 @@
   --color-warm-600: #CBD5E1;
   --color-warm-700: #E2E8F0;
   --color-warm-800: #F8FAFC;
+  --color-warm-900: #0B1120;
+  --color-warm-950: #060A14;
 
   /* Dark mode brand color adjustments */
   --color-brand-red: #EF4444;

@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import { useEffect, useState, useCallback, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Trophy,
+     7→  Bell,
+     8→  Shield,
+     9→  Star,
+    10→  Zap,
+    11→  Calendar,
+    12→  Swords,
+    13→  Crown,
+    14→  Lock,
+    15→  BarChart3,
+    16→  Award,
+    17→  Share2,
+    18→  Clock,
+    19→  ChevronRight,
+    20→  BellOff,
+    21→  Users,
+    22→  Rss,
+    23→  Sparkles,
+    24→  Activity,
+    25→  MapPin,
+    26→  Gift,
+    27→  Play,
+    28→  Brain,
+    29→  Radio,
+    30→  Download,
+    31→  Vote,
+    32→  Briefcase,
+    33→  Copy,
+    34→  Check,
+    35→  Target,
+    36→  Flame,
+    37→  TrendingUp,
+    38→  RefreshCw,
+    39→  ArrowDown,
+    40→  BookOpen,
+    41→  Search,
+    42→  MessageCircle,
+    43→  Crosshair,
+    44→  Megaphone,
+    45→} from 'lucide-react';
+    46→import { Card, CardContent } from '@/components/ui/card';
+    47→import { Badge } from '@/components/ui/badge';
+    48→import { Button } from '@/components/ui/button';
+    49→import { useKabaddiStore } from '@/lib/store';
+    50→import { t } from '@/lib/i18n';
+    51→import Portal from '@/components/portal';
+    52→import { useToast } from '@/hooks/use-toast';
+    53→import PremiumUpgradeScreen from './PremiumUpgradeScreen';
+    54→import LeaderboardScreen from './LeaderboardScreen';
+    55→import MatchAwardsScreen from './MatchAwardsScreen';
+    56→import NotificationPanel from './NotificationPanel';
+    57→import ShareScorecard from './ShareScorecard';
+    58→import MatchDetailsScreen from './MatchDetailsScreen';
+    59→import MatchDayExperience from './MatchDayExperience';
+    60→import FollowScreen from './FollowScreen';
+    61→import SocialFeedScreen from './SocialFeedScreen';
+    62→import MatchHighlightsScreen from './MatchHighlightsScreen';
+    63→import AdvancedStatsScreen from './AdvancedStatsScreen';
+    64→import AchievementsScreen from './AchievementsScreen';
+    65→import TeamComparisonScreen from './TeamComparisonScreen';
+    66→import GroundsScreen from './GroundsScreen';
+    67→import MatchReplayScreen from './MatchReplayScreen';
+    68→import AIInsightsScreen from './AIInsightsScreen';
+    69→import BroadcastScreen from './BroadcastScreen';
+    70→import DataExportScreen from './DataExportScreen';
+    71→import SeasonScreen from './SeasonScreen';
+    72→import PollsScreen from './PollsScreen';
+    73→import SponsorScreen from './SponsorScreen';
+    74→import PlayerStatsScreen from './PlayerStatsScreen';
+    75→import StreaksRecordsScreen from './StreaksRecordsScreen';
+    76→import MatchPredictionScreen from './MatchPredictionScreen';
+    77→import KabaddiRulesScreen from './KabaddiRulesScreen';
+    78→import GlobalSearchScreen from './GlobalSearchScreen';
+    79→import MatchHistoryScreen from './MatchHistoryScreen';
+    80→import TeamChatScreen from './TeamChatScreen';
+    81→import DailyChallengeScreen from './DailyChallengeScreen';
+    82→import MatchTimelineScreen from './MatchTimelineScreen';
+    83→import CoachesCornerScreen from './CoachesCornerScreen';
+    84→import LiveCommentaryTicker, { toCommentaryMatchInfo, type CommentaryMatchInfo } from './LiveCommentaryTicker';
+    85→import LiveMatchCommentaryFeed, { type LiveMatchCommentaryInfo } from './LiveMatchCommentaryFeed';
+    86→import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
+    87→
+    88→// ─── Types ──────────────────────────────────────────────────────────
+    89→
+    90→interface TeamBasic {
+    91→  id: string;
+    92→  name: string;
+    93→  shortName: string | null;
+    94→  color: string | null;
+    95→  logo?: string | null;
+    96→}
+    97→
+    98→interface LiveMatch {
+    99→  id: string;
+   100→  homeScore: number;
+   101→  awayScore: number;
+   102→  half: number;
+   103→  status: string;
+   104→  gender?: string | null;
+   105→  homeTeam: TeamBasic;
+   106→  awayTeam: TeamBasic;
+   107→  tournament: { id: string; name: string } | null;
+   108→}
+   109→
+   110→interface CompletedMatch {
+   111→  id: string;
+   112→  homeScore: number;
+   113→  awayScore: number;
+   114→  half: number;
+   115→  status: string;
+   116→  gender?: string | null;
+   117→  homeTeam: {
+   118→    id: string;
+   119→    name: string;
+   120→    shortName: string | null;
+   121→    color: string | null;
+   122→  };
+   123→  awayTeam: {
+   124→    id: string;
+   125→    name: string;
+   126→    shortName: string | null;
+   127→    color: string | null;
+   128→  };
+   129→  tournament: { id: string; name: string } | null;
+   130→  startedAt: string | null;
+   131→  completedAt: string | null;
+   132→}
+   133→
+   134→interface UpcomingMatch {
+   135→  id: string;
+   136→  homeScore: number;
+   137→  awayScore: number;
+   138→  half: number;
+   139→  status: string;
+   140→  gender?: string | null;
+   141→  homeTeam: {
+   142→    id: string;
+   143→    name: string;
+   144→    shortName: string | null;
+   145→    color: string | null;
+   146→  };
+   147→  awayTeam: {
+   148→    id: string;
+   149→    name: string;
+   150→    shortName: string | null;
+   151→    color: string | null;
+   152→  };
+   153→  tournament: { id: string; name: string } | null;
+   154→  startedAt: string | null;
+   155→  completedAt: string | null;
+   156→}
+   157→
+   158→interface MotmAward {
+   159→  matchId: string;
+   160→  userId: string;
+   161→  userName: string;
+   162→  userAvatar: string | null;
+   163→  points: number;
+   164→  matchInfo: string;
+   165→  tournamentName: string | null;
+   166→  completedAt: string | null;
+   167→}
+   168→
+   169→interface AwardPlayer {
+   170→  title: string;
+   171→  name: string;
+   172→  team: string;
+   173→  stat: string;
+   174→  statLabel: string;
+   175→  icon: typeof Star;
+   176→  gradient: string;
+   177→  borderAccent: string;
+   178→  iconColor: string;
+   179→  badgeBg: string;
+   180→  playerId?: string;
+   181→}
+   182→
+   183→interface StatsData {
+   184→  stats: {
+   185→    totalMatches: number;
+   186→    totalPlayers: number;
+   187→    totalTournaments: number;
+   188→    totalTeams: number;
+   189→    liveMatchCount: number;
+   190→    completedMatchCount: number;
+   191→    upcomingMatchCount: number;
+   192→  };
+   193→  liveMatches: LiveMatch[];
+   194→  recentMatches: CompletedMatch[];
+   195→  upcomingMatches: UpcomingMatch[];
+   196→  topRaiders: {
+   197→    id: string;
+   198→    userId: string;
+   199→    totalRaids: number;
+   200→    successfulRaids: number;
+   201→    bonusPoints: number;
+   202→    user: { id: string; name: string; avatar: string | null };
+   203→  }[];
+   204→  topDefenders: {
+   205→    id: string;
+   206→    userId: string;
+   207→    totalTackles: number;
+   208→    successfulTackles: number;
+   209→    superTackles: number;
+   210→    user: { id: string; name: string; avatar: string | null };
+   211→  }[];
+   212→  recentMotmAwards: MotmAward[];
+   213→}
+   214→
+   215→// ─── Animation Variants ────────────────────────────────────────────
+   216→
+   217→const cardHover = {
+   218→  rest: { scale: 1 },
+   219→  hover: { scale: 1.02, transition: { duration: 0.2 } },
+   220→};
+   221→
+   222→const stagger = {
+   223→  hidden: { opacity: 0 },
+   224→  show: {
+   225→    opacity: 1,
+   226→    transition: { staggerChildren: 0.08 },
+   227→  },
+   228→};
+   229→
+   230→const fadeUp = {
+   231→  hidden: { opacity: 0, y: 16 },
+   232→  show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+   233→};
+   234→
+   235→// ─── Helpers ────────────────────────────────────────────────────────
+   236→
+   237→function getTimeGreeting(): string {
+   238→  const hour = new Date().getHours();
+   239→  if (hour < 12) return 'Good Morning';
+   240→  if (hour < 17) return 'Good Afternoon';
+   241→  return 'Good Evening';
+   242→}
+   243→
+   244→function getTimeEmoji(): string {
+   245→  const hour = new Date().getHours();
+   246→  if (hour < 12) return '🌅';
+   247→  if (hour < 17) return '☀️';
+   248→  return '🌙';
+   249→}
+   250→
+   251→// ─── Animated Counter ───────────────────────────────────────────────
+   252→
+   253→function AnimatedCounter({ target, duration = 1200 }: { target: number; duration?: number }) {
+   254→  const [count, setCount] = useState(0);
+   255→  const prevTarget = useRef(target);
+   256→
+   257→  useEffect(() => {
+   258→    if (prevTarget.current === target && count !== 0) return;
+   259→    prevTarget.current = target;
+   260→
+   261→    let start = 0;
+   262→    const startTime = performance.now();
+   263→
+   264→    function step(currentTime: number) {
+   265→      const elapsed = currentTime - startTime;
+   266→      const progress = Math.min(elapsed / duration, 1);
+   267→      // ease-out cubic
+   268→      const eased = 1 - Math.pow(1 - progress, 3);
+   269→      const current = Math.round(eased * target);
+   270→      setCount(current);
+   271→      if (progress < 1) {
+   272→        requestAnimationFrame(step);
+   273→      }
+   274→    }
+   275→
+   276→    requestAnimationFrame(step);
+   277→  }, [target, duration]);
+   278→
+   279→  return <span>{count}</span>;
+   280→}
+   281→
+   282→// ─── Number Ticker (for live match scores) ──────────────────────────
+   283→
+   284→function NumberTicker({ value }: { value: number }) {
+   285→  const prevValue = useRef(value);
+   286→  const [animating, setAnimating] = useState(false);
+   287→  const [flash, setFlash] = useState(false);
+   288→
+   289→  useEffect(() => {
+   290→    if (prevValue.current !== value) {
+   291→      prevValue.current = value;
+   292→      const t1 = setTimeout(() => setAnimating(true), 0);
+   293→      const t2 = setTimeout(() => setAnimating(false), 400);
+   294→      const t3 = setTimeout(() => setFlash(true), 0);
+   295→      const t4 = setTimeout(() => setFlash(false), 600);
+   296→      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+   297→    }
+   298→  }, [value]);
+   299→
+   300→  return (
+   301→    <span className={`${animating ? 'number-ticker' : ''} ${flash ? 'score-change-flash' : ''}`} key={`${value}-${animating}`}>
+   302→      {value}
+   303→    </span>
+   304→  );
+   305→}
+   306→
+   307→// ─── Confetti Particles (subtle, on score) ─────────────────────────
+   308→
+   309→function ConfettiParticles({ trigger }: { trigger: number }) {
+   310→  const [particles, setParticles] = useState<Array<{ id: number; x: number; color: string; delay: number }>>([]);
+   311→  const prevTrigger = useRef(trigger);
+   312→
+   313→  useEffect(() => {
+   314→    if (prevTrigger.current !== trigger) {
+   315→      prevTrigger.current = trigger;
+   316→      const colors = ['#DC2626', '#F59E0B', '#14B8A6', '#1E293B', '#FBBF24'];
+   317→      const newParticles = Array.from({ length: 6 }, (_, i) => ({
+   318→        id: Date.now() + i,
+   319→        x: 30 + Math.random() * 40,
+   320→        color: colors[Math.floor(Math.random() * colors.length)],
+   321→        delay: i * 0.05,
+   322→      }));
+   323→      const t1 = setTimeout(() => setParticles(newParticles), 0);
+   324→      const t2 = setTimeout(() => setParticles([]), 900);
+   325→      return () => { clearTimeout(t1); clearTimeout(t2); };
+   326→    }
+   327→  }, [trigger]);
+   328→
+   329→  return (
+   330→    <>
+   331→      {particles.map((p) => (
+   332→        <div
+   333→          key={p.id}
+   334→          className="absolute w-1.5 h-1.5 rounded-full confetti-particle pointer-events-none z-20"
+   335→          style={{
+   336→            left: `${p.x}%`,
+   337→            top: '20%',
+   338→            backgroundColor: p.color,
+   339→            animationDelay: `${p.delay}s`,
+   340→          }}
+   341→        />
+   342→      ))}
+   343→    </>
+   344→  );
+   345→}
+   346→
+   347→// ─── Awards Confetti Section (on scroll into view) ─────────────────
+   348→
+   349→function AwardsConfettiSection() {
+   350→  const ref = useRef<HTMLDivElement>(null);
+   351→  const [shown, setShown] = useState(false);
+   352→
+   353→  useEffect(() => {
+   354→    const el = ref.current;
+   355→    if (!el) return;
+   356→    const observer = new IntersectionObserver(
+   357→      ([entry]) => {
+   358→        if (entry.isIntersecting && !shown) {
+   359→          setShown(true);
+   360→        }
+   361→      },
+   362→      { threshold: 0.3 }
+   363→    );
+   364→    observer.observe(el);
+   365→    return () => observer.disconnect();
+   366→  }, [shown]);
+   367→
+   368→  const confettiColors = ['#DC2626', '#F59E0B', '#14B8A6', '#FBBF24', '#1E293B'];
+   369→
+   370→  return (
+   371→    <div ref={ref} className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+   372→      {shown && [...Array(8)].map((_, i) => (
+   373→        <motion.div
+   374→          key={`award-confetti-${i}`}
+   375→          className="absolute w-1.5 h-1.5 rounded-full"
+   376→          style={{
+   377→            left: `${10 + i * 12}%`,
+   378→            top: '40%',
+   379→            backgroundColor: confettiColors[i % confettiColors.length],
+   380→          }}
+   381→          initial={{ y: 0, opacity: 0, scale: 0 }}
+   382→          animate={{ y: [-10, -40, -80], opacity: [0, 1, 0], scale: [0, 1.2, 0.5] }}
+   383→          transition={{ duration: 1.5, delay: i * 0.1, ease: 'easeOut' }}
+   384→        />
+   385→      ))}
+   386→    </div>
+   387→  );
+   388→}
+   389→
+   390→// ─── Skeleton Components ───────────────────────────────────────────
+   391→
+   392→function LiveMatchSkeleton() {
+   393→  return (
+   394→    <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
+   395→      <CardContent className="p-4">
+   396→        <div className="flex items-center justify-between mb-3">
+   397→          <div className="h-5 w-14 rounded-full bg-warm-200 animate-pulse" />
+   398→          <div className="h-4 w-16 rounded bg-warm-200 animate-pulse" />
+   399→        </div>
+   400→        <div className="flex items-center justify-between">
+   401→          <div className="flex flex-col items-center gap-1 flex-1">
+   402→            <div className="w-10 h-10 rounded-full bg-warm-200 animate-pulse" />
+   403→            <div className="h-3 w-16 rounded bg-warm-200 animate-pulse" />
+   404→          </div>
+   405→          <div className="flex items-center gap-3 px-4">
+   406→            <div className="h-7 w-7 rounded bg-warm-200 animate-pulse" />
+   407→            <div className="h-4 w-4 rounded bg-warm-200 animate-pulse" />
+   408→            <div className="h-7 w-7 rounded bg-warm-200 animate-pulse" />
+   409→          </div>
+   410→          <div className="flex flex-col items-center gap-1 flex-1">
+   411→            <div className="w-10 h-10 rounded-full bg-warm-200 animate-pulse" />
+   412→            <div className="h-3 w-16 rounded bg-warm-200 animate-pulse" />
+   413→          </div>
+   414→        </div>
+   415→      </CardContent>
+   416→    </Card>
+   417→  );
+   418→}
+   419→
+   420→function AwardSkeleton() {
+   421→  return (
+   422→    <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 border py-0 gap-0 overflow-hidden">
+   423→      <CardContent className="p-4">
+   424→        <div className="flex items-center gap-3">
+   425→          <div className="w-14 h-14 rounded-full bg-warm-200 animate-pulse shrink-0" />
+   426→          <div className="flex-1 space-y-2">
+   427→            <div className="h-4 w-24 rounded bg-warm-200 animate-pulse" />
+   428→            <div className="h-3 w-20 rounded bg-warm-200 animate-pulse" />
+   429→          </div>
+   430→          <div className="space-y-2">
+   431→            <div className="h-5 w-10 rounded bg-warm-200 animate-pulse" />
+   432→            <div className="h-3 w-14 rounded bg-warm-200 animate-pulse" />
+   433→          </div>
+   434→        </div>
+   435→      </CardContent>
+   436→    </Card>
+   437→  );
+   438→}
+   439→
+   440→// ─── Countdown Timer ────────────────────────────────────────────────
+   441→
+   442→function CountdownTimer({ targetDate }: { targetDate: string | null }) {
+   443→  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+   444→  const [expired, setExpired] = useState(!targetDate);
+   445→
+   446→  useEffect(() => {
+   447→    if (!targetDate) {
+   448→      return;
+   449→    }
+   450→
+   451→    function calculate() {
+   452→      const diff = Math.max(0, new Date(targetDate).getTime() - Date.now());
+   453→      if (diff === 0) {
+   454→        setExpired(true);
+   455→        setTimeLeft({ d: 0, h: 0, m: 0, s: 0 });
+   456→        return true;
+   457→      }
+   458→      setExpired(false);
+   459→      setTimeLeft({
+   460→        d: Math.floor(diff / 86400000),
+   461→        h: Math.floor((diff % 86400000) / 3600000),
+   462→        m: Math.floor((diff % 3600000) / 60000),
+   463→        s: Math.floor((diff % 60000) / 1000),
+   464→      });
+   465→      return false;
+   466→    }
+   467→
+   468→    const done = calculate();
+   469→    if (done) return;
+   470→
+   471→    const id = setInterval(() => {
+   472→      const finished = calculate();
+   473→      if (finished) clearInterval(id);
+   474→    }, 1000);
+   475→
+   476→    return () => clearInterval(id);
+   477→  }, [targetDate]);
+   478→
+   479→  if (expired) {
+   480→    return (
+   481→      <motion.div
+   482→        className="flex items-center justify-center gap-1.5 py-1"
+   483→        animate={{ opacity: [1, 0.5, 1] }}
+   484→        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+   485→      >
+   486→        <span className="text-xs font-bold text-brand-red dark:text-brand-red-light">Starting Soon!</span>
+   487→        <Zap className="w-3 h-3 text-brand-red dark:text-brand-red-light" />
+   488→      </motion.div>
+   489→    );
+   490→  }
+   491→
+   492→  if (!timeLeft) return null;
+   493→
+   494→  const units = [
+   495→    { value: timeLeft.d, label: 'D' },
+   496→    { value: timeLeft.h, label: 'H' },
+   497→    { value: timeLeft.m, label: 'M' },
+   498→    { value: timeLeft.s, label: 'S' },
+   499→  ];
+   500→
+   501→  return (
+   502→    <div className="flex items-center justify-center gap-1.5">
+   503→      {units.map((unit, idx) => (
+   504→        <div key={unit.label} className="flex items-center gap-1.5">
+   505→          <div className="flex flex-col items-center">
+   506→            <motion.div
+   507→              className="w-9 h-9 rounded-md bg-warm-800/80 dark:bg-warm-100/90 flex items-center justify-center shadow-sm"
+   508→              key={`${unit.label}-${unit.value}`}
+   509→              initial={{ rotateX: -90, opacity: 0 }}
+   510→              animate={{ rotateX: 0, opacity: 1 }}
+   511→              transition={{ duration: 0.3, ease: 'easeOut' }}
+   512→            >
+   513→              <span className="text-sm font-black text-white dark:text-warm-900 tabular-nums countdown-flip">
+   514→                {String(unit.value).padStart(2, '0')}
+   515→              </span>
+   516→            </motion.div>
+   517→            <span className="text-[8px] font-semibold text-warm-500 dark:text-warm-400 mt-0.5">
+   518→              {unit.label}
+   519→            </span>
+   520→          </div>
+   521→          {idx < units.length - 1 && (
+   522→            <span className="text-warm-400 dark:text-warm-500 font-bold text-xs mb-3">:</span>
+   523→          )}
+   524→        </div>
+   525→      ))}
+   526→    </div>
+   527→  );
+   528→}
+   529→
+   530→// ─── Component ─────────────────────────────────────────────────────
+   531→
+   532→type GenderFilter = 'all' | 'boys' | 'girls';
+   533→
+   534→export default function HomeTab() {
+   535→  const currentUser = useKabaddiStore((s) => s.currentUser);
+   536→  const fetchHomeData = useKabaddiStore((s) => s.fetchHomeData);
+   537→  const homeData = useKabaddiStore((s) => s.homeData);
+   538→  const addNotification = useKabaddiStore((s) => s.addNotification);
+   539→  const notifications = useKabaddiStore((s) => s.notifications);
+   540→  const activeMatch = useKabaddiStore((s) => s.activeMatch);
+   541→  const language = useKabaddiStore((s) => s.language);
+   542→  const { toast } = useToast();
+   543→
+   544→  const isPremium = currentUser?.isPremium || false;
+   545→  const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
+   546→  const [recentMatches, setRecentMatches] = useState<CompletedMatch[]>([]);
+   547→  const [upcomingMatches, setUpcomingMatches] = useState<UpcomingMatch[]>([]);
+   548→  const [awardPlayers, setAwardPlayers] = useState<AwardPlayer[]>([]);
+   549→  const [motmAwards, setMotmAwards] = useState<MotmAward[]>([]);
+   550→  const [loading, setLoading] = useState(true);
+   551→  const [error, setError] = useState<string | null>(null);
+   552→  const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
+   553→  const [showUpgrade, setShowUpgrade] = useState(false);
+   554→  const [upgradeFeature, setUpgradeFeature] = useState('Player Stats');
+   555→  const [showLeaderboard, setShowLeaderboard] = useState(false);
+   556→  const [showAwards, setShowAwards] = useState(false);
+   557→  const [showNotifications, setShowNotifications] = useState(false);
+   558→  const [showShareScorecard, setShowShareScorecard] = useState(false);
+   559→  const [shareMatchData, setShareMatchData] = useState<CompletedMatch | null>(null);
+   560→  const [showMatchDetails, setShowMatchDetails] = useState(false);
+   561→  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+   562→  const [showMatchDayExperience, setShowMatchDayExperience] = useState(false);
+   563→  const [matchDayExperienceId, setMatchDayExperienceId] = useState<string | null>(null);
+   564→  const [showFollow, setShowFollow] = useState(false);
+   565→  const [showSocialFeed, setShowSocialFeed] = useState(false);
+   566→  const [showHighlights, setShowHighlights] = useState(false);
+   567→  const [highlightsMatchId, setHighlightsMatchId] = useState<string | null>(null);
+   568→  const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+   569→  const [statsUserId, setStatsUserId] = useState<string | null>(null);
+   570→  const [showAchievements, setShowAchievements] = useState(false);
+   571→  const [showComparison, setShowComparison] = useState(false);
+   572→  const [showGrounds, setShowGrounds] = useState(false);
+   573→  const [showReplay, setShowReplay] = useState(false);
+   574→  const [replayMatchId, setReplayMatchId] = useState<string | null>(null);
+   575→  const [showAIInsights, setShowAIInsights] = useState(false);
+   576→  const [showBroadcast, setShowBroadcast] = useState(false);
+   577→  const [broadcastMatchId, setBroadcastMatchId] = useState<string | null>(null);
+   578→  const [showDataExport, setShowDataExport] = useState(false);
+   579→  const [showSeason, setShowSeason] = useState(false);
+   580→  const [showPolls, setShowPolls] = useState(false);
+   581→  const [showPredictions, setShowPredictions] = useState(false);
+   582→  const [showSponsors, setShowSponsors] = useState(false);
+   583→  const [copiedCode, setCopiedCode] = useState(false);
+   584→  const [showStats, setShowStats] = useState(false);
+   585→  const [showRules, setShowRules] = useState(false);
+   586→  const [showStreaks, setShowStreaks] = useState(false);
+   587→  const [showSearch, setShowSearch] = useState(false);
+   588→  const [showMatchHistory, setShowMatchHistory] = useState(false);
+   589→  const [showTeamChat, setShowTeamChat] = useState(false);
+   590→  const [showDailyChallenge, setShowDailyChallenge] = useState(false);
+   591→  const [showMatchTimeline, setShowMatchTimeline] = useState(false);
+   592→  const [showCoachesCorner, setShowCoachesCorner] = useState(false);
+   593→
+   594→  // ─── Pull-to-Refresh State ───
+   595→  const [pullDistance, setPullDistance] = useState(0);
+   596→  const [isRefreshing, setIsRefreshing] = useState(false);
+   597→  const touchStartY = useRef(0);
+   598→  const pullThreshold = 80;
+   599→
+   600→  const unreadNotificationCount = notifications.filter((n) => !n.read).length;
+   601→
+   602→  const buildAwardPlayers = useCallback(
+   603→    (topRaiders: StatsData['topRaiders'], topDefenders: StatsData['topDefenders']): AwardPlayer[] => {
+   604→      const awards: AwardPlayer[] = [];
+   605→
+   606→      if (topRaiders.length > 0) {
+   607→        const raider = topRaiders[0];
+   608→        const raidPoints = raider.successfulRaids + raider.bonusPoints;
+   609→        awards.push({
+   610→          title: 'Top Raider',
+   611→          name: raider.user.name,
+   612→          team: `${raidPoints} Raid Points`,
+   613→          stat: raidPoints.toString(),
+   614→          statLabel: 'raid points',
+   615→          icon: Swords,
+   616→          gradient: 'from-brand-gold/20 to-brand-gold-dark/10',
+   617→          borderAccent: 'border-brand-gold/30',
+   618→          iconColor: 'text-brand-gold',
+   619→          badgeBg: 'bg-brand-gold/20 text-brand-gold-dark',
+   620→          playerId: raider.userId,
+   621→        });
+   622→      }
+   623→
+   624→      if (topDefenders.length > 0) {
+   625→        const defender = topDefenders[0];
+   626→        awards.push({
+   627→          title: 'Top Defender',
+   628→          name: defender.user.name,
+   629→          team: `${defender.successfulTackles} Tackle Points`,
+   630→          stat: defender.successfulTackles.toString(),
+   631→          statLabel: 'tackle points',
+   632→          icon: Shield,
+   633→          gradient: 'from-brand-red/20 to-brand-red-dark/10',
+   634→          borderAccent: 'border-brand-red/30',
+   635→          iconColor: 'text-brand-red',
+   636→          badgeBg: 'bg-brand-red/20 text-brand-red-light',
+   637→          playerId: defender.userId,
+   638→        });
+   639→      }
+   640→
+   641→      return awards;
+   642→    },
+   643→    []
+   644→  );
+   645→
+   646→  useEffect(() => {
+   647→    let cancelled = false;
+   648→
+   649→    async function loadHomeData() {
+   650→      setLoading(true);
+   651→      setError(null);
+   652→
+   653→      try {
+   654→        // Use the store's fetchHomeData which caches the result
+   655→        let data: StatsData | null = homeData as StatsData | null;
+   656→
+   657→        if (!data) {
+   658→          data = (await fetchHomeData()) as StatsData | null;
+   659→        }
+   660→
+   661→        if (cancelled || !data) return;
+   662→
+   663→        // Live matches from stats API
+   664→        const matches: LiveMatch[] = Array.isArray(data.liveMatches)
+   665→          ? data.liveMatches
+   666→          : [];
+   667→        setLiveMatches(matches);
+   668→
+   669→        // Recent completed matches
+   670→        const recent: CompletedMatch[] = Array.isArray(data.recentMatches)
+   671→          ? data.recentMatches
+   672→          : [];
+   673→        setRecentMatches(recent);
+   674→
+   675→        // Upcoming matches
+   676→        const upcoming: UpcomingMatch[] = Array.isArray(data.upcomingMatches)
+   677→          ? data.upcomingMatches
+   678→          : [];
+   679→        setUpcomingMatches(upcoming);
+   680→
+   681→        // Awards from top raiders/defenders
+   682→        const topRaiders = Array.isArray(data.topRaiders) ? data.topRaiders : [];
+   683→        const topDefenders = Array.isArray(data.topDefenders)
+   684→          ? data.topDefenders
+   685→          : [];
+   686→        setAwardPlayers(buildAwardPlayers(topRaiders, topDefenders));
+   687→
+   688→        // MOTM awards
+   689→        const motm = Array.isArray(data.recentMotmAwards) ? data.recentMotmAwards : [];
+   690→        setMotmAwards(motm);
+   691→      } catch (err) {
+   692→        console.error('Failed to load home data:', err);
+   693→        setError('Failed to load data. Pull down to retry.');
+   694→      } finally {
+   695→        if (!cancelled) setLoading(false);
+   696→      }
+   697→    }
+   698→
+   699→    loadHomeData();
+   700→
+   701→    return () => {
+   702→      cancelled = true;
+   703→    };
+   704→  }, [fetchHomeData, homeData, buildAwardPlayers]);
+   705→
+   706→  // Welcome back notification (once per session)
+   707→  useEffect(() => {
+   708→    if (!currentUser?.name) return;
+   709→
+   710→    const existingTypes = new Set(notifications.map((n) => n.type));
+   711→
+   712→    // Only generate if no notifications at all
+   713→    if (notifications.length === 0) {
+   714→      addNotification(welcomeBackNotification(currentUser.name));
+   715→    }
+   716→
+   717→    // Upcoming match notification
+   718→    if (upcomingMatches.length > 0 && !existingTypes.has('match_start')) {
+   719→      const nextMatch = upcomingMatches[0];
+   720→      addNotification({
+   721→        type: 'match_start',
+   722→        title: 'Match Starting Soon',
+   723→        description: `${nextMatch.homeTeam.name} vs ${nextMatch.awayTeam.name} is coming up!`,
+   724→      });
+   725→    }
+   726→
+   727→    // Achievement notification for returning users
+   728→    if (notifications.length > 2 && !existingTypes.has('achievement')) {
+   729→      addNotification({
+   730→        type: 'achievement',
+   731→        title: 'Dedicated Player',
+   732→        description: 'You\'ve been consistently active! Keep going for more achievements.',
+   733→      });
+   734→    }
+   735→  }, [currentUser?.name, upcomingMatches.length]);
+   736→
+   737→  const handleMatchClick = (match: LiveMatch) => {
+   738→    // For live matches, show the immersive MatchDayExperience
+   739→    if (match.status === 'live') {
+   740→      setMatchDayExperienceId(match.id);
+   741→      setShowMatchDayExperience(true);
+   742→    } else {
+   743→      setSelectedMatchId(match.id);
+   744→      setShowMatchDetails(true);
+   745→    }
+   746→  };
+   747→
+   748→  const handleRecentMatchClick = (match: CompletedMatch) => {
+   749→    setSelectedMatchId(match.id);
+   750→    setShowMatchDetails(true);
+   751→  };
+   752→
+   753→  const handleShareClick = (match: CompletedMatch) => {
+   754→    setShareMatchData(match);
+   755→    setShowShareScorecard(true);
+   756→  };
+   757→
+   758→  const handleAwardClick = (player: AwardPlayer) => {
+   759→    if (!isPremium) {
+   760→      setUpgradeFeature('Player Stats');
+   761→      setShowUpgrade(true);
+   762→      return;
+   763→    }
+   764→    toast({
+   765→      title: `${player.name}`,
+   766→      description: `${player.title} — ${player.stat} ${player.statLabel}`,
+   767→    });
+   768→  };
+   769→
+   770→  const handleCopyPlayerCode = () => {
+   771→    if (currentUser?.playerCode) {
+   772→      navigator.clipboard.writeText(currentUser.playerCode);
+   773→      setCopiedCode(true);
+   774→      toast({ title: 'Copied!', description: `Player code ${currentUser.playerCode} copied` });
+   775→      setTimeout(() => setCopiedCode(false), 2000);
+   776→    }
+   777→  };
+   778→
+   779→  const handleRetry = () => {
+   780→    useKabaddiStore.setState({ homeData: null });
+   781→    setLoading(true);
+   782→    setError(null);
+   783→    fetchHomeData()
+   784→      .then((data) => {
+   785→        if (data) {
+   786→          const matches: LiveMatch[] = Array.isArray(data.liveMatches)
+   787→            ? data.liveMatches
+   788→            : [];
+   789→          setLiveMatches(matches);
+   790→          const recent: CompletedMatch[] = Array.isArray(data.recentMatches)
+   791→            ? data.recentMatches
+   792→            : [];
+   793→          setRecentMatches(recent);
+   794→          const upcoming: UpcomingMatch[] = Array.isArray(data.upcomingMatches)
+   795→            ? data.upcomingMatches
+   796→            : [];
+   797→          setUpcomingMatches(upcoming);
+   798→          const topRaiders = Array.isArray(data.topRaiders) ? data.topRaiders : [];
+   799→          const topDefenders = Array.isArray(data.topDefenders)
+   800→            ? data.topDefenders
+   801→            : [];
+   802→          setAwardPlayers(buildAwardPlayers(topRaiders, topDefenders));
+   803→          const motm = Array.isArray(data.recentMotmAwards) ? data.recentMotmAwards : [];
+   804→          setMotmAwards(motm);
+   805→        }
+   806→      })
+   807→      .catch(() => setError('Failed to load data. Pull down to retry.'))
+   808→      .finally(() => setLoading(false));
+   809→  };
+   810→
+   811→  // ─── Pull-to-Refresh Handlers ───
+   812→  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+   813→    if (isRefreshing) return;
+   814→    touchStartY.current = e.touches[0].clientY;
+   815→  }, [isRefreshing]);
+   816→
+   817→  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+   818→    if (isRefreshing) return;
+   819→    const diff = e.touches[0].clientY - touchStartY.current;
+   820→    if (diff > 0) {
+   821→      // Apply rubber-band effect: distance grows slower as you pull more
+   822→      const rubberBanded = diff * 0.4;
+   823→      setPullDistance(Math.min(rubberBanded, pullThreshold * 1.8));
+   824→    }
+   825→  }, [isRefreshing, pullThreshold]);
+   826→
+   827→  const handleTouchEnd = useCallback(() => {
+   828→    if (isRefreshing) return;
+   829→    if (pullDistance >= pullThreshold) {
+   830→      // Trigger refresh
+   831→      setIsRefreshing(true);
+   832→      setPullDistance(pullThreshold);
+   833→
+   834→      useKabaddiStore.setState({ homeData: null });
+   835→      fetchHomeData()
+   836→        .then((data) => {
+   837→          if (data) {
+   838→            const matches: LiveMatch[] = Array.isArray(data.liveMatches)
+   839→              ? data.liveMatches
+   840→              : [];
+   841→            setLiveMatches(matches);
+   842→            const recent: CompletedMatch[] = Array.isArray(data.recentMatches)
+   843→              ? data.recentMatches
+   844→              : [];
+   845→            setRecentMatches(recent);
+   846→            const upcoming: UpcomingMatch[] = Array.isArray(data.upcomingMatches)
+   847→              ? data.upcomingMatches
+   848→              : [];
+   849→            setUpcomingMatches(upcoming);
+   850→            const topRaiders = Array.isArray(data.topRaiders) ? data.topRaiders : [];
+   851→            const topDefenders = Array.isArray(data.topDefenders)
+   852→              ? data.topDefenders
+   853→              : [];
+   854→            setAwardPlayers(buildAwardPlayers(topRaiders, topDefenders));
+   855→            const motm = Array.isArray(data.recentMotmAwards) ? data.recentMotmAwards : [];
+   856→            setMotmAwards(motm);
+   857→            toast({ title: 'Refreshed!', description: 'Data updated successfully' });
+   858→          }
+   859→        })
+   860→        .catch(() => {
+   861→          setError('Failed to refresh data.');
+   862→        })
+   863→        .finally(() => {
+   864→          setIsRefreshing(false);
+   865→          setPullDistance(0);
+   866→        });
+   867→    } else {
+   868→      // Snap back without refreshing
+   869→      setPullDistance(0);
+   870→    }
+   871→  }, [isRefreshing, pullDistance, pullThreshold, fetchHomeData, buildAwardPlayers, toast]);
+   872→
+   873→  // Progress for the pull indicator (0 to 1)
+   874→  const pullProgress = Math.min(pullDistance / pullThreshold, 1);
+   875→  const isPastThreshold = pullDistance >= pullThreshold;
+   876→
+   877→  const getTeamShortName = (team: TeamBasic | CompletedMatch['homeTeam'] | UpcomingMatch['homeTeam']): string => {
+   878→    if ('shortName' in team && team.shortName) return team.shortName;
+   879→    return team.name
+   880→      .split(' ')
+   881→      .map((w) => w[0])
+   882→      .join('')
+   883→      .toUpperCase()
+   884→      .slice(0, 3);
+   885→  };
+   886→
+   887→  const halfLabel = (half: number): string => {
+   888→    return half === 1 ? '1st Half' : '2nd Half';
+   889→  };
+   890→
+   891→  const formatTimeAgo = (dateStr: string | null) => {
+   892→    if (!dateStr) return '';
+   893→    const date = new Date(dateStr);
+   894→    const now = new Date();
+   895→    const diffMs = now.getTime() - date.getTime();
+   896→    const diffMins = Math.floor(diffMs / 60000);
+   897→    if (diffMins < 60) return `${diffMins}m ago`;
+   898→    const diffHours = Math.floor(diffMins / 60);
+   899→    if (diffHours < 24) return `${diffHours}h ago`;
+   900→    const diffDays = Math.floor(diffHours / 24);
+   901→    if (diffDays === 1) return 'Yesterday';
+   902→    if (diffDays < 7) return `${diffDays}d ago`;
+   903→    return date.toLocaleDateString();
+   904→  };
+   905→
+   906→  const formatDate = (dateStr: string | null) => {
+   907→    if (!dateStr) return 'TBD';
+   908→    return new Date(dateStr).toLocaleDateString('en-IN', {
+   909→      day: 'numeric',
+   910→      month: 'short',
+   911→      hour: '2-digit',
+   912→      minute: '2-digit',
+   913→    });
+   914→  };
+   915→
+   916→  // Filter live matches by gender
+   917→  const filteredMatches = liveMatches.filter((match) => {
+   918→    if (genderFilter === 'all') return true;
+   919→    if (genderFilter === 'boys') return match.gender?.toLowerCase() === 'male' || match.gender?.toLowerCase() === 'boys';
+   920→    if (genderFilter === 'girls') return match.gender?.toLowerCase() === 'female' || match.gender?.toLowerCase() === 'girls';
+   921→    return true;
+   922→  });
+   923→
+   924→  // Gender icon for greeting
+   925→  const genderIcon = currentUser?.gender?.toLowerCase() === 'female' || currentUser?.gender?.toLowerCase() === 'girls'
+   926→    ? '♀'
+   927→    : '♂';
+   928→
+   929→  // Compute stats values for banner
+   930→  const statsData = homeData as StatsData | null;
+   931→  const raidPts = awardPlayers.length > 0 ? parseInt(awardPlayers[0]?.stat ?? '0', 10) : 0;
+   932→  const tacklePts = awardPlayers.length > 1 ? parseInt(awardPlayers[1]?.stat ?? '0', 10) : 0;
+   933→  const totalMatches = statsData?.stats?.totalMatches ?? 0;
+   934→
+   935→  return (
+   936→    <div
+   937→      className="min-h-screen bg-warm-50 dark:bg-warm-900 pb-6"
+   938→      onTouchStart={handleTouchStart}
+   939→      onTouchMove={handleTouchMove}
+   940→      onTouchEnd={handleTouchEnd}
+   941→    >
+   942→      {/* ─── Pull-to-Refresh Indicator ─── */}
+   943→      <AnimatePresence>
+   944→        {(pullDistance > 0 || isRefreshing) && (
+   945→          <motion.div
+   946→            className="flex flex-col items-center justify-center py-3 overflow-hidden"
+   947→            initial={{ height: 0, opacity: 0 }}
+   948→            animate={{ height: Math.max(pullDistance * 0.6, isRefreshing ? 48 : 0), opacity: pullDistance > 0 || isRefreshing ? 1 : 0 }}
+   949→            exit={{ height: 0, opacity: 0 }}
+   950→            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+   951→          >
+   952→            <div className="flex flex-col items-center gap-1">
+   953→              {/* Animated icon with haptic snap feel */}
+   954→              {isRefreshing ? (
+   955→                <motion.div
+   956→                  animate={{ rotate: 360 }}
+   957→                  transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+   958→                  className="ptr-snap-anim"
+   959→                >
+   960→                  <RefreshCw className="w-5 h-5 text-brand-red" />
+   961→                </motion.div>
+   962→              ) : (
+   963→                <motion.div
+   964→                  animate={{
+   965→                    rotate: isPastThreshold ? 180 : pullProgress * 180,
+   966→                    scale: isPastThreshold ? 1.15 : 1,
+   967→                  }}
+   968→                  transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+   969→                  className={isPastThreshold ? 'ptr-snap-anim' : ''}
+   970→                >
+   971→                  <ArrowDown className="w-5 h-5 text-brand-red" />
+   972→                </motion.div>
+   973→              )}
+   974→              {/* Progress arc / indicator */}
+   975→              {!isRefreshing && (
+   976→                <div className="relative w-8 h-8">
+   977→                  <svg className="w-8 h-8 -rotate-90" viewBox="0 0 32 32">
+   978→                    <circle
+   979→                      cx="16" cy="16" r="13"
+   980→                      fill="none"
+   981→                      stroke="currentColor"
+   982→                      strokeWidth="2.5"
+   983→                      className="text-warm-200 dark:text-warm-700"
+   984→                    />
+   985→                    <circle
+   986→                      cx="16" cy="16" r="13"
+   987→                      fill="none"
+   988→                      stroke="currentColor"
+   989→                      strokeWidth="2.5"
+   990→                      strokeLinecap="round"
+   991→                      className="text-brand-red"
+   992→                      strokeDasharray={`${pullProgress * 81.68} 81.68`}
+   993→                    />
+   994→                  </svg>
+   995→                </div>
+   996→              )}
+   997→              <span className="text-[10px] font-semibold text-brand-red">
+   998→                {isRefreshing
+   999→                  ? 'Refreshing...'
+  1000→                  : isPastThreshold
+  1001→                    ? 'Release to refresh'
+  1002→                    : 'Pull to refresh'}
+  1003→              </span>
+  1004→            </div>
+  1005→          </motion.div>
+  1006→        )}
+  1007→      </AnimatePresence>
+  1008→
+  1009→      {/* Overlays - rendered through Portal to escape scroll container */}
+  1010→      <Portal>
+  1011→      {showUpgrade && (
+  1012→        <PremiumUpgradeScreen
+  1013→          onClose={() => setShowUpgrade(false)}
+  1014→          feature={upgradeFeature}
+  1015→        />
+  1016→      )}
+  1017→      {showLeaderboard && (
+  1018→        <LeaderboardScreen onClose={() => setShowLeaderboard(false)} />
+  1019→      )}
+  1020→      {showAwards && (
+  1021→        <MatchAwardsScreen onClose={() => setShowAwards(false)} />
+  1022→      )}
+  1023→      {showNotifications && (
+  1024→        <NotificationPanel
+  1025→          onClose={() => setShowNotifications(false)}
+  1026→          onNavigate={(screen) => {
+  1027→            setShowNotifications(false);
+  1028→            switch (screen) {
+  1029→              case 'match-details':
+  1030→                break;
+  1031→              case 'achievements':
+  1032→                setShowAchievements(true);
+  1033→                break;
+  1034→              case 'premium':
+  1035→                setUpgradeFeature('Premium Features');
+  1036→                setShowUpgrade(true);
+  1037→                break;
+  1038→            }
+  1039→          }}
+  1040→        />
+  1041→      )}
+  1042→      {showShareScorecard && shareMatchData && (
+  1043→        <ShareScorecard
+  1044→          onClose={() => {
+  1045→            setShowShareScorecard(false);
+  1046→            setShareMatchData(null);
+  1047→          }}
+  1048→          matchData={{
+  1049→            homeTeam: shareMatchData.homeTeam.name,
+  1050→            awayTeam: shareMatchData.awayTeam.name,
+  1051→            homeScore: shareMatchData.homeScore,
+  1052→            awayScore: shareMatchData.awayScore,
+  1053→            homeTeamColor: shareMatchData.homeTeam.color || '#DC2626',
+  1054→            awayTeamColor: shareMatchData.awayTeam.color || '#1E293B',
+  1055→            tournament: shareMatchData.tournament?.name,
+  1056→            date: shareMatchData.completedAt,
+  1057→            gender: shareMatchData.gender,
+  1058→          }}
+  1059→        />
+  1060→      )}
+  1061→      {showMatchDetails && selectedMatchId && (
+  1062→        <MatchDetailsScreen
+  1063→          matchId={selectedMatchId}
+  1064→          onClose={() => {
+  1065→            setShowMatchDetails(false);
+  1066→            setSelectedMatchId(null);
+  1067→          }}
+  1068→        />
+  1069→      )}
+  1070→      {showMatchDayExperience && matchDayExperienceId && (
+  1071→        <MatchDayExperience
+  1072→          matchId={matchDayExperienceId}
+  1073→          onClose={() => {
+  1074→            setShowMatchDayExperience(false);
+  1075→            setMatchDayExperienceId(null);
+  1076→          }}
+  1077→        />
+  1078→      )}
+  1079→      {showFollow && (
+  1080→        <FollowScreen onClose={() => setShowFollow(false)} />
+  1081→      )}
+  1082→      {showSocialFeed && (
+  1083→        <SocialFeedScreen onClose={() => setShowSocialFeed(false)} />
+  1084→      )}
+  1085→      {showHighlights && highlightsMatchId && (
+  1086→        <MatchHighlightsScreen
+  1087→          matchId={highlightsMatchId}
+  1088→          onClose={() => {
+  1089→            setShowHighlights(false);
+  1090→            setHighlightsMatchId(null);
+  1091→          }}
+  1092→        />
+  1093→      )}
+  1094→      {showAdvancedStats && statsUserId && (
+  1095→        <AdvancedStatsScreen
+  1096→          userId={statsUserId}
+  1097→          onClose={() => {
+  1098→            setShowAdvancedStats(false);
+  1099→            setStatsUserId(null);
+  1100→          }}
+  1101→        />
+  1102→      )}
+  1103→      {showStreaks && (
+  1104→        <StreaksRecordsScreen onClose={() => setShowStreaks(false)} />
+  1105→      )}
+  1106→      {showAchievements && (
+  1107→        <AchievementsScreen onClose={() => setShowAchievements(false)} />
+  1108→      )}
+  1109→      {showComparison && (
+  1110→        <TeamComparisonScreen onClose={() => setShowComparison(false)} />
+  1111→      )}
+  1112→      {showGrounds && (
+  1113→        <GroundsScreen onClose={() => setShowGrounds(false)} />
+  1114→      )}
+  1115→      {showReplay && replayMatchId && (
+  1116→        <MatchReplayScreen
+  1117→          matchId={replayMatchId}
+  1118→          onClose={() => {
+  1119→            setShowReplay(false);
+  1120→            setReplayMatchId(null);
+  1121→          }}
+  1122→        />
+  1123→      )}
+  1124→      {showAIInsights && (
+  1125→        <AIInsightsScreen onClose={() => setShowAIInsights(false)} />
+  1126→      )}
+  1127→      {showBroadcast && broadcastMatchId && (
+  1128→        <BroadcastScreen
+  1129→          matchId={broadcastMatchId}
+  1130→          onClose={() => {
+  1131→            setShowBroadcast(false);
+  1132→            setBroadcastMatchId(null);
+  1133→          }}
+  1134→        />
+  1135→      )}
+  1136→      {showDataExport && (
+  1137→        <DataExportScreen onClose={() => setShowDataExport(false)} />
+  1138→      )}
+  1139→      {showSeason && (
+  1140→        <SeasonScreen onClose={() => setShowSeason(false)} />
+  1141→      )}
+  1142→      {showPolls && (
+  1143→        <PollsScreen onClose={() => setShowPolls(false)} />
+  1144→      )}
+  1145→      {showPredictions && (
+  1146→        <MatchPredictionScreen onClose={() => setShowPredictions(false)} />
+  1147→      )}
+  1148→      {showSponsors && (
+  1149→        <SponsorScreen onClose={() => setShowSponsors(false)} />
+  1150→      )}
+  1151→      {showStats && currentUser?.id && (
+  1152→        <PlayerStatsScreen userId={currentUser.id} onClose={() => setShowStats(false)} />
+  1153→      )}
+  1154→      {showRules && (
+  1155→        <KabaddiRulesScreen onClose={() => setShowRules(false)} />
+  1156→      )}
+  1157→
+  1158→      {/* ─── Global Search Overlay ─── */}
+  1159→      {showSearch && (
+  1160→        <GlobalSearchScreen
+  1161→          onClose={() => setShowSearch(false)}
+  1162→        />
+  1163→      )}
+  1164→      {showMatchHistory && (
+  1165→        <MatchHistoryScreen
+  1166→          onClose={() => setShowMatchHistory(false)}
+  1167→        />
+  1168→      )}
+  1169→      {showTeamChat && (
+  1170→        <TeamChatScreen onClose={() => setShowTeamChat(false)} />
+  1171→      )}
+  1172→      {showDailyChallenge && (
+  1173→        <DailyChallengeScreen onClose={() => setShowDailyChallenge(false)} />
+  1174→      )}
+  1175→      {showMatchTimeline && (
+  1176→        <MatchTimelineScreen
+  1177→          onClose={() => setShowMatchTimeline(false)}
+  1178→        />
+  1179→      )}
+  1180→      {showCoachesCorner && (
+  1181→        <CoachesCornerScreen onClose={() => setShowCoachesCorner(false)} />
+  1182→      )}
+  1183→      </Portal>
+  1184→
+  1185→      {/* ─── Header ─── */}
+  1186→      <header className="sticky top-0 z-30 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md header-gradient-border">
+  1187→        <div className="px-4 py-3 flex items-center justify-between">
+  1188→          <div className="flex items-center gap-2.5">
+  1189→            {/* Logo with animated glow */}
+  1190→            <div className="relative">
+  1191→              <div className="absolute inset-0 rounded-lg bg-brand-red/30 blur-md animate-pulse" />
+  1192→              <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-brand-red via-brand-red-dark to-brand-navy flex items-center justify-center shadow-lg shadow-brand-red/30">
+  1193→                <Trophy className="w-4.5 h-4.5 text-white" />
+  1194→              </div>
+  1195→            </div>
+  1196→            <h1 className="text-base font-black tracking-wider">
+  1197→              <span className="bg-gradient-to-r from-brand-red via-brand-red-light to-brand-gold bg-clip-text text-transparent">
+  1198→                KABADDI
+  1199→              </span>{' '}
+  1200→              <span className="bg-gradient-to-r from-brand-gold via-brand-gold-light to-brand-gold bg-clip-text text-transparent">
+  1201→                PRO
+  1202→              </span>
+  1203→            </h1>
+  1204→            {isPremium && (
+  1205→              <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[9px] border-0 font-bold px-1.5 py-0 relative overflow-hidden">
+  1206→                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+  1207→                <Crown className="w-2.5 h-2.5 mr-0.5" />
+  1208→                PRO
+  1209→              </Badge>
+  1210→            )}
+  1211→          </div>
+  1212→          <div className="flex items-center gap-2">
+  1213→            {!isPremium && (
+  1214→              <button
+  1215→                onClick={() => {
+  1216→                  setUpgradeFeature('Premium Features');
+  1217→                  setShowUpgrade(true);
+  1218→                }}
+  1219→                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white text-[10px] font-bold shadow-md shadow-brand-gold/30 active:scale-95 transition-transform relative overflow-hidden"
+  1220→              >
+  1221→                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_2.5s_ease-in-out_infinite]" />
+  1222→                <Crown className="w-3 h-3 relative z-10" />
+  1223→                <span className="relative z-10">PRO</span>
+  1224→              </button>
+  1225→            )}
+  1226→            <button
+  1227→              onClick={() => setShowSearch(true)}
+  1228→              className="p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors search-focus-ring focus:outline-none"
+  1229→              aria-label="Search"
+  1230→            >
+  1231→              <Search className="w-5 h-5 text-warm-700 dark:text-warm-200" />
+  1232→            </button>
+  1233→            <button
+  1234→              onClick={() => setShowNotifications(true)}
+  1235→              className="relative p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors"
+  1236→            >
+  1237→              {unreadNotificationCount > 0 ? (
+  1238→                <Bell className="w-5 h-5 text-warm-700 dark:text-warm-200" />
+  1239→              ) : (
+  1240→                <BellOff className="w-5 h-5 text-warm-400" />
+  1241→              )}
+  1242→              {unreadNotificationCount > 0 && (
+  1243→                <motion.span
+  1244→                  key={unreadNotificationCount}
+  1245→                  initial={{ scale: 0.5 }}
+  1246→                  animate={{ scale: 1 }}
+  1247→                  transition={{ type: 'spring', damping: 12, stiffness: 280 }}
+  1248→                  className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold px-1 badge-smooth-bounce"
+  1249→                >
+  1250→                  {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+  1251→                </motion.span>
+  1252→              )}
+  1253→            </button>
+  1254→          </div>
+  1255→        </div>
+  1256→      </header>
+  1257→
+  1258→      {/* ─── Greeting ─── */}
+  1259→      <motion.div
+  1260→        className="px-4 pt-4 pb-3 rounded-b-2xl relative overflow-hidden"
+  1261→        initial={{ opacity: 0, y: -8 }}
+  1262→        animate={{ opacity: 1, y: 0 }}
+  1263→        transition={{ duration: 0.5 }}
+  1264→        style={{
+  1265→          background: 'linear-gradient(135deg, rgba(220,38,38,0.06) 0%, rgba(245,158,11,0.04) 50%, rgba(20,184,166,0.03) 100%)',
+  1266→        }}
+  1267→      >
+  1268→        {/* Animated court line patterns */}
+  1269→        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+  1270→          <div className="absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-brand-red/10 via-brand-gold/5 to-transparent" />
+  1271→          <div className="absolute top-0 left-1/2 w-px h-full bg-gradient-to-b from-transparent via-brand-gold/8 to-brand-red/5" />
+  1272→          <div className="absolute top-0 left-3/4 w-px h-full bg-gradient-to-b from-brand-teal/8 via-transparent to-brand-gold/5" />
+  1273→          <div className="absolute top-1/3 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-red/8 to-transparent" />
+  1274→          <div className="absolute top-2/3 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-gold/6 to-transparent" />
+  1275→          {/* Center circle pattern */}
+  1276→          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-brand-gold/8" />
+  1277→          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-brand-red/6" />
+  1278→        </div>
+  1279→        {/* Parallax shimmer overlay */}
+  1280→        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+  1281→
+  1282→        <div className="flex items-center justify-between relative z-10">
+  1283→          <div>
+  1284→            <p className="text-warm-500 dark:text-warm-400 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
+  1285→              <span>{getTimeEmoji()}</span>
+  1286→              <span>{t('home.greeting', language)}</span>
+  1287→            </p>
+  1288→            <h2 className="text-2xl font-black text-warm-800 dark:text-warm-100 mt-0.5 flex items-center gap-2">
+  1289→              <span className={`bg-gradient-to-r from-warm-800 via-brand-red-dark to-warm-800 dark:from-warm-100 dark:via-brand-red-light dark:to-warm-100 bg-clip-text text-transparent ${isPremium ? '!from-brand-gold !via-brand-gold-light !to-brand-gold' : ''}`}>
+  1290→                {currentUser?.name ?? 'Player'}
+  1291→              </span>
+  1292→              {isPremium && (
+  1293→                <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[8px] border-0 font-bold px-1 py-0 ml-0.5">
+  1294→                  <Crown className="w-2.5 h-2.5 mr-0.5" />PRO
+  1295→                </Badge>
+  1296→              )}
+  1297→              {/* Position Badge */}
+  1298→              {currentUser?.role && (
+  1299→                <motion.span
+  1300→                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide shadow-sm"
+  1301→                  initial={{ scale: 0 }}
+  1302→                  animate={{ scale: 1 }}
+  1303→                  transition={{ type: 'spring', damping: 12, stiffness: 280, delay: 0.2 }}
+  1304→                  style={{
+  1305→                    backgroundColor: currentUser.role.toLowerCase() === 'raider' ? 'rgba(220,38,38,0.15)'
+  1306→                      : currentUser.role.toLowerCase() === 'defender' ? 'rgba(30,41,59,0.15)'
+  1307→                      : 'rgba(245,158,11,0.15)',
+  1308→                    color: currentUser.role.toLowerCase() === 'raider' ? '#DC2626'
+  1309→                      : currentUser.role.toLowerCase() === 'defender' ? '#1E293B'
+  1310→                      : '#D97706',
+  1311→                    boxShadow: currentUser.role.toLowerCase() === 'raider' ? '0 2px 8px rgba(220,38,38,0.15)'
+  1312→                      : currentUser.role.toLowerCase() === 'defender' ? '0 2px 8px rgba(30,41,59,0.15)'
+  1313→                      : '0 2px 8px rgba(245,158,11,0.15)',
+  1314→                  }}
+  1315→                >
+  1316→                  {currentUser.role.toLowerCase() === 'raider' && <Swords className="w-2.5 h-2.5" />}
+  1317→                  {currentUser.role.toLowerCase() === 'defender' && <Shield className="w-2.5 h-2.5" />}
+  1318→                  {currentUser.role.toLowerCase() !== 'raider' && currentUser.role.toLowerCase() !== 'defender' && <Zap className="w-2.5 h-2.5" />}
+  1319→                  {currentUser.role}
+  1320→                </motion.span>
+  1321→              )}
+  1322→              {/* Gender icon */}
+  1323→              {currentUser?.gender && (
+  1324→                <span
+  1325→                  className={currentUser.gender.toLowerCase() === 'female' || currentUser.gender.toLowerCase() === 'girls'
+  1326→                    ? 'text-brand-red'
+  1327→                    : 'text-brand-blue dark:text-brand-teal'
+  1328→                  }
+  1329→                >
+  1330→                  {genderIcon}
+  1331→                </span>
+  1332→              )}
+  1333→              {/* Streak/Fire icon for active players */}
+  1334→              {(recentMatches.length > 0 || liveMatches.length > 0) && (
+  1335→                <motion.span
+  1336→                  className="fire-flicker"
+  1337→                  initial={{ scale: 0 }}
+  1338→                  animate={{ scale: 1 }}
+  1339→                  transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.4 }}
+  1340→                >
+  1341→                  <Flame className="w-4 h-4 text-brand-gold" />
+  1342→                </motion.span>
+  1343→              )}
+  1344→            </h2>
+  1345→          </div>
+  1346→          {/* Player Code - enhanced */}
+  1347→          {currentUser?.playerCode && (
+  1348→            <motion.button
+  1349→              onClick={handleCopyPlayerCode}
+  1350→              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-br from-warm-100 to-warm-50 dark:from-warm-800 dark:to-warm-700 border border-warm-200 dark:border-warm-600 hover:border-brand-gold/50 hover:shadow-md hover:shadow-brand-gold/10 transition-all duration-200 active:scale-95 relative overflow-hidden group card-hover-lift"
+  1351→              whileTap={{ scale: 0.95 }}
+  1352→            >
+  1353→              <div className="absolute inset-0 bg-gradient-to-r from-brand-gold/0 via-brand-gold/5 to-brand-gold/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+  1354→              <span className="text-[10px] font-mono font-black text-brand-red dark:text-brand-red-light tracking-wider">{currentUser.playerCode}</span>
+  1355→              {copiedCode ? (
+  1356→                <Check className="w-3 h-3 text-emerald-500" />
+  1357→              ) : (
+  1358→                <Copy className="w-3 h-3 text-warm-400 group-hover:text-brand-gold transition-colors" />
+  1359→              )}
+  1360→            </motion.button>
+  1361→          )}
+  1362→        </div>
+  1363→      </motion.div>
+  1364→
+  1365→      {/* ─── Quick Stats Banner ─── */}
+  1366→      <div className="px-4 mt-2">
+  1367→        <motion.div
+  1368→          className="bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-navy rounded-2xl p-5 shadow-xl shadow-brand-red/25 overflow-hidden relative"
+  1369→          initial={{ opacity: 0, y: 12, scale: 0.97 }}
+  1370→          animate={{ opacity: 1, y: 0, scale: 1 }}
+  1371→          transition={{ duration: 0.5, delay: 0.15 }}
+  1372→        >
+  1373→          {/* Decorative elements */}
+  1374→          <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
+  1375→          <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full bg-white/5" />
+  1376→          <div className="absolute top-2 right-20 w-8 h-8 rounded-full bg-white/5" />
+  1377→          {/* Court line pattern decorations */}
+  1378→          <div className="absolute top-0 left-1/4 w-px h-full bg-white/5" />
+  1379→          <div className="absolute top-0 left-1/2 w-px h-full bg-white/5" />
+  1380→          <div className="absolute top-1/2 left-0 right-0 h-px bg-white/5" />
+  1381→          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-white/5" />
+  1382→          {/* Enhanced parallax shimmer overlay */}
+  1383→          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+  1384→          <div className="absolute inset-0 bg-gradient-to-br from-brand-gold/5 via-transparent to-brand-teal/5" />
+  1385→          <div className="relative z-10">
+  1386→            <div className="flex items-center justify-between mb-4">
+  1387→              <div className="flex items-center gap-2">
+  1388→                <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center backdrop-blur-sm border border-white/10">
+  1389→                  <Shield className="w-4 h-4 text-yellow-300" />
+  1390→                </div>
+  1391→                <span className="text-white/80 text-[10px] font-bold uppercase tracking-widest">{t('home.globalStats', language)}</span>
+  1392→              </div>
+  1393→              {currentUser?.playerCode && (
+  1394→                <div className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm">
+  1395→                  <span className="text-white/90 text-[10px] font-mono font-bold tracking-wider">{currentUser.playerCode}</span>
+  1396→                </div>
+  1397→              )}
+  1398→            </div>
+  1399→            <motion.div
+  1400→              className="grid grid-cols-3 gap-3"
+  1401→              variants={stagger}
+  1402→              initial="hidden"
+  1403→              animate="show"
+  1404→            >
+  1405→              <motion.div
+  1406→                variants={fadeUp}
+  1407→                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group ripple-container"
+  1408→                whileHover={{ scale: 1.05 }}
+  1409→                whileTap={{ scale: 0.97 }}
+  1410→                onClick={(e) => {
+  1411→                  const rect = e.currentTarget.getBoundingClientRect();
+  1412→                  const ripple = document.createElement('div');
+  1413→                  ripple.className = 'ripple-effect';
+  1414→                  ripple.style.left = `${e.clientX - rect.left}px`;
+  1415→                  ripple.style.top = `${e.clientY - rect.top}px`;
+  1416→                  ripple.style.width = '20px';
+  1417→                  ripple.style.height = '20px';
+  1418→                  e.currentTarget.appendChild(ripple);
+  1419→                  setTimeout(() => ripple.remove(), 600);
+  1420→                  if (currentUser?.id) setShowStats(true);
+  1421→                }}
+  1422→              >
+  1423→                <div className="absolute inset-0 bg-gradient-to-b from-brand-gold/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+  1424→                <div className="flex items-center justify-center gap-1 relative z-10">
+  1425→                  <Swords className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
+  1426→                </div>
+  1427→                <div className="text-2xl font-black text-white mt-1 relative z-10">
+  1428→                  <AnimatedCounter target={raidPts} />
+  1429→                </div>
+  1430→                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.raidPoints', language)}</div>
+  1431→              </motion.div>
+  1432→              <motion.div
+  1433→                variants={fadeUp}
+  1434→                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer border-x border-white/10 relative overflow-hidden group ripple-container"
+  1435→                whileHover={{ scale: 1.05 }}
+  1436→                whileTap={{ scale: 0.97 }}
+  1437→                onClick={(e) => {
+  1438→                  const rect = e.currentTarget.getBoundingClientRect();
+  1439→                  const ripple = document.createElement('div');
+  1440→                  ripple.className = 'ripple-effect';
+  1441→                  ripple.style.left = `${e.clientX - rect.left}px`;
+  1442→                  ripple.style.top = `${e.clientY - rect.top}px`;
+  1443→                  ripple.style.width = '20px';
+  1444→                  ripple.style.height = '20px';
+  1445→                  e.currentTarget.appendChild(ripple);
+  1446→                  setTimeout(() => ripple.remove(), 600);
+  1447→                  if (currentUser?.id) setShowStats(true);
+  1448→                }}
+  1449→              >
+  1450→                <div className="absolute inset-0 bg-gradient-to-b from-brand-teal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+  1451→                <div className="flex items-center justify-center gap-1 relative z-10">
+  1452→                  <Shield className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
+  1453→                </div>
+  1454→                <div className="text-2xl font-black text-white mt-1 relative z-10">
+  1455→                  <AnimatedCounter target={tacklePts} />
+  1456→                </div>
+  1457→                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.tacklePoints', language)}</div>
+  1458→              </motion.div>
+  1459→              <motion.div
+  1460→                variants={fadeUp}
+  1461→                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group ripple-container"
+  1462→                whileHover={{ scale: 1.05 }}
+  1463→                whileTap={{ scale: 0.97 }}
+  1464→                onClick={(e) => {
+  1465→                  const rect = e.currentTarget.getBoundingClientRect();
+  1466→                  const ripple = document.createElement('div');
+  1467→                  ripple.className = 'ripple-effect';
+  1468→                  ripple.style.left = `${e.clientX - rect.left}px`;
+  1469→                  ripple.style.top = `${e.clientY - rect.top}px`;
+  1470→                  ripple.style.width = '20px';
+  1471→                  ripple.style.height = '20px';
+  1472→                  e.currentTarget.appendChild(ripple);
+  1473→                  setTimeout(() => ripple.remove(), 600);
+  1474→                  if (currentUser?.id) setShowStats(true);
+  1475→                }}
+  1476→              >
+  1477→                <div className="absolute inset-0 bg-gradient-to-b from-brand-red/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+  1478→                <div className="flex items-center justify-center gap-1 relative z-10">
+  1479→                  <Calendar className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
+  1480→                </div>
+  1481→                <div className="text-2xl font-black text-white mt-1 relative z-10">
+  1482→                  <AnimatedCounter target={totalMatches} />
+  1483→                </div>
+  1484→                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.matches', language)}</div>
+  1485→              </motion.div>
+  1486→            </motion.div>
+  1487→          </div>
+  1488→        </motion.div>
+  1489→      </div>
+  1490→
+  1491→      {/* ─── Gradient Separator ─── */}
+  1492→      <div className="px-4 mt-4">
+  1493→        <div className="section-gradient-separator" />
+  1494→      </div>
+  1495→
+  1496→      {/* ─── Error State ─── */}
+  1497→      {error && (
+  1498→        <section className="px-4 mt-4">
+  1499→          <Card className="bg-brand-red/20 border-brand-red/30 py-0 gap-0">
+  1500→            <CardContent className="p-4 flex items-center gap-3">
+  1501→              <Zap className="w-5 h-5 text-brand-red shrink-0" />
+  1502→              <p className="text-warm-700 dark:text-warm-300 text-sm flex-1">{error}</p>
+  1503→              <Button
+  1504→                variant="outline"
+  1505→                size="sm"
+  1506→                onClick={handleRetry}
+  1507→                className="text-brand-red border-brand-red/30 hover:bg-brand-red/20 text-xs"
+  1508→              >
+  1509→                Retry
+  1510→              </Button>
+  1511→            </CardContent>
+  1512→          </Card>
+  1513→        </section>
+  1514→      )}
+  1515→
+  1516→      {/* ─── Live Matches (FREE) ─── */}
+  1517→      <section className="px-4 mt-5">
+  1518→        <div className="flex items-center justify-between mb-3 section-header-decorated">
+  1519→          <div className="flex items-center gap-2">
+  1520→            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
+  1521→              {t('home.liveMatches', language)}
+  1522→            </h3>
+  1523→            <span className="relative flex h-2.5 w-2.5">
+  1524→              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
+  1525→              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
+  1526→            </span>
+  1527→            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] border-0 font-semibold">
+  1528→              {t('home.free', language)}
+  1529→            </Badge>
+  1530→          </div>
+  1531→        </div>
+  1532→
+  1533→        {/* Gender Filter Toggles */}
+  1534→        <div className="flex items-center gap-2 mb-3">
+  1535→          <button
+  1536→            onClick={() => setGenderFilter('all')}
+  1537→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1538→              genderFilter === 'all'
+  1539→                ? 'bg-warm-800 dark:bg-warm-100 text-warm-50 dark:text-warm-900 shadow-sm'
+  1540→                : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
+  1541→            }`}
+  1542→          >
+  1543→            {t('home.all', language)}
+  1544→          </button>
+  1545→          <button
+  1546→            onClick={() => setGenderFilter('boys')}
+  1547→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1548→              genderFilter === 'boys'
+  1549→                ? 'bg-brand-blue text-white shadow-sm'
+  1550→                : 'bg-brand-blue/10 text-brand-blue dark:text-brand-navy-light hover:bg-brand-blue/20'
+  1551→            }`}
+  1552→          >
+  1553→            ♂ {t('home.boys', language)}
+  1554→          </button>
+  1555→          <button
+  1556→            onClick={() => setGenderFilter('girls')}
+  1557→            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
+  1558→              genderFilter === 'girls'
+  1559→                ? 'bg-brand-red text-white shadow-sm'
+  1560→                : 'bg-brand-red/10 text-brand-red hover:bg-brand-red/20'
+  1561→            }`}
+  1562→          >
+  1563→            ♀ {t('home.girls', language)}
+  1564→          </button>
+  1565→        </div>
+  1566→
+  1567→        <AnimatePresence mode="wait">
+  1568→          {loading ? (
+  1569→            <motion.div
+  1570→              key="loading"
+  1571→              className="flex flex-col gap-3"
+  1572→              initial={{ opacity: 0 }}
+  1573→              animate={{ opacity: 1 }}
+  1574→              exit={{ opacity: 0 }}
+  1575→            >
+  1576→              <LiveMatchSkeleton />
+  1577→              <LiveMatchSkeleton />
+  1578→            </motion.div>
+  1579→          ) : filteredMatches.length > 0 ? (
+  1580→            <motion.div
+  1581→              key="matches"
+  1582→              className="flex flex-col gap-3"
+  1583→              variants={stagger}
+  1584→              initial="hidden"
+  1585→              animate="show"
+  1586→            >
+  1587→              {filteredMatches.map((match) => (
+  1588→                <motion.div key={match.id} variants={fadeUp}>
+  1589→                  <motion.div
+  1590→                    variants={cardHover}
+  1591→                    initial="rest"
+  1592→                    whileHover="hover"
+  1593→                    whileTap={{ scale: 0.98 }}
+  1594→                  >
+  1595→                    <Card
+  1596→                      className="bg-warm-100 dark:bg-warm-800 cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden relative live-card-glow"
+  1597→                      style={{
+  1598→                        borderColor: 'transparent',
+  1599→                        boxShadow: `0 0 0 1px rgba(220,38,38,0.15), 0 4px 24px -4px ${match.homeTeam.color || '#DC2626'}15, 0 4px 24px -4px ${match.awayTeam.color || '#1E293B'}15`,
+  1600→                      }}
+  1601→                      onClick={() => handleMatchClick(match)}
+  1602→                    >
+  1603→                      {/* Team color gradient border strip at top */}
+  1604→                      <div
+  1605→                        className="h-2 w-full relative"
+  1606→                        style={{
+  1607→                          background: `linear-gradient(90deg, ${match.homeTeam.color || '#DC2626'}, ${match.awayTeam.color || '#1E293B'})`,
+  1608→                        }}
+  1609→                      >
+  1610→                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+  1611→                      </div>
+  1612→                      {/* Subtle background glow matching dominant team color */}
+  1613→                      <div
+  1614→                        className="absolute inset-0 pointer-events-none"
+  1615→                        style={{
+  1616→                          background: `radial-gradient(ellipse at 30% 50%, ${match.homeScore >= match.awayScore ? (match.homeTeam.color || '#DC2626') : (match.awayTeam.color || '#1E293B')}08, transparent 70%)`,
+  1617→                        }}
+  1618→                      />
+  1619→                      {/* Animated background particles */}
+  1620→                      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+  1621→                        {[...Array(4)].map((_, i) => (
+  1622→                          <motion.div
+  1623→                            key={`particle-${match.id}-${i}`}
+  1624→                            className="absolute w-1 h-1 rounded-full"
+  1625→                            style={{
+  1626→                              left: `${20 + i * 20}%`,
+  1627→                              top: '60%',
+  1628→                              backgroundColor: i % 2 === 0 ? 'rgba(220,38,38,0.15)' : 'rgba(245,158,11,0.15)',
+  1629→                            }}
+  1630→                            animate={{
+  1631→                              y: [0, -20, -30],
+  1632→                              opacity: [0.3, 0.5, 0],
+  1633→                              scale: [1, 1.2, 0.8],
+  1634→                            }}
+  1635→                            transition={{
+  1636→                              duration: 2.5,
+  1637→                              repeat: Infinity,
+  1638→                              delay: i * 0.6,
+  1639→                              ease: 'easeOut',
+  1640→                            }}
+  1641→                          />
+  1642→                        ))}
+  1643→                      </div>
+  1644→                      {/* Animated court line pattern inside live card */}
+  1645→                      <div className="absolute inset-0 overflow-hidden pointer-events-none court-line-animated">
+  1646→                        <div className="absolute top-1/2 left-[8%] right-[8%] h-px bg-gradient-to-r from-transparent via-brand-gold/12 to-transparent" />
+  1647→                        <div className="absolute top-[30%] left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-brand-red/8 to-transparent" />
+  1648→                        <div className="absolute top-[70%] left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-brand-red/8 to-transparent" />
+  1649→                        <div className="absolute top-[25%] bottom-[25%] left-1/2 w-px bg-gradient-to-b from-transparent via-brand-gold/10 to-transparent" />
+  1650→                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-brand-gold/10" />
+  1651→                        <div className="absolute top-1/2 left-[20%] -translate-y-1/2 w-6 h-8 border border-brand-red/8 rounded-sm" />
+  1652→                        <div className="absolute top-1/2 right-[20%] -translate-y-1/2 w-6 h-8 border border-brand-red/8 rounded-sm" />
+  1653→                      </div>
+  1654→                      <CardContent className="p-4 relative z-10">
+  1655→                        {/* Confetti on score change */}
+  1656→                        <ConfettiParticles trigger={match.homeScore + match.awayScore} />
+  1657→                        <div className="flex items-center justify-between mb-3">
+  1658→                          <div className="flex items-center gap-2">
+  1659→                            {/* Enhanced pulsing LIVE indicator with ring animation */}
+  1660→                            <Badge
+  1661→                              variant="secondary"
+  1662→                              className="bg-brand-red/20 text-brand-red text-[10px] font-bold border border-brand-red/20 px-2.5 py-1 flex items-center gap-1.5 live-badge-dramatic relative"
+  1663→                            >
+  1664→                              <span className="relative flex h-2.5 w-2.5">
+  1665→                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
+  1666→                                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-brand-red/30 ring-2 ring-brand-red/20" />
+  1667→                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
+  1668→                              </span>
+  1669→                              LIVE
+  1670→                            </Badge>
+  1671→                            {match.gender && (
+  1672→                              <Badge
+  1673→                                variant="secondary"
+  1674→                                className={`text-[10px] font-semibold border-0 px-2 py-0.5 ${
+  1675→                                  match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
+  1676→                                    ? 'bg-brand-red/15 text-brand-red'
+  1677→                                    : 'bg-brand-blue/15 text-brand-blue dark:text-brand-navy-light'
+  1678→                                }`}
+  1679→                              >
+  1680→                                {match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
+  1681→                                  ? '♀ Girls Match'
+  1682→                                  : '♂ Boys Match'}
+  1683→                              </Badge>
+  1684→                            )}
+  1685→                          </div>
+  1686→                          <span className="text-xs text-warm-500 dark:text-warm-400 font-medium bg-warm-200/50 dark:bg-warm-700/50 px-2 py-0.5 rounded-md">
+  1687→                            {halfLabel(match.half)}
+  1688→                          </span>
+  1689→                        </div>
+  1690→                        <div className="flex items-center justify-between">
+  1691→                          <div className="flex flex-col items-center gap-1 flex-1">
+  1692→                            <div
+  1693→                              className="w-12 h-12 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-md relative"
+  1694→                              style={{
+  1695→                                borderColor: match.homeTeam.color || '#DC2626',
+  1696→                                borderWidth: 3,
+  1697→                                boxShadow: `0 2px 12px ${match.homeTeam.color || '#DC2626'}25`,
+  1698→                              }}
+  1699→                            >
+  1700→                              {getTeamShortName(match.homeTeam)}
+  1701→                            </div>
+  1702→                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight font-medium">
+  1703→                              {match.homeTeam.name}
+  1704→                            </span>
+  1705→                          </div>
+  1706→                          <div className="flex items-center gap-2 px-3">
+  1707→                            <span className="text-4xl font-black tabular-nums" style={{ color: match.homeTeam.color || '#DC2626' }}>
+  1708→                              <NumberTicker value={match.homeScore} />
+  1709→                            </span>
+  1710→                            <div className="flex flex-col items-center gap-0.5">
+  1711→                              <span className="text-warm-400 text-[10px] font-bold uppercase tracking-wider">
+  1712→                                vs
+  1713→                              </span>
+  1714→                              <div className="w-1 h-1 rounded-full bg-brand-red animate-pulse" />
+  1715→                            </div>
+  1716→                            <span className="text-4xl font-black tabular-nums" style={{ color: match.awayTeam.color || '#1E293B' }}>
+  1717→                              <NumberTicker value={match.awayScore} />
+  1718→                            </span>
+  1719→                          </div>
+  1720→                          {/* Mini team formation visualization */}
+  1721→                          <div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none overflow-hidden opacity-20">
+  1722→                            <svg className="w-full h-full" viewBox="0 0 200 20" preserveAspectRatio="none">
+  1723→                              {/* Home team dots (left side) */}
+  1724→                              <circle cx="30" cy="10" r="2.5" fill={match.homeTeam.color || '#DC2626'} />
+  1725→                              <circle cx="45" cy="5" r="2" fill={match.homeTeam.color || '#DC2626'} />
+  1726→                              <circle cx="45" cy="15" r="2" fill={match.homeTeam.color || '#DC2626'} />
+  1727→                              <circle cx="60" cy="8" r="2" fill={match.homeTeam.color || '#DC2626'} />
+  1728→                              <circle cx="60" cy="14" r="2" fill={match.homeTeam.color || '#DC2626'} />
+  1729→                              {/* Away team dots (right side) */}
+  1730→                              <circle cx="170" cy="10" r="2.5" fill={match.awayTeam.color || '#1E293B'} />
+  1731→                              <circle cx="155" cy="5" r="2" fill={match.awayTeam.color || '#1E293B'} />
+  1732→                              <circle cx="155" cy="15" r="2" fill={match.awayTeam.color || '#1E293B'} />
+  1733→                              <circle cx="140" cy="8" r="2" fill={match.awayTeam.color || '#1E293B'} />
+  1734→                              <circle cx="140" cy="14" r="2" fill={match.awayTeam.color || '#1E293B'} />
+  1735→                              {/* Center line */}
+  1736→                              <line x1="100" y1="0" x2="100" y2="20" stroke="rgba(245,158,11,0.3)" strokeWidth="0.5" />
+  1737→                            </svg>
+  1738→                          </div>
+  1739→                          <div className="flex flex-col items-center gap-1 flex-1">
+  1740→                            <div
+  1741→                              className="w-12 h-12 rounded-full bg-warm-50 dark:bg-warm-700 flex items-center justify-center text-xs font-bold text-warm-800 dark:text-warm-100 shadow-md relative"
+  1742→                              style={{
+  1743→                                borderColor: match.awayTeam.color || '#1E293B',
+  1744→                                borderWidth: 3,
+  1745→                                boxShadow: `0 2px 12px ${match.awayTeam.color || '#1E293B'}25`,
+  1746→                              }}
+  1747→                            >
+  1748→                              {getTeamShortName(match.awayTeam)}
+  1749→                            </div>
+  1750→                            <span className="text-xs text-warm-600 dark:text-warm-400 text-center leading-tight font-medium">
+  1751→                              {match.awayTeam.name}
+  1752→                            </span>
+  1753→                          </div>
+  1754→                        </div>
+  1755→                        {/* Mini Scoreboard Visualization - colored team bars showing score proportion */}
+  1756→                        <div className="mt-3 px-2">
+  1757→                          <div className="flex items-center justify-between mb-1">
+  1758→                            <span className="text-[9px] font-bold text-warm-500 dark:text-warm-400 uppercase">
+  1759→                              {halfLabel(match.half)}
+  1760→                            </span>
+  1761→                            <span className="text-[9px] font-medium text-warm-400 dark:text-warm-500">
+  1762→                              {match.half === 1 ? '1st' : '2nd'} Half
+  1763→                            </span>
+  1764→                          </div>
+  1765→                          {/* Score proportion bar */}
+  1766→                          <div className="h-2.5 w-full rounded-full overflow-hidden flex gap-0.5">
+  1767→                            <motion.div
+  1768→                              className="h-full rounded-l-full relative"
+  1769→                              style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+  1770→                              initial={{ width: '0%' }}
+  1771→                              animate={{
+  1772→                                width: `${((match.homeScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+  1773→                              }}
+  1774→                              transition={{ duration: 0.8, ease: 'easeOut' }}
+  1775→                            >
+  1776→                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
+  1777→                            </motion.div>
+  1778→                            <motion.div
+  1779→                              className="h-full rounded-r-full relative"
+  1780→                              style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+  1781→                              initial={{ width: '0%' }}
+  1782→                              animate={{
+  1783→                                width: `${((match.awayScore + 0.5) / Math.max(match.homeScore + match.awayScore + 1, 1)) * 100}%`,
+  1784→                              }}
+  1785→                              transition={{ duration: 0.8, ease: 'easeOut' }}
+  1786→                            >
+  1787→                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent animate-[shimmer_5s_ease-in-out_infinite]" />
+  1788→                            </motion.div>
+  1789→                          </div>
+  1790→                        </div>
+  1791→                        {match.tournament && (
+  1792→                          <p className="text-[10px] text-warm-500 dark:text-warm-400 text-center mt-2">
+  1793→                            {match.tournament.name}
+  1794→                          </p>
+  1795→                        )}
+  1796→                      </CardContent>
+  1797→                      {/* Live Commentary Feed - Enhanced */}
+  1798→                      {activeMatch && activeMatch.id === match.id && activeMatch.events.length > 0 ? (
+  1799→                        <LiveMatchCommentaryFeed
+  1800→                          events={activeMatch.events}
+  1801→                          match={{
+  1802→                            homeTeamId: match.homeTeam.id,
+  1803→                            awayTeamId: match.awayTeam.id,
+  1804→                            homeTeam: match.homeTeam.name,
+  1805→                            awayTeam: match.awayTeam.name,
+  1806→                            homeTeamColor: match.homeTeam.color ?? '#DC2626',
+  1807→                            awayTeamColor: match.awayTeam.color ?? '#1E293B',
+  1808→                            currentHalf: activeMatch.currentHalf,
+  1809→                          }}
+  1810→                          maxEvents={5}
+  1811→                        />
+  1812→                      ) : (
+  1813→                        <LiveCommentaryTicker
+  1814→                          mode="compact"
+  1815→                          events={[]}
+  1816→                          match={{
+  1817→                            homeTeamId: match.homeTeam.id,
+  1818→                            awayTeamId: match.awayTeam.id,
+  1819→                            homeTeam: match.homeTeam.name,
+  1820→                            awayTeam: match.awayTeam.name,
+  1821→                            homeTeamColor: match.homeTeam.color ?? '#DC2626',
+  1822→                            awayTeamColor: match.awayTeam.color ?? '#1E293B',
+  1823→                          }}
+  1824→                          onExpand={() => handleMatchClick(match)}
+  1825→                        />
+  1826→                      )}
+  1827→                    </Card>
+  1828→                  </motion.div>
+  1829→                </motion.div>
+  1830→              ))}
+  1831→            </motion.div>
+  1832→          ) : (
+  1833→            <motion.div
+  1834→              key="empty"
+  1835→              initial={{ opacity: 0, y: 8 }}
+  1836→              animate={{ opacity: 1, y: 0 }}
+  1837→              exit={{ opacity: 0 }}
+  1838→            >
+  1839→              <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
+  1840→                <CardContent className="flex flex-col items-center justify-center py-10 px-4">
+  1841→                  <div className="relative mb-4">
+  1842→                    <div className="w-16 h-16 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center empty-state-pulse">
+  1843→                      <span className="text-2xl">🏟️</span>
+  1844→                    </div>
+  1845→                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-gold/20 flex items-center justify-center empty-state-pulse" style={{ animationDelay: '0.5s' }}>
+  1846→                      <span className="text-[9px]">⏳</span>
+  1847→                    </div>
+  1848→                  </div>
+  1849→                  <p className="text-warm-700 dark:text-warm-200 text-sm font-bold">
+  1850→                    {genderFilter !== 'all'
+  1851→                      ? t('home.noLiveMatches', language)
+  1852→                      : t('home.noLiveMatches', language)}
+  1853→                  </p>
+  1854→                  <p className="text-warm-500 dark:text-warm-400 text-xs mt-1 text-center">
+  1855→                    Matches will appear here when they go live — stay tuned! 🏏
+  1856→                  </p>
+  1857→                  <Button
+  1858→                    variant="outline"
+  1859→                    size="sm"
+  1860→                    className="mt-4 text-brand-red border-brand-red/30 hover:bg-brand-red/10 text-xs font-semibold"
+  1861→                    onClick={() => {
+  1862→                      // Navigate to quick score via store
+  1863→                      toast({ title: 'Start Scoring', description: 'Go to the Quick Score tab to start a match!' });
+  1864→                    }}
+  1865→                  >
+  1866→                    <Play className="w-3 h-3 mr-1" />
+  1867→                    Start Scoring
+  1868→                  </Button>
+  1869→                </CardContent>
+  1870→              </Card>
+  1871→            </motion.div>
+  1872→          )}
+  1873→        </AnimatePresence>
+  1874→      </section>
+  1875→
+  1876→      {/* ─── Gradient Separator ─── */}
+  1877→      {!loading && recentMatches.length > 0 && (
+  1878→        <div className="px-4 mt-5">
+  1879→          <div className="section-gradient-separator" />
+  1880→        </div>
+  1881→      )}
+  1882→
+  1883→      {/* ─── Recent Results / Match History ─── */}
+  1884→      {!loading && recentMatches.length > 0 && (
+  1885→        <section className="px-4 mt-6">
+  1886→          <div className="flex items-center justify-between mb-3 section-header-decorated">
+  1887→            <div className="flex items-center gap-2">
+  1888→              <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">{t('home.recentResults', language)}</h3>
+  1889→              <Clock className="w-4 h-4 text-warm-400" />
+  1890→            </div>
+  1891→          </div>
+  1892→          <motion.div
+  1893→            className="flex flex-col gap-3"
+  1894→            variants={stagger}
+  1895→            initial="hidden"
+  1896→            animate="show"
+  1897→          >
+  1898→            {recentMatches.slice(0, 5).map((match) => {
+  1899→              const isHomeWin = match.homeScore > match.awayScore;
+  1900→              const isDraw = match.homeScore === match.awayScore;
+  1901→              return (
+  1902→                <motion.div key={match.id} variants={fadeUp}>
+  1903→                  <Card
+  1904→                    className="cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden relative"
+  1905→                    style={{
+  1906→                      backgroundColor: isHomeWin
+  1907→                        ? `linear-gradient(135deg, ${match.homeTeam.color || '#DC2626'}08, transparent 60%)`
+  1908→                        : !isDraw
+  1909→                          ? `linear-gradient(135deg, ${match.awayTeam.color || '#1E293B'}08, transparent 60%)`
+  1910→                          : undefined,
+  1911→                      boxShadow: `0 0 0 1px rgba(16,185,129,0.1), 0 2px 12px -2px rgba(0,0,0,0.06)`,
+  1912→                    }}
+  1913→                    onClick={() => handleRecentMatchClick(match)}
+  1914→                  >
+  1915→                    {/* Subtle gradient background based on winning team color */}
+  1916→                    <div
+  1917→                      className="absolute inset-0 pointer-events-none"
+  1918→                      style={{
+  1919→                        background: isHomeWin && !isDraw
+  1920→                          ? `linear-gradient(135deg, ${match.homeTeam.color || '#DC2626'}08, transparent 50%)`
+  1921→                          : !isDraw
+  1922→                            ? `linear-gradient(135deg, ${match.awayTeam.color || '#1E293B'}08, transparent 50%)`
+  1923→                            : 'linear-gradient(135deg, rgba(245,158,11,0.04), transparent 50%)',
+  1924→                      }}
+  1925→                    />
+  1926→                    {/* Left color accent strip */}
+  1927→                    <div
+  1928→                      className="absolute left-0 top-0 bottom-0 w-1"
+  1929→                      style={{
+  1930→                        background: isHomeWin && !isDraw
+  1931→                          ? match.homeTeam.color || '#DC2626'
+  1932→                          : !isDraw
+  1933→                            ? match.awayTeam.color || '#1E293B'
+  1934→                            : '#F59E0B',
+  1935→                      }}
+  1936→                    />
+  1937→                    <CardContent className="p-4 relative z-10">
+  1938→                      <div className="flex items-center justify-between mb-2">
+  1939→                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/20 px-2 py-0.5 flex items-center gap-1">
+  1940→                          <motion.span
+  1941→                            initial={{ scale: 0 }}
+  1942→                            animate={{ scale: 1 }}
+  1943→                            transition={{ type: 'spring', damping: 12, stiffness: 300, delay: 0.2 }}
+  1944→                          >
+  1945→                            <Check className="w-2.5 h-2.5" />
+  1946→                          </motion.span>
+  1947→                          {t('home.completed', language)}
+  1948→                        </Badge>
+  1949→                        <span className="text-[10px] text-warm-400 dark:text-warm-500">
+  1950→                          {formatTimeAgo(match.completedAt)}
+  1951→                        </span>
+  1952→                      </div>
+  1953→                      <div className="flex items-center justify-between">
+  1954→                        <div className="flex items-center gap-2 flex-1 min-w-0">
+  1955→                          <div
+  1956→                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-md relative"
+  1957→                            style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}
+  1958→                          >
+  1959→                            {getTeamShortName(match.homeTeam)}
+  1960→                            {/* Victory crown for winning team */}
+  1961→                            {isHomeWin && !isDraw && (
+  1962→                              <motion.div
+  1963→                                className="absolute -top-2 left-1/2 -translate-x-1/2"
+  1964→                                initial={{ scale: 0, y: 4 }}
+  1965→                                animate={{ scale: 1, y: 0 }}
+  1966→                                transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.3 }}
+  1967→                              >
+  1968→                                <Crown className="w-3 h-3 text-brand-gold drop-shadow-sm" />
+  1969→                              </motion.div>
+  1970→                            )}
+  1971→                          </div>
+  1972→                          <span className={`text-sm font-semibold truncate ${isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+  1973→                            {match.homeTeam.name}
+  1974→                          </span>
+  1975→                        </div>
+  1976→                        <div className="flex items-center gap-2 px-3">
+  1977→                          <span className={`text-2xl font-black tabular-nums ${isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-400 dark:text-warm-500'}`} style={isHomeWin && !isDraw ? { color: match.homeTeam.color || undefined } : undefined}>
+  1978→                            {match.homeScore}
+  1979→                          </span>
+  1980→                          <span className="text-warm-300 dark:text-warm-600 text-xs font-medium">-</span>
+  1981→                          <span className={`text-2xl font-black tabular-nums ${!isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-400 dark:text-warm-500'}`} style={!isHomeWin && !isDraw ? { color: match.awayTeam.color || undefined } : undefined}>
+  1982→                            {match.awayScore}
+  1983→                          </span>
+  1984→                        </div>
+  1985→                        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+  1986→                          <span className={`text-sm font-semibold truncate ${!isHomeWin && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+  1987→                            {match.awayTeam.name}
+  1988→                          </span>
+  1989→                          <div
+  1990→                            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-md relative"
+  1991→                            style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}
+  1992→                          >
+  1993→                            {getTeamShortName(match.awayTeam)}
+  1994→                            {/* Victory crown for winning team */}
+  1995→                            {!isHomeWin && !isDraw && (
+  1996→                              <motion.div
+  1997→                                className="absolute -top-2 left-1/2 -translate-x-1/2"
+  1998→                                initial={{ scale: 0, y: 4 }}
+  1999→                                animate={{ scale: 1, y: 0 }}
+  2000→                                transition={{ type: 'spring', damping: 10, stiffness: 300, delay: 0.3 }}
+
+[showing lines 1-2000 of 3187; use offset=2001 with limit to continue reading]

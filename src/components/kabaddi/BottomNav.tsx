@@ -4,13 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Home as HomeIcon, Trophy, PlusCircle, User, Crown, Bell } from 'lucide-react';
 import { useKabaddiStore } from '@/lib/store';
-
-const tabs = [
-  { id: 'home' as const, label: 'Home', icon: HomeIcon, ariaLabel: 'Home tab' },
-  { id: 'tournaments' as const, label: 'Tournaments', icon: Trophy, ariaLabel: 'Tournaments tab' },
-  { id: 'quick-score' as const, label: 'Quick Score', icon: PlusCircle, ariaLabel: 'Quick Score - start or view live match' },
-  { id: 'profile' as const, label: 'Profile', icon: User, ariaLabel: 'Profile tab' },
-];
+import { t } from '@/lib/i18n';
 
 interface BottomNavProps {
   activeTab: string;
@@ -37,9 +31,17 @@ function Ripple({ x, y }: { x: number; y: number }) {
   );
 }
 
+const tabs = [
+  { id: 'home' as const, labelKey: 'nav.home', icon: HomeIcon, ariaLabel: 'Home tab' },
+  { id: 'tournaments' as const, labelKey: 'nav.tournaments', icon: Trophy, ariaLabel: 'Tournaments tab' },
+  { id: 'quick-score' as const, labelKey: 'nav.quickScore', icon: PlusCircle, ariaLabel: 'Quick Score - start or view live match' },
+  { id: 'profile' as const, labelKey: 'nav.profile', icon: User, ariaLabel: 'Profile tab' },
+];
+
 export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNotificationOpen }: BottomNavProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const notifications = useKabaddiStore((s) => s.notifications);
+  const language = useKabaddiStore((s) => s.language);
   const isPremium = currentUser?.isPremium || false;
 
   const [ripples, setRipples] = useState<Array<{ id: number; x: number; y: number; tabId: string }>>([]);
@@ -223,10 +225,10 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                             ? 'bg-gradient-to-br from-brand-red to-brand-gold shadow-brand-red/40'
                             : hasLiveMatch
                               ? 'bg-gradient-to-br from-brand-red to-red-500 shadow-brand-red/30'
-                              : 'bg-gradient-to-br from-brand-red to-red-700 shadow-brand-red/20'
+                              : 'bg-gradient-to-br from-white to-gray-100 shadow-gray-300/40 dark:from-brand-red dark:to-red-700 dark:shadow-brand-red/20'
                         }`}
                       >
-                        <Icon className="w-7 h-7 text-white" strokeWidth={2.5} />
+                        <Icon className={`w-7 h-7 ${isActive || hasLiveMatch ? 'text-white' : 'text-brand-red dark:text-white'} strokeWidth={2.5}`} />
 
                         {/* Animated border ring on active */}
                         {isActive && (
@@ -268,11 +270,11 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                     <span
                       className={`text-[10px] font-semibold mt-1.5 transition-colors duration-200 ${
                         isActive
-                          ? 'gradient-text'
-                          : 'text-warm-500 dark:text-warm-400'
+                          ? 'text-white font-bold'
+                          : 'text-white/90 dark:text-warm-100'
                       }`}
                     >
-                      {tab.label}
+                      {t(tab.labelKey, language)}
                     </span>
                   </>
                 ) : (
@@ -355,7 +357,7 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                           : 'text-warm-400 dark:text-warm-500'
                       }`}
                     >
-                      {tab.label}
+                      {t(tab.labelKey, language)}
                     </span>
 
                     {/* Active indicator dot - enhanced with morphing */}

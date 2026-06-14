@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -19,6 +18,7 @@ model User {
   avatar         String?
   isPremium      Boolean  @default(false) // premium subscription status
   isAdmin        Boolean  @default(false) // admin can see earnings dashboard
+  phoneVerified  Boolean  @default(false) // phone verified via OTP during signup
   gender         String?  // boy, girl
   weight         String?  // e.g., "65kg", "70kg"
   practiceGround String?  // practice ground / academy name
@@ -42,6 +42,9 @@ model User {
   referralsUsed     Referral[]    @relation("ReferralReferred")
   pollVotes         PollVote[]
   aiInsights        AIInsight[]
+  academies         Academy[]
+  academyPlayers    AcademyPlayer[]
+  attendances       Attendance[]
 }
 
 model PlayerProfile {
@@ -478,4 +481,65 @@ model AIInsight {
 
   user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
   match Match? @relation(fields: [matchId], references: [id])
+}
+
+model Academy {
+  id          String   @id @default(cuid())
+  name        String
+  location    String?
+  groundName  String?
+  coachUserId String
+  coachUser   User     @relation(fields: [coachUserId], references: [id])
+  sundayHoliday Boolean @default(false)
+  practiceSchedule String @default("one-time")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  players     AcademyPlayer[]
+  attendance  Attendance[]
+
+  @@map("academies")
+}
+
+model AcademyPlayer {
+  id          String   @id @default(cuid())
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  joinedAt    DateTime @default(now())
+
+  @@unique([academyId, userId])
+  @@map("academy_players")
+}
+
+model Attendance {
+  id          String   @id @default(cuid())
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  date        DateTime
+  isPresent   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([academyId, userId, date])
+  @@map("attendances")
+}
+
+// ─── Match Transfer / Scorer Handoff ─────────────────────────────
+
+model MatchTransfer {
+  id            String   @id @default(cuid())
+  transferCode  String   @unique  // 6-char alphanumeric code for easy sharing
+  matchId       String?            // DB match ID if match was already saved to DB
+  matchState    String             // JSON string of full ActiveMatch state from Zustand
+  scorerUserId  String?            // User ID of the scorer who is transferring
+  scorerName    String?            // Name of the scorer
+  receiverUserId String?           // User ID of the scorer who received the transfer
+  status        String   @default("active") // active, claimed, expired, cancelled
+  expiresAt     DateTime           // Transfer code expires after 30 minutes
+  claimedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

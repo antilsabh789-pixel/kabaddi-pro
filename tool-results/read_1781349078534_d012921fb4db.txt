@@ -1,0 +1,502 @@
+     1→  1600→            </motion.div>
+     2→  1601→          </motion.div>
+     3→  1602→        )}
+     4→  1603→      </AnimatePresence>
+     5→  1604→
+     6→  1605→      {/* Substitute Mode Overlay */}
+     7→  1606→      <AnimatePresence>
+     8→  1607→        {showSubMode && (
+     9→  1608→          <motion.div
+    10→  1609→            initial={{ opacity: 0 }}
+    11→  1610→            animate={{ opacity: 1 }}
+    12→  1611→            exit={{ opacity: 0 }}
+    13→  1612→            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center"
+    14→  1613→          >
+    15→  1614→            <motion.div
+    16→  1615→              initial={{ y: '100%' }}
+    17→  1616→              animate={{ y: 0 }}
+    18→  1617→              exit={{ y: '100%' }}
+    19→  1618→              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+    20→  1619→              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-4 max-h-[70vh] overflow-y-auto"
+    21→  1620→            >
+    22→  1621→              <div className="flex items-center justify-between mb-4">
+    23→  1622→                <div>
+    24→  1623→                  <div className="text-sm font-black text-gray-100 dark:text-warm-100">Substitution</div>
+    25→  1624→                  <div className="text-[10px] text-gray-400 dark:text-warm-500">
+    26→  1625→                    Tap an on-court player OUT, then tap a substitute IN
+    27→  1626→                  </div>
+    28→  1627→                </div>
+    29→  1628→                <button
+    30→  1629→                  onClick={() => { setShowSubMode(null); setSubOutPlayer(null); }}
+    31→  1630→                  className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"
+    32→  1631→                >
+    33→  1632→                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
+    34→  1633→                </button>
+    35→  1634→              </div>
+    36→  1635→
+    37→  1636→              {(() => {
+    38→  1637→                const lineup = showSubMode === 'home' ? match.homeLineup : match.awayLineup;
+    39→  1638→                const outIds = showSubMode === 'home' ? match.homeOutPlayerIds : match.awayOutPlayerIds;
+    40→  1639→                const color = showSubMode === 'home' ? match.homeTeamColor : match.awayTeamColor;
+    41→  1640→                const { onCourt, substitutes } = splitLineup(lineup, outIds);
+    42→  1641→
+    43→  1642→                return (
+    44→  1643→                  <>
+    45→  1644→                    {!subOutPlayer && (
+    46→  1645→                      <>
+    47→  1646→                        <div className="text-[10px] font-bold text-red-400 uppercase mb-2">
+    48→  1647→                          1. Tap player going OUT
+    49→  1648→                        </div>
+    50→  1649→                        <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 mb-4">
+    51→  1650→                          {onCourt.map(player => (
+    52→  1651→                            <PlayerCircle
+    53→  1652→                              key={player.id}
+    54→  1653→                              player={player}
+    55→  1654→                              isOut={outIds.includes(player.id)}
+    56→  1655→                              isSelectable={!outIds.includes(player.id)}
+    57→  1656→                              teamColor={color}
+    58→  1657→                              onSelect={(p) => setSubOutPlayer(p)}
+    59→  1658→                            />
+    60→  1659→                          ))}
+    61→  1660→                        </div>
+    62→  1661→                      </>
+    63→  1662→                    )}
+    64→  1663→
+    65→  1664→                    {subOutPlayer && (
+    66→  1665→                      <>
+    67→  1666→                        <div className="text-[10px] font-bold text-red-400 uppercase mb-2">
+    68→  1667→                          Going OUT:
+    69→  1668→                        </div>
+    70→  1669→                        <div className="flex justify-center mb-3">
+    71→  1670→                          <PlayerCircle player={subOutPlayer} isOut={false} teamColor={color} />
+    72→  1671→                        </div>
+    73→  1672→
+    74→  1673→                        <div className="text-[10px] font-bold text-green-400 uppercase mb-2">
+    75→  1674→                          2. Tap substitute coming IN
+    76→  1675→                        </div>
+    77→  1676→                        <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 mb-3">
+    78→  1677→                          {substitutes.map(player => (
+    79→  1678→                            <PlayerCircle
+    80→  1679→                              key={player.id}
+    81→  1680→                              player={player}
+    82→  1681→                              isOut={false}
+    83→  1682→                              isSelectable={true}
+    84→  1683→                              teamColor={color}
+    85→  1684→                              onSelect={(p) => handleSub(subOutPlayer, p)}
+    86→  1685→                            />
+    87→  1686→                          ))}
+    88→  1687→                        </div>
+    89→  1688→
+    90→  1689→                        <button
+    91→  1690→                          onClick={() => setSubOutPlayer(null)}
+    92→  1691→                          className="w-full py-2 rounded-xl bg-gray-700 dark:bg-warm-700 text-gray-300 dark:text-warm-300 font-bold text-sm"
+    93→  1692→                        >
+    94→  1693→                          Cancel selection
+    95→  1694→                        </button>
+    96→  1695→                      </>
+    97→  1696→                    )}
+    98→  1697→                  </>
+    99→  1698→                );
+   100→  1699→              })()}
+   101→  1700→            </motion.div>
+   102→  1701→          </motion.div>
+   103→  1702→        )}
+   104→  1703→      </AnimatePresence>
+   105→  1704→
+   106→  1705→      {/* MOTM Celebration Overlay (legacy path) */}
+   107→  1706→      <AnimatePresence>
+   108→  1707→        {showMotmOverlay && motmPlayer && (
+   109→  1708→          <motion.div
+   110→  1709→            initial={{ opacity: 0 }}
+   111→  1710→            animate={{ opacity: 1 }}
+   112→  1711→            exit={{ opacity: 0 }}
+   113→  1712→            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
+   114→  1713→          >
+   115→  1714→            <motion.div
+   116→  1715→              initial={{ scale: 0.5, opacity: 0, y: 30 }}
+   117→  1716→              animate={{ scale: 1, opacity: 1, y: 0 }}
+   118→  1717→              exit={{ scale: 0.5, opacity: 0, y: 30 }}
+   119→  1718→              transition={{ type: 'spring', damping: 15, stiffness: 200 }}
+   120→  1719→              className="w-full max-w-sm bg-gradient-to-b from-yellow-50 to-white dark:from-yellow-900/20 dark:to-warm-800 rounded-3xl p-6 text-center"
+   121→  1720→            >
+   122→  1721→              <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, -5, 5, -5, 0] }} transition={{ duration: 1, repeat: 3 }} className="text-5xl mb-3">🏆</motion.div>
+   123→  1722→              <div className="text-[10px] font-bold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-3 py-1 rounded-full inline-flex items-center gap-1 mb-3">
+   124→  1723→                <Crown className="w-3 h-3" /> MAN OF THE MATCH
+   125→  1724→              </div>
+   126→  1725→              <h3 className="text-xl font-black text-gray-800 dark:text-warm-100">{motmPlayer.name}</h3>
+   127→  1726→              <p className="text-yellow-700 dark:text-yellow-400 font-bold text-lg mt-1">{motmPlayer.points} points</p>
+   128→  1727→              <p className="text-gray-500 dark:text-warm-400 text-sm mt-2">Top scorer in {match.homeTeam} vs {match.awayTeam}</p>
+   129→  1728→              <div className="flex gap-3 mt-5">
+   130→  1729→                <button onClick={() => setShowShareScorecard(true)} className="flex-1 bg-brand-red hover:bg-red-700 text-white font-bold rounded-xl py-3 flex items-center justify-center gap-1">
+   131→  1730→                  <Share2 className="w-4 h-4" /> Share
+   132→  1731→                </button>
+   133→  1732→                <button onClick={() => setShowMotmOverlay(false)} className="flex-1 bg-gray-100 dark:bg-warm-700 hover:bg-gray-200 dark:hover:bg-warm-600 text-gray-700 dark:text-warm-200 font-bold rounded-xl py-3">
+   134→  1733→                  Done
+   135→  1734→                </button>
+   136→  1735→              </div>
+   137→  1736→            </motion.div>
+   138→  1737→          </motion.div>
+   139→  1738→        )}
+   140→  1739→      </AnimatePresence>
+   141→  1740→
+   142→  1741→      {/* Event Confirmation Toast */}
+   143→  1742→      <AnimatePresence>
+   144→  1743→        {eventConfirm && (
+   145→  1744→          <EventConfirmation
+   146→  1745→            message={eventConfirm.message}
+   147→  1746→            teamColor={eventConfirm.teamColor}
+   148→  1747→            onUndo={() => {
+   149→  1748→              undoLastEvent();
+   150→  1749→              toast({ title: 'Event undone', duration: 1500 });
+   151→  1750→            }}
+   152→  1751→          />
+   153→  1752→        )}
+   154→  1753→      </AnimatePresence>
+   155→  1754→
+   156→  1755→      {/* ═══ ENHANCED SCORE HEADER — Dark Theme with Team Color Gradients ═══ */}
+   157→  1756→      <div className="relative overflow-hidden" style={{
+   158→  1757→        background: `linear-gradient(135deg, ${match.homeTeamColor}30, #111827, ${match.awayTeamColor}30)`,
+   159→  1758→      }}>
+   160→  1759→        {/* Subtle animated background stripes */}
+   161→  1760→        <div className="absolute inset-0 opacity-5">
+   162→  1761→          <motion.div
+   163→  1762→            animate={{ x: ['-100%', '100%'] }}
+   164→  1763→            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+   165→  1764→            className="absolute inset-y-0 w-[200%] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+   166→  1765→          />
+   167→  1766→        </div>
+   168→  1767→
+   169→  1768→        {/* Top info row */}
+   170→  1769→        <div className="relative px-4 pt-2 pb-1 flex items-center justify-between">
+   171→  1770→          <div className="flex items-center gap-2">
+   172→  1771→            <span className="text-[10px] bg-gray-700/80 px-2 py-0.5 rounded font-medium text-gray-300">
+   173→  1772→              7v7
+   174→  1773→            </span>
+   175→  1774→            {match.isPractice && (
+   176→  1775→              <span className="text-[10px] bg-green-900/60 text-green-300 px-2 py-0.5 rounded font-medium">Practice</span>
+   177→  1776→            )}
+   178→  1777→          </div>
+   179→  1778→          {/* Half indicator badge */}
+   180→  1779→          <motion.div
+   181→  1780→            key={halfLabel}
+   182→  1781→            initial={{ scale: 0.8, opacity: 0 }}
+   183→  1782→            animate={{ scale: 1, opacity: 1 }}
+   184→  1783→            className={`text-[9px] font-black tracking-[0.15em] px-3 py-0.5 rounded-full ${
+   185→  1784→              halfLabel === 'HALF TIME' || halfLabel === 'FULL TIME'
+   186→  1785→                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+   187→  1786→                : halfLabel === 'NOT STARTED'
+   188→  1787→                  ? 'bg-gray-600/40 text-gray-400 border border-gray-500/30'
+   189→  1788→                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+   190→  1789→            }`}
+   191→  1790→          >
+   192→  1791→            {halfLabel}
+   193→  1792→          </motion.div>
+   194→  1793→          <div className="text-[10px] text-gray-400 font-medium">
+   195→  1794→            {match.gender === 'male' ? '♂ Boys' : '♀ Girls'}
+   196→  1795→          </div>
+   197→  1796→        </div>
+   198→  1797→
+   199→  1798→        {/* Score center — Large with animated counters */}
+   200→  1799→        <div className="relative px-4 pb-2 flex items-center justify-between">
+   201→  1800→          {/* Home team */}
+   202→  1801→          <div className="flex-1 flex flex-col items-center gap-1">
+   203→  1802→            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg" style={{ backgroundColor: match.homeTeamColor, boxShadow: `0 0 12px ${match.homeTeamColor}40` }}>
+   204→  1803→              {match.homeTeam.charAt(0)}
+   205→  1804→            </div>
+   206→  1805→            <span className="text-[10px] font-bold text-gray-300 truncate max-w-[70px]">{match.homeTeam}</span>
+   207→  1806→            <AnimatedScore value={match.homeScore} color={match.homeTeamColor} />
+   208→  1807→          </div>
+   209→  1808→
+   210→  1809→          {/* Center: Timer + VS */}
+   211→  1810→          <div className="flex flex-col items-center gap-0.5 px-4">
+   212→  1811→            {/* Current raider indicator arrow */}
+   213→  1812→            {hasStartedRaiding && raidPhase === 'idle' && (
+   214→  1813→              <motion.div
+   215→  1814→                animate={{ x: raidingTeam === 'home' ? [-4, 4, -4] : [4, -4, 4] }}
+   216→  1815→                transition={{ duration: 1, repeat: Infinity }}
+   217→  1816→                className="mb-1"
+   218→  1817→              >
+   219→  1818→                <ArrowRight className="w-4 h-4" style={{ color: raidingTeamColor, transform: raidingTeam === 'home' ? 'scaleX(-1)' : 'none' }} />
+   220→  1819→              </motion.div>
+   221→  1820→            )}
+   222→  1821→            {/* Do-or-Die flame */}
+   223→  1822→            {match.isDoOrDie && raidPhase === 'idle' && (
+   224→  1823→              <motion.div
+   225→  1824→                animate={{ scale: [1, 1.2, 1] }}
+   226→  1825→                transition={{ duration: 0.5, repeat: Infinity }}
+   227→  1826→                className="text-lg"
+   228→  1827→              >
+   229→  1828→                🔥
+   230→  1829→              </motion.div>
+   231→  1830→            )}
+   232→  1831→            <div className={cn(
+   233→  1832→              'text-2xl font-mono font-black tracking-wider',
+   234→  1833→              isTimerPulsing && 'animate-pulse'
+   235→  1834→            )} style={{ color: isTimerPulsing ? '#ef4444' : '#e5e7eb' }}>
+   236→  1835→              {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
+   237→  1836→            </div>
+   238→  1837→            <span className="text-[9px] text-gray-500 font-medium">
+   239→  1838→              Half {match.currentHalf} · {match.halfDuration}min
+   240→  1839→            </span>
+   241→  1840→          </div>
+   242→  1841→
+   243→  1842→          {/* Away team */}
+   244→  1843→          <div className="flex-1 flex flex-col items-center gap-1">
+   245→  1844→            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg" style={{ backgroundColor: match.awayTeamColor, boxShadow: `0 0 12px ${match.awayTeamColor}40` }}>
+   246→  1845→              {match.awayTeam.charAt(0)}
+   247→  1846→            </div>
+   248→  1847→            <span className="text-[10px] font-bold text-gray-300 truncate max-w-[70px]">{match.awayTeam}</span>
+   249→  1848→            <AnimatedScore value={match.awayScore} color={match.awayTeamColor} />
+   250→  1849→          </div>
+   251→  1850→        </div>
+   252→  1851→
+   253→  1852→        {/* ═══ RAID TIMER BAR ═══ */}
+   254→  1853→        <AnimatePresence>
+   255→  1854→          {raidTimer !== null && raidPhase !== 'idle' && (
+   256→  1855→            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+   257→  1856→              <div className="px-4 pb-2">
+   258→  1857→                <div className="flex items-center gap-2">
+   259→  1858→                  <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: raidTimerColor }} />
+   260→  1859→                  <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+   261→  1860→                    <motion.div className="h-full rounded-full" style={{ backgroundColor: raidTimerColor }} animate={{ width: `${raidTimerPercent}%` }} transition={{ duration: 0.5 }} />
+   262→  1861→                  </div>
+   263→  1862→                  <span className="text-sm font-mono font-black min-w-[28px] text-right" style={{ color: raidTimerColor }}>{raidTimer}</span>
+   264→  1863→                </div>
+   265→  1864→                {raidTimer <= 5 && raidTimer > 0 && (
+   266→  1865→                  <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 0.5, repeat: Infinity }} className="text-center text-[9px] font-bold mt-0.5" style={{ color: raidTimerColor }}>
+   267→  1866→                    RAID TIME RUNNING OUT!
+   268→  1867→                  </motion.div>
+   269→  1868→                )}
+   270→  1869→              </div>
+   271→  1870→            </motion.div>
+   272→  1871→          )}
+   273→  1872→        </AnimatePresence>
+   274→  1873→
+   275→  1874→        {/* ═══ RAID GAP INDICATOR ═══ */}
+   276→  1875→        <AnimatePresence>
+   277→  1876→          {showGapIndicator && (
+   278→  1877→            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+   279→  1878→              <div className="px-4 pb-1.5 flex items-center justify-center gap-2">
+   280→  1879→                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+   281→  1880→                <span className="text-[9px] text-amber-400 font-bold">
+   282→  1881→                  Timer pauses in {raidGapTimer}s — Select a raider!
+   283→  1882→                </span>
+   284→  1883→              </div>
+   285→  1884→            </motion.div>
+   286→  1885→          )}
+   287→  1886→        </AnimatePresence>
+   288→  1887→      </div>
+   289→  1888→
+   290→  1889→      {/* ═══ TEAM SECTIONS — Dark Theme ═══ */}
+   291→  1890→      <div className="flex-1 overflow-y-auto">
+   292→  1891→        <TeamSection
+   293→  1892→          side="home" teamName={match.homeTeam} teamColor={match.homeTeamColor}
+   294→  1893→          score={match.homeScore} fullLineup={match.homeLineup}
+   295→  1894→          outIds={match.homeOutPlayerIds} isRaidingSide={raidingTeam === 'home'}
+   296→  1895→        />
+   297→  1896→        <div className="h-px bg-gray-700 dark:bg-warm-700 mx-4" />
+   298→  1897→        <TeamSection
+   299→  1898→          side="away" teamName={match.awayTeam} teamColor={match.awayTeamColor}
+   300→  1899→          score={match.awayScore} fullLineup={match.awayLineup}
+   301→  1900→          outIds={match.awayOutPlayerIds} isRaidingSide={raidingTeam === 'away'}
+   302→  1901→        />
+   303→  1902→      </div>
+   304→  1903→
+   305→  1904→      {/* ═══ RAID FLOW OVERLAYS — Tabbed Quick Actions ═══ */}
+   306→  1905→      <AnimatePresence>
+   307→  1906→        {raidPhase === 'result' && raider && (
+   308→  1907→          <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed inset-x-0 bottom-[76px] z-40 px-4">
+   309→  1908→            <div className="bg-gray-900 dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-700 dark:border-warm-700 p-4 max-w-md mx-auto">
+   310→  1909→              <div className="flex items-center gap-3 mb-4">
+   311→  1910→                <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md" style={{ backgroundColor: raidingTeamColor }}>
+   312→  1911→                  {raider.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+   313→  1912→                </div>
+   314→  1913→                <div className="flex-1">
+   315→  1914→                  <div className="text-base font-black text-gray-100 dark:text-warm-100">#{raider.jerseyNumber || '?'} {raider.name}</div>
+   316→  1915→                  <div className="text-xs text-gray-400 dark:text-warm-500">goes to raid for {raidingTeamName}</div>
+   317→  1916→                </div>
+   318→  1917→                {raidTimer !== null && (
+   319→  1918→                  <div className="relative w-11 h-11 flex-shrink-0">
+   320→  1919→                    <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44">
+   321→  1920→                      <circle cx="22" cy="22" r="19" fill="none" stroke="#374151" strokeWidth="3" />
+   322→  1921→                      <circle cx="22" cy="22" r="19" fill="none" stroke={raidTimerColor} strokeWidth="3"
+   323→  1922→                        strokeDasharray={`${2 * Math.PI * 19}`} strokeDashoffset={`${2 * Math.PI * 19 * (1 - raidTimer / RAID_TIME_LIMIT)}`}
+   324→  1923→                        strokeLinecap="round" className="transition-all duration-500" />
+   325→  1924→                    </svg>
+   326→  1925→                    <div className="absolute inset-0 flex items-center justify-center">
+   327→  1926→                      <span className="text-xs font-black" style={{ color: raidTimerColor }}>{raidTimer}</span>
+   328→  1927→                    </div>
+   329→  1928→                  </div>
+   330→  1929→                )}
+   331→  1930→                <button onClick={cancelRaid} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center flex-shrink-0">
+   332→  1931→                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
+   333→  1932→                </button>
+   334→  1933→              </div>
+   335→  1934→
+   336→  1935→              {/* Tabbed action sections */}
+   337→  1936→              <div className="flex gap-1 mb-3 bg-gray-800 dark:bg-warm-900 rounded-xl p-1">
+   338→  1937→                {([
+   339→  1938→                  { id: 'raid' as ActionTab, label: 'Raid', icon: Swords },
+   340→  1939→                  { id: 'defense' as ActionTab, label: 'Defense', icon: Shield },
+   341→  1940→                  { id: 'special' as ActionTab, label: 'Special', icon: Sparkles },
+   342→  1941→                  { id: 'cards' as ActionTab, label: 'Cards', icon: AlertTriangle },
+   343→  1942→                ]).map(tab => (
+   344→  1943→                  <button
+   345→  1944→                    key={tab.id}
+   346→  1945→                    onClick={() => setActionTab(tab.id)}
+   347→  1946→                    className={cn(
+   348→  1947→                      'flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold transition-all',
+   349→  1948→                      actionTab === tab.id
+   350→  1949→                        ? 'bg-gray-600 dark:bg-warm-700 text-white shadow-sm'
+   351→  1950→                        : 'text-gray-400 hover:text-gray-300'
+   352→  1951→                    )}
+   353→  1952→                  >
+   354→  1953→                    <tab.icon className="w-3 h-3" />
+   355→  1954→                    {tab.label}
+   356→  1955→                  </button>
+   357→  1956→                ))}
+   358→  1957→              </div>
+   359→  1958→
+   360→  1959→              <AnimatePresence mode="wait">
+   361→  1960→                {actionTab === 'raid' && (
+   362→  1961→                  <motion.div key="raid" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+   363→  1962→                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Raid Outcome</div>
+   364→  1963→                    <div className="grid grid-cols-3 gap-2">
+   365→  1964→                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('success')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #22c55e25, #22c55e08)', border: '2px solid #22c55e50' }}>
+   366→  1965→                        <div className="text-xl">✅</div>
+   367→  1966→                        <span className="text-[10px] font-bold text-green-400">Successful Raid</span>
+   368→  1967→                      </motion.button>
+   369→  1968→                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('caught')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #ef444425, #ef444408)', border: '2px solid #ef444450' }}>
+   370→  1969→                        <div className="text-xl">❌</div>
+   371→  1970→                        <span className="text-[10px] font-bold text-red-400">Caught Out</span>
+   372→  1971→                      </motion.button>
+   373→  1972→                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('empty')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #9ca3af25, #9ca3af08)', border: '2px solid #9ca3af50' }}>
+   374→  1973→                        <div className="text-xl">⏭</div>
+   375→  1974→                        <span className="text-[10px] font-bold text-gray-400">Empty Raid</span>
+   376→  1975→                      </motion.button>
+   377→  1976→                    </div>
+   378→  1977→                  </motion.div>
+   379→  1978→                )}
+   380→  1979→
+   381→  1980→                {actionTab === 'defense' && (
+   382→  1981→                  <motion.div key="defense" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+   383→  1982→                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Defense Actions</div>
+   384→  1983→                    <div className="grid grid-cols-2 gap-2">
+   385→  1984→                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleTacklePoint} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, ${defendingTeamColor}25, ${defendingTeamColor}08)`, border: `2px solid ${defendingTeamColor}50` }}>
+   386→  1985→                        <div className="text-xl">🛡</div>
+   387→  1986→                        <span className="text-[10px] font-bold" style={{ color: defendingTeamColor }}>Tackle Point</span>
+   388→  1987→                      </motion.button>
+   389→  1988→                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleSuperTackle} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #a855f725, #a855f708)', border: '2px solid #a855f750' }}>
+   390→  1989→                        <div className="text-xl">⚡</div>
+   391→  1990→                        <span className="text-[10px] font-bold text-purple-400">Super Tackle</span>
+   392→  1991→                      </motion.button>
+   393→  1992→                    </div>
+   394→  1993→                  </motion.div>
+   395→  1994→                )}
+   396→  1995→
+   397→  1996→                {actionTab === 'special' && (
+   398→  1997→                  <motion.div key="special" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+   399→  1998→                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Special Events</div>
+   400→  1999→                    <div className="grid grid-cols-3 gap-2">
+   401→  2000→                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleBonusPoint} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #eab30825, #eab30808)', border: '2px solid #eab30850' }}>
+   402→  2001→                        <div className="text-xl">🎯</div>
+   403→  2002→                        <span className="text-[10px] font-bold text-yellow-400">Bonus Point</span>
+   404→  2003→                      </motion.button>
+   405→  2004→                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleAllOut} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, ${raidingTeamColor}25, ${raidingTeamColor}08)`, border: `2px solid ${raidingTeamColor}50` }}>
+   406→  2005→                        <div className="text-xl">💥</div>
+   407→  2006→                        <span className="text-[10px] font-bold" style={{ color: raidingTeamColor }}>All Out</span>
+   408→  2007→                      </motion.button>
+   409→  2008→                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleTimeout} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #f9731625, #f9731608)', border: '2px solid #f9731650' }}>
+   410→  2009→                        <div className="text-xl">📋</div>
+   411→  2010→                        <span className="text-[10px] font-bold text-orange-400">Timeout</span>
+   412→  2011→                      </motion.button>
+   413→  2012→                    </div>
+   414→  2013→                  </motion.div>
+   415→  2014→                )}
+   416→  2015→
+   417→  2016→                {actionTab === 'cards' && (
+   418→  2017→                  <motion.div key="cards" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
+   419→  2018→                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Card Penalties</div>
+   420→  2019→                    <div className="grid grid-cols-2 gap-2">
+   421→  2020→                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleCard('yellow_card')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #eab30825, #eab30808)', border: '2px solid #eab30850' }}>
+   422→  2021→                        <div className="text-xl">🟨</div>
+   423→  2022→                        <span className="text-[10px] font-bold text-yellow-400">Yellow Card</span>
+   424→  2023→                      </motion.button>
+   425→  2024→                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleCard('red_card')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #ef444425, #ef444408)', border: '2px solid #ef444450' }}>
+   426→  2025→                        <div className="text-xl">🟥</div>
+   427→  2026→                        <span className="text-[10px] font-bold text-red-400">Red Card</span>
+   428→  2027→                      </motion.button>
+   429→  2028→                    </div>
+   430→  2029→                  </motion.div>
+   431→  2030→                )}
+   432→  2031→              </AnimatePresence>
+   433→  2032→            </div>
+   434→  2033→          </motion.div>
+   435→  2034→        )}
+   436→  2035→      </AnimatePresence>
+   437→  2036→
+   438→  2037→      <AnimatePresence>
+   439→  2038→        {raidPhase === 'defenders' && raider && raidResult && (
+   440→  2039→          <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed inset-x-0 bottom-[76px] z-40 px-4">
+   441→  2040→            <div className="bg-gray-900 dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-700 dark:border-warm-700 p-4 max-w-md mx-auto max-h-[60vh] overflow-y-auto">
+   442→  2041→              <div className="flex items-center justify-between mb-3">
+   443→  2042→                <div className="flex-1">
+   444→  2043→                  {raidResult === 'success' ? (
+   445→  2044→                    <><div className="text-sm font-black text-green-400">✅ Tap defenders the raider touched</div>
+   446→  2045→                    <div className="text-[10px] text-gray-400 dark:text-warm-500 mt-0.5">Each selected defender = 1 point for {raidingTeamName}</div></>
+   447→  2046→                  ) : (
+   448→  2047→                    <><div className="text-sm font-black text-red-400">❌ Who caught the raider?</div>
+   449→  2048→                    <div className="text-[10px] text-gray-400 dark:text-warm-500 mt-0.5">Select the defender(s) who tackled</div></>
+   450→  2049→                  )}
+   451→  2050→                </div>
+   452→  2051→                {raidTimer !== null && (
+   453→  2052→                  <div className="flex items-center gap-1 flex-shrink-0 mr-2">
+   454→  2053→                    <Clock className="w-3.5 h-3.5" style={{ color: raidTimerColor }} />
+   455→  2054→                    <span className="text-sm font-black font-mono" style={{ color: raidTimerColor }}>{raidTimer}</span>
+   456→  2055→                  </div>
+   457→  2056→                )}
+   458→  2057→                <button onClick={() => { setRaidPhase('result'); setSelectedDefenders(new Set()); setBonusPoint(false); }} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center flex-shrink-0">
+   459→  2058→                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
+   460→  2059→                </button>
+   461→  2060→              </div>
+   462→  2061→
+   463→  2062→              {/* Only show on-court defenders (first 7) */}
+   464→  2063→              <div className="flex flex-wrap justify-center gap-x-4 gap-y-3 py-3">
+   465→  2064→                {(() => {
+   466→  2065→                  const { onCourt } = splitLineup(fullDefendingLineup, defendingOutIds);
+   467→  2066→                  return onCourt.map(player => {
+   468→  2067→                    const isOut = defendingOutIds.includes(player.id);
+   469→  2068→                    const isSelected = selectedDefenders.has(player.id);
+   470→  2069→                    const canSelect = !isOut;
+   471→  2070→                    return (
+   472→  2071→                      <PlayerCircle key={player.id} player={player} isOut={isOut} isSelectable={canSelect}
+   473→  2072→                        isSelected={isSelected} teamColor={defendingTeamColor}
+   474→  2073→                        onSelect={() => canSelect && toggleDefender(player.id)} showCheck />
+   475→  2074→                    );
+   476→  2075→                  });
+   477→  2076→                })()}
+   478→  2077→              </div>
+   479→  2078→
+   480→  2079→              {raidResult === 'success' && (
+   481→  2080→                <button onClick={() => setBonusPoint(!bonusPoint)}
+   482→  2081→                  className={`mt-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+   483→  2082→                    bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : 'bg-gray-800 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-gray-400 dark:text-warm-400'
+   484→  2083→                  }`}>
+   485→  2084→                  <span className="text-lg">⭐</span>Bonus Point {bonusPoint ? 'ON' : 'OFF'}
+   486→  2085→                </button>
+   487→  2086→              )}
+   488→  2087→
+   489→  2088→              <div className="mt-3 flex items-center gap-3">
+   490→  2089→                <div className="flex-1">
+   491→  2090→                  {raidResult === 'success' && (
+   492→  2091→                    <div className="text-xs text-gray-400">
+   493→  2092→                      <span className="font-bold text-green-400">+{selectedDefenders.size + (bonusPoint ? 1 : 0)}</span> point{selectedDefenders.size + (bonusPoint ? 1 : 0) !== 1 ? 's' : ''} for {raidingTeamName}
+   494→  2093→                    </div>
+   495→  2094→                  )}
+   496→  2095→                  {raidResult === 'caught' && (() => {
+   497→  2096→                    const { onCourtActive } = splitLineup(fullDefendingLineup, defendingOutIds);
+   498→  2097→                    return (
+   499→  2098→                      <div className="text-xs text-gray-400">
+   500→  2099→                        <span className="font-bold text-red-400">+1</span> tackle point for {defendingTeamName}
+   501→
+   502→[showing lines 1600-2099 of 2189; use offset=2100 with limit to continue reading]

@@ -918,7 +918,7 @@ function SeasonSummaryCard({
 
 function LoadingSkeleton() {
   return (
-    <div className="min-h-screen bg-background pb-8">
+    <div className="fixed inset-0 z-50 bg-background pb-8 overflow-y-auto">
       {/* Header skeleton */}
       <div className="h-48 skeleton" />
       <div className="px-4 -mt-6 space-y-4">
@@ -995,7 +995,7 @@ export default function StreaksRecordsScreen({ onClose }: StreaksRecordsScreenPr
   }
 
   return (
-    <div className="min-h-screen bg-background pb-8 custom-scrollbar">
+    <div className="fixed inset-0 z-50 bg-background pb-8 custom-scrollbar overflow-y-auto">
       {/* ─── Header ──────────────────────────────────────────── */}
       <div className="relative overflow-hidden bg-gradient-to-br from-brand-navy-dark via-brand-red-dark to-brand-gold-dark">
         <div className="absolute inset-0 opacity-10">

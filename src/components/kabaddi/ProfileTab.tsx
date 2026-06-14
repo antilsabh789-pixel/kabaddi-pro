@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
+import Portal from '@/components/portal';
 import { useTheme } from 'next-themes';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,14 +43,14 @@ import MatchHistoryTimeline from './MatchHistoryTimeline';
 import { t } from '@/lib/i18n';
 
 const POSITIONS = [
-  { id: 'left-raider', label: 'Left Raider', icon: '⬅️', meaning: 'Attacks from left side' },
-  { id: 'right-raider', label: 'Right Raider', icon: '➡️', meaning: 'Attacks from right side' },
-  { id: 'both-raider', label: 'Both Raider', icon: '↔️', meaning: 'Raids from both sides' },
-  { id: 'left-corner', label: 'Left Corner', icon: '🛡️', meaning: 'Defends left corner' },
-  { id: 'right-corner', label: 'Right Corner', icon: '🛡️', meaning: 'Defends right corner' },
-  { id: 'left-cover', label: 'Left Cover', icon: '🧱', meaning: 'Cover defender left side' },
-  { id: 'right-cover', label: 'Right Cover', icon: '🧱', meaning: 'Cover defender right side' },
-  { id: 'all-rounder', label: 'All-Rounder', icon: '⭐', meaning: 'Excels in both raid & defense' },
+  { id: 'left-raider', labelKey: 'positions.leftRaider', icon: '⬅️', meaning: 'Attacks from left side' },
+  { id: 'right-raider', labelKey: 'positions.rightRaider', icon: '➡️', meaning: 'Attacks from right side' },
+  { id: 'both-raider', labelKey: 'positions.bothRaider', icon: '↔️', meaning: 'Raids from both sides' },
+  { id: 'left-corner', labelKey: 'positions.leftCorner', icon: '🛡️', meaning: 'Defends left corner' },
+  { id: 'right-corner', labelKey: 'positions.rightCorner', icon: '🛡️', meaning: 'Defends right corner' },
+  { id: 'left-cover', labelKey: 'positions.leftCover', icon: '🧱', meaning: 'Cover defender left side' },
+  { id: 'right-cover', labelKey: 'positions.rightCover', icon: '🧱', meaning: 'Cover defender right side' },
+  { id: 'all-rounder', labelKey: 'positions.allRounder', icon: '⭐', meaning: 'Excels in both raid & defense' },
 ];
 
 const WEIGHT_CATEGORIES = [
@@ -241,8 +242,12 @@ export default function ProfileTab() {
     practiceRaidPoints: 0,
     practiceTacklePoints: 0,
     practiceTotalPoints: 0,
+    // User fields from API for syncing
+    userWeight: null as string | null,
+    userGender: null as string | null,
+    userPracticeGround: null as string | null,
   });
-  const [profileNotFound, setProfileNotFound] = useState(false);
+  const [profileNotFound, setProfileNotFound] = useState(false); // kept for data loading logic but UI card removed
   const [showPhone, setShowPhone] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
@@ -297,6 +302,10 @@ export default function ProfileTab() {
             practiceRaidPoints: data.profile.practiceRaidPoints || 0,
             practiceTacklePoints: data.profile.practiceTacklePoints || 0,
             practiceTotalPoints: data.profile.practiceTotalPoints || 0,
+            // User fields from API for syncing to store
+            userWeight: data.player?.weight || null,
+            userGender: data.player?.gender || null,
+            userPracticeGround: data.player?.practiceGround || null,
           };
         } else {
           return {
@@ -318,6 +327,10 @@ export default function ProfileTab() {
             practiceRaidPoints: 0,
             practiceTacklePoints: 0,
             practiceTotalPoints: 0,
+            // User fields from API for syncing to store
+            userWeight: data.player?.weight || null,
+            userGender: data.player?.gender || null,
+            userPracticeGround: data.player?.practiceGround || null,
           };
         }
       }
@@ -371,7 +384,7 @@ export default function ProfileTab() {
     loadProfile(currentUser.id).then((data) => {
       if (cancelled) return;
       if (data === 'not-found') {
-        // Player record doesn't exist yet — mark as not found so we show CTA
+        // Player record doesn't exist in DB yet — still allow profile editing
         setProfileNotFound(true);
       } else if (data) {
         setProfileNotFound(false);
@@ -381,12 +394,21 @@ export default function ProfileTab() {
           position: data.position || '',
           jerseyNumber: data.jerseyNumber?.toString() || '',
         }));
+        // Sync all profile fields to Zustand store for consistent display
+        const storeUpdate: Record<string, unknown> = {
+          position: data.position || undefined,
+          jerseyNumber: data.jerseyNumber || undefined,
+        };
+        if (data.userWeight) storeUpdate.weight = data.userWeight;
+        if (data.userGender) storeUpdate.gender = data.userGender;
+        if (data.userPracticeGround) storeUpdate.practiceGround = data.userPracticeGround;
         if (data.playerCode && !currentUser?.playerCode) {
-          updateUser({ playerCode: data.playerCode });
+          storeUpdate.playerCode = data.playerCode;
         }
+        updateUser(storeUpdate);
       } else {
-        // Network error or other failure — still mark not-found to show CTA
-        setProfileNotFound(true);
+        // Network error or other failure — don't block the UI
+        setProfileNotFound(false);
       }
     });
     loadRecentMatches(currentUser.id);
@@ -417,8 +439,8 @@ export default function ProfileTab() {
       gender: currentUser?.gender || '',
       weight: currentUser?.weight?.replace('kg', '') || '',
       practiceGround: currentUser?.practiceGround || '',
-      position: profileData.position || '',
-      jerseyNumber: profileData.jerseyNumber?.toString() || '',
+      position: currentUser?.position || profileData.position || '',
+      jerseyNumber: (currentUser?.jerseyNumber || profileData.jerseyNumber)?.toString() || '',
     });
   }, [currentUser, profileData.position, profileData.jerseyNumber, editOpen]);
 
@@ -480,12 +502,37 @@ export default function ProfileTab() {
       toast({ title: 'Upload failed', description: 'Please try again.', variant: 'destructive' });
     } finally {
       setUploading(false);
+      setAvatarPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   // ─── Save Profile ───
   const handleSaveProfile = async () => {
+    // Optimistically update local state immediately for responsive UI
+    const updatedPosition = editForm.position || undefined;
+    const updatedJerseyNumber = editForm.jerseyNumber ? parseInt(editForm.jerseyNumber) : undefined;
+    const updatedWeight = editForm.weight ? `${editForm.weight}kg` : undefined;
+    const updatedGender = editForm.gender || undefined;
+    const updatedPracticeGround = editForm.practiceGround || undefined;
+
+    // Update Zustand store with all fields (including position & jerseyNumber)
+    updateUser({
+      gender: updatedGender,
+      weight: updatedWeight,
+      practiceGround: updatedPracticeGround,
+      position: updatedPosition,
+      jerseyNumber: updatedJerseyNumber,
+    });
+
+    // Update local profileData immediately for instant display
+    setProfileData(prev => ({
+      ...prev,
+      position: updatedPosition || prev.position,
+      jerseyNumber: updatedJerseyNumber ?? prev.jerseyNumber,
+    }));
+    setProfileNotFound(false);
+
     try {
       const updateBody: Record<string, unknown> = {
         gender: editForm.gender,
@@ -495,27 +542,66 @@ export default function ProfileTab() {
         jerseyNumber: editForm.jerseyNumber ? parseInt(editForm.jerseyNumber) : undefined,
       };
 
-      await fetch(`/api/players/${currentUser?.id}`, {
+      const res = await fetch(`/api/players/${currentUser?.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateBody),
       });
+
+      // If save was successful, reload profile to get server-confirmed data
+      if (res.ok && currentUser?.id) {
+        const data = await loadProfile(currentUser.id);
+        if (data && data !== 'not-found') {
+          setProfileData(data);
+          setEditForm(prev => ({
+            ...prev,
+            position: data.position || '',
+            jerseyNumber: data.jerseyNumber?.toString() || '',
+          }));
+          // Sync all returned fields to store
+          const reloadedUpdate: Record<string, unknown> = {
+            position: data.position || undefined,
+            jerseyNumber: data.jerseyNumber || undefined,
+          };
+          if (data.userWeight) reloadedUpdate.weight = data.userWeight;
+          if (data.userGender) reloadedUpdate.gender = data.userGender;
+          if (data.userPracticeGround) reloadedUpdate.practiceGround = data.userPracticeGround;
+          if (data.playerCode && !currentUser?.playerCode) {
+            reloadedUpdate.playerCode = data.playerCode;
+          }
+          updateUser(reloadedUpdate);
+        }
+      } else {
+        // API failed but local state is already updated optimistically
+        console.warn('Profile API save failed, local state updated');
+      }
     } catch {
-      // Local update still works
+      // API failed but local state is already updated optimistically
+      console.warn('Profile API save failed, local state updated');
     }
-    updateUser({
-      gender: editForm.gender || undefined,
-      weight: editForm.weight ? `${editForm.weight}kg` : undefined,
-      practiceGround: editForm.practiceGround || undefined,
-    });
     setEditOpen(false);
     toast({ title: 'Profile updated!' });
   };
 
-  const raidPoints = profileData.successfulRaids + profileData.bonusPoints;
-  const tacklePoints = profileData.successfulTackles;
-  const totalPoints = raidPoints + tacklePoints;
-  const totalMatches = profileData.tournamentMatches + profileData.practiceMatches;
+  // ─── Tournament Stats (used for main profile, leaderboard, awards) ───
+  const tournamentRaidPoints = profileData.tournamentRaidPoints;
+  const tournamentTacklePoints = profileData.tournamentTacklePoints;
+  const tournamentTotalPoints = profileData.tournamentTotalPoints;
+  const tournamentMatches = profileData.tournamentMatches;
+
+  // ─── Practice Stats (separate tab) ───
+  const practiceRaidPoints = profileData.practiceRaidPoints;
+  const practiceTacklePoints = profileData.practiceTacklePoints;
+  const practiceTotalPoints = profileData.practiceTotalPoints;
+  const practiceMatches = profileData.practiceMatches;
+
+  // Main profile uses tournament-only stats
+  const raidPoints = tournamentRaidPoints;
+  const tacklePoints = tournamentTacklePoints;
+  const totalPoints = tournamentTotalPoints;
+  const totalMatches = tournamentMatches;
+
+  // Success rates still use combined data for accuracy (more data = better rate)
   const raidSuccessRate = profileData.totalRaids > 0 ? (profileData.successfulRaids / profileData.totalRaids) * 100 : 0;
   const tackleSuccessRate = profileData.totalTackles > 0 ? (profileData.successfulTackles / profileData.totalTackles) * 100 : 0;
 
@@ -561,35 +647,36 @@ export default function ProfileTab() {
   const ratingSparkline = [4, 5, 3, 6, 5, 7, Math.round(profileData.overallRating)];
 
   // Enhanced badges with categories, locked states, and progress
+  // All badges are based on TOURNAMENT stats only (not practice)
   const badgeCategories = [
     {
       title: 'Performance',
       badges: [
-        { icon: '⚡', label: 'Super Raider', condition: profileData.successfulRaids >= 20, premium: false, progress: Math.min((profileData.successfulRaids / 20) * 100, 100), threshold: '20 raids' },
-        { icon: '🔥', label: 'On Fire', condition: raidPoints >= 30, premium: true, progress: Math.min((raidPoints / 30) * 100, 100), threshold: '30 raid pts' },
+        { icon: '⚡', label: 'Super Raider', condition: tournamentRaidPoints >= 20, premium: false, progress: Math.min((tournamentRaidPoints / 20) * 100, 100), threshold: '20 tourney raid pts' },
+        { icon: '🔥', label: 'On Fire', condition: raidPoints >= 30, premium: true, progress: Math.min((raidPoints / 30) * 100, 100), threshold: '30 tourney raid pts' },
         { icon: '🎯', label: 'Precision', condition: raidSuccessRate >= 70, premium: true, progress: Math.min((raidSuccessRate / 70) * 100, 100), threshold: '70% raid rate' },
       ],
     },
     {
       title: 'Consistency',
       badges: [
-        { icon: '🛡️', label: 'Iron Wall', condition: profileData.superTackles >= 5, premium: false, progress: Math.min((profileData.superTackles / 5) * 100, 100), threshold: '5 super tackles' },
+        { icon: '🛡️', label: 'Iron Wall', condition: tournamentTacklePoints >= 10, premium: false, progress: Math.min((tournamentTacklePoints / 10) * 100, 100), threshold: '10 tourney tackle pts' },
         { icon: '🧱', label: 'Fortress', condition: tackleSuccessRate >= 70, premium: true, progress: Math.min((tackleSuccessRate / 70) * 100, 100), threshold: '70% tackle rate' },
-        { icon: '🏆', label: 'Veteran', condition: profileData.totalRaids >= 50, premium: true, progress: Math.min((profileData.totalRaids / 50) * 100, 100), threshold: '50 raids' },
+        { icon: '🏆', label: 'Veteran', condition: tournamentMatches >= 15, premium: true, progress: Math.min((tournamentMatches / 15) * 100, 100), threshold: '15 tourney matches' },
       ],
     },
     {
       title: 'Social',
       badges: [
-        { icon: '💪', label: 'All-Rounder', condition: raidPoints >= 20 && tacklePoints >= 20, premium: false, progress: Math.min(((raidPoints >= 20 ? 1 : raidPoints / 20) + (tacklePoints >= 20 ? 1 : tacklePoints / 20)) * 50, 100), threshold: '20+ in both' },
-        { icon: '🌟', label: 'Team Player', condition: totalMatches >= 10, premium: false, progress: Math.min((totalMatches / 10) * 100, 100), threshold: '10 matches' },
+        { icon: '💪', label: 'All-Rounder', condition: raidPoints >= 20 && tacklePoints >= 20, premium: false, progress: Math.min(((raidPoints >= 20 ? 1 : raidPoints / 20) + (tacklePoints >= 20 ? 1 : tacklePoints / 20)) * 50, 100), threshold: '20+ in both (tourney)' },
+        { icon: '🌟', label: 'Team Player', condition: totalMatches >= 10, premium: false, progress: Math.min((totalMatches / 10) * 100, 100), threshold: '10 tourney matches' },
       ],
     },
     {
       title: 'Special',
       badges: [
-        { icon: '👑', label: 'Legend', condition: totalPoints >= 100, premium: true, progress: Math.min((totalPoints / 100) * 100, 100), threshold: '100 total pts' },
-        { icon: '💎', label: 'Diamond', condition: isPremium && totalPoints >= 50, premium: true, progress: isPremium ? Math.min((totalPoints / 50) * 100, 100) : 0, threshold: 'PRO + 50 pts' },
+        { icon: '👑', label: 'Legend', condition: totalPoints >= 100, premium: true, progress: Math.min((totalPoints / 100) * 100, 100), threshold: '100 tourney pts' },
+        { icon: '💎', label: 'Diamond', condition: isPremium && totalPoints >= 50, premium: true, progress: isPremium ? Math.min((totalPoints / 50) * 100, 100) : 0, threshold: 'PRO + 50 tourney pts' },
       ],
     },
   ];
@@ -631,7 +718,7 @@ export default function ProfileTab() {
   const getPositionLabel = (pos: string | null) => {
     if (!pos) return null;
     const found = POSITIONS.find(p => p.id === pos);
-    return found ? found.label : pos;
+    return found ? t(found.labelKey, language) : pos;
   };
 
   const getPositionIcon = (pos: string | null) => {
@@ -677,8 +764,9 @@ export default function ProfileTab() {
   ];
 
   return (
-    <div className="px-4 py-6 space-y-6">
-      {/* Premium Upgrade Modal */}
+    <div className="px-3 py-4 space-y-4">
+      {/* Overlays - rendered through Portal to escape scroll container */}
+      <Portal>
       {showUpgrade && (
         <PremiumUpgradeScreen
           onClose={() => setShowUpgrade(false)}
@@ -733,8 +821,10 @@ export default function ProfileTab() {
       {showDailyChallenge && (
         <DailyChallengeScreen onClose={() => setShowDailyChallenge(false)} />
       )}
+      </Portal>
 
-      {/* Player Profile Card Overlay */}
+      {/* Player Profile Card Overlay - also needs Portal */}
+      <Portal>
       <AnimatePresence>
         {showProfileCard && (
           <motion.div
@@ -764,14 +854,18 @@ export default function ProfileTab() {
           </motion.div>
         )}
       </AnimatePresence>
+      </Portal>
 
-      {/* Hidden file input for avatar upload */}
+      {/* Hidden file input for avatar upload - uses opacity+absolute instead of display:none for better cross-browser support */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/gif"
-        className="hidden"
+        className="absolute opacity-0 w-0 h-0 overflow-hidden pointer-events-none"
+        style={{ position: 'absolute' }}
         onChange={handleFileChange}
+        aria-hidden="true"
+        tabIndex={-1}
       />
 
       {/* ═══════════════════════════════════════════ */}
@@ -780,10 +874,10 @@ export default function ProfileTab() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl shadow-lg"
+        className="relative rounded-2xl shadow-lg overflow-visible"
       >
         {/* Dynamic Gradient Banner Background */}
-        <div className="relative bg-gradient-to-br from-brand-red via-red-700 to-brand-gold-dark dark:from-brand-red-dark dark:via-red-900 dark:to-amber-900 pt-8 pb-20 px-6 profile-banner-gradient">
+        <div className="relative bg-gradient-to-br from-brand-red via-red-700 to-brand-gold-dark dark:from-brand-red-dark dark:via-red-900 dark:to-amber-900 pt-5 pb-14 px-5 profile-banner-gradient overflow-hidden rounded-2xl">
           {/* Animated Mesh Pattern */}
           <div className="absolute inset-0 opacity-10">
             <motion.div
@@ -837,7 +931,7 @@ export default function ProfileTab() {
               className="text-white/80 hover:text-white hover:bg-white/10 rounded-full px-3 h-8 text-xs gap-1.5"
             >
               <Share2 className="w-3.5 h-3.5" />
-              Share
+              {t('common.share', language)}
             </Button>
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
               <DialogTrigger asChild>
@@ -847,12 +941,12 @@ export default function ProfileTab() {
                   className="text-white/80 hover:text-white hover:bg-white/15 rounded-full px-3 h-8 text-xs gap-1.5 transition-all duration-200 hover:scale-105"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  Edit
+                  {t('profile.editProfile', language)}
                 </Button>
               </DialogTrigger>
               <DialogContent className="bg-warm-50 dark:bg-warm-100 border-warm-300 max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle className="text-warm-800 dark:text-warm-700">Edit Profile</DialogTitle>
+                  <DialogTitle className="text-warm-800 dark:text-warm-800">{t('profile.editProfile', language)}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-5 mt-2">
                   {/* Avatar Upload with Preview */}
@@ -1002,7 +1096,7 @@ export default function ProfileTab() {
                           <div className="flex items-center gap-1.5">
                             <span className="text-base">{pos.icon}</span>
                             <span className={`text-xs font-semibold ${editForm.position === pos.id ? 'text-brand-teal' : 'text-warm-700 dark:text-warm-600'}`}>
-                              {pos.label}
+                              {t(pos.labelKey, language)}
                             </span>
                           </div>
                           <p className="text-[9px] text-warm-400 mt-0.5 ml-6">{pos.meaning}</p>
@@ -1015,7 +1109,7 @@ export default function ProfileTab() {
                     onClick={handleSaveProfile}
                     className="w-full bg-brand-red hover:bg-brand-red-dark text-white rounded-xl"
                   >
-                    Save Changes
+                    {t('common.save', language)}
                   </Button>
                 </div>
               </DialogContent>
@@ -1024,8 +1118,18 @@ export default function ProfileTab() {
 
           {/* Name and Gender with Position Badge */}
           <div className="relative z-10 text-center">
-            <h2 className="text-xl font-bold text-white flex items-center justify-center gap-1.5">
-              {currentUser?.name || 'Player'}
+            <h2 className={`text-xl font-bold text-white flex items-center justify-center gap-1.5 ${isPremium ? 'text-2xl' : ''}`}>
+              <span className={isPremium ? 'bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 bg-clip-text text-transparent font-extrabold drop-shadow-[0_0_8px_rgba(245,158,11,0.3)]' : 'text-white'}>
+                {currentUser?.name || 'Player'}
+              </span>
+              {isPremium && (
+                <span className="relative inline-flex items-center ml-0.5">
+                  <Badge className="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 text-[8px] border-0 font-extrabold px-1.5 py-0 shadow-lg shadow-yellow-400/20 overflow-hidden">
+                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+                    <Crown className="w-2.5 h-2.5 mr-0.5 relative z-10" />PRO
+                  </Badge>
+                </span>
+              )}
               {currentUser?.gender === 'male' ? (
                 <span className="text-blue-300">♂</span>
               ) : currentUser?.gender === 'female' ? (
@@ -1038,21 +1142,21 @@ export default function ProfileTab() {
                   transition={{ type: 'spring', stiffness: 300, damping: 15 }}
                   className="inline-flex items-center"
                 >
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md">
-                    <Crown className="w-3.5 h-3.5 text-white" />
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-yellow-400 via-amber-400 to-yellow-500 flex items-center justify-center shadow-lg shadow-yellow-400/30 ring-2 ring-yellow-300/30">
+                    <Crown className="w-4 h-4 text-yellow-900" />
                   </div>
                 </motion.div>
               ) : null}
             </h2>
 
             {/* Position badge with kabaddi-themed icon */}
-            {profileData.position && (
+            {(profileData.position || currentUser?.position) && (
               <div className="flex items-center justify-center gap-1.5 mt-1.5">
                 <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 flex items-center gap-1.5">
-                  <span className="text-sm">{getPositionIcon(profileData.position)}</span>
-                  <span className="text-white/90 text-xs font-semibold">{getPositionLabel(profileData.position)}</span>
-                  {profileData.jerseyNumber && (
-                    <span className="text-white/60 text-[10px] font-mono">#{profileData.jerseyNumber}</span>
+                  <span className="text-sm">{getPositionIcon(profileData.position || currentUser?.position || '')}</span>
+                  <span className="text-white/90 text-xs font-semibold">{getPositionLabel(profileData.position || currentUser?.position || '')}</span>
+                  {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+                    <span className="text-white/60 text-[10px] font-mono">#{profileData.jerseyNumber || currentUser?.jerseyNumber}</span>
                   )}
                 </span>
               </div>
@@ -1076,14 +1180,15 @@ export default function ProfileTab() {
 
             {/* Badges Row */}
             <div className="flex items-center justify-center gap-2 mt-2">
-              {profileData.jerseyNumber && (
+              {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
                 <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
-                  #{profileData.jerseyNumber}
+                  #{profileData.jerseyNumber || currentUser?.jerseyNumber}
                 </span>
               )}
               {isPremium && (
-                <span className="px-2.5 py-1 rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-xs font-bold">
-                  PRO
+                <span className="relative px-2.5 py-1 rounded-full bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 text-xs font-extrabold shadow-md shadow-yellow-400/20 overflow-hidden">
+                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+                  <span className="relative z-10 flex items-center gap-1"><Crown className="w-3 h-3" />PRO</span>
                 </span>
               )}
             </div>
@@ -1128,7 +1233,7 @@ export default function ProfileTab() {
         </div>
 
         {/* Avatar overlapping the banner with enhanced animated border ring and profile completeness */}
-        <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 z-20">
           <div className="relative">
             {/* Animated rotating border ring - enhanced with more colors */}
             <motion.div
@@ -1173,7 +1278,7 @@ export default function ProfileTab() {
                 </linearGradient>
               </defs>
             </svg>
-            <div className={`w-32 h-32 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-6xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-2xl relative ${
+            <div className={`w-28 h-28 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-4xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-2xl relative ${
               profileData.position?.includes('raider') || profileData.position?.includes('both')
                 ? 'position-ring-raider'
                 : profileData.position?.includes('corner') || profileData.position?.includes('cover')
@@ -1225,13 +1330,16 @@ export default function ProfileTab() {
         </div>
       </motion.div>
 
+      {/* Spacer for avatar overlap */}
+      <div className="h-16" />
+
       {/* Player Code - Glassmorphism Card */}
       {(profileData.playerCode || currentUser?.playerCode) && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1, type: 'spring', stiffness: 300 }}
-          className="pt-12"
+          className="pt-2"
         >
           <button
             onClick={handleCopyCode}
@@ -1242,7 +1350,7 @@ export default function ProfileTab() {
             </div>
             <div className="text-left flex-1">
               <p className="text-[10px] font-semibold text-warm-400 uppercase tracking-wider leading-none">Player Code</p>
-              <p className="text-xl font-black text-warm-800 dark:text-warm-700 font-mono leading-tight tracking-wider">{profileData.playerCode || currentUser?.playerCode}</p>
+              <p className="text-xl font-black text-warm-800 dark:text-warm-100 font-mono leading-tight tracking-wider">{profileData.playerCode || currentUser?.playerCode}</p>
             </div>
             <div className="shrink-0">
               <AnimatePresence mode="wait">
@@ -1317,12 +1425,12 @@ export default function ProfileTab() {
                       <Crown className="w-8 h-8 text-white" />
                     </motion.div>
                     <div className="text-left">
-                      <p className="text-white font-bold text-lg">Go Premium</p>
+                      <p className="text-white font-bold text-lg">{t('profile.goPremium', language)}</p>
                       <p className="text-white/80 text-xs">Unlock stats, host tournaments & more</p>
                     </div>
                   </div>
                   <div className="bg-white/25 backdrop-blur-sm rounded-xl px-5 py-2.5 text-center">
-                    <span className="text-white text-xl font-black">₹149</span>
+                    <span className="text-white text-xl font-black">₹99</span>
                     <span className="text-white/80 text-xs block">/mo</span>
                   </div>
                 </div>
@@ -1352,20 +1460,23 @@ export default function ProfileTab() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
         >
-          <Card className="p-4 bg-gradient-to-r from-brand-gold/10 to-brand-gold/5 border border-brand-gold/20 dark:from-brand-gold/20 dark:to-brand-gold/10">
-            <div className="flex items-center justify-between">
+          <Card className="p-4 bg-gradient-to-r from-yellow-400/10 via-amber-400/5 to-yellow-400/10 border border-yellow-400/20 dark:from-yellow-400/20 dark:via-amber-400/10 dark:to-yellow-400/20 overflow-hidden relative">
+            {/* Shimmer effect on premium card */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/5 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+            <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-gold/20 flex items-center justify-center">
-                  <Crown className="w-5 h-5 text-brand-gold" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400/20 to-amber-400/20 flex items-center justify-center shadow-md shadow-yellow-400/10">
+                  <Crown className="w-5 h-5 text-yellow-500" />
                 </div>
                 <div className="text-left">
-                  <p className="text-warm-800 dark:text-warm-700 font-bold text-sm">Premium Active</p>
-                  <p className="text-warm-500 text-xs">All features unlocked</p>
+                  <p className="text-warm-800 dark:text-warm-100 font-bold text-sm">{t('profile.premiumActive', language)}</p>
+                  <p className="text-warm-500 dark:text-warm-300 text-xs">{t('profile.allFeaturesUnlocked', language)}</p>
                 </div>
               </div>
-              <Badge className="bg-brand-gold/20 text-brand-gold border-0 text-xs font-bold">
-                <Crown className="w-3 h-3 mr-1" />
-                PRO
+              <Badge className="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 border-0 text-xs font-extrabold shadow-md shadow-yellow-400/20 overflow-hidden relative">
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+                <Crown className="w-3 h-3 mr-1 relative z-10" />
+                <span className="relative z-10">PRO</span>
               </Badge>
             </div>
           </Card>
@@ -1373,47 +1484,19 @@ export default function ProfileTab() {
       )}
 
       {/* ═══════════════════════════════════════════ */}
-      {/* Profile Not Found — Complete Your Profile CTA */}
-      {/* ═══════════════════════════════════════════ */}
-      {profileNotFound && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="glass-card p-5 text-center space-y-3">
-            <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-brand-red/20 to-brand-gold/20 flex items-center justify-center">
-              <Edit3 className="w-6 h-6 text-brand-red" />
-            </div>
-            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Complete Your Profile</h3>
-            <p className="text-sm text-warm-500 dark:text-warm-400">
-              Your player profile hasn&apos;t been set up yet. Add your details to start tracking stats and unlocking achievements!
-            </p>
-            <Button
-              onClick={() => setEditOpen(true)}
-              className="bg-gradient-to-r from-brand-red to-brand-red-light hover:from-brand-red-dark hover:to-brand-red text-white font-bold rounded-xl px-6"
-            >
-              <Edit3 className="w-4 h-4 mr-2" />
-              Set Up Profile
-            </Button>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* ═══════════════════════════════════════════ */}
       {/* 2. STATS CARDS with Circular Progress Rings */}
       {/* ═══════════════════════════════════════════ */}
-      {!profileNotFound && (
+      {(
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="grid grid-cols-3 gap-3"
+        className="grid grid-cols-3 gap-2"
       >
         {[
-          { label: 'Raid Points', value: raidPoints, icon: Zap, color: 'orange', sparkData: raidSparkline, trend: raidPoints > 0 ? 12 : 0, glow: 'stat-glow-orange', ringColor: '#EA580C', ringBg: '#EA580C20', pct: Math.min((raidPoints / Math.max(totalPoints, 1)) * 100, 100) },
-          { label: 'Tackle Points', value: tacklePoints, icon: Shield, color: 'emerald', sparkData: tackleSparkline, trend: tacklePoints > 0 ? 8 : 0, glow: 'stat-glow-emerald', ringColor: '#059669', ringBg: '#05966920', pct: Math.min((tacklePoints / Math.max(totalPoints, 1)) * 100, 100) },
-          { label: 'Rating', value: parseFloat(profileData.overallRating.toFixed(1)), icon: Swords, color: 'amber', sparkData: ratingSparkline, trend: profileData.overallRating > 0 ? -3 : 0, decimals: 1, glow: 'stat-glow-amber', ringColor: '#D97706', ringBg: '#D9770620', pct: Math.min(profileData.overallRating * 10, 100) },
+          { label: t('profile.raidPointsLong', language), value: raidPoints, icon: Zap, color: 'orange', sparkData: raidSparkline, trend: raidPoints > 0 ? 12 : 0, glow: 'stat-glow-orange', ringColor: '#EA580C', ringBg: '#EA580C20', pct: Math.min((raidPoints / Math.max(totalPoints, 1)) * 100, 100) },
+          { label: t('profile.tacklePointsLong', language), value: tacklePoints, icon: Shield, color: 'emerald', sparkData: tackleSparkline, trend: tacklePoints > 0 ? 8 : 0, glow: 'stat-glow-emerald', ringColor: '#059669', ringBg: '#05966920', pct: Math.min((tacklePoints / Math.max(totalPoints, 1)) * 100, 100) },
+          { label: t('profile.rating', language), value: parseFloat(profileData.overallRating.toFixed(1)), icon: Swords, color: 'amber', sparkData: ratingSparkline, trend: profileData.overallRating > 0 ? -3 : 0, decimals: 1, glow: 'stat-glow-amber', ringColor: '#D97706', ringBg: '#D9770620', pct: Math.min(profileData.overallRating * 10, 100) },
         ].map((stat, idx) => {
           const IconComp = stat.icon;
           const circumference = 2 * Math.PI * 28;
@@ -1424,7 +1507,7 @@ export default function ProfileTab() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + idx * 0.08 }}
-              className={`glass-card rounded-xl p-3 shadow-lg ${stat.glow} hover:scale-[1.03] transition-transform duration-200 relative overflow-hidden`}
+              className={`glass-card rounded-xl p-2.5 shadow-lg ${stat.glow} hover:scale-[1.03] transition-transform duration-200 relative overflow-hidden`}
             >
               {/* Circular Progress Ring Background */}
               <div className="flex justify-center mb-2">
@@ -1457,7 +1540,7 @@ export default function ProfileTab() {
                   </div>
                 </div>
               </div>
-              <div className={`text-xl font-black text-center ${
+              <div className={`text-lg font-black text-center ${
                 stat.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
                 stat.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
                 'text-amber-600 dark:text-amber-400'
@@ -1465,7 +1548,7 @@ export default function ProfileTab() {
                 <AnimatedValue value={stat.value} decimals={stat.decimals || 0} />
               </div>
               <div className="flex items-center justify-between mt-0.5">
-                <div className="text-[10px] text-warm-600 dark:text-warm-500">{stat.label}</div>
+                <div className="text-[10px] text-warm-600 dark:text-warm-300">{stat.label}</div>
                 {stat.trend !== 0 && (
                   <div className={`flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                     stat.trend > 0 ? 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400 dark:bg-emerald-500/15' : 'text-red-600 bg-red-500/10 dark:text-red-400 dark:bg-red-500/15'
@@ -1484,15 +1567,15 @@ export default function ProfileTab() {
       {/* ═══════════════════════════════════════════ */}
       {/* 3. SCORE BREAKDOWN with Donut/Ring Chart */}
       {/* ═══════════════════════════════════════════ */}
-      {!profileNotFound && (
+      {(
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.12 }}
       >
-        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+        <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
           <Trophy className="w-4 h-4 text-brand-gold" />
-          Score Breakdown
+          {t('profile.detailedBreakdown', language)}
         </h3>
 
         <div className="grid grid-cols-5 gap-3">
@@ -1530,11 +1613,11 @@ export default function ProfileTab() {
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.8, type: 'spring', stiffness: 300 }}
-                  className="text-xl font-black text-warm-800 dark:text-warm-700"
+                  className="text-xl font-black text-warm-800 dark:text-warm-100"
                 >
                   <AnimatedValue value={totalPoints} />
                 </motion.span>
-                <span className="text-[8px] font-bold text-warm-400 uppercase tracking-wider">Total</span>
+                <span className="text-[8px] font-bold text-warm-400 uppercase tracking-wider">🏆 Tourney Pts</span>
               </div>
             </div>
           </Card>
@@ -1552,8 +1635,8 @@ export default function ProfileTab() {
                   className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-warm-100/50 dark:hover:bg-warm-200/30 transition-colors"
                 >
                   <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.fill }} />
-                  <span className="text-xs font-medium text-warm-600 dark:text-warm-500 flex-1">{item.name}</span>
-                  <span className="text-xs font-black text-warm-800 dark:text-warm-700">{item.value}</span>
+                  <span className="text-xs font-medium text-warm-600 dark:text-warm-300 flex-1">{item.name}</span>
+                  <span className="text-xs font-black text-warm-800 dark:text-warm-100">{item.value}</span>
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${item.fill}15`, color: item.fill }}>{pct}%</span>
                 </motion.div>
               );
@@ -1567,7 +1650,7 @@ export default function ProfileTab() {
                     <div className="w-5 h-5 rounded-md bg-orange-500/10 flex items-center justify-center">
                       <Zap className="w-3 h-3 text-orange-500" />
                     </div>
-                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-500">Raid Success</span>
+                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-300">{t('profile.raidSuccess', language)}</span>
                   </div>
                   <span className="text-[10px] font-black text-orange-500">{raidSuccessRate.toFixed(0)}%</span>
                 </div>
@@ -1586,7 +1669,7 @@ export default function ProfileTab() {
                     <div className="w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center">
                       <Shield className="w-3 h-3 text-emerald-500" />
                     </div>
-                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-500">Tackle Success</span>
+                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-300">{t('profile.tackleSuccess', language)}</span>
                   </div>
                   <span className="text-[10px] font-black text-emerald-500">{tackleSuccessRate.toFixed(0)}%</span>
                 </div>
@@ -1603,8 +1686,99 @@ export default function ProfileTab() {
           </div>
         </div>
 
-        {/* Practice vs Tournament Stats */}
-        <div className="grid grid-cols-2 gap-3 mt-3">
+        {/* ═══ Practice Stats Section ═══ */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.13 }}
+        >
+          <Card className="overflow-hidden border-0 shadow-sm">
+            <div className="p-4 bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-900/15 dark:to-teal-900/10">
+              {/* Section Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                    <span className="text-sm">🏋️</span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-warm-800 dark:text-warm-200">Practice Stats</h3>
+                    <p className="text-[9px] text-warm-500 dark:text-warm-400">Not counted in leaderboard or awards</p>
+                  </div>
+                </div>
+                {practiceMatches > 0 && (
+                  <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    {practiceMatches} matches
+                  </Badge>
+                )}
+              </div>
+
+              {practiceMatches > 0 ? (
+                <>
+                  {/* Practice Stats Grid */}
+                  <div className="grid grid-cols-4 gap-2 mb-3">
+                    <div className="text-center p-2 rounded-xl bg-white/60 dark:bg-warm-800/40">
+                      <p className="text-lg font-black text-warm-800 dark:text-warm-100">{practiceMatches}</p>
+                      <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Matches</p>
+                    </div>
+                    <div className="text-center p-2 rounded-xl bg-orange-500/10 dark:bg-orange-500/5">
+                      <p className="text-lg font-black text-orange-500">{practiceRaidPoints}</p>
+                      <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Raid Pts</p>
+                    </div>
+                    <div className="text-center p-2 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/5">
+                      <p className="text-lg font-black text-emerald-500">{practiceTacklePoints}</p>
+                      <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Tackle Pts</p>
+                    </div>
+                    <div className="text-center p-2 rounded-xl bg-amber-500/10 dark:bg-amber-500/5">
+                      <p className="text-lg font-black text-amber-600 dark:text-amber-400">{practiceTotalPoints}</p>
+                      <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Total Pts</p>
+                    </div>
+                  </div>
+
+                  {/* Comparison Bar */}
+                  <div className="bg-white/40 dark:bg-warm-800/30 rounded-xl p-3">
+                    <p className="text-[10px] font-semibold text-warm-600 dark:text-warm-300 mb-2">Points Distribution</p>
+                    <div className="h-3 rounded-full bg-warm-200 dark:bg-warm-700 overflow-hidden flex">
+                      {practiceTotalPoints > 0 && (
+                        <>
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(practiceRaidPoints / practiceTotalPoints) * 100}%` }}
+                            transition={{ duration: 0.8, delay: 0.3 }}
+                            className="h-full bg-gradient-to-r from-orange-400 to-orange-500"
+                          />
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(practiceTacklePoints / practiceTotalPoints) * 100}%` }}
+                            transition={{ duration: 0.8, delay: 0.4 }}
+                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500"
+                          />
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-orange-500" />
+                        <span className="text-[9px] text-warm-500 dark:text-warm-400">Raid {practiceTotalPoints > 0 ? Math.round((practiceRaidPoints / practiceTotalPoints) * 100) : 0}%</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-[9px] text-warm-500 dark:text-warm-400">Tackle {practiceTotalPoints > 0 ? Math.round((practiceTacklePoints / practiceTotalPoints) * 100) : 0}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-xs text-warm-500 dark:text-warm-400 font-medium">No practice matches yet</p>
+                  <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">Start a practice match to track your training stats</p>
+                </div>
+              )}
+            </div>
+          </Card>
+        </motion.div>
+
+        {/* Tournament vs Practice Overview (compact) */}
+        <div className="grid grid-cols-2 gap-3 mt-1">
           <motion.div
             initial={{ opacity: 0, x: -15 }}
             animate={{ opacity: 1, x: 0 }}
@@ -1612,29 +1786,30 @@ export default function ProfileTab() {
             whileHover={{ scale: 1.02, y: -2 }}
             className="transition-transform"
           >
-            <Card className="p-3 bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/20 shadow-sm relative overflow-hidden">
+            <Card className="p-3 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/20 shadow-sm relative overflow-hidden">
               {/* Decorative gradient accent */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-sm">🏋️</span>
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Practice</span>
+                <span className="text-sm">🏆</span>
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Tournament</span>
+                <span className="text-[8px] font-semibold text-amber-500/60 dark:text-amber-400/40 ml-auto">COUNTS</span>
               </div>
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-warm-500 dark:text-warm-400">Matches</span>
-                  <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.practiceMatches}</span>
+                  <span className="text-warm-500 dark:text-warm-400">{t('profile.matches', language)}</span>
+                  <span className="text-warm-800 dark:text-warm-100 font-semibold">{profileData.tournamentMatches}</span>
                 </div>
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
-                  <span className="text-orange-500 font-semibold">{profileData.practiceRaidPoints}</span>
+                  <span className="text-warm-500 dark:text-warm-400">{t('common.raidPts', language)}</span>
+                  <span className="text-orange-500 font-semibold">{profileData.tournamentRaidPoints}</span>
                 </div>
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
-                  <span className="text-emerald-500 font-semibold">{profileData.practiceTacklePoints}</span>
+                  <span className="text-warm-500 dark:text-warm-400">{t('common.tacklePts', language)}</span>
+                  <span className="text-emerald-500 font-semibold">{profileData.tournamentTacklePoints}</span>
                 </div>
                 <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
-                  <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
-                  <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.practiceTotalPoints}</span>
+                  <span className="text-warm-500 dark:text-warm-400">{t('common.totalPts', language)}</span>
+                  <span className="text-warm-800 dark:text-warm-100 font-bold">{profileData.tournamentTotalPoints}</span>
                 </div>
               </div>
             </Card>
@@ -1646,29 +1821,30 @@ export default function ProfileTab() {
             whileHover={{ scale: 1.02, y: -2 }}
             className="transition-transform"
           >
-            <Card className="p-3 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/20 shadow-sm relative overflow-hidden">
+            <Card className="p-3 bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/20 shadow-sm relative overflow-hidden">
               {/* Decorative gradient accent */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-sm">🏆</span>
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Tournament</span>
+                <span className="text-sm">🏋️</span>
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Practice</span>
+                <span className="text-[8px] font-semibold text-emerald-500/60 dark:text-emerald-400/40 ml-auto">TRAINING</span>
               </div>
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-warm-500 dark:text-warm-400">Matches</span>
-                  <span className="text-warm-800 dark:text-warm-700 font-semibold">{profileData.tournamentMatches}</span>
+                  <span className="text-warm-500 dark:text-warm-400">{t('profile.matches', language)}</span>
+                  <span className="text-warm-800 dark:text-warm-100 font-semibold">{profileData.practiceMatches}</span>
                 </div>
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-warm-500 dark:text-warm-400">Raid Pts</span>
-                  <span className="text-orange-500 font-semibold">{profileData.tournamentRaidPoints}</span>
+                  <span className="text-warm-500 dark:text-warm-400">{t('common.raidPts', language)}</span>
+                  <span className="text-orange-500 font-semibold">{profileData.practiceRaidPoints}</span>
                 </div>
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-warm-500 dark:text-warm-400">Tackle Pts</span>
-                  <span className="text-emerald-500 font-semibold">{profileData.tournamentTacklePoints}</span>
+                  <span className="text-warm-500 dark:text-warm-400">{t('common.tacklePts', language)}</span>
+                  <span className="text-emerald-500 font-semibold">{profileData.practiceTacklePoints}</span>
                 </div>
                 <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
-                  <span className="text-warm-500 dark:text-warm-400">Total Pts</span>
-                  <span className="text-warm-800 dark:text-warm-700 font-bold">{profileData.tournamentTotalPoints}</span>
+                  <span className="text-warm-500 dark:text-warm-400">{t('common.totalPts', language)}</span>
+                  <span className="text-warm-800 dark:text-warm-100 font-bold">{profileData.practiceTotalPoints}</span>
                 </div>
               </div>
             </Card>
@@ -1680,7 +1856,7 @@ export default function ProfileTab() {
       {/* ═══════════════════════════════════════════ */}
       {/* 4. MATCH HISTORY TIMELINE (Enhanced) */}
       {/* ═══════════════════════════════════════════ */}
-      {!profileNotFound && (
+      {(
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1705,16 +1881,16 @@ export default function ProfileTab() {
       {/* ═══════════════════════════════════════════ */}
       {/* 5. BADGES Section with Categories, Locked & Progress */}
       {/* ═══════════════════════════════════════════ */}
-      {!profileNotFound && (
+      {(
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
       >
         <PremiumLock feature="Detailed Badges">
-          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+          <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
             <Award className="w-4 h-4 text-brand-gold" />
-            Badges
+            {t('profile.badges', language)}
           </h3>
           <div className="space-y-4">
             {badgeCategories.map((category) => (
@@ -1817,16 +1993,16 @@ export default function ProfileTab() {
       {/* ═══════════════════════════════════════════ */}
       {/* 6. PERFORMANCE RADAR/SPIDER CHART */}
       {/* ═══════════════════════════════════════════ */}
-      {!profileNotFound && (
+      {(
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
         <PremiumLock feature="Performance Analytics">
-          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+          <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
             <Gauge className="w-4 h-4 text-brand-red" />
-            Performance Radar
+            {t('profile.performance', language)}
           </h3>
           <Card className="p-4 shadow-sm glass-card relative overflow-hidden">
             {/* Decorative gradient corner accent */}
@@ -1891,7 +2067,7 @@ export default function ProfileTab() {
                   >
                     <p className="text-[9px] text-warm-400 uppercase font-semibold">{skill.subject}</p>
                     <div className="flex items-center justify-center gap-1">
-                      <p className={`text-sm font-black ${isMax ? 'text-brand-red' : 'text-warm-800 dark:text-warm-700'}`}>{Math.round(skill.player)}</p>
+                      <p className={`text-sm font-black ${isMax ? 'text-brand-red' : 'text-warm-800 dark:text-warm-100'}`}>{Math.round(skill.player)}</p>
                       {isMax && (
                         <motion.span
                           animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
@@ -1914,7 +2090,7 @@ export default function ProfileTab() {
 
           {/* Bar Chart - legacy performance data */}
           <Card className="p-4 shadow-sm mt-3">
-            <h4 className="text-xs font-semibold text-warm-600 dark:text-warm-500 mb-2">Performance Summary</h4>
+            <h4 className="text-xs font-semibold text-warm-600 dark:text-warm-300 mb-2">Performance Summary</h4>
             <div className="h-36">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={performanceData} barSize={40}>
@@ -1941,16 +2117,16 @@ export default function ProfileTab() {
       {/* ═══════════════════════════════════════════ */}
       {/* 7. DETAILED BREAKDOWN with Animated Progress Bars */}
       {/* ═══════════════════════════════════════════ */}
-      {!profileNotFound && (
+      {(
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.22 }}
       >
         <PremiumLock feature="Detailed Stats" compact>
-          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+          <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
             <Swords className="w-4 h-4 text-brand-red" />
-            Detailed Breakdown
+            {t('profile.detailedBreakdown', language)}
           </h3>
           <Card className="p-4 shadow-sm glass-card">
             <div className="space-y-4">
@@ -1970,10 +2146,10 @@ export default function ProfileTab() {
                         <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-sm`}>
                           <IconComp className="w-3.5 h-3.5 text-white" />
                         </div>
-                        <span className="text-sm font-semibold text-warm-700 dark:text-warm-600">{stat.label}</span>
+                        <span className="text-sm font-semibold text-warm-700 dark:text-warm-300">{stat.label}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-black text-warm-800 dark:text-warm-700 tabular-nums">{stat.value.toFixed(0)}%</span>
+                        <span className="text-sm font-black text-warm-800 dark:text-warm-100 tabular-nums">{stat.value.toFixed(0)}%</span>
                         {diff !== 0 && (
                           <span className={`text-[9px] font-bold flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${
                             diff > 0 ? 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400' : 'text-red-600 bg-red-500/10 dark:text-red-400'
@@ -2014,7 +2190,7 @@ export default function ProfileTab() {
               <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center mx-auto mb-1.5 glow-pulse">
                 <Zap className="w-4 h-4 text-orange-500" />
               </div>
-              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Bonus Points</p>
+              <p className="text-[10px] text-warm-500 dark:text-warm-300 font-medium">{t('profile.bonusPoints', language)}</p>
               <p className="text-xl font-black text-orange-500"><AnimatedValue value={profileData.bonusPoints} /></p>
             </motion.div>
             <motion.div
@@ -2026,7 +2202,7 @@ export default function ProfileTab() {
               <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center mx-auto mb-1.5 glow-pulse">
                 <Shield className="w-4 h-4 text-purple-500" />
               </div>
-              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Super Tackles</p>
+              <p className="text-[10px] text-warm-500 dark:text-warm-300 font-medium">{t('profile.superTackles', language)}</p>
               <p className="text-xl font-black text-purple-500"><AnimatedValue value={profileData.superTackles} /></p>
             </motion.div>
           </div>
@@ -2042,7 +2218,7 @@ export default function ProfileTab() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.26 }}
       >
-        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+        <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
           <Settings className="w-4 h-4 text-warm-500" />
           Features
         </h3>
@@ -2114,7 +2290,7 @@ export default function ProfileTab() {
                       {/* Label and description */}
                       <div className="flex-1 min-w-0 relative z-10">
                         <div className="flex items-center gap-1.5">
-                          <p className="text-xs font-semibold text-warm-800 dark:text-warm-700">{item.label}</p>
+                          <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">{item.label}</p>
                           {isPremiumFeature && (
                             <span className="text-[7px] font-bold text-brand-gold bg-brand-gold/15 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                               <Crown className="w-2 h-2" /> PRO
@@ -2147,7 +2323,7 @@ export default function ProfileTab() {
       {/* ═══════════════════════════════════════════ */}
       <div className="flex items-center gap-3 my-2">
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-200 dark:via-warm-700 to-warm-200 dark:to-warm-700" />
-        <span className="text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-widest">Info & Settings</span>
+        <span className="text-[10px] font-bold text-warm-400 dark:text-warm-300 uppercase tracking-widest">Info & Settings</span>
         <div className="flex-1 h-px bg-gradient-to-r from-warm-200 dark:from-warm-700 via-warm-200 dark:via-warm-700 to-transparent" />
       </div>
 
@@ -2167,12 +2343,12 @@ export default function ProfileTab() {
                 <Eye className="w-3.5 h-3.5 text-warm-400" />
               </div>
               <div>
-                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Phone</span>
+                <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">Phone</span>
                 <p className="text-[10px] text-warm-400 dark:text-warm-300">Your registered number</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-warm-800 dark:text-warm-700 font-medium font-mono text-xs">
+              <span className="text-warm-800 dark:text-warm-100 font-medium font-mono text-xs">
                 {showPhone ? (currentUser?.phone || '—') : (currentUser?.phone ? `****${currentUser.phone.slice(-2)}` : '—')}
               </span>
               <motion.button
@@ -2193,11 +2369,11 @@ export default function ProfileTab() {
                   <Activity className="w-3.5 h-3.5 text-warm-400" />
                 </div>
                 <div>
-                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Weight</span>
+                  <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">Weight</span>
                   <p className="text-[10px] text-warm-400 dark:text-warm-300">Your weight category</p>
                 </div>
               </div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{currentUser.weight}</span>
+              <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">{currentUser.weight}</span>
             </div>
           )}
 
@@ -2209,43 +2385,43 @@ export default function ProfileTab() {
                   <MapPin className="w-3.5 h-3.5 text-warm-400" />
                 </div>
                 <div>
-                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Practice Ground</span>
+                  <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">Practice Ground</span>
                   <p className="text-[10px] text-warm-400 dark:text-warm-300">Your training venue</p>
                 </div>
               </div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs max-w-[150px] truncate">{currentUser.practiceGround}</span>
+              <span className="text-warm-800 dark:text-warm-100 font-medium text-xs max-w-[150px] truncate">{currentUser.practiceGround}</span>
             </div>
           )}
 
           {/* Position */}
-          {profileData.position && (
+          {(profileData.position || currentUser?.position) && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
                   <Target className="w-3.5 h-3.5 text-warm-400" />
                 </div>
                 <div>
-                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Position</span>
+                  <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">Position</span>
                   <p className="text-[10px] text-warm-400 dark:text-warm-300">Your playing role</p>
                 </div>
               </div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{getPositionIcon(profileData.position)} {getPositionLabel(profileData.position)}</span>
+              <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">{getPositionIcon(profileData.position || currentUser?.position || '')} {getPositionLabel(profileData.position || currentUser?.position || '')}</span>
             </div>
           )}
 
           {/* Jersey */}
-          {profileData.jerseyNumber && (
+          {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
                   <Hash className="w-3.5 h-3.5 text-warm-400" />
                 </div>
                 <div>
-                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Jersey</span>
+                  <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">Jersey</span>
                   <p className="text-[10px] text-warm-400 dark:text-warm-300">Your jersey number</p>
                 </div>
               </div>
-              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">#{profileData.jerseyNumber}</span>
+              <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">#{profileData.jerseyNumber || currentUser?.jerseyNumber}</span>
             </div>
           )}
 
@@ -2256,11 +2432,11 @@ export default function ProfileTab() {
                 <CreditCard className="w-3.5 h-3.5 text-warm-400" />
               </div>
               <div>
-                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Plan</span>
+                <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">Plan</span>
                 <p className="text-[10px] text-warm-400 dark:text-warm-300">Your subscription</p>
               </div>
             </div>
-            <span className={`font-medium text-xs flex items-center gap-1 ${isPremium ? 'text-brand-gold' : 'text-warm-600 dark:text-warm-500'}`}>
+            <span className={`font-medium text-xs flex items-center gap-1 ${isPremium ? 'text-brand-gold' : 'text-warm-600 dark:text-warm-300'}`}>
               {isPremium ? <><Crown className="w-3 h-3" /> Premium</> : 'Free'}
             </span>
           </div>
@@ -2272,8 +2448,8 @@ export default function ProfileTab() {
                 <Flag className="w-3.5 h-3.5 text-warm-400" />
               </div>
               <div>
-                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Language</span>
-                <p className="text-[10px] text-warm-400 dark:text-warm-300">App display language</p>
+                <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">{t('profile.language', language)}</span>
+                <p className="text-[10px] text-warm-400 dark:text-warm-300">{language === 'hi' ? 'ऐप्लिकेशन भाषा' : 'App display language'}</p>
               </div>
             </div>
             <div className="flex items-center gap-1 bg-warm-100 dark:bg-warm-200 rounded-xl p-1">
@@ -2331,7 +2507,7 @@ export default function ProfileTab() {
                 </AnimatePresence>
               </div>
               <div>
-                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Theme</span>
+                <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">{t('profile.darkMode', language)}</span>
                 <p className="text-[10px] text-warm-400 dark:text-warm-300">{darkMode ? 'Dark mode active' : 'Light mode active'}</p>
               </div>
             </div>
@@ -2423,7 +2599,7 @@ export default function ProfileTab() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28 }}
         >
-          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+          <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
             <IndianRupee className="w-4 h-4 text-emerald-500" />
             Earnings Dashboard
           </h3>
@@ -2451,15 +2627,15 @@ export default function ProfileTab() {
             <div className="grid grid-cols-3 gap-2">
               <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
                 <p className="text-xs text-warm-500 dark:text-warm-400">Monthly</p>
-                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.monthlyCount || 0}</p>
+                <p className="text-base font-bold text-warm-800 dark:text-warm-100">{earnings?.monthlyCount || 0}</p>
               </div>
               <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
                 <p className="text-xs text-warm-500 dark:text-warm-400">Yearly</p>
-                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.yearlyCount || 0}</p>
+                <p className="text-base font-bold text-warm-800 dark:text-warm-100">{earnings?.yearlyCount || 0}</p>
               </div>
               <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
                 <p className="text-xs text-warm-500 dark:text-warm-400">Lifetime</p>
-                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.lifetimeCount || 0}</p>
+                <p className="text-base font-bold text-warm-800 dark:text-warm-100">{earnings?.lifetimeCount || 0}</p>
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-warm-500 dark:text-warm-400">
@@ -2491,7 +2667,7 @@ export default function ProfileTab() {
             className="w-full rounded-xl border-warm-300 dark:border-warm-200 text-brand-red hover:bg-brand-red/5 hover:text-brand-red h-11 gap-2"
           >
             <LogOut className="w-4 h-4" />
-            Logout
+            {t('profile.logout', language)}
           </Button>
         ) : (
           <motion.div
@@ -2515,7 +2691,7 @@ export default function ProfileTab() {
                 onClick={() => setShowLogoutConfirm(false)}
                 className="flex-1 rounded-xl border-warm-300 dark:border-warm-200 h-9 text-xs"
               >
-                Cancel
+                {t('common.cancel', language)}
               </Button>
               <Button
                 onClick={() => {
@@ -2525,7 +2701,7 @@ export default function ProfileTab() {
                 className="flex-1 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white h-9 text-xs"
               >
                 <LogOut className="w-3.5 h-3.5 mr-1.5" />
-                Logout
+                {t('profile.logout', language)}
               </Button>
             </div>
           </motion.div>

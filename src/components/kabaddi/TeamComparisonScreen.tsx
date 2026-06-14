@@ -20,6 +20,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useKabaddiStore } from '@/lib/store';
+import PremiumLock from './PremiumLock';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -416,6 +418,8 @@ function TeamSelector({
 
 export default function TeamComparisonScreen({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const isPremium = currentUser?.isPremium || false;
   const [teams, setTeams] = useState<TeamData[]>([]);
   const [teamA, setTeamA] = useState<TeamData | null>(null);
   const [teamB, setTeamB] = useState<TeamData | null>(null);
@@ -485,6 +489,16 @@ export default function TeamComparisonScreen({ onClose }: { onClose: () => void 
     });
     return results;
   };
+
+  if (!isPremium) {
+    return (
+      <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex items-center justify-center">
+        <PremiumLock feature="Compare Teams">
+          <div className="w-64 h-40" />
+        </PremiumLock>
+      </div>
+    );
+  }
 
   return (
     <motion.div

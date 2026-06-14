@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useKabaddiStore } from '@/lib/store';
+import Portal from '@/components/portal';
 import { useToast } from '@/hooks/use-toast';
 import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 
@@ -1095,13 +1096,15 @@ export default function TournamentsTab() {
 
   return (
     <div className="px-4 py-6 space-y-5">
-      {/* Premium Upgrade Modal */}
+      {/* Premium Upgrade Modal - rendered through Portal */}
+      <Portal>
       {showUpgrade && (
         <PremiumUpgradeScreen
           onClose={() => setShowUpgrade(false)}
           feature="Host Tournaments"
         />
       )}
+      </Portal>
 
       {/* ═══════════════════════════════════════════════════════════════════
           HEADER WITH DECORATIVE BANNER

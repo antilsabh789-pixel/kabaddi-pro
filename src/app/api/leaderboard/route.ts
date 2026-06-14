@@ -7,49 +7,44 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category') || 'raiders';
     const gender = searchParams.get('gender') || 'all';
     const limit = parseInt(searchParams.get('limit') || '20');
+    const mode = searchParams.get('mode') || 'tournament'; // 'tournament' or 'practice'
+
+    const isPractice = mode === 'practice';
+    const prefix = isPractice ? 'practice' : 'tournament';
 
     const userWhere: Record<string, unknown> = {};
     if (gender && gender !== 'all') {
       userWhere.gender = gender === 'male' ? 'male' : gender === 'female' ? 'female' : gender;
     }
 
-    // Only consider players who have played at least 1 tournament match
+    // Only consider players who have played at least 1 match in the selected mode
     const profileWhere: Record<string, unknown> = {
-      tournamentMatches: { gt: 0 },
+      [`${prefix}Matches`]: { gt: 0 },
     };
 
     let orderBy: Record<string, string>;
-    let statField: string;
     let statLabel: string;
 
     switch (category) {
       case 'raiders':
-        // Sorted by tournament raid points DESC
-        orderBy = { tournamentRaidPoints: 'desc' };
-        statField = 'raid';
+        orderBy = { [`${prefix}RaidPoints`]: 'desc' };
         statLabel = 'Raid Points';
         break;
       case 'defenders':
-        // Sorted by tournament tackle points DESC
-        orderBy = { tournamentTacklePoints: 'desc' };
-        statField = 'defense';
+        orderBy = { [`${prefix}TacklePoints`]: 'desc' };
         statLabel = 'Tackle Points';
         break;
       case 'allrounders':
-        // Sorted by tournament total points DESC
-        orderBy = { tournamentTotalPoints: 'desc' };
-        statField = 'allround';
+        orderBy = { [`${prefix}TotalPoints`]: 'desc' };
         statLabel = 'Total Points';
         break;
       case 'mvp':
-        // Sorted by overallRating DESC
+      case 'rating':
         orderBy = { overallRating: 'desc' };
-        statField = 'mvp';
         statLabel = 'Rating';
         break;
       default:
-        orderBy = { tournamentRaidPoints: 'desc' };
-        statField = 'raid';
+        orderBy = { [`${prefix}RaidPoints`]: 'desc' };
         statLabel = 'Raid Points';
     }
 
@@ -76,22 +71,37 @@ export async function GET(request: NextRequest) {
         });
         const teamNames = teamMemberships.map((tm) => tm.team.name);
 
+        // Get stats from the correct prefix
+        const profileAny = profile as unknown as Record<string, unknown>;
+        const raidPts = (profileAny[`${prefix}RaidPoints`] as number) || 0;
+        const tacklePts = (profileAny[`${prefix}TacklePoints`] as number) || 0;
+        const totalPts = (profileAny[`${prefix}TotalPoints`] as number) || 0;
+        const bonusPts = (profileAny[`${prefix}BonusPoints`] as number) || 0;
+        const superTackles = (profileAny[`${prefix}SuperTackles`] as number) || 0;
+        const matches = (profileAny[`${prefix}Matches`] as number) || 0;
+
         let stat: number;
         switch (category) {
           case 'raiders':
-            stat = profile.tournamentRaidPoints + profile.tournamentBonusPoints;
+            stat = raidPts + bonusPts;
+            statLabel = 'Raid Points';
             break;
           case 'defenders':
-            stat = profile.tournamentTacklePoints + profile.tournamentSuperTackles;
+            stat = tacklePts + superTackles;
+            statLabel = 'Tackle Points';
             break;
           case 'allrounders':
-            stat = profile.tournamentTotalPoints;
+            stat = totalPts;
+            statLabel = 'Total Points';
             break;
           case 'mvp':
+          case 'rating':
             stat = Math.round(profile.overallRating * 10) / 10;
+            statLabel = 'Rating';
             break;
           default:
-            stat = profile.tournamentRaidPoints + profile.tournamentBonusPoints;
+            stat = raidPts + bonusPts;
+            statLabel = 'Raid Points';
         }
 
         return {
@@ -102,7 +112,7 @@ export async function GET(request: NextRequest) {
           teamNames,
           stat,
           statLabel,
-          tournamentMatches: profile.tournamentMatches,
+          matches,
         };
       })
     );
@@ -116,7 +126,7 @@ export async function GET(request: NextRequest) {
       ...r,
     }));
 
-    return NextResponse.json({ leaderboard, category });
+    return NextResponse.json({ leaderboard, category, mode });
   } catch (error) {
     console.error('Leaderboard fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

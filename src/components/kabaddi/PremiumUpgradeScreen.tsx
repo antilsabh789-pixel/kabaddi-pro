@@ -30,6 +30,7 @@ import {
   Star,
   Target,
   Flame,
+  Megaphone,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -106,6 +107,13 @@ const PREMIUM_FEATURES = [
     description: 'Priority customer support & early access to new features',
     color: 'text-emerald-500',
     bg: 'bg-emerald-500/10',
+  },
+  {
+    icon: Megaphone,
+    title: "Coach's Corner",
+    description: 'Manage academies, track attendance & organize training sessions',
+    color: 'text-teal-500',
+    bg: 'bg-teal-500/10',
   },
 ];
 

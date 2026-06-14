@@ -1,0 +1,502 @@
+   500→   500→   500→              <button
+   501→   501→   501→                onClick={() => { setView('list'); setJoinPreview(null); setJoinCode(''); }}
+   502→   502→   502→                className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 dark:hover:bg-warm-600 transition-colors"
+   503→   503→   503→              >
+   504→   504→   504→                <ChevronLeft className="w-4 h-4" />
+   505→   505→   505→              </button>
+   506→   506→   506→            ) : (
+   507→   507→   507→              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
+   508→   508→   508→                <Shield className="w-4 h-4 text-white" />
+   509→   509→   509→              </div>
+   510→   510→   510→            )}
+   511→   511→   511→            <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">
+   512→   512→   512→              {view === 'join' ? 'JOIN TEAM' : 'TEAMS'}
+   513→   513→   513→            </h1>
+   514→   514→   514→          </div>
+   515→   515→   515→          <div className="flex items-center gap-2">
+   516→   516→   516→            {view === 'list' && (
+   517→   517→   517→              <>
+   518→   518→   518→                <button
+   519→   519→   519→                  onClick={() => setView('join')}
+   520→   520→   520→                  className="w-8 h-8 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal hover:bg-brand-teal/20 transition-colors"
+   521→   521→   521→                  title="Join Team"
+   522→   522→   522→                >
+   523→   523→   523→                  <LogIn className="w-4 h-4" />
+   524→   524→   524→                </button>
+   525→   525→   525→                <button
+   526→   526→   526→                  onClick={() => setCreateDialogOpen(true)}
+   527→   527→   527→                  className="w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white hover:bg-brand-red-dark transition-colors"
+   528→   528→   528→                  title="Create Team"
+   529→   529→   529→                >
+   530→   530→   530→                  <Plus className="w-4 h-4" />
+   531→   531→   531→                </button>
+   532→   532→   532→              </>
+   533→   533→   533→            )}
+   534→   534→   534→            <button
+   535→   535→   535→              onClick={onClose}
+   536→   536→   536→              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 dark:hover:bg-warm-600 transition-colors"
+   537→   537→   537→            >
+   538→   538→   538→              <X className="w-4 h-4" />
+   539→   539→   539→            </button>
+   540→   540→   540→          </div>
+   541→   541→   541→        </div>
+   542→   542→   542→
+   543→   543→   543→        {/* Filter tabs & search (only on list view) */}
+   544→   544→   544→        {view === 'list' && (
+   545→   545→   545→          <div className="px-4 pb-3 space-y-3">
+   546→   546→   546→            {/* Filter Tabs */}
+   547→   547→   547→            <div className="flex gap-2">
+   548→   548→   548→              {(['my', 'all'] as TeamFilter[]).map((filter) => (
+   549→   549→   549→                <button
+   550→   550→   550→                  key={filter}
+   551→   551→   551→                  onClick={() => setTeamFilter(filter)}
+   552→   552→   552→                  className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${
+   553→   553→   553→                    teamFilter === filter
+   554→   554→   554→                      ? 'bg-brand-red text-white shadow-md'
+   555→   555→   555→                      : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-600'
+   556→   556→   556→                  }`}
+   557→   557→   557→                >
+   558→   558→   558→                  {filter === 'my' ? 'My Teams' : 'All Teams'}
+   559→   559→   559→                </button>
+   560→   560→   560→              ))}
+   561→   561→   561→              {isFreeUser && (
+   562→   562→   562→                <div className="ml-auto flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400">
+   563→   563→   563→                  <Lock className="w-3 h-3" />
+   564→   564→   564→                  {myTeamCount}/1
+   565→   565→   565→                </div>
+   566→   566→   566→              )}
+   567→   567→   567→              {!isFreeUser && (
+   568→   568→   568→                <div className="ml-auto flex items-center gap-1 text-xs text-brand-teal">
+   569→   569→   569→                  <Sparkles className="w-3 h-3" />
+   570→   570→   570→                  Unlimited
+   571→   571→   571→                </div>
+   572→   572→   572→              )}
+   573→   573→   573→            </div>
+   574→   574→   574→
+   575→   575→   575→            {/* Search */}
+   576→   576→   576→            <div className="relative">
+   577→   577→   577→              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+   578→   578→   578→              <Input
+   579→   579→   579→                placeholder="Search by name or code..."
+   580→   580→   580→                value={teamSearch}
+   581→   581→   581→                onChange={(e) => setTeamSearch(e.target.value)}
+   582→   582→   582→                className="pl-9 h-9 bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 text-sm"
+   583→   583→   583→              />
+   584→   584→   584→              {teamSearch && (
+   585→   585→   585→                <button
+   586→   586→   586→                  onClick={() => setTeamSearch('')}
+   587→   587→   587→                  className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+   588→   588→   588→                >
+   589→   589→   589→                  <X className="w-3.5 h-3.5" />
+   590→   590→   590→                </button>
+   591→   591→   591→              )}
+   592→   592→   592→            </div>
+   593→   593→   593→          </div>
+   594→   594→   594→        )}
+   595→   595→   595→      </header>
+   596→   596→   596→
+   597→   597→   597→      {/* ═══ Content ═══ */}
+   598→   598→   598→      <div className="flex-1 overflow-y-auto custom-scrollbar">
+   599→   599→   599→        <AnimatePresence mode="wait">
+   600→   600→   600→          {view === 'list' ? (
+   601→   601→   601→            <motion.div
+   602→   602→   602→              key="team-list"
+   603→   603→   603→              initial={{ opacity: 0, x: -20 }}
+   604→   604→   604→              animate={{ opacity: 1, x: 0 }}
+   605→   605→   605→              exit={{ opacity: 0, x: -20 }}
+   606→   606→   606→              transition={{ duration: 0.2 }}
+   607→   607→   607→              className="px-4 py-4 space-y-3"
+   608→   608→   608→            >
+   609→   609→   609→              {/* ─── Team List View ─── */}
+   610→   610→   610→              {teamsLoading ? (
+   611→   611→   611→                <div className="flex flex-col gap-3">
+   612→   612→   612→                  {[1, 2, 3].map((i) => (
+   613→   613→   613→                    <div
+   614→   614→   614→                      key={i}
+   615→   615→   615→                      className="h-24 rounded-2xl bg-warm-100 dark:bg-warm-700 animate-pulse"
+   616→   616→   616→                    />
+   617→   617→   617→                  ))}
+   618→   618→   618→                </div>
+   619→   619→   619→              ) : teams.length === 0 ? (
+   620→   620→   620→                <div className="flex flex-col items-center justify-center py-16">
+   621→   621→   621→                  <motion.div
+   622→   622→   622→                    initial={{ scale: 0.8, opacity: 0 }}
+   623→   623→   623→                    animate={{ scale: 1, opacity: 1 }}
+   624→   624→   624→                    transition={{ delay: 0.1 }}
+   625→   625→   625→                    className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-red/10 to-brand-teal/10 flex items-center justify-center mb-4"
+   626→   626→   626→                  >
+   627→   627→   627→                    <Users className="w-10 h-10 text-brand-red/50" />
+   628→   628→   628→                  </motion.div>
+   629→   629→   629→                  <p className="text-warm-700 dark:text-warm-200 font-bold text-lg">
+   630→   630→   630→                    {teamSearch ? 'No Teams Found' : 'No Teams Yet'}
+   631→   631→   631→                  </p>
+   632→   632→   632→                  <p className="text-warm-400 dark:text-warm-500 text-sm mt-1 text-center max-w-[260px]">
+   633→   633→   633→                    {teamSearch
+   634→   634→   634→                      ? 'Try a different search term'
+   635→   635→   635→                      : 'Create your first team and start playing Kabaddi!'}
+   636→   636→   636→                  </p>
+   637→   637→   637→                  {!teamSearch && (
+   638→   638→   638→                    <div className="flex gap-3 mt-5">
+   639→   639→   639→                      <Button
+   640→   640→   640→                        onClick={() => setCreateDialogOpen(true)}
+   641→   641→   641→                        className="bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold"
+   642→   642→   642→                      >
+   643→   643→   643→                        <Plus className="w-4 h-4 mr-1.5" />
+   644→   644→   644→                        Create Team
+   645→   645→   645→                      </Button>
+   646→   646→   646→                      <Button
+   647→   647→   647→                        onClick={() => setView('join')}
+   648→   648→   648→                        variant="outline"
+   649→   649→   649→                        className="border-brand-teal text-brand-teal hover:bg-brand-teal/10 rounded-xl font-semibold"
+   650→   650→   650→                      >
+   651→   651→   651→                        <LogIn className="w-4 h-4 mr-1.5" />
+   652→   652→   652→                        Join Team
+   653→   653→   653→                      </Button>
+   654→   654→   654→                    </div>
+   655→   655→   655→                  )}
+   656→   656→   656→                </div>
+   657→   657→   657→              ) : (
+   658→   658→   658→                teams.map((team, index) => {
+   659→   659→   659→                  const isMyTeam = team.members.some(
+   660→   660→   660→                    (m) => m.userId === currentUser?.id
+   661→   661→   661→                  );
+   662→   662→   662→                  const isCaptain = team.members.some(
+   663→   663→   663→                    (m) => m.userId === currentUser?.id && m.isCaptain
+   664→   664→   664→                  );
+   665→   665→   665→
+   666→   666→   666→                  return (
+   667→   667→   667→                    <motion.div
+   668→   668→   668→                      key={team.id}
+   669→   669→   669→                      initial={{ opacity: 0, y: 12 }}
+   670→   670→   670→                      animate={{ opacity: 1, y: 0 }}
+   671→   671→   671→                      transition={{ delay: index * 0.06 }}
+   672→   672→   672→                    >
+   673→   673→   673→                      <Card
+   674→   674→   674→                        className="bg-white dark:bg-warm-700 py-0 gap-0 overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.98] border-l-4"
+   675→   675→   675→                        style={{ borderLeftColor: team.color || '#DC2626' }}
+   676→   676→   676→                        onClick={() => openTeamDetail(team)}
+   677→   677→   677→                      >
+   678→   678→   678→                        <CardContent className="p-4">
+   679→   679→   679→                          <div className="flex items-center gap-3">
+   680→   680→   680→                            {/* Color badge / Warrior logo */}
+   681→   681→   681→                            {(() => {
+   682→   682→   682→                              const warrior = WARRIOR_IMAGES.find(w => w.id === team.logo);
+   683→   683→   683→                              if (warrior) {
+   684→   684→   684→                                return (
+   685→   685→   685→                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm bg-gradient-to-br ${warrior.bg}`}>
+   686→   686→   686→                                    {warrior.emoji}
+   687→   687→   687→                                  </div>
+   688→   688→   688→                                );
+   689→   689→   689→                              }
+   690→   690→   690→                              return (
+   691→   691→   691→                                <div
+   692→   692→   692→                                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0 shadow-sm"
+   693→   693→   693→                                  style={{
+   694→   694→   694→                                    backgroundColor: team.color || '#DC2626',
+   695→   695→   695→                                  }}
+   696→   696→   696→                                >
+   697→   697→   697→                                  {team.shortName
+   698→   698→   698→                                    ? team.shortName.slice(0, 2)
+   699→   699→   699→                                    : team.name.charAt(0).toUpperCase()}
+   700→   700→   700→                                </div>
+   701→   701→   701→                              );
+   702→   702→   702→                            })()}
+   703→   703→   703→
+   704→   704→   704→                            {/* Team info */}
+   705→   705→   705→                            <div className="flex-1 min-w-0">
+   706→   706→   706→                              <div className="flex items-center gap-2">
+   707→   707→   707→                                <h3 className="font-bold text-warm-800 dark:text-warm-100 truncate">
+   708→   708→   708→                                  {team.name}
+   709→   709→   709→                                </h3>
+   710→   710→   710→                                {team.shortName && (
+   711→   711→   711→                                  <Badge
+   712→   712→   712→                                    variant="secondary"
+   713→   713→   713→                                    className="text-[10px] px-1.5 py-0 bg-warm-100 dark:bg-warm-600 text-warm-500 dark:text-warm-300 shrink-0"
+   714→   714→   714→                                  >
+   715→   715→   715→                                    {team.shortName}
+   716→   716→   716→                                  </Badge>
+   717→   717→   717→                                )}
+   718→   718→   718→                                {isCaptain && (
+   719→   719→   719→                                  <Badge className="bg-brand-gold/10 text-brand-gold-dark border-brand-gold/20 text-[9px] px-1.5 py-0 shrink-0">
+   720→   720→   720→                                    <Crown className="w-2.5 h-2.5 mr-0.5" />
+   721→   721→   721→                                    CAPTAIN
+   722→   722→   722→                                  </Badge>
+   723→   723→   723→                                )}
+   724→   724→   724→                              </div>
+   725→   725→   725→                              <div className="flex items-center gap-3 mt-1">
+   726→   726→   726→                                <span className="text-xs text-warm-500 dark:text-warm-400 flex items-center gap-1">
+   727→   727→   727→                                  <Users className="w-3 h-3" />
+   728→   728→   728→                                  {team.members.length}
+   729→   729→   729→                                </span>
+   730→   730→   730→                                {team.teamCode && (
+   731→   731→   731→                                  <span className="text-xs text-warm-400 dark:text-warm-500 flex items-center gap-1 font-mono">
+   732→   732→   732→                                    <Hash className="w-3 h-3" />
+   733→   733→   733→                                    {team.teamCode}
+   734→   734→   734→                                  </span>
+   735→   735→   735→                                )}
+   736→   736→   736→                              </div>
+   737→   737→   737→                            </div>
+   738→   738→   738→
+   739→   739→   739→                            {/* Arrow indicator */}
+   740→   740→   740→                            <ChevronRight className="w-4 h-4 text-warm-400 dark:text-warm-500 shrink-0" />
+   741→   741→   741→                          </div>
+   742→   742→   742→                        </CardContent>
+   743→   743→   743→                      </Card>
+   744→   744→   744→                    </motion.div>
+   745→   745→   745→                  );
+   746→   746→   746→                })
+   747→   747→   747→              )}
+   748→   748→   748→            </motion.div>
+   749→   749→   749→          ) : (
+   750→   750→   750→            /* ─── Join Team View ─── */
+   751→   751→   751→            <motion.div
+   752→   752→   752→              key="join-team"
+   753→   753→   753→              initial={{ opacity: 0, x: 20 }}
+   754→   754→   754→              animate={{ opacity: 1, x: 0 }}
+   755→   755→   755→              exit={{ opacity: 0, x: 20 }}
+   756→   756→   756→              transition={{ duration: 0.2 }}
+   757→   757→   757→              className="px-4 py-6"
+   758→   758→   758→            >
+   759→   759→   759→              <div className="max-w-sm mx-auto space-y-6">
+   760→   760→   760→                {/* Join Illustration */}
+   761→   761→   761→                <motion.div
+   762→   762→   762→                  initial={{ scale: 0.9, opacity: 0 }}
+   763→   763→   763→                  animate={{ scale: 1, opacity: 1 }}
+   764→   764→   764→                  transition={{ delay: 0.1 }}
+   765→   765→   765→                  className="flex flex-col items-center"
+   766→   766→   766→                >
+   767→   767→   767→                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-teal/10 to-brand-teal/5 dark:from-brand-teal/20 dark:to-brand-teal/10 flex items-center justify-center mb-3">
+   768→   768→   768→                    <LogIn className="w-10 h-10 text-brand-teal" />
+   769→   769→   769→                  </div>
+   770→   770→   770→                  <h2 className="text-xl font-black text-warm-800 dark:text-warm-100">
+   771→   771→   771→                    Join a Team
+   772→   772→   772→                  </h2>
+   773→   773→   773→                  <p className="text-sm text-warm-500 dark:text-warm-400 text-center mt-1 max-w-[280px]">
+   774→   774→   774→                    Enter the team code shared by the captain to join their team
+   775→   775→   775→                  </p>
+   776→   776→   776→                </motion.div>
+   777→   777→   777→
+   778→   778→   778→                {/* Code Input */}
+   779→   779→   779→                <div className="space-y-3">
+   780→   780→   780→                  <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
+   781→   781→   781→                    Team Code
+   782→   782→   782→                  </label>
+   783→   783→   783→                  <div className="relative">
+   784→   784→   784→                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-warm-400" />
+   785→   785→   785→                    <Input
+   786→   786→   786→                      placeholder="e.g. KT2001"
+   787→   787→   787→                      value={joinCode}
+   788→   788→   788→                      onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+   789→   789→   789→                      className="pl-10 h-14 bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 text-lg font-mono text-center tracking-widest uppercase"
+   790→   790→   790→                      maxLength={10}
+   791→   791→   791→                      onKeyDown={(e) => {
+   792→   792→   792→                        if (e.key === 'Enter') handleJoinPreview();
+   793→   793→   793→                      }}
+   794→   794→   794→                    />
+   795→   795→   795→                  </div>
+   796→   796→   796→                  <Button
+   797→   797→   797→                    onClick={handleJoinPreview}
+   798→   798→   798→                    disabled={!joinCode.trim() || joinPreviewLoading}
+   799→   799→   799→                    className="w-full bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl font-semibold h-12"
+   800→   800→   800→                  >
+   801→   801→   801→                    {joinPreviewLoading ? (
+   802→   802→   802→                      <span className="flex items-center gap-2">
+   803→   803→   803→                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   804→   804→   804→                        Searching...
+   805→   805→   805→                      </span>
+   806→   806→   806→                    ) : (
+   807→   807→   807→                      <>
+   808→   808→   808→                        <Search className="w-4 h-4 mr-2" />
+   809→   809→   809→                        Find Team
+   810→   810→   810→                      </>
+   811→   811→   811→                    )}
+   812→   812→   812→                  </Button>
+   813→   813→   813→                </div>
+   814→   814→   814→
+   815→   815→   815→                {/* Join Preview */}
+   816→   816→   816→                <AnimatePresence>
+   817→   817→   817→                  {joinPreview && (
+   818→   818→   818→                    <motion.div
+   819→   819→   819→                      initial={{ opacity: 0, y: 12 }}
+   820→   820→   820→                      animate={{ opacity: 1, y: 0 }}
+   821→   821→   821→                      exit={{ opacity: 0, y: -12 }}
+   822→   822→   822→                    >
+   823→   823→   823→                      <Card
+   824→   824→   824→                        className="bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 py-0 gap-0 overflow-hidden border-l-4"
+   825→   825→   825→                        style={{ borderLeftColor: joinPreview.color || '#0D9488' }}
+   826→   826→   826→                      >
+   827→   827→   827→                        <CardContent className="p-4 space-y-3">
+   828→   828→   828→                          <div className="flex items-center gap-3">
+   829→   829→   829→                            <div
+   830→   830→   830→                              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0"
+   831→   831→   831→                              style={{
+   832→   832→   832→                                backgroundColor: joinPreview.color || '#0D9488',
+   833→   833→   833→                              }}
+   834→   834→   834→                            >
+   835→   835→   835→                              {joinPreview.shortName
+   836→   836→   836→                                ? joinPreview.shortName.slice(0, 2)
+   837→   837→   837→                                : joinPreview.name.charAt(0)}
+   838→   838→   838→                            </div>
+   839→   839→   839→                            <div className="flex-1 min-w-0">
+   840→   840→   840→                              <h3 className="font-bold text-warm-800 dark:text-warm-100 truncate">
+   841→   841→   841→                                {joinPreview.name}
+   842→   842→   842→                              </h3>
+   843→   843→   843→                              <div className="flex items-center gap-2 mt-0.5">
+   844→   844→   844→                                <Badge
+   845→   845→   845→                                  variant="secondary"
+   846→   846→   846→                                  className="text-[10px] px-1.5 py-0 bg-warm-100 dark:bg-warm-600 text-warm-500 dark:text-warm-300"
+   847→   847→   847→                                >
+   848→   848→   848→                                  {joinPreview.shortName}
+   849→   849→   849→                                </Badge>
+   850→   850→   850→                                <span className="text-xs text-warm-500 dark:text-warm-400">
+   851→   851→   851→                                  <Users className="w-3 h-3 inline mr-0.5" />
+   852→   852→   852→                                  {joinPreview.memberCount} members
+   853→   853→   853→                                </span>
+   854→   854→   854→                              </div>
+   855→   855→   855→                            </div>
+   856→   856→   856→                          </div>
+   857→   857→   857→                          <div className="flex items-center gap-2 text-xs text-warm-500 dark:text-warm-400 bg-warm-50 dark:bg-warm-800 rounded-lg p-2">
+   858→   858→   858→                            <Crown className="w-3.5 h-3.5 text-brand-gold" />
+   859→   859→   859→                            Captain: {joinPreview.captainName}
+   860→   860→   860→                          </div>
+   861→   861→   861→                          <Button
+   862→   862→   862→                            onClick={() => setJoinConfirmOpen(true)}
+   863→   863→   863→                            className="w-full bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl font-semibold"
+   864→   864→   864→                          >
+   865→   865→   865→                            <LogIn className="w-4 h-4 mr-2" />
+   866→   866→   866→                            Join This Team
+   867→   867→   867→                          </Button>
+   868→   868→   868→                        </CardContent>
+   869→   869→   869→                      </Card>
+   870→   870→   870→                    </motion.div>
+   871→   871→   871→                  )}
+   872→   872→   872→                </AnimatePresence>
+   873→   873→   873→
+   874→   874→   874→                {/* Divider with "or" */}
+   875→   875→   875→                <div className="flex items-center gap-3">
+   876→   876→   876→                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-600" />
+   877→   877→   877→                  <span className="text-xs text-warm-400 dark:text-warm-500 uppercase font-medium">
+   878→   878→   878→                    or
+   879→   879→   879→                  </span>
+   880→   880→   880→                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-600" />
+   881→   881→   881→                </div>
+   882→   882→   882→
+   883→   883→   883→                {/* Create team CTA */}
+   884→   884→   884→                <div className="text-center">
+   885→   885→   885→                  <p className="text-sm text-warm-500 dark:text-warm-400 mb-3">
+   886→   886→   886→                    Don&apos;t have a team code?
+   887→   887→   887→                  </p>
+   888→   888→   888→                  <Button
+   889→   889→   889→                    onClick={() => {
+   890→   890→   890→                      setView('list');
+   891→   891→   891→                      setCreateDialogOpen(true);
+   892→   892→   892→                    }}
+   893→   893→   893→                    variant="outline"
+   894→   894→   894→                    className="border-brand-red text-brand-red hover:bg-brand-red/10 rounded-xl font-semibold"
+   895→   895→   895→                  >
+   896→   896→   896→                    <Plus className="w-4 h-4 mr-1.5" />
+   897→   897→   897→                    Create a Team
+   898→   898→   898→                  </Button>
+   899→   899→   899→                </div>
+   900→   900→   900→              </div>
+   901→   901→   901→            </motion.div>
+   902→   902→   902→          )}
+   903→   903→   903→        </AnimatePresence>
+   904→   904→   904→      </div>
+   905→   905→   905→
+   906→   906→   906→      {/* ═══ Create Team Dialog ═══ */}
+   907→   907→   907→      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+   908→   908→   908→        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
+   909→   909→   909→          <DialogHeader>
+   910→   910→   910→            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+   911→   911→   911→              <div className="w-7 h-7 rounded-lg bg-brand-red flex items-center justify-center">
+   912→   912→   912→                <Shield className="w-3.5 h-3.5 text-white" />
+   913→   913→   913→              </div>
+   914→   914→   914→              Create New Team
+   915→   915→   915→            </DialogTitle>
+   916→   916→   916→            <DialogDescription className="text-warm-500 dark:text-warm-400">
+   917→   917→   917→              Set up your Kabaddi team. You&apos;ll be added as captain automatically.
+   918→   918→   918→            </DialogDescription>
+   919→   919→   919→          </DialogHeader>
+   920→   920→   920→
+   921→   921→   921→          <div className="space-y-4 py-2">
+   922→   922→   922→            {/* Team Name */}
+   923→   923→   923→            <div className="space-y-2">
+   924→   924→   924→              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
+   925→   925→   925→                Team Name <span className="text-brand-red">*</span>
+   926→   926→   926→              </label>
+   927→   927→   927→              <Input
+   928→   928→   928→                placeholder="e.g. Mumbai Warriors"
+   929→   929→   929→                value={newTeamName}
+   930→   930→   930→                onChange={(e) => setNewTeamName(e.target.value)}
+   931→   931→   931→                className={`h-11 bg-white dark:bg-warm-700 border-warm-300 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 ${
+   932→   932→   932→                  newTeamName.length > 0 && newTeamName.length < 3
+   933→   933→   933→                    ? 'border-brand-red focus:border-brand-red'
+   934→   934→   934→                    : ''
+   935→   935→   935→                }`}
+   936→   936→   936→                maxLength={30}
+   937→   937→   937→              />
+   938→   938→   938→              <div className="flex justify-between">
+   939→   939→   939→                <span className="text-[10px] text-warm-400">
+   940→   940→   940→                  {newTeamName.length > 0 && newTeamName.length < 3
+   941→   941→   941→                    ? 'Minimum 3 characters'
+   942→   942→   942→                    : '3-30 characters'}
+   943→   943→   943→                </span>
+   944→   944→   944→                <span className="text-[10px] text-warm-400">
+   945→   945→   945→                  {newTeamName.length}/30
+   946→   946→   946→                </span>
+   947→   947→   947→              </div>
+   948→   948→   948→            </div>
+   949→   949→   949→
+   950→   950→   950→            {/* Short Name */}
+   951→   951→   951→            <div className="space-y-2">
+   952→   952→   952→              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
+   953→   953→   953→                Short Name
+   954→   954→   954→                <span className="text-warm-400 font-normal ml-1">
+   955→   955→   955→                  (2-3 chars, auto-generated)
+   956→   956→   956→                </span>
+   957→   957→   957→              </label>
+   958→   958→   958→              <Input
+   959→   959→   959→                placeholder="e.g. MUM"
+   960→   960→   960→                value={newTeamShortName}
+   961→   961→   961→                onChange={(e) => {
+   962→   962→   962→                  setNewTeamShortName(
+   963→   963→   963→                    e.target.value.slice(0, 3).toUpperCase()
+   964→   964→   964→                  );
+   965→   965→   965→                  setShortNameManuallySet(true);
+   966→   966→   966→                }}
+   967→   967→   967→                className="h-11 bg-white dark:bg-warm-700 border-warm-300 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 uppercase font-mono tracking-wider"
+   968→   968→   968→                maxLength={3}
+   969→   969→   969→              />
+   970→   970→   970→            </div>
+   971→   971→   971→
+   972→   972→   972→            {/* Color Picker */}
+   973→   973→   973→            <div className="space-y-2">
+   974→   974→   974→              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
+   975→   975→   975→                Team Color
+   976→   976→   976→              </label>
+   977→   977→   977→              <div className="flex gap-2.5 flex-wrap">
+   978→   978→   978→                {KABADDI_COLORS.map((colorInfo) => (
+   979→   979→   979→                  <button
+   980→   980→   980→                    key={colorInfo.value}
+   981→   981→   981→                    onClick={() => setNewTeamColor(colorInfo.value)}
+   982→   982→   982→                    className={`w-9 h-9 rounded-xl transition-all duration-200 relative ${
+   983→   983→   983→                      newTeamColor === colorInfo.value
+   984→   984→   984→                        ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-800 scale-110 shadow-md'
+   985→   985→   985→                        : 'hover:scale-105'
+   986→   986→   986→                    }`}
+   987→   987→   987→                    style={{ backgroundColor: colorInfo.value }}
+   988→   988→   988→                    title={colorInfo.label}
+   989→   989→   989→                  >
+   990→   990→   990→                    {newTeamColor === colorInfo.value && (
+   991→   991→   991→                      <Check className="w-4 h-4 text-white absolute inset-0 m-auto" />
+   992→   992→   992→                    )}
+   993→   993→   993→                  </button>
+   994→   994→   994→                ))}
+   995→   995→   995→              </div>
+   996→   996→   996→
+   997→   997→   997→              {/* Preview */}
+   998→   998→   998→              <div className="flex items-center gap-3 mt-3 p-3 bg-white/60 dark:bg-warm-700/60 backdrop-blur-sm rounded-xl border border-warm-200/60 dark:border-warm-600/60">
+   999→   999→   999→                {(() => {
+
+[showing lines 500-999 of 1329; use offset=1000 with limit to continue reading]

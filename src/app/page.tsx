@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback, ComponentType, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useKabaddiStore } from '@/lib/store';
+import Portal from '@/components/portal';
 import Image from 'next/image';
 import { AlertTriangle, RefreshCw, MessageSquare } from 'lucide-react';
 
@@ -235,6 +236,15 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Scroll to top whenever activeTab changes
+  useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [activeTab]);
+
   // Show branded loading screen while hydrating from localStorage
   if (!hydrated) {
     return <BrandedLoadingScreen />;
@@ -282,14 +292,8 @@ export default function Home() {
   if (activeMatch?.isLive && activeTab === 'quick-score') {
     return (
       <ErrorBoundary>
-        <div className="min-h-screen bg-warm-50 flex flex-col">
+        <div className="h-screen bg-warm-50 flex flex-col overflow-hidden">
           <LiveScoringScreen />
-          <BottomNav
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            hasLiveMatch={!!activeMatch?.isLive}
-            onNotificationOpen={() => setShowNotifications(true)}
-          />
           {/* Notification Panel */}
           <AnimatePresence>
             {showNotifications && (
@@ -308,7 +312,7 @@ export default function Home() {
       <div className="min-h-screen bg-warm-50 flex flex-col">
         <OfflineIndicator />
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto pb-20 page-transition-enter">
+        <main className="flex-1 overflow-y-auto pb-20">
           {activeTab === 'home' && <HomeTab />}
           {activeTab === 'tournaments' && <TournamentsTab />}
           {activeTab === 'quick-score' && <QuickScoreTab />}
@@ -324,6 +328,7 @@ export default function Home() {
         />
 
         {/* Notification Panel */}
+        <Portal>
         <AnimatePresence>
           {showNotifications && (
             <NotificationPanel
@@ -331,6 +336,7 @@ export default function Home() {
             />
           )}
         </AnimatePresence>
+        </Portal>
       </div>
     </ErrorBoundary>
   );

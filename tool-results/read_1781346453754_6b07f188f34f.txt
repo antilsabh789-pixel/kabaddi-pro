@@ -1,0 +1,1208 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Users,
+     7→  Plus,
+     8→  X,
+     9→  Search,
+    10→  Crown,
+    11→  Shield,
+    12→  ChevronLeft,
+    13→  Trash2,
+    14→  Hash,
+    15→  LogOut,
+    16→  Copy,
+    17→  Check,
+    18→  Share2,
+    19→  Trophy,
+    20→  Target,
+    21→  TrendingUp,
+    22→  UserMinus,
+    23→  ArrowLeftRight,
+    24→  Swords,
+    25→} from 'lucide-react';
+    26→import { Card, CardContent } from '@/components/ui/card';
+    27→import { Button } from '@/components/ui/button';
+    28→import { Input } from '@/components/ui/input';
+    29→import { Badge } from '@/components/ui/badge';
+    30→import {
+    31→  Dialog,
+    32→  DialogContent,
+    33→  DialogHeader,
+    34→  DialogTitle,
+    35→  DialogDescription,
+    36→  DialogFooter,
+    37→} from '@/components/ui/dialog';
+    38→import { useKabaddiStore } from '@/lib/store';
+    39→import { useToast } from '@/hooks/use-toast';
+    40→
+    41→// ─── Types ────────────────────────────────────────────────────────
+    42→
+    43→interface TeamMemberUser {
+    44→  id: string;
+    45→  name: string | null;
+    46→  phone: string;
+    47→  avatar: string | null;
+    48→  profile?: {
+    49→    position?: string | null;
+    50→    overallRating?: number;
+    51→    jerseyNumber?: number;
+    52→  } | null;
+    53→}
+    54→
+    55→interface TeamMemberEntry {
+    56→  id: string;
+    57→  teamId: string;
+    58→  userId: string;
+    59→  isCaptain: boolean;
+    60→  user: TeamMemberUser;
+    61→}
+    62→
+    63→interface TeamData {
+    64→  id: string;
+    65→  name: string;
+    66→  shortName: string | null;
+    67→  teamCode: string | null;
+    68→  color: string | null;
+    69→  logo: string | null;
+    70→  createdAt: string;
+    71→  updatedAt: string;
+    72→  members: TeamMemberEntry[];
+    73→}
+    74→
+    75→interface TeamStats {
+    76→  totalMatches: number;
+    77→  wins: number;
+    78→  losses: number;
+    79→  totalPoints: number;
+    80→}
+    81→
+    82→interface RecentMatch {
+    83→  id: string;
+    84→  homeTeamId: string;
+    85→  awayTeamId: string;
+    86→  homeScore: number;
+    87→  awayScore: number;
+    88→  status: string;
+    89→  completedAt: string | null;
+    90→  homeTeam: { id: string; name: string; shortName: string | null; color: string | null };
+    91→  awayTeam: { id: string; name: string; shortName: string | null; color: string | null };
+    92→}
+    93→
+    94→interface PlayerSearchResult {
+    95→  id: string;
+    96→  name: string | null;
+    97→  phone: string;
+    98→  avatar: string | null;
+    99→  profile?: {
+   100→    position?: string | null;
+   101→    overallRating?: number;
+   102→  } | null;
+   103→}
+   104→
+   105→interface TeamDetailScreenProps {
+   106→  teamId: string;
+   107→  onBack: () => void;
+   108→  onClose: () => void;
+   109→}
+   110→
+   111→// ─── Helpers ──────────────────────────────────────────────────────
+   112→
+   113→function getInitials(name: string | null | undefined): string {
+   114→  if (!name) return '?';
+   115→  const parts = name.trim().split(/\s+/);
+   116→  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+   117→  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+   118→}
+   119→
+   120→function getDisplayName(name: string | null | undefined): string {
+   121→  return name?.trim() || 'Unnamed Player';
+   122→}
+   123→
+   124→function hexToRgb(hex: string | null): string {
+   125→  if (!hex) return '220, 38, 38';
+   126→  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+   127→  if (!result) return '220, 38, 38';
+   128→  return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
+   129→}
+   130→
+   131→// ─── Component ────────────────────────────────────────────────────
+   132→
+   133→export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetailScreenProps) {
+   134→  const currentUser = useKabaddiStore((s) => s.currentUser);
+   135→  const { toast } = useToast();
+   136→
+   137→  // Data state
+   138→  const [team, setTeam] = useState<TeamData | null>(null);
+   139→  const [teamStats, setTeamStats] = useState<TeamStats>({
+   140→    totalMatches: 0,
+   141→    wins: 0,
+   142→    losses: 0,
+   143→    totalPoints: 0,
+   144→  });
+   145→  const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
+   146→
+   147→  // Loading states
+   148→  const [loading, setLoading] = useState(true);
+   149→  const [actionLoading, setActionLoading] = useState(false);
+   150→
+   151→  // Dialog states
+   152→  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+   153→  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+   154→  const [transferCaptainDialogOpen, setTransferCaptainDialogOpen] = useState(false);
+   155→  const [transferCaptainUserId, setTransferCaptainUserId] = useState<string | null>(null);
+   156→
+   157→  // Search
+   158→  const [searchQuery, setSearchQuery] = useState('');
+   159→  const [searchResults, setSearchResults] = useState<PlayerSearchResult[]>([]);
+   160→  const [searchLoading, setSearchLoading] = useState(false);
+   161→
+   162→  // Delete confirmation
+   163→  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+   164→
+   165→  // Copied state
+   166→  const [copiedCode, setCopiedCode] = useState(false);
+   167→
+   168→  // ─── Fetch team detail ────────────────────────────────────────
+   169→
+   170→  const fetchTeamDetail = useCallback(async () => {
+   171→    setLoading(true);
+   172→    try {
+   173→      const res = await fetch(`/api/teams/${teamId}`);
+   174→      if (!res.ok) throw new Error('Failed to fetch team detail');
+   175→      const data = await res.json();
+   176→      setTeam(data.team);
+   177→      setTeamStats(data.stats || { totalMatches: 0, wins: 0, losses: 0, totalPoints: 0 });
+   178→      setRecentMatches(data.recentMatches || []);
+   179→    } catch (err) {
+   180→      console.error('Fetch team detail error:', err);
+   181→      toast({
+   182→        title: 'Error',
+   183→        description: 'Failed to load team details',
+   184→        variant: 'destructive',
+   185→      });
+   186→    } finally {
+   187→      setLoading(false);
+   188→    }
+   189→  }, [teamId, toast]);
+   190→
+   191→  useEffect(() => {
+   192→    fetchTeamDetail();
+   193→  }, [fetchTeamDetail]);
+   194→
+   195→  // ─── Search players ──────────────────────────────────────────
+   196→
+   197→  const searchPlayers = useCallback(async (query: string) => {
+   198→    if (!query.trim()) {
+   199→      setSearchResults([]);
+   200→      return;
+   201→    }
+   202→    setSearchLoading(true);
+   203→    try {
+   204→      const res = await fetch(`/api/players?search=${encodeURIComponent(query)}`);
+   205→      if (!res.ok) throw new Error('Search failed');
+   206→      const data = await res.json();
+   207→      setSearchResults(data.players || []);
+   208→    } catch (err) {
+   209→      console.error('Search players error:', err);
+   210→      setSearchResults([]);
+   211→    } finally {
+   212→      setSearchLoading(false);
+   213→    }
+   214→  }, []);
+   215→
+   216→  useEffect(() => {
+   217→    if (!searchDialogOpen) return;
+   218→    const timer = setTimeout(() => {
+   219→      searchPlayers(searchQuery);
+   220→    }, 300);
+   221→    return () => clearTimeout(timer);
+   222→  }, [searchQuery, searchDialogOpen, searchPlayers]);
+   223→
+   224→  // ─── Computed values ──────────────────────────────────────────
+   225→
+   226→  const isCurrentUserCaptain = team?.members.some(
+   227→    (m) => m.userId === currentUser?.id && m.isCaptain
+   228→  ) ?? false;
+   229→
+   230→  const isCurrentUserMember = team?.members.some(
+   231→    (m) => m.userId === currentUser?.id
+   232→  ) ?? false;
+   233→
+   234→  const captainMember = team?.members.find((m) => m.isCaptain);
+   235→
+   236→  const isPlayerInTeam = (playerId: string): boolean => {
+   237→    if (!team) return false;
+   238→    return team.members.some((m) => m.userId === playerId);
+   239→  };
+   240→
+   241→  // ─── Actions ──────────────────────────────────────────────────
+   242→
+   243→  const handleAddPlayer = async (playerId: string, playerName: string) => {
+   244→    if (!team) return;
+   245→    setActionLoading(true);
+   246→    try {
+   247→      const res = await fetch(`/api/teams/${team.id}`, {
+   248→        method: 'PATCH',
+   249→        headers: { 'Content-Type': 'application/json' },
+   250→        body: JSON.stringify({ addMemberId: playerId }),
+   251→      });
+   252→      if (!res.ok) throw new Error('Failed to add player');
+   253→      toast({
+   254→        title: 'Player Added',
+   255→        description: `${playerName} has been added to the team.`,
+   256→      });
+   257→      setSearchDialogOpen(false);
+   258→      setSearchQuery('');
+   259→      setSearchResults([]);
+   260→      fetchTeamDetail();
+   261→    } catch (err) {
+   262→      console.error('Add player error:', err);
+   263→      toast({
+   264→        title: 'Error',
+   265→        description: 'Failed to add player to team',
+   266→        variant: 'destructive',
+   267→      });
+   268→    } finally {
+   269→      setActionLoading(false);
+   270→    }
+   271→  };
+   272→
+   273→  const handleRemovePlayer = async (userId: string, playerName: string) => {
+   274→    if (!team) return;
+   275→    setActionLoading(true);
+   276→    try {
+   277→      const res = await fetch(`/api/teams/${team.id}`, {
+   278→        method: 'PATCH',
+   279→        headers: { 'Content-Type': 'application/json' },
+   280→        body: JSON.stringify({ removeMemberId: userId }),
+   281→      });
+   282→      if (!res.ok) {
+   283→        const data = await res.json();
+   284→        throw new Error(data.error || 'Failed to remove player');
+   285→      }
+   286→      toast({
+   287→        title: 'Player Removed',
+   288→        description: `${playerName} has been removed from the team.`,
+   289→      });
+   290→      setDeleteConfirmId(null);
+   291→      fetchTeamDetail();
+   292→    } catch (err) {
+   293→      const message = err instanceof Error ? err.message : 'Failed to remove player';
+   294→      console.error('Remove player error:', err);
+   295→      toast({
+   296→        title: 'Error',
+   297→        description: message,
+   298→        variant: 'destructive',
+   299→      });
+   300→    } finally {
+   301→      setActionLoading(false);
+   302→    }
+   303→  };
+   304→
+   305→  const handleTransferCaptain = async (userId: string, playerName: string) => {
+   306→    if (!team) return;
+   307→    setActionLoading(true);
+   308→    try {
+   309→      const res = await fetch(`/api/teams/${team.id}`, {
+   310→        method: 'PATCH',
+   311→        headers: { 'Content-Type': 'application/json' },
+   312→        body: JSON.stringify({ captainId: userId }),
+   313→      });
+   314→      if (!res.ok) throw new Error('Failed to transfer captaincy');
+   315→      toast({
+   316→        title: 'Captain Transferred',
+   317→        description: `${playerName} is now the captain.`,
+   318→      });
+   319→      setTransferCaptainDialogOpen(false);
+   320→      setTransferCaptainUserId(null);
+   321→      fetchTeamDetail();
+   322→    } catch (err) {
+   323→      console.error('Transfer captain error:', err);
+   324→      toast({
+   325→        title: 'Error',
+   326→        description: 'Failed to transfer captaincy',
+   327→        variant: 'destructive',
+   328→      });
+   329→    } finally {
+   330→      setActionLoading(false);
+   331→    }
+   332→  };
+   333→
+   334→  const handleLeaveTeam = async () => {
+   335→    if (!team || !currentUser) return;
+   336→    setActionLoading(true);
+   337→    try {
+   338→      const res = await fetch('/api/teams/leave', {
+   339→        method: 'POST',
+   340→        headers: { 'Content-Type': 'application/json' },
+   341→        body: JSON.stringify({ teamId: team.id, userId: currentUser.id }),
+   342→      });
+   343→      if (!res.ok) {
+   344→        const data = await res.json();
+   345→        throw new Error(data.error || 'Failed to leave team');
+   346→      }
+   347→      const data = await res.json();
+   348→      toast({
+   349→        title: 'Left Team',
+   350→        description: data.teamDeleted
+   351→          ? 'You left the team. Since you were the last member, the team was deleted.'
+   352→          : `You've left ${team.name}.`,
+   353→      });
+   354→      setLeaveDialogOpen(false);
+   355→      onBack();
+   356→    } catch (err) {
+   357→      const message = err instanceof Error ? err.message : 'Failed to leave team';
+   358→      console.error('Leave team error:', err);
+   359→      toast({
+   360→        title: 'Error',
+   361→        description: message,
+   362→        variant: 'destructive',
+   363→      });
+   364→    } finally {
+   365→      setActionLoading(false);
+   366→    }
+   367→  };
+   368→
+   369→  const handleDeleteTeam = async () => {
+   370→    if (!team) return;
+   371→    setActionLoading(true);
+   372→    try {
+   373→      const res = await fetch(`/api/teams/${team.id}`, { method: 'DELETE' });
+   374→      if (!res.ok) throw new Error('Failed to delete team');
+   375→      toast({
+   376→        title: 'Team Deleted',
+   377→        description: `${team.name} has been deleted.`,
+   378→      });
+   379→      onBack();
+   380→    } catch (err) {
+   381→      console.error('Delete team error:', err);
+   382→      toast({
+   383→        title: 'Error',
+   384→        description: 'Failed to delete team',
+   385→        variant: 'destructive',
+   386→      });
+   387→    } finally {
+   388→      setActionLoading(false);
+   389→    }
+   390→  };
+   391→
+   392→  const copyTeamCode = () => {
+   393→    if (!team?.teamCode) return;
+   394→    navigator.clipboard.writeText(team.teamCode);
+   395→    setCopiedCode(true);
+   396→    toast({ title: 'Copied!', description: `Team code ${team.teamCode} copied to clipboard` });
+   397→    setTimeout(() => setCopiedCode(false), 2000);
+   398→  };
+   399→
+   400→  const shareTeamCode = () => {
+   401→    if (!team?.teamCode) return;
+   402→    const shareText = `Join my Kabaddi Pro team "${team.name}"! Use code: ${team.teamCode}`;
+   403→    if (navigator.share) {
+   404→      navigator.share({
+   405→        title: `Join ${team.name}`,
+   406→        text: shareText,
+   407→      }).catch(() => {
+   408→        copyTeamCode();
+   409→      });
+   410→    } else {
+   411→      copyTeamCode();
+   412→    }
+   413→  };
+   414→
+   415→  // ─── Render ──────────────────────────────────────────────────
+   416→
+   417→  if (loading) {
+   418→    return (
+   419→      <motion.div
+   420→        initial={{ opacity: 0 }}
+   421→        animate={{ opacity: 1 }}
+   422→        exit={{ opacity: 0 }}
+   423→        className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-800 flex flex-col"
+   424→      >
+   425→        <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-800/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
+   426→          <div className="px-4 py-3 flex items-center gap-2">
+   427→            <button
+   428→              onClick={onBack}
+   429→              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300"
+   430→            >
+   431→              <ChevronLeft className="w-4 h-4" />
+   432→            </button>
+   433→            <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">
+   434→              LOADING...
+   435→            </h1>
+   436→          </div>
+   437→        </header>
+   438→        <div className="flex-1 px-4 py-4 space-y-3">
+   439→          <div className="h-40 rounded-2xl bg-warm-100 dark:bg-warm-700 animate-pulse" />
+   440→          <div className="grid grid-cols-4 gap-2">
+   441→            {[1, 2, 3, 4].map((i) => (
+   442→              <div key={i} className="h-16 rounded-xl bg-warm-100 dark:bg-warm-700 animate-pulse" />
+   443→            ))}
+   444→          </div>
+   445→          {[1, 2, 3].map((i) => (
+   446→            <div key={i} className="h-16 rounded-xl bg-warm-100 dark:bg-warm-700 animate-pulse" />
+   447→          ))}
+   448→        </div>
+   449→      </motion.div>
+   450→    );
+   451→  }
+   452→
+   453→  if (!team) {
+   454→    return (
+   455→      <motion.div
+   456→        initial={{ opacity: 0 }}
+   457→        animate={{ opacity: 1 }}
+   458→        exit={{ opacity: 0 }}
+   459→        className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-800 flex flex-col"
+   460→      >
+   461→        <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-800/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
+   462→          <div className="px-4 py-3 flex items-center gap-2">
+   463→            <button
+   464→              onClick={onBack}
+   465→              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300"
+   466→            >
+   467→              <ChevronLeft className="w-4 h-4" />
+   468→            </button>
+   469→            <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">
+   470→              TEAM NOT FOUND
+   471→            </h1>
+   472→            <div className="ml-auto">
+   473→              <button
+   474→                onClick={onClose}
+   475→                className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300"
+   476→              >
+   477→                <X className="w-4 h-4" />
+   478→              </button>
+   479→            </div>
+   480→          </div>
+   481→        </header>
+   482→        <div className="flex-1 flex flex-col items-center justify-center">
+   483→          <Shield className="w-12 h-12 text-warm-300 dark:text-warm-600 mb-3" />
+   484→          <p className="text-warm-500 dark:text-warm-400 text-sm">Team not found</p>
+   485→        </div>
+   486→      </motion.div>
+   487→    );
+   488→  }
+   489→
+   490→  const teamColor = team.color || '#DC2626';
+   491→  const teamColorRgb = hexToRgb(teamColor);
+   492→
+   493→  return (
+   494→    <motion.div
+   495→      initial={{ opacity: 0 }}
+   496→      animate={{ opacity: 1 }}
+   497→      exit={{ opacity: 0 }}
+   498→      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-800 flex flex-col"
+   499→    >
+   500→      {/* ═══ Header ═══ */}
+   501→      <header
+   502→        className="sticky top-0 z-10 backdrop-blur-md border-b"
+   503→        style={{
+   504→          background: `linear-gradient(135deg, rgba(${teamColorRgb}, 0.95), rgba(${teamColorRgb}, 0.85))`,
+   505→          borderBottomColor: `rgba(${teamColorRgb}, 0.3)`,
+   506→        }}
+   507→      >
+   508→        <div className="px-4 py-3 flex items-center justify-between">
+   509→          <div className="flex items-center gap-2">
+   510→            <button
+   511→              onClick={onBack}
+   512→              className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+   513→            >
+   514→              <ChevronLeft className="w-4 h-4" />
+   515→            </button>
+   516→            <h1 className="text-base font-black tracking-wider text-white">
+   517→              {team.name.toUpperCase()}
+   518→            </h1>
+   519→          </div>
+   520→          <div className="flex items-center gap-2">
+   521→            {isCurrentUserCaptain && (
+   522→              <button
+   523→                onClick={handleDeleteTeam}
+   524→                disabled={actionLoading}
+   525→                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-red-500/60 transition-colors"
+   526→                title="Delete Team"
+   527→              >
+   528→                <Trash2 className="w-4 h-4" />
+   529→              </button>
+   530→            )}
+   531→            <button
+   532→              onClick={onClose}
+   533→              className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+   534→            >
+   535→              <X className="w-4 h-4" />
+   536→            </button>
+   537→          </div>
+   538→        </div>
+   539→      </header>
+   540→
+   541→      {/* ═══ Content ═══ */}
+   542→      <div className="flex-1 overflow-y-auto custom-scrollbar">
+   543→        <div className="px-4 py-4 space-y-4">
+   544→          {/* ─── Team Header Card ─── */}
+   545→          <motion.div
+   546→            initial={{ opacity: 0, y: 12 }}
+   547→            animate={{ opacity: 1, y: 0 }}
+   548→            transition={{ delay: 0.05 }}
+   549→          >
+   550→            <Card
+   551→              className="border-warm-200 dark:border-warm-600 py-0 gap-0 overflow-hidden"
+   552→              style={{ borderLeftWidth: '4px', borderLeftColor: teamColor }}
+   553→            >
+   554→              <CardContent className="p-5">
+   555→                <div className="flex items-center gap-4">
+   556→                  <div
+   557→                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl shrink-0 shadow-lg"
+   558→                    style={{ backgroundColor: teamColor }}
+   559→                  >
+   560→                    {team.shortName
+   561→                      ? team.shortName.slice(0, 3)
+   562→                      : team.name.charAt(0).toUpperCase()}
+   563→                  </div>
+   564→                  <div className="flex-1 min-w-0">
+   565→                    <h2 className="text-xl font-black text-warm-800 dark:text-warm-100 truncate">
+   566→                      {team.name}
+   567→                    </h2>
+   568→                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+   569→                      {team.shortName && (
+   570→                        <Badge
+   571→                          variant="secondary"
+   572→                          className="text-xs px-2 py-0.5 bg-warm-100 dark:bg-warm-600 text-warm-600 dark:text-warm-300"
+   573→                        >
+   574→                          {team.shortName}
+   575→                        </Badge>
+   576→                      )}
+   577→                      <div
+   578→                        className="w-4 h-4 rounded-full border-2 border-warm-200 dark:border-warm-500 shrink-0"
+   579→                        style={{ backgroundColor: teamColor }}
+   580→                      />
+   581→                      {team.teamCode && (
+   582→                        <button
+   583→                          onClick={copyTeamCode}
+   584→                          className="flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400 font-mono hover:text-brand-teal transition-colors"
+   585→                        >
+   586→                          {copiedCode ? (
+   587→                            <Check className="w-3 h-3 text-brand-teal" />
+   588→                          ) : (
+   589→                            <Copy className="w-3 h-3" />
+   590→                          )}
+   591→                          {team.teamCode}
+   592→                        </button>
+   593→                      )}
+   594→                    </div>
+   595→                  </div>
+   596→                  <motion.div
+   597→                    className="flex flex-col items-center shrink-0"
+   598→                    whileTap={{ scale: 0.9 }}
+   599→                  >
+   600→                    <Badge
+   601→                      className="bg-brand-teal/10 text-brand-teal border-brand-teal/20 text-sm px-3 py-1"
+   602→                    >
+   603→                      <Users className="w-3.5 h-3.5 mr-1" />
+   604→                      {team.members.length}
+   605→                    </Badge>
+   606→                  </motion.div>
+   607→                </div>
+   608→
+   609→                {/* Action buttons row */}
+   610→                <div className="flex gap-2 mt-4">
+   611→                  {team.teamCode && (
+   612→                    <Button
+   613→                      size="sm"
+   614→                      onClick={shareTeamCode}
+   615→                      className="bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 border-brand-teal/20 rounded-xl h-8 px-3 text-xs font-semibold"
+   616→                      variant="outline"
+   617→                    >
+   618→                      <Share2 className="w-3.5 h-3.5 mr-1" />
+   619→                      Invite
+   620→                    </Button>
+   621→                  )}
+   622→                  {isCurrentUserCaptain && (
+   623→                    <Button
+   624→                      size="sm"
+   625→                      onClick={() => setSearchDialogOpen(true)}
+   626→                      className="bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl h-8 px-3 text-xs font-semibold"
+   627→                    >
+   628→                      <Plus className="w-3.5 h-3.5 mr-1" />
+   629→                      Add Player
+   630→                    </Button>
+   631→                  )}
+   632→                  {isCurrentUserMember && !isCurrentUserCaptain && (
+   633→                    <Button
+   634→                      size="sm"
+   635→                      onClick={() => setLeaveDialogOpen(true)}
+   636→                      variant="outline"
+   637→                      className="border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl h-8 px-3 text-xs font-semibold"
+   638→                    >
+   639→                      <LogOut className="w-3.5 h-3.5 mr-1" />
+   640→                      Leave
+   641→                    </Button>
+   642→                  )}
+   643→                </div>
+   644→              </CardContent>
+   645→            </Card>
+   646→          </motion.div>
+   647→
+   648→          {/* ─── Stats Row ─── */}
+   649→          <motion.div
+   650→            initial={{ opacity: 0, y: 12 }}
+   651→            animate={{ opacity: 1, y: 0 }}
+   652→            transition={{ delay: 0.1 }}
+   653→            className="grid grid-cols-4 gap-2"
+   654→          >
+   655→            {[
+   656→              {
+   657→                label: 'Matches',
+   658→                value: teamStats.totalMatches,
+   659→                icon: Swords,
+   660→                color: 'text-warm-800 dark:text-warm-100',
+   661→                bg: 'bg-warm-50 dark:bg-warm-700',
+   662→              },
+   663→              {
+   664→                label: 'Wins',
+   665→                value: teamStats.wins,
+   666→                icon: Trophy,
+   667→                color: 'text-brand-teal',
+   668→                bg: 'bg-brand-teal/5 dark:bg-brand-teal/10',
+   669→              },
+   670→              {
+   671→                label: 'Losses',
+   672→                value: teamStats.losses,
+   673→                icon: Target,
+   674→                color: 'text-brand-red',
+   675→                bg: 'bg-brand-red/5 dark:bg-brand-red/10',
+   676→              },
+   677→              {
+   678→                label: 'Points',
+   679→                value: teamStats.totalPoints,
+   680→                icon: TrendingUp,
+   681→                color: 'text-brand-gold',
+   682→                bg: 'bg-brand-gold/5 dark:bg-brand-gold/10',
+   683→              },
+   684→            ].map((stat) => (
+   685→              <Card
+   686→                key={stat.label}
+   687→                className={`${stat.bg} border-warm-200 dark:border-warm-600 py-0 gap-0`}
+   688→              >
+   689→                <CardContent className="p-3 text-center">
+   690→                  <p className={`text-lg font-black ${stat.color}`}>
+   691→                    {stat.value}
+   692→                  </p>
+   693→                  <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium uppercase tracking-wide">
+   694→                    {stat.label}
+   695→                  </p>
+   696→                </CardContent>
+   697→              </Card>
+   698→            ))}
+   699→          </motion.div>
+   700→
+   701→          {/* ─── Members Header ─── */}
+   702→          <motion.div
+   703→            initial={{ opacity: 0, y: 12 }}
+   704→            animate={{ opacity: 1, y: 0 }}
+   705→            transition={{ delay: 0.15 }}
+   706→            className="flex items-center justify-between"
+   707→          >
+   708→            <h3 className="font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2">
+   709→              <Users className="w-4 h-4 text-brand-teal" />
+   710→              Members ({team.members.length})
+   711→            </h3>
+   712→            {isCurrentUserCaptain && (
+   713→              <Button
+   714→                size="sm"
+   715→                onClick={() => setSearchDialogOpen(true)}
+   716→                className="bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl h-8 px-3 text-xs font-semibold"
+   717→              >
+   718→                <Plus className="w-3.5 h-3.5 mr-1" />
+   719→                Add
+   720→              </Button>
+   721→            )}
+   722→          </motion.div>
+   723→
+   724→          {/* ─── Member List ─── */}
+   725→          <div className="space-y-2">
+   726→            {team.members.length === 0 ? (
+   727→              <div className="text-center py-8">
+   728→                <Users className="w-10 h-10 text-warm-300 dark:text-warm-600 mx-auto mb-2" />
+   729→                <p className="text-warm-500 dark:text-warm-400 text-sm">
+   730→                  No members yet
+   731→                </p>
+   732→              </div>
+   733→            ) : (
+   734→              team.members.map((member, index) => {
+   735→                const canManage =
+   736→                  isCurrentUserCaptain || currentUser?.isAdmin;
+   737→
+   738→                return (
+   739→                  <motion.div
+   740→                    key={member.id}
+   741→                    initial={{ opacity: 0, y: 8 }}
+   742→                    animate={{ opacity: 1, y: 0 }}
+   743→                    transition={{ delay: 0.15 + index * 0.04 }}
+   744→                  >
+   745→                    <Card
+   746→                      className="bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 py-0 gap-0 overflow-hidden"
+   747→                      style={{
+   748→                        borderLeftWidth: '3px',
+   749→                        borderLeftColor: member.isCaptain ? teamColor : 'transparent',
+   750→                      }}
+   751→                    >
+   752→                      <CardContent className="p-3">
+   753→                        <div className="flex items-center gap-3">
+   754→                          {/* Avatar */}
+   755→                          <div className="relative shrink-0">
+   756→                            <div
+   757→                              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+   758→                              style={{
+   759→                                backgroundColor: teamColor,
+   760→                              }}
+   761→                            >
+   762→                              {member.user.avatar ? (
+   763→                                <img
+   764→                                  src={member.user.avatar}
+   765→                                  alt={getDisplayName(member.user.name)}
+   766→                                  className="w-full h-full rounded-full object-cover"
+   767→                                />
+   768→                              ) : (
+   769→                                getInitials(member.user.name)
+   770→                              )}
+   771→                            </div>
+   772→                            {member.isCaptain && (
+   773→                              <motion.div
+   774→                                initial={{ scale: 0 }}
+   775→                                animate={{ scale: 1 }}
+   776→                                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-gold flex items-center justify-center shadow-sm"
+   777→                              >
+   778→                                <Crown className="w-3 h-3 text-white" />
+   779→                              </motion.div>
+   780→                            )}
+   781→                          </div>
+   782→
+   783→                          {/* Name & Info */}
+   784→                          <div className="flex-1 min-w-0">
+   785→                            <div className="flex items-center gap-2">
+   786→                              <span className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
+   787→                                {getDisplayName(member.user.name)}
+   788→                              </span>
+   789→                              {member.isCaptain && (
+   790→                                <Badge className="bg-brand-gold/10 text-brand-gold-dark border-brand-gold/20 text-[10px] px-1.5 py-0">
+   791→                                  CAPTAIN
+   792→                                </Badge>
+   793→                              )}
+   794→                              {member.userId === currentUser?.id && (
+   795→                                <Badge
+   796→                                  variant="secondary"
+   797→                                  className="text-[10px] px-1.5 py-0 bg-brand-teal/10 text-brand-teal"
+   798→                                >
+   799→                                  YOU
+   800→                                </Badge>
+   801→                              )}
+   802→                            </div>
+   803→                            <p className="text-xs text-warm-500 dark:text-warm-400">
+   804→                              {member.user.phone}
+   805→                              {member.user.profile?.position &&
+   806→                                ` · ${member.user.profile.position}`}
+   807→                              {member.user.profile?.jerseyNumber &&
+   808→                                ` · #${member.user.profile.jerseyNumber}`}
+   809→                            </p>
+   810→                          </div>
+   811→
+   812→                          {/* Actions */}
+   813→                          {canManage && member.userId !== currentUser?.id && (
+   814→                            <div className="flex items-center gap-1 shrink-0">
+   815→                              {!member.isCaptain && (
+   816→                                <button
+   817→                                  onClick={() => {
+   818→                                    setTransferCaptainUserId(member.userId);
+   819→                                    setTransferCaptainDialogOpen(true);
+   820→                                  }}
+   821→                                  disabled={actionLoading}
+   822→                                  className="w-7 h-7 rounded-lg bg-brand-gold/10 flex items-center justify-center text-brand-gold hover:bg-brand-gold/20 transition-colors"
+   823→                                  title="Transfer Captain"
+   824→                                >
+   825→                                  <Crown className="w-3.5 h-3.5" />
+   826→                                </button>
+   827→                              )}
+   828→                              <button
+   829→                                onClick={() => setDeleteConfirmId(member.userId)}
+   830→                                disabled={actionLoading}
+   831→                                className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-warm-400 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-brand-red transition-colors"
+   832→                                title="Remove Player"
+   833→                              >
+   834→                                <UserMinus className="w-3.5 h-3.5" />
+   835→                              </button>
+   836→                            </div>
+   837→                          )}
+   838→                        </div>
+   839→
+   840→                        {/* Delete confirmation inline */}
+   841→                        <AnimatePresence>
+   842→                          {deleteConfirmId === member.userId && (
+   843→                            <motion.div
+   844→                              initial={{ height: 0, opacity: 0 }}
+   845→                              animate={{ height: 'auto', opacity: 1 }}
+   846→                              exit={{ height: 0, opacity: 0 }}
+   847→                              transition={{ duration: 0.2 }}
+   848→                              className="overflow-hidden"
+   849→                            >
+   850→                              <div className="mt-2 pt-2 border-t border-warm-200 dark:border-warm-600 flex items-center justify-between">
+   851→                                <span className="text-xs text-warm-600 dark:text-warm-300">
+   852→                                  Remove{' '}
+   853→                                  <strong>
+   854→                                    {getDisplayName(member.user.name)}
+   855→                                  </strong>
+   856→                                  ?
+   857→                                </span>
+   858→                                <div className="flex gap-2">
+   859→                                  <Button
+   860→                                    size="sm"
+   861→                                    variant="outline"
+   862→                                    className="h-7 text-xs rounded-lg border-warm-300 dark:border-warm-500"
+   863→                                    onClick={() => setDeleteConfirmId(null)}
+   864→                                  >
+   865→                                    Cancel
+   866→                                  </Button>
+   867→                                  <Button
+   868→                                    size="sm"
+   869→                                    className="h-7 text-xs rounded-lg bg-brand-red hover:bg-brand-red-dark text-white"
+   870→                                    onClick={() =>
+   871→                                      handleRemovePlayer(
+   872→                                        member.userId,
+   873→                                        getDisplayName(member.user.name)
+   874→                                      )
+   875→                                    }
+   876→                                    disabled={actionLoading}
+   877→                                  >
+   878→                                    Remove
+   879→                                  </Button>
+   880→                                </div>
+   881→                              </div>
+   882→                            </motion.div>
+   883→                          )}
+   884→                        </AnimatePresence>
+   885→                      </CardContent>
+   886→                    </Card>
+   887→                  </motion.div>
+   888→                );
+   889→              })
+   890→            )}
+   891→          </div>
+   892→
+   893→          {/* ─── Recent Matches ─── */}
+   894→          {recentMatches.length > 0 && (
+   895→            <motion.div
+   896→              initial={{ opacity: 0, y: 12 }}
+   897→              animate={{ opacity: 1, y: 0 }}
+   898→              transition={{ delay: 0.25 }}
+   899→            >
+   900→              <h3 className="font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2 mb-3">
+   901→                <Swords className="w-4 h-4 text-brand-red" />
+   902→                Recent Matches
+   903→              </h3>
+   904→              <div className="space-y-2">
+   905→                {recentMatches.map((match, index) => {
+   906→                  const isHome = match.homeTeamId === teamId;
+   907→                  const teamScore = isHome ? match.homeScore : match.awayScore;
+   908→                  const opponentScore = isHome ? match.awayScore : match.homeScore;
+   909→                  const isWin = teamScore > opponentScore;
+   910→                  const isLoss = teamScore < opponentScore;
+   911→                  const opponent = isHome ? match.awayTeam : match.homeTeam;
+   912→
+   913→                  return (
+   914→                    <motion.div
+   915→                      key={match.id}
+   916→                      initial={{ opacity: 0, x: -12 }}
+   917→                      animate={{ opacity: 1, x: 0 }}
+   918→                      transition={{ delay: 0.25 + index * 0.04 }}
+   919→                    >
+   920→                      <Card className="bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 py-0 gap-0 overflow-hidden">
+   921→                        <CardContent className="p-3">
+   922→                          <div className="flex items-center gap-3">
+   923→                            {/* Result badge */}
+   924→                            <div
+   925→                              className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0 ${
+   926→                                isWin
+   927→                                  ? 'bg-brand-teal'
+   928→                                  : isLoss
+   929→                                  ? 'bg-brand-red'
+   930→                                  : 'bg-warm-400'
+   931→                              }`}
+   932→                            >
+   933→                              {isWin ? 'W' : isLoss ? 'L' : 'D'}
+   934→                            </div>
+   935→
+   936→                            {/* Match info */}
+   937→                            <div className="flex-1 min-w-0">
+   938→                              <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
+   939→                                vs {opponent.name}
+   940→                              </p>
+   941→                              <p className="text-xs text-warm-500 dark:text-warm-400">
+   942→                                {match.completedAt
+   943→                                  ? new Date(match.completedAt).toLocaleDateString()
+   944→                                  : 'Completed'}
+   945→                              </p>
+   946→                            </div>
+   947→
+   948→                            {/* Score */}
+   949→                            <div className="text-right shrink-0">
+   950→                              <p className="text-sm font-black text-warm-800 dark:text-warm-100">
+   951→                                {teamScore} - {opponentScore}
+   952→                              </p>
+   953→                            </div>
+   954→                          </div>
+   955→                        </CardContent>
+   956→                      </Card>
+   957→                    </motion.div>
+   958→                  );
+   959→                })}
+   960→              </div>
+   961→            </motion.div>
+   962→          )}
+   963→
+   964→          {/* Bottom spacing */}
+   965→          <div className="h-4" />
+   966→        </div>
+   967→      </div>
+   968→
+   969→      {/* ═══ Leave Team Confirmation Dialog ═══ */}
+   970→      <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+   971→        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-sm">
+   972→          <DialogHeader>
+   973→            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+   974→              <div className="w-7 h-7 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+   975→                <LogOut className="w-3.5 h-3.5 text-brand-red" />
+   976→              </div>
+   977→              Leave Team
+   978→            </DialogTitle>
+   979→            <DialogDescription className="text-warm-500 dark:text-warm-400">
+   980→              Are you sure you want to leave &quot;{team.name}&quot;? You&apos;ll need a new invite or team code to rejoin.
+   981→            </DialogDescription>
+   982→          </DialogHeader>
+   983→          <DialogFooter className="gap-2 sm:gap-2">
+   984→            <Button
+   985→              variant="outline"
+   986→              onClick={() => setLeaveDialogOpen(false)}
+   987→              className="rounded-xl border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300"
+   988→            >
+   989→              Cancel
+   990→            </Button>
+   991→            <Button
+   992→              onClick={handleLeaveTeam}
+   993→              disabled={actionLoading}
+   994→              className="bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold flex-1 sm:flex-none"
+   995→            >
+   996→              {actionLoading ? (
+   997→                <span className="flex items-center gap-2">
+   998→                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   999→                  Leaving...
+  1000→                </span>
+  1001→              ) : (
+  1002→                <>
+  1003→                  <LogOut className="w-4 h-4 mr-1.5" />
+  1004→                  Leave Team
+  1005→                </>
+  1006→              )}
+  1007→            </Button>
+  1008→          </DialogFooter>
+  1009→        </DialogContent>
+  1010→      </Dialog>
+  1011→
+  1012→      {/* ═══ Transfer Captain Confirmation Dialog ═══ */}
+  1013→      <Dialog open={transferCaptainDialogOpen} onOpenChange={setTransferCaptainDialogOpen}>
+  1014→        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-sm">
+  1015→          <DialogHeader>
+  1016→            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+  1017→              <div className="w-7 h-7 rounded-lg bg-brand-gold/10 flex items-center justify-center">
+  1018→                <Crown className="w-3.5 h-3.5 text-brand-gold" />
+  1019→              </div>
+  1020→              Transfer Captaincy
+  1021→            </DialogTitle>
+  1022→            <DialogDescription className="text-warm-500 dark:text-warm-400">
+  1023→              {transferCaptainUserId
+  1024→                ? `Transfer captaincy to ${getDisplayName(team.members.find((m) => m.userId === transferCaptainUserId)?.user.name)}? You will become a regular member.`
+  1025→                : 'Select a new captain from the team members.'}
+  1026→            </DialogDescription>
+  1027→          </DialogHeader>
+  1028→          <DialogFooter className="gap-2 sm:gap-2">
+  1029→            <Button
+  1030→              variant="outline"
+  1031→              onClick={() => {
+  1032→                setTransferCaptainDialogOpen(false);
+  1033→                setTransferCaptainUserId(null);
+  1034→              }}
+  1035→              className="rounded-xl border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300"
+  1036→            >
+  1037→              Cancel
+  1038→            </Button>
+  1039→            <Button
+  1040→              onClick={() => {
+  1041→                if (transferCaptainUserId) {
+  1042→                  handleTransferCaptain(
+  1043→                    transferCaptainUserId,
+  1044→                    getDisplayName(
+  1045→                      team.members.find((m) => m.userId === transferCaptainUserId)?.user.name
+  1046→                    )
+  1047→                  );
+  1048→                }
+  1049→              }}
+  1050→              disabled={actionLoading || !transferCaptainUserId}
+  1051→              className="bg-brand-gold hover:bg-brand-gold-dark text-white rounded-xl font-semibold flex-1 sm:flex-none"
+  1052→            >
+  1053→              {actionLoading ? (
+  1054→                <span className="flex items-center gap-2">
+  1055→                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+  1056→                  Transferring...
+  1057→                </span>
+  1058→              ) : (
+  1059→                <>
+  1060→                  <ArrowLeftRight className="w-4 h-4 mr-1.5" />
+  1061→                  Transfer
+  1062→                </>
+  1063→              )}
+  1064→            </Button>
+  1065→          </DialogFooter>
+  1066→        </DialogContent>
+  1067→      </Dialog>
+  1068→
+  1069→      {/* ═══ Search Players Dialog ═══ */}
+  1070→      <Dialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen}>
+  1071→        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
+  1072→          <DialogHeader>
+  1073→            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+  1074→              <div className="w-7 h-7 rounded-lg bg-brand-teal flex items-center justify-center">
+  1075→                <Search className="w-3.5 h-3.5 text-white" />
+  1076→              </div>
+  1077→              Add Player
+  1078→            </DialogTitle>
+  1079→            <DialogDescription className="text-warm-500 dark:text-warm-400">
+  1080→              Search for players by name or phone number to add to {team.name}.
+  1081→            </DialogDescription>
+  1082→          </DialogHeader>
+  1083→
+  1084→          {/* Search Input */}
+  1085→          <div className="relative">
+  1086→            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+  1087→            <Input
+  1088→              placeholder="Search by name or phone..."
+  1089→              value={searchQuery}
+  1090→              onChange={(e) => setSearchQuery(e.target.value)}
+  1091→              className="pl-9 h-11 bg-white dark:bg-warm-700 border-warm-300 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100"
+  1092→              autoFocus
+  1093→            />
+  1094→            {searchQuery && (
+  1095→              <button
+  1096→                onClick={() => {
+  1097→                  setSearchQuery('');
+  1098→                  setSearchResults([]);
+  1099→                }}
+  1100→                className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+  1101→              >
+  1102→                <X className="w-4 h-4" />
+  1103→              </button>
+  1104→            )}
+  1105→          </div>
+  1106→
+  1107→          {/* Search Results */}
+  1108→          <div className="max-h-72 overflow-y-auto custom-scrollbar space-y-2">
+  1109→            {searchLoading ? (
+  1110→              <div className="flex flex-col gap-2 py-4">
+  1111→                {[1, 2, 3].map((i) => (
+  1112→                  <div
+  1113→                    key={i}
+  1114→                    className="h-14 rounded-xl bg-warm-100 dark:bg-warm-700 animate-pulse"
+  1115→                  />
+  1116→                ))}
+  1117→              </div>
+  1118→            ) : searchQuery.trim() === '' ? (
+  1119→              <div className="text-center py-8">
+  1120→                <Search className="w-8 h-8 text-warm-300 dark:text-warm-600 mx-auto mb-2" />
+  1121→                <p className="text-warm-400 dark:text-warm-500 text-sm">
+  1122→                  Type to search for players
+  1123→                </p>
+  1124→              </div>
+  1125→            ) : searchResults.length === 0 ? (
+  1126→              <div className="text-center py-8">
+  1127→                <Users className="w-8 h-8 text-warm-300 dark:text-warm-600 mx-auto mb-2" />
+  1128→                <p className="text-warm-500 dark:text-warm-400 text-sm">No players found</p>
+  1129→                <p className="text-warm-400 dark:text-warm-500 text-xs mt-1">
+  1130→                  Try a different search term
+  1131→                </p>
+  1132→              </div>
+  1133→            ) : (
+  1134→              searchResults.map((player) => {
+  1135→                const alreadyInTeam = isPlayerInTeam(player.id);
+  1136→                return (
+  1137→                  <motion.div
+  1138→                    key={player.id}
+  1139→                    initial={{ opacity: 0, y: 6 }}
+  1140→                    animate={{ opacity: 1, y: 0 }}
+  1141→                  >
+  1142→                    <Card
+  1143→                      className={`bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 py-0 gap-0 overflow-hidden ${
+  1144→                        alreadyInTeam
+  1145→                          ? 'opacity-60'
+  1146→                          : 'cursor-pointer hover:shadow-md active:scale-[0.98]'
+  1147→                      } transition-all`}
+  1148→                      onClick={() => {
+  1149→                        if (!alreadyInTeam) {
+  1150→                          handleAddPlayer(
+  1151→                            player.id,
+  1152→                            getDisplayName(player.name)
+  1153→                          );
+  1154→                        }
+  1155→                      }}
+  1156→                    >
+  1157→                      <CardContent className="p-3">
+  1158→                        <div className="flex items-center gap-3">
+  1159→                          <div
+  1160→                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+  1161→                            style={{ backgroundColor: teamColor }}
+  1162→                          >
+  1163→                            {player.avatar ? (
+  1164→                              <img
+  1165→                                src={player.avatar}
+  1166→                                alt={getDisplayName(player.name)}
+  1167→                                className="w-full h-full rounded-full object-cover"
+  1168→                              />
+  1169→                            ) : (
+  1170→                              getInitials(player.name)
+  1171→                            )}
+  1172→                          </div>
+  1173→                          <div className="flex-1 min-w-0">
+  1174→                            <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
+  1175→                              {getDisplayName(player.name)}
+  1176→                            </p>
+  1177→                            <p className="text-xs text-warm-500 dark:text-warm-400">
+  1178→                              {player.phone}
+  1179→                              {player.profile?.position &&
+  1180→                                ` · ${player.profile.position}`}
+  1181→                            </p>
+  1182→                          </div>
+  1183→                          {alreadyInTeam ? (
+  1184→                            <Badge
+  1185→                              variant="secondary"
+  1186→                              className="text-[10px] px-2 py-0.5 bg-brand-teal/10 text-brand-teal shrink-0"
+  1187→                            >
+  1188→                              IN TEAM
+  1189→                            </Badge>
+  1190→                          ) : (
+  1191→                            <div className="w-7 h-7 rounded-lg bg-brand-teal/10 flex items-center justify-center text-brand-teal shrink-0">
+  1192→                              <Plus className="w-4 h-4" />
+  1193→                            </div>
+  1194→                          )}
+  1195→                        </div>
+  1196→                      </CardContent>
+  1197→                    </Card>
+  1198→                  </motion.div>
+  1199→                );
+  1200→              })
+  1201→            )}
+  1202→          </div>
+  1203→        </DialogContent>
+  1204→      </Dialog>
+  1205→    </motion.div>
+  1206→  );
+  1207→}
+  1208→

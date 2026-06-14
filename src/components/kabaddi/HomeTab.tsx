@@ -41,14 +41,18 @@ import {
   Search,
   MessageCircle,
   Crosshair,
+  Megaphone,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useKabaddiStore } from '@/lib/store';
+import { t } from '@/lib/i18n';
+import Portal from '@/components/portal';
 import { useToast } from '@/hooks/use-toast';
 import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 import LeaderboardScreen from './LeaderboardScreen';
+import TeamsLeaderboardScreen from './TeamsLeaderboardScreen';
 import MatchAwardsScreen from './MatchAwardsScreen';
 import NotificationPanel from './NotificationPanel';
 import ShareScorecard from './ShareScorecard';
@@ -77,6 +81,7 @@ import MatchHistoryScreen from './MatchHistoryScreen';
 import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchTimelineScreen from './MatchTimelineScreen';
+import CoachesCornerScreen from './CoachesCornerScreen';
 import LiveCommentaryTicker, { toCommentaryMatchInfo, type CommentaryMatchInfo } from './LiveCommentaryTicker';
 import LiveMatchCommentaryFeed, { type LiveMatchCommentaryInfo } from './LiveMatchCommentaryFeed';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
@@ -534,6 +539,7 @@ export default function HomeTab() {
   const addNotification = useKabaddiStore((s) => s.addNotification);
   const notifications = useKabaddiStore((s) => s.notifications);
   const activeMatch = useKabaddiStore((s) => s.activeMatch);
+  const language = useKabaddiStore((s) => s.language);
   const { toast } = useToast();
 
   const isPremium = currentUser?.isPremium || false;
@@ -584,6 +590,8 @@ export default function HomeTab() {
   const [showTeamChat, setShowTeamChat] = useState(false);
   const [showDailyChallenge, setShowDailyChallenge] = useState(false);
   const [showMatchTimeline, setShowMatchTimeline] = useState(false);
+  const [showCoachesCorner, setShowCoachesCorner] = useState(false);
+  const [showTeamsLeaderboard, setShowTeamsLeaderboard] = useState(false);
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);
@@ -1000,7 +1008,8 @@ export default function HomeTab() {
         )}
       </AnimatePresence>
 
-      {/* Overlays */}
+      {/* Overlays - rendered through Portal to escape scroll container */}
+      <Portal>
       {showUpgrade && (
         <PremiumUpgradeScreen
           onClose={() => setShowUpgrade(false)}
@@ -1170,6 +1179,13 @@ export default function HomeTab() {
           onClose={() => setShowMatchTimeline(false)}
         />
       )}
+      {showCoachesCorner && (
+        <CoachesCornerScreen onClose={() => setShowCoachesCorner(false)} />
+      )}
+      {showTeamsLeaderboard && (
+        <TeamsLeaderboardScreen onClose={() => setShowTeamsLeaderboard(false)} />
+      )}
+      </Portal>
 
       {/* ─── Header ─── */}
       <header className="sticky top-0 z-30 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md header-gradient-border">
@@ -1272,12 +1288,17 @@ export default function HomeTab() {
           <div>
             <p className="text-warm-500 dark:text-warm-400 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
               <span>{getTimeEmoji()}</span>
-              <span>{getTimeGreeting()}</span>
+              <span>{t('home.greeting', language)}</span>
             </p>
             <h2 className="text-2xl font-black text-warm-800 dark:text-warm-100 mt-0.5 flex items-center gap-2">
-              <span className="bg-gradient-to-r from-warm-800 via-brand-red-dark to-warm-800 dark:from-warm-100 dark:via-brand-red-light dark:to-warm-100 bg-clip-text text-transparent">
+              <span className={`bg-gradient-to-r from-warm-800 via-brand-red-dark to-warm-800 dark:from-warm-100 dark:via-brand-red-light dark:to-warm-100 bg-clip-text text-transparent ${isPremium ? '!from-brand-gold !via-brand-gold-light !to-brand-gold' : ''}`}>
                 {currentUser?.name ?? 'Player'}
               </span>
+              {isPremium && (
+                <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[8px] border-0 font-bold px-1 py-0 ml-0.5">
+                  <Crown className="w-2.5 h-2.5 mr-0.5" />PRO
+                </Badge>
+              )}
               {/* Position Badge */}
               {currentUser?.role && (
                 <motion.span
@@ -1372,7 +1393,7 @@ export default function HomeTab() {
                 <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center backdrop-blur-sm border border-white/10">
                   <Shield className="w-4 h-4 text-yellow-300" />
                 </div>
-                <span className="text-white/80 text-[10px] font-bold uppercase tracking-widest">Your Stats</span>
+                <span className="text-white/80 text-[10px] font-bold uppercase tracking-widest">{t('home.globalStats', language)}</span>
               </div>
               {currentUser?.playerCode && (
                 <div className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm">
@@ -1411,7 +1432,7 @@ export default function HomeTab() {
                 <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={raidPts} />
                 </div>
-                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Raid Pts</div>
+                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.raidPoints', language)}</div>
               </motion.div>
               <motion.div
                 variants={fadeUp}
@@ -1438,7 +1459,7 @@ export default function HomeTab() {
                 <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={tacklePts} />
                 </div>
-                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Tackle Pts</div>
+                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.tacklePoints', language)}</div>
               </motion.div>
               <motion.div
                 variants={fadeUp}
@@ -1465,7 +1486,7 @@ export default function HomeTab() {
                 <div className="text-2xl font-black text-white mt-1 relative z-10">
                   <AnimatedCounter target={totalMatches} />
                 </div>
-                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">Matches</div>
+                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.matches', language)}</div>
               </motion.div>
             </motion.div>
           </div>
@@ -1502,14 +1523,14 @@ export default function HomeTab() {
         <div className="flex items-center justify-between mb-3 section-header-decorated">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
-              Live Matches
+              {t('home.liveMatches', language)}
             </h3>
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red-light opacity-75" />
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-red" />
             </span>
             <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] border-0 font-semibold">
-              FREE
+              {t('home.free', language)}
             </Badge>
           </div>
         </div>
@@ -1524,7 +1545,7 @@ export default function HomeTab() {
                 : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
             }`}
           >
-            All
+            {t('home.all', language)}
           </button>
           <button
             onClick={() => setGenderFilter('boys')}
@@ -1534,7 +1555,7 @@ export default function HomeTab() {
                 : 'bg-brand-blue/10 text-brand-blue dark:text-brand-navy-light hover:bg-brand-blue/20'
             }`}
           >
-            ♂ Boys
+            ♂ {t('home.boys', language)}
           </button>
           <button
             onClick={() => setGenderFilter('girls')}
@@ -1544,7 +1565,7 @@ export default function HomeTab() {
                 : 'bg-brand-red/10 text-brand-red hover:bg-brand-red/20'
             }`}
           >
-            ♀ Girls
+            ♀ {t('home.girls', language)}
           </button>
         </div>
 
@@ -1832,8 +1853,8 @@ export default function HomeTab() {
                   </div>
                   <p className="text-warm-700 dark:text-warm-200 text-sm font-bold">
                     {genderFilter !== 'all'
-                      ? `No live ${genderFilter} matches right now`
-                      : 'No Live Matches'}
+                      ? t('home.noLiveMatches', language)
+                      : t('home.noLiveMatches', language)}
                   </p>
                   <p className="text-warm-500 dark:text-warm-400 text-xs mt-1 text-center">
                     Matches will appear here when they go live — stay tuned! 🏏
@@ -1869,7 +1890,7 @@ export default function HomeTab() {
         <section className="px-4 mt-6">
           <div className="flex items-center justify-between mb-3 section-header-decorated">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Recent Results</h3>
+              <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">{t('home.recentResults', language)}</h3>
               <Clock className="w-4 h-4 text-warm-400" />
             </div>
           </div>
@@ -1928,7 +1949,7 @@ export default function HomeTab() {
                           >
                             <Check className="w-2.5 h-2.5" />
                           </motion.span>
-                          COMPLETED
+                          {t('home.completed', language)}
                         </Badge>
                         <span className="text-[10px] text-warm-400 dark:text-warm-500">
                           {formatTimeAgo(match.completedAt)}
@@ -2039,7 +2060,7 @@ export default function HomeTab() {
         <section className="px-4 mt-6">
           <div className="flex items-center justify-between mb-3 section-header-decorated">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Upcoming Matches</h3>
+              <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">{t('home.upcomingMatches', language)}</h3>
               <Calendar className="w-4 h-4 text-brand-teal" />
             </div>
           </div>
@@ -2077,7 +2098,7 @@ export default function HomeTab() {
                         <div className="flex items-center gap-1.5">
                           <Badge className="bg-brand-teal/10 text-brand-teal text-[10px] font-semibold border border-brand-teal/20 px-2 py-0.5 flex items-center gap-1">
                             <Calendar className="w-2.5 h-2.5" />
-                            UPCOMING
+                            {t('home.upcoming', language)}
                           </Badge>
                           {match.gender && (
                             <Badge
@@ -2173,7 +2194,7 @@ export default function HomeTab() {
                             }}
                           >
                             <Bell className="w-3.5 h-3.5 mr-1.5 group-hover:animate-bounce" />
-                            Set Reminder
+                            {t('home.setReminder', language)}
                           </Button>
                         </motion.div>
                       </div>
@@ -2193,7 +2214,7 @@ export default function HomeTab() {
         <div className="flex items-center justify-between mb-3 section-header-decorated">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
-              Awards & Honors
+              {t('home.awardsHonors', language)}
             </h3>
             <Zap className="w-4 h-4 text-brand-gold" />
           </div>
@@ -2380,7 +2401,7 @@ export default function HomeTab() {
       <section className="px-4 mt-6">
         <div className="flex items-center justify-between mb-3 section-header-decorated">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Leaderboard</h3>
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">{t('home.leaderboard', language)}</h3>
             <BarChart3 className="w-4 h-4 text-brand-teal" />
           </div>
           <motion.button
@@ -2388,7 +2409,7 @@ export default function HomeTab() {
             className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-brand-red to-brand-red-dark text-white text-[11px] font-bold shadow-sm shadow-brand-red/20 active:scale-95 transition-transform view-all-arrow"
             whileTap={{ scale: 0.95 }}
           >
-            View Full
+            {t('home.seeAll', language)}
             <ChevronRight className="w-3 h-3 arrow-slide-target" />
           </motion.button>
         </div>
@@ -2420,7 +2441,7 @@ export default function HomeTab() {
                 <ChevronRight className="w-5 h-5 text-brand-red" />
               </div>
               <span className="text-[10px] font-bold text-brand-red text-center">
-                View Full Leaderboard
+                {t('home.seeAll', language)}
               </span>
             </motion.button>
           </div>
@@ -2467,7 +2488,7 @@ export default function HomeTab() {
                   <Rss className="w-4.5 h-4.5 text-brand-teal" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Social Feed</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">{t('home.socialFeed', language)}</p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">Activity updates</p>
                 </div>
               </div>
@@ -2491,7 +2512,7 @@ export default function HomeTab() {
                   <Users className="w-4.5 h-4.5 text-brand-teal" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Follow</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">{t('home.followConnect', language)}</p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">Find players</p>
                 </div>
               </div>
@@ -2543,7 +2564,7 @@ export default function HomeTab() {
                   <Activity className="w-4.5 h-4.5 text-brand-teal" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">My Stats</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">{t('home.advancedStats', language)}</p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">View your stats</p>
                 </div>
               </div>
@@ -2598,7 +2619,7 @@ export default function HomeTab() {
                   <Sparkles className="w-4.5 h-4.5 text-brand-gold" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Highlights</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">{t('home.highlights', language)}</p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">Key moments</p>
                 </div>
               </div>
@@ -2640,16 +2661,33 @@ export default function HomeTab() {
           >
             <Card
               className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
-              onClick={() => setShowComparison(true)}
+              onClick={() => {
+                if (!isPremium) {
+                  setUpgradeFeature('Compare Teams');
+                  setShowUpgrade(true);
+                  return;
+                }
+                setShowComparison(true);
+              }}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              {!isPremium && (
+                <div className="absolute top-2 right-2 z-20">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-md shadow-yellow-400/30">
+                    <Lock className="w-3 h-3 text-white" />
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-3 relative z-10">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
                   <Swords className="w-4.5 h-4.5 text-brand-red" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Compare Teams</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100 flex items-center gap-1">
+                    Compare Teams
+                    {!isPremium && <span className="text-[8px] font-extrabold text-yellow-600 dark:text-yellow-400 bg-yellow-400/20 dark:bg-yellow-400/10 px-1 rounded">PRO</span>}
+                  </p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">Head-to-head</p>
                 </div>
               </div>
@@ -2758,6 +2796,31 @@ export default function HomeTab() {
               </div>
             </Card>
           </motion.div>
+
+          {/* Teams Leaderboard - red/gold for competitive ranking */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65 }}
+          >
+            <Card
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-amber-50/60 dark:from-red-900/20 dark:to-amber-900/15 relative overflow-hidden group card-hover-lift"
+              onClick={() => setShowTeamsLeaderboard(true)}
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-gold" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-brand-gold/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-gold/20 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
+                  <Shield className="w-4.5 h-4.5 text-brand-red" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Teams Leaderboard</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Team rankings & points</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
         </div>
         <div className="flex items-center gap-2 mt-5 mb-3">
           <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Pro Features</h3>
@@ -2930,6 +2993,49 @@ export default function HomeTab() {
               </div>
             </Card>
           </motion.div>
+
+          {/* Coach's Corner - teal for coaching (PREMIUM) */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+          >
+            <Card
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group card-hover-lift"
+              onClick={() => {
+                if (!isPremium) {
+                  setUpgradeFeature("Coach's Corner");
+                  setShowUpgrade(true);
+                  return;
+                }
+                setShowCoachesCorner(true);
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_5.5s_ease-in-out_infinite]" />
+              <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-gold" />
+              {!isPremium && (
+                <div className="absolute top-2 right-2 z-20">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-md shadow-yellow-400/30">
+                    <Lock className="w-3 h-3 text-white" />
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow shrink-0">
+                  <Megaphone className="w-4.5 h-4.5 text-brand-teal" />
+                  {!isPremium && <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />}
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100 flex items-center gap-1">
+                    {t('coach.title', language)}
+                    {!isPremium && <span className="text-[8px] font-extrabold text-yellow-600 dark:text-yellow-400 bg-yellow-400/20 dark:bg-yellow-400/10 px-1 rounded">PRO</span>}
+                  </p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">{t('coach.manageTeam', language)}</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
         </div>
       </section>
 
@@ -2937,7 +3043,7 @@ export default function HomeTab() {
       {!loading && recentMatches.length > 0 && (
         <section className="px-4 mt-6">
           <div className="flex items-center gap-2 mb-3 section-header-decorated">
-            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Recent Activity</h3>
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">{t('home.recentResults', language)}</h3>
             <TrendingUp className="w-4 h-4 text-brand-teal" />
           </div>
           <Card className="bg-warm-100 dark:bg-warm-800 border-warm-300 dark:border-warm-700 py-0 gap-0 overflow-hidden">
@@ -3004,6 +3110,16 @@ export default function HomeTab() {
           </Card>
         </section>
       )}
+
+      {/* Footer */}
+      <div className="mt-8 mb-4 text-center px-4">
+        <p className="text-sm font-semibold text-warm-500 dark:text-warm-400">
+          {t('footer.madeFor', language)}
+        </p>
+        <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-0.5">
+          {t('footer.madeIn', language)}
+        </p>
+      </div>
     </div>
   );
 }

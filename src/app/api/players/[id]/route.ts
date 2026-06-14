@@ -49,20 +49,62 @@ export async function PUT(
       }
     }
 
-    const user = await db.user.update({
-      where: { id },
-      data: { gender, weight, practiceGround, playerCode },
-    });
+    // Try to update the user — if not found, still proceed with profile upsert
+    let user;
+    try {
+      user = await db.user.update({
+        where: { id },
+        data: { gender, weight, practiceGround, playerCode },
+      });
+    } catch (updateError: unknown) {
+      // Check if it's a "record not found" error (P2025)
+      const prismaError = updateError as { code?: string };
+      if (prismaError.code === 'P2025') {
+        // User record doesn't exist in DB — create it with available data
+        // We need at least a phone number; use a fallback
+        try {
+          user = await db.user.create({
+            data: {
+              id,
+              phone: `fallback_${id}`,
+              playerCode: playerCode || `KP${Date.now().toString().slice(-6)}`,
+              gender: gender || null,
+              weight: weight || null,
+              practiceGround: practiceGround || null,
+              password: 'fallback_no_auth',
+            },
+          });
+        } catch {
+          // If create also fails (e.g. id conflict), just skip user update
+          user = null;
+        }
+      } else {
+        throw updateError;
+      }
+    }
 
+    // Always upsert the player profile with position, jerseyNumber, weightCategory
     if (position || jerseyNumber !== undefined || weightCategory) {
       await db.playerProfile.upsert({
         where: { userId: id },
-        update: { position, jerseyNumber, weightCategory },
+        update: {
+          ...(position && { position }),
+          ...(jerseyNumber !== undefined && { jerseyNumber }),
+          ...(weightCategory && { weightCategory }),
+        },
         create: { userId: id, position, jerseyNumber, weightCategory },
       });
     }
 
-    return NextResponse.json({ player: user });
+    // Fetch the updated profile to return in response
+    const updatedProfile = await db.playerProfile.findUnique({
+      where: { userId: id },
+    });
+
+    return NextResponse.json({
+      player: user,
+      profile: updatedProfile,
+    });
   } catch (error) {
     console.error('Player update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

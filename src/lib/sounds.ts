@@ -167,8 +167,9 @@ export function playSound(type: SoundType): void {
       break;
 
     case SoundType.RAID_GAP_WARNING:
-      // Quick attention beep — 5s gap timer started (single medium beep)
-      playTone(ctx, 550, 0.12, 'sine', 0.2);
+      // Attention alert — auto-pause triggered (double beep)
+      playTone(ctx, 600, 0.15, 'sine', 0.3, t);
+      playTone(ctx, 700, 0.2, 'sine', 0.35, t + 0.2);
       break;
 
     case SoundType.FIVE_MINUTE_WARNING:
@@ -225,7 +226,7 @@ function getVibrationPattern(type: SoundType): number | number[] {
     case SoundType.RAID_TIME_EXPIRED:
       return [150, 50, 150];
     case SoundType.RAID_GAP_WARNING:
-      return [80];
+      return [100, 50, 200];
     case SoundType.FIVE_MINUTE_WARNING:
       return [100, 50, 100, 50, 200];
     case SoundType.HALF_END:

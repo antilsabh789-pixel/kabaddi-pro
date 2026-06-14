@@ -1,0 +1,1013 @@
+     1→'use client';
+     2→
+     3→import { useState, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  ArrowLeft,
+     7→  Plus,
+     8→  MapPin,
+     9→  Users,
+    10→  Calendar,
+    11→  Settings,
+    12→  Trash2,
+    13→  Check,
+    14→  X,
+    15→  Clock,
+    16→} from 'lucide-react';
+    17→import { Button } from '@/components/ui/button';
+    18→import { Input } from '@/components/ui/input';
+    19→import { Badge } from '@/components/ui/badge';
+    20→import { Card, CardContent } from '@/components/ui/card';
+    21→import { useKabaddiStore, type CoachAcademy } from '@/lib/store';
+    22→import { t } from '@/lib/i18n';
+    23→
+    24→// ─── Types ────────────────────────────────────────────────────────
+    25→
+    26→interface CoachesCornerScreenProps {
+    27→  onClose: () => void;
+    28→}
+    29→
+    30→interface AcademyPlayer {
+    31→  id: string;
+    32→  name: string;
+    33→  phone?: string;
+    34→  isPresent?: boolean;
+    35→}
+    36→
+    37→type SubView = 'main' | 'academy-detail' | 'create-academy';
+    38→
+    39→// ─── Mock Players ─────────────────────────────────────────────────
+    40→
+    41→const MOCK_PLAYERS: AcademyPlayer[] = [
+    42→  { id: 'p1', name: 'Rahul Kumar', phone: '9876543210', isPresent: false },
+    43→  { id: 'p2', name: 'Vikram Singh', phone: '9876543211', isPresent: false },
+    44→  { id: 'p3', name: 'Amit Sharma', phone: '9876543212', isPresent: false },
+    45→  { id: 'p4', name: 'Deepak Hooda', phone: '9876543213', isPresent: false },
+    46→  { id: 'p5', name: 'Manjeet Chillar', phone: '9876543214', isPresent: false },
+    47→  { id: 'p6', name: 'Pardeep Narwal', phone: '9876543215', isPresent: false },
+    48→  { id: 'p7', name: 'Ajay Thakur', phone: '9876543216', isPresent: false },
+    49→  { id: 'p8', name: 'Rishank Devadiga', phone: '9876543217', isPresent: false },
+    50→];
+    51→
+    52→// ─── Component ────────────────────────────────────────────────────
+    53→
+    54→export default function CoachesCornerScreen({ onClose }: CoachesCornerScreenProps) {
+    55→  const { language, coachAcademies, addCoachAcademy, removeCoachAcademy, updateCoachAcademy } = useKabaddiStore();
+    56→  const lang = language;
+    57→
+    58→  const [subView, setSubView] = useState<SubView>('main');
+    59→  const [selectedAcademyId, setSelectedAcademyId] = useState<string | null>(null);
+    60→  const [detailTab, setDetailTab] = useState<'players' | 'attendance' | 'rules'>('players');
+    61→
+    62→  // Create academy form
+    63→  const [newName, setNewName] = useState('');
+    64→  const [newLocation, setNewLocation] = useState('');
+    65→  const [newGroundName, setNewGroundName] = useState('');
+    66→
+    67→  // Players state (local per academy)
+    68→  const [academyPlayers, setAcademyPlayers] = useState<Record<string, AcademyPlayer[]>>({});
+    69→  const [addPlayerSearch, setAddPlayerSearch] = useState('');
+    70→
+    71→  // Custom rules
+    72→  const [newRule, setNewRule] = useState('');
+    73→
+    74→  const selectedAcademy = coachAcademies.find((a) => a.id === selectedAcademyId);
+    75→
+    76→  const getPlayers = useCallback(
+    77→    (academyId: string): AcademyPlayer[] => {
+    78→      return academyPlayers[academyId] || [];
+    79→    },
+    80→    [academyPlayers]
+    81→  );
+    82→
+    83→  const addPlayerToAcademy = useCallback(
+    84→    (academyId: string, player: AcademyPlayer) => {
+    85→      setAcademyPlayers((prev) => {
+    86→        const current = prev[academyId] || [];
+    87→        if (current.find((p) => p.id === player.id)) return prev;
+    88→        const updated = [...current, player];
+    89→        return { ...prev, [academyId]: updated };
+    90→      });
+    91→      // Update totalPlayers count
+    92→      const academy = coachAcademies.find((a) => a.id === academyId);
+    93→      if (academy) {
+    94→        const currentCount = academyPlayers[academyId]?.length || 0;
+    95→        updateCoachAcademy(academyId, { totalPlayers: currentCount + 1 });
+    96→      }
+    97→    },
+    98→    [coachAcademies, academyPlayers, updateCoachAcademy]
+    99→  );
+   100→
+   101→  const removePlayerFromAcademy = useCallback(
+   102→    (academyId: string, playerId: string) => {
+   103→      setAcademyPlayers((prev) => {
+   104→        const current = prev[academyId] || [];
+   105→        return { ...prev, [academyId]: current.filter((p) => p.id !== playerId) };
+   106→      });
+   107→      // Update totalPlayers count
+   108→      const academy = coachAcademies.find((a) => a.id === academyId);
+   109→      if (academy) {
+   110→        const currentCount = academyPlayers[academyId]?.length || 0;
+   111→        updateCoachAcademy(academyId, { totalPlayers: Math.max(0, currentCount - 1) });
+   112→      }
+   113→    },
+   114→    [coachAcademies, academyPlayers, updateCoachAcademy]
+   115→  );
+   116→
+   117→  const toggleAttendance = useCallback(
+   118→    (academyId: string, playerId: string) => {
+   119→      setAcademyPlayers((prev) => {
+   120→        const current = prev[academyId] || [];
+   121→        return {
+   122→          ...prev,
+   123→          [academyId]: current.map((p) =>
+   124→            p.id === playerId ? { ...p, isPresent: !p.isPresent } : p
+   125→          ),
+   126→        };
+   127→      });
+   128→    },
+   129→    []
+   130→  );
+   131→
+   132→  const handleCreateAcademy = () => {
+   133→    if (!newName.trim()) return;
+   134→    addCoachAcademy({
+   135→      name: newName.trim(),
+   136→      location: newLocation.trim(),
+   137→      groundName: newGroundName.trim(),
+   138→      totalPlayers: 0,
+   139→      rules: {
+   140→        sundayHoliday: false,
+   141→        practiceSchedule: 'one-time',
+   142→        customRules: [],
+   143→      },
+   144→    });
+   145→    setNewName('');
+   146→    setNewLocation('');
+   147→    setNewGroundName('');
+   148→    setSubView('main');
+   149→  };
+   150→
+   151→  const handleDeleteAcademy = (id: string) => {
+   152→    removeCoachAcademy(id);
+   153→    setAcademyPlayers((prev) => {
+   154→      const copy = { ...prev };
+   155→      delete copy[id];
+   156→      return copy;
+   157→    });
+   158→    if (selectedAcademyId === id) {
+   159→      setSelectedAcademyId(null);
+   160→      setSubView('main');
+   161→    }
+   162→  };
+   163→
+   164→  // ─── Sub-views ──────────────────────────────────────────────────
+   165→
+   166→  const renderCreateAcademy = () => (
+   167→    <motion.div
+   168→      initial={{ opacity: 0, y: 20 }}
+   169→      animate={{ opacity: 1, y: 0 }}
+   170→      exit={{ opacity: 0, y: -20 }}
+   171→      className="p-4 space-y-4"
+   172→    >
+   173→      <Card className="border-0 shadow-md bg-white dark:bg-warm-800">
+   174→        <CardContent className="p-6 space-y-4">
+   175→          <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100">
+   176→            {t('coach.createAcademy', lang)}
+   177→          </h3>
+   178→          <div className="space-y-3">
+   179→            <div>
+   180→              <label className="text-sm font-medium text-warm-600 dark:text-warm-400 mb-1 block">
+   181→                {t('coach.academyName', lang)}
+   182→              </label>
+   183→              <Input
+   184→                value={newName}
+   185→                onChange={(e) => setNewName(e.target.value)}
+   186→                placeholder={t('coach.academyName', lang)}
+   187→                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600"
+   188→              />
+   189→            </div>
+   190→            <div>
+   191→              <label className="text-sm font-medium text-warm-600 dark:text-warm-400 mb-1 block">
+   192→                {t('coach.groundLocation', lang)}
+   193→              </label>
+   194→              <Input
+   195→                value={newLocation}
+   196→                onChange={(e) => setNewLocation(e.target.value)}
+   197→                placeholder={t('coach.groundLocation', lang)}
+   198→                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600"
+   199→              />
+   200→            </div>
+   201→            <div>
+   202→              <label className="text-sm font-medium text-warm-600 dark:text-warm-400 mb-1 block">
+   203→                {t('coach.manageGround', lang)}
+   204→              </label>
+   205→              <Input
+   206→                value={newGroundName}
+   207→                onChange={(e) => setNewGroundName(e.target.value)}
+   208→                placeholder={t('coach.manageGround', lang)}
+   209→                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600"
+   210→              />
+   211→            </div>
+   212→          </div>
+   213→          <div className="flex gap-3 pt-2">
+   214→            <Button
+   215→              variant="outline"
+   216→              onClick={() => setSubView('main')}
+   217→              className="flex-1"
+   218→            >
+   219→              {t('common.cancel', lang)}
+   220→            </Button>
+   221→            <Button
+   222→              onClick={handleCreateAcademy}
+   223→              disabled={!newName.trim()}
+   224→              className="flex-1 bg-brand-red hover:bg-brand-red-dark text-white"
+   225→            >
+   226→              {t('coach.createAcademy', lang)}
+   227→            </Button>
+   228→          </div>
+   229→        </CardContent>
+   230→      </Card>
+   231→    </motion.div>
+   232→  );
+   233→
+   234→  const renderAcademyDetail = () => {
+   235→    if (!selectedAcademy) return null;
+   236→    const players = getPlayers(selectedAcademy.id);
+   237→    const presentCount = players.filter((p) => p.isPresent).length;
+   238→
+   239→    return (
+   240→      <motion.div
+   241→        initial={{ opacity: 0, x: 20 }}
+   242→        animate={{ opacity: 1, x: 0 }}
+   243→        exit={{ opacity: 0, x: -20 }}
+   244→        className="flex flex-col h-full"
+   245→      >
+   246→        {/* Academy header */}
+   247→        <div className="p-4 bg-gradient-to-r from-brand-red to-brand-red-dark text-white">
+   248→          <div className="flex items-center gap-3 mb-2">
+   249→            <Button
+   250→              variant="ghost"
+   251→              size="icon"
+   252→              onClick={() => {
+   253→                setSubView('main');
+   254→                setSelectedAcademyId(null);
+   255→              }}
+   256→              className="text-white hover:bg-white/20"
+   257→            >
+   258→              <ArrowLeft className="w-5 h-5" />
+   259→            </Button>
+   260→            <div className="flex-1">
+   261→              <h2 className="text-lg font-bold">{selectedAcademy.name}</h2>
+   262→              <div className="flex items-center gap-2 text-sm opacity-90">
+   263→                <MapPin className="w-3 h-3" />
+   264→                <span>{selectedAcademy.location || 'No location'}</span>
+   265→              </div>
+   266→            </div>
+   267→            <Button
+   268→              variant="ghost"
+   269→              size="icon"
+   270→              onClick={() => handleDeleteAcademy(selectedAcademy.id)}
+   271→              className="text-white hover:bg-white/20"
+   272→            >
+   273→              <Trash2 className="w-4 h-4" />
+   274→            </Button>
+   275→          </div>
+   276→          <div className="flex gap-4 text-sm">
+   277→            <div className="flex items-center gap-1">
+   278→              <Users className="w-4 h-4" />
+   279→              <span>{players.length} {t('coach.totalPlayers', lang)}</span>
+   280→            </div>
+   281→            {selectedAcademy.groundName && (
+   282→              <div className="flex items-center gap-1">
+   283→                <MapPin className="w-4 h-4" />
+   284→                <span>{selectedAcademy.groundName}</span>
+   285→              </div>
+   286→            )}
+   287→          </div>
+   288→        </div>
+   289→
+   290→        {/* Tabs */}
+   291→        <div className="flex border-b border-warm-200 dark:border-warm-700">
+   292→          {(['players', 'attendance', 'rules'] as const).map((tab) => {
+   293→            const icons = { players: Users, attendance: Calendar, rules: Settings };
+   294→            const labels = {
+   295→              players: t('coach.manageTeam', lang),
+   296→              attendance: t('coach.attendance', lang),
+   297→              rules: t('coach.rules', lang),
+   298→            };
+   299→            const Icon = icons[tab];
+   300→            return (
+   301→              <button
+   302→                key={tab}
+   303→                onClick={() => setDetailTab(tab)}
+   304→                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
+   305→                  detailTab === tab
+   306→                    ? 'text-brand-red border-b-2 border-brand-red'
+   307→                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
+   308→                }`}
+   309→              >
+   310→                <Icon className="w-4 h-4" />
+   311→                {labels[tab]}
+   312→              </button>
+   313→            );
+   314→          })}
+   315→        </div>
+   316→
+   317→        {/* Tab content */}
+   318→        <div className="flex-1 overflow-y-auto p-4">
+   319→          <AnimatePresence mode="wait">
+   320→            {detailTab === 'players' && (
+   321→              <motion.div
+   322→                key="players"
+   323→                initial={{ opacity: 0, y: 10 }}
+   324→                animate={{ opacity: 1, y: 0 }}
+   325→                exit={{ opacity: 0, y: -10 }}
+   326→                className="space-y-3"
+   327→              >
+   328→                {/* Add player */}
+   329→                <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   330→                  <CardContent className="p-4">
+   331→                    <h4 className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2">
+   332→                      {t('coach.addPlayer', lang)}
+   333→                    </h4>
+   334→                    <div className="flex gap-2">
+   335→                      <Input
+   336→                        value={addPlayerSearch}
+   337→                        onChange={(e) => setAddPlayerSearch(e.target.value)}
+   338→                        placeholder={t('coach.registerPlayer', lang)}
+   339→                        className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-sm"
+   340→                      />
+   341→                      <Button
+   342→                        size="sm"
+   343→                        className="bg-brand-teal hover:bg-brand-teal-dark text-white shrink-0"
+   344→                        onClick={() => {
+   345→                          if (addPlayerSearch.trim()) {
+   346→                            addPlayerToAcademy(selectedAcademy.id, {
+   347→                              id: `player_${Date.now()}`,
+   348→                              name: addPlayerSearch.trim(),
+   349→                              isPresent: false,
+   350→                            });
+   351→                            setAddPlayerSearch('');
+   352→                          }
+   353→                        }}
+   354→                      >
+   355→                        <Plus className="w-4 h-4" />
+   356→                      </Button>
+   357→                    </div>
+   358→                  </CardContent>
+   359→                </Card>
+   360→
+   361→                {/* Quick add from mock */}
+   362→                {(() => {
+   363→                  const existingIds = players.map((p) => p.id);
+   364→                  const available = MOCK_PLAYERS.filter(
+   365→                    (p) => !existingIds.includes(p.id)
+   366→                  );
+   367→                  if (available.length === 0) return null;
+   368→                  return (
+   369→                    <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   370→                      <CardContent className="p-4">
+   371→                        <h4 className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2">
+   372→                          {t('social.suggestedPlayers', lang)}
+   373→                        </h4>
+   374→                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
+   375→                          {available.slice(0, 5).map((player) => (
+   376→                            <div
+   377→                              key={player.id}
+   378→                              className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-warm-50 dark:hover:bg-warm-700 transition-colors"
+   379→                            >
+   380→                              <span className="text-sm text-warm-700 dark:text-warm-300">
+   381→                                {player.name}
+   382→                              </span>
+   383→                              <Button
+   384→                                size="sm"
+   385→                                variant="ghost"
+   386→                                className="h-7 w-7 p-0 text-brand-teal"
+   387→                                onClick={() =>
+   388→                                  addPlayerToAcademy(selectedAcademy.id, {
+   389→                                    ...player,
+   390→                                    isPresent: false,
+   391→                                  })
+   392→                                }
+   393→                              >
+   394→                                <Plus className="w-4 h-4" />
+   395→                              </Button>
+   396→                            </div>
+   397→                          ))}
+   398→                        </div>
+   399→                      </CardContent>
+   400→                    </Card>
+   401→                  );
+   402→                })()}
+   403→
+   404→                {/* Player list */}
+   405→                {players.length === 0 ? (
+   406→                  <div className="text-center py-8 text-warm-500 dark:text-warm-400">
+   407→                    <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
+   408→                    <p className="text-sm">{t('coach.noAcademy', lang)}</p>
+   409→                  </div>
+   410→                ) : (
+   411→                  <div className="space-y-2">
+   412→                    {players.map((player, idx) => (
+   413→                      <motion.div
+   414→                        key={player.id}
+   415→                        initial={{ opacity: 0, x: -10 }}
+   416→                        animate={{ opacity: 1, x: 0 }}
+   417→                        transition={{ delay: idx * 0.03 }}
+   418→                      >
+   419→                        <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   420→                          <CardContent className="p-3 flex items-center justify-between">
+   421→                            <div className="flex items-center gap-3">
+   422→                              <div className="w-8 h-8 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-sm">
+   423→                                {player.name.charAt(0).toUpperCase()}
+   424→                              </div>
+   425→                              <div>
+   426→                                <p className="text-sm font-medium text-warm-800 dark:text-warm-200">
+   427→                                  {player.name}
+   428→                                </p>
+   429→                                {player.phone && (
+   430→                                  <p className="text-xs text-warm-500 dark:text-warm-400">
+   431→                                    {player.phone}
+   432→                                  </p>
+   433→                                )}
+   434→                              </div>
+   435→                            </div>
+   436→                            <Button
+   437→                              size="sm"
+   438→                              variant="ghost"
+   439→                              className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+   440→                              onClick={() =>
+   441→                                removePlayerFromAcademy(selectedAcademy.id, player.id)
+   442→                              }
+   443→                              title={t('coach.removePlayer', lang)}
+   444→                            >
+   445→                              <X className="w-4 h-4" />
+   446→                            </Button>
+   447→                          </CardContent>
+   448→                        </Card>
+   449→                      </motion.div>
+   450→                    ))}
+   451→                  </div>
+   452→                )}
+   453→              </motion.div>
+   454→            )}
+   455→
+   456→            {detailTab === 'attendance' && (
+   457→              <motion.div
+   458→                key="attendance"
+   459→                initial={{ opacity: 0, y: 10 }}
+   460→                animate={{ opacity: 1, y: 0 }}
+   461→                exit={{ opacity: 0, y: -10 }}
+   462→                className="space-y-3"
+   463→              >
+   464→                {/* Date header */}
+   465→                <div className="flex items-center justify-between">
+   466→                  <h4 className="text-sm font-semibold text-warm-700 dark:text-warm-300">
+   467→                    {new Date().toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-US', {
+   468→                      weekday: 'long',
+   469→                      year: 'numeric',
+   470→                      month: 'long',
+   471→                      day: 'numeric',
+   472→                    })}
+   473→                  </h4>
+   474→                  <Badge
+   475→                    variant="secondary"
+   476→                    className="bg-brand-teal/10 text-brand-teal border-0"
+   477→                  >
+   478→                    {presentCount}/{players.length} {t('coach.attendance', lang)}
+   479→                  </Badge>
+   480→                </div>
+   481→
+   482→                {players.length === 0 ? (
+   483→                  <div className="text-center py-8 text-warm-500 dark:text-warm-400">
+   484→                    <Calendar className="w-10 h-10 mx-auto mb-2 opacity-50" />
+   485→                    <p className="text-sm">
+   486→                      {t('coach.addPlayer', lang)} {t('coach.attendance', lang).toLowerCase()}
+   487→                    </p>
+   488→                  </div>
+   489→                ) : (
+   490→                  <div className="space-y-2">
+   491→                    {players.map((player) => (
+   492→                      <motion.div
+   493→                        key={player.id}
+   494→                        initial={{ opacity: 0, x: -10 }}
+   495→                        animate={{ opacity: 1, x: 0 }}
+   496→                      >
+   497→                        <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   498→                          <CardContent className="p-3 flex items-center justify-between">
+   499→                            <div className="flex items-center gap-3">
+   500→                              <div
+   501→                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+   502→                                  player.isPresent
+   503→                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+   504→                                    : 'bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400'
+   505→                                }`}
+   506→                              >
+   507→                                {player.name.charAt(0).toUpperCase()}
+   508→                              </div>
+   509→                              <span className="text-sm font-medium text-warm-800 dark:text-warm-200">
+   510→                                {player.name}
+   511→                              </span>
+   512→                            </div>
+   513→                            <button
+   514→                              onClick={() =>
+   515→                                toggleAttendance(selectedAcademy.id, player.id)
+   516→                              }
+   517→                              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+   518→                                player.isPresent
+   519→                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+   520→                                  : 'bg-warm-100 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+   521→                              }`}
+   522→                            >
+   523→                              {player.isPresent ? (
+   524→                                <>
+   525→                                  <Check className="w-3 h-3" />
+   526→                                  {t('common.save', lang)}
+   527→                                </>
+   528→                              ) : (
+   529→                                <>
+   530→                                  <X className="w-3 h-3" />
+   531→                                  Absent
+   532→                                </>
+   533→                              )}
+   534→                            </button>
+   535→                          </CardContent>
+   536→                        </Card>
+   537→                      </motion.div>
+   538→                    ))}
+   539→
+   540→                    {/* Mark all present */}
+   541→                    <Button
+   542→                      variant="outline"
+   543→                      size="sm"
+   544→                      className="w-full mt-3 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10"
+   545→                      onClick={() => {
+   546→                        setAcademyPlayers((prev) => ({
+   547→                          ...prev,
+   548→                          [selectedAcademy.id]: (prev[selectedAcademy.id] || []).map(
+   549→                            (p) => ({ ...p, isPresent: true })
+   550→                          ),
+   551→                        }));
+   552→                      }}
+   553→                    >
+   554→                      <Check className="w-4 h-4 mr-1" />
+   555→                      Mark All Present
+   556→                    </Button>
+   557→                  </div>
+   558→                )}
+   559→              </motion.div>
+   560→            )}
+   561→
+   562→            {detailTab === 'rules' && (
+   563→              <motion.div
+   564→                key="rules"
+   565→                initial={{ opacity: 0, y: 10 }}
+   566→                animate={{ opacity: 1, y: 0 }}
+   567→                exit={{ opacity: 0, y: -10 }}
+   568→                className="space-y-4"
+   569→              >
+   570→                {/* Sunday Holiday toggle */}
+   571→                <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   572→                  <CardContent className="p-4">
+   573→                    <div className="flex items-center justify-between">
+   574→                      <div className="flex items-center gap-3">
+   575→                        <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+   576→                          <Calendar className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+   577→                        </div>
+   578→                        <div>
+   579→                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-200">
+   580→                            {t('coach.sundayHoliday', lang)}
+   581→                          </p>
+   582→                          <p className="text-xs text-warm-500 dark:text-warm-400">
+   583→                            No practice on Sundays
+   584→                          </p>
+   585→                        </div>
+   586→                      </div>
+   587→                      <button
+   588→                        onClick={() =>
+   589→                          updateCoachAcademy(selectedAcademy.id, {
+   590→                            rules: {
+   591→                              ...selectedAcademy.rules,
+   592→                              sundayHoliday: !selectedAcademy.rules.sundayHoliday,
+   593→                            },
+   594→                          })
+   595→                        }
+   596→                        className={`relative w-12 h-7 rounded-full transition-colors ${
+   597→                          selectedAcademy.rules.sundayHoliday
+   598→                            ? 'bg-brand-teal'
+   599→                            : 'bg-warm-300 dark:bg-warm-600'
+   600→                        }`}
+   601→                      >
+   602→                        <span
+   603→                          className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+   604→                            selectedAcademy.rules.sundayHoliday
+   605→                              ? 'translate-x-5'
+   606→                              : 'translate-x-0'
+   607→                          }`}
+   608→                        />
+   609→                      </button>
+   610→                    </div>
+   611→                  </CardContent>
+   612→                </Card>
+   613→
+   614→                {/* Practice Schedule */}
+   615→                <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   616→                  <CardContent className="p-4">
+   617→                    <div className="flex items-center gap-3 mb-3">
+   618→                      <div className="w-9 h-9 rounded-lg bg-brand-teal/10 flex items-center justify-center">
+   619→                        <Clock className="w-5 h-5 text-brand-teal" />
+   620→                      </div>
+   621→                      <div>
+   622→                        <p className="text-sm font-semibold text-warm-800 dark:text-warm-200">
+   623→                          {t('coach.practiceSchedule', lang)}
+   624→                        </p>
+   625→                      </div>
+   626→                    </div>
+   627→                    <div className="flex gap-2">
+   628→                      {(['one-time', 'both-time'] as const).map((schedule) => (
+   629→                        <button
+   630→                          key={schedule}
+   631→                          onClick={() =>
+   632→                            updateCoachAcademy(selectedAcademy.id, {
+   633→                              rules: {
+   634→                                ...selectedAcademy.rules,
+   635→                                practiceSchedule: schedule,
+   636→                              },
+   637→                            })
+   638→                          }
+   639→                          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors ${
+   640→                            selectedAcademy.rules.practiceSchedule === schedule
+   641→                              ? 'bg-brand-teal text-white shadow-sm'
+   642→                              : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-400'
+   643→                          }`}
+   644→                        >
+   645→                          {schedule === 'one-time'
+   646→                            ? t('coach.oneTimePractice', lang)
+   647→                            : t('coach.bothTimePractice', lang)}
+   648→                        </button>
+   649→                      ))}
+   650→                    </div>
+   651→                  </CardContent>
+   652→                </Card>
+   653→
+   654→                {/* Custom Rules */}
+   655→                <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   656→                  <CardContent className="p-4">
+   657→                    <div className="flex items-center gap-3 mb-3">
+   658→                      <div className="w-9 h-9 rounded-lg bg-brand-red/10 flex items-center justify-center">
+   659→                        <Settings className="w-5 h-5 text-brand-red" />
+   660→                      </div>
+   661→                      <h4 className="text-sm font-semibold text-warm-800 dark:text-warm-200">
+   662→                        Custom Rules
+   663→                      </h4>
+   664→                    </div>
+   665→                    <div className="flex gap-2 mb-3">
+   666→                      <Input
+   667→                        value={newRule}
+   668→                        onChange={(e) => setNewRule(e.target.value)}
+   669→                        placeholder="Add a custom rule..."
+   670→                        className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-sm"
+   671→                        onKeyDown={(e) => {
+   672→                          if (e.key === 'Enter' && newRule.trim()) {
+   673→                            updateCoachAcademy(selectedAcademy.id, {
+   674→                              rules: {
+   675→                                ...selectedAcademy.rules,
+   676→                                customRules: [
+   677→                                  ...selectedAcademy.rules.customRules,
+   678→                                  newRule.trim(),
+   679→                                ],
+   680→                              },
+   681→                            });
+   682→                            setNewRule('');
+   683→                          }
+   684→                        }}
+   685→                      />
+   686→                      <Button
+   687→                        size="sm"
+   688→                        variant="outline"
+   689→                        className="shrink-0"
+   690→                        onClick={() => {
+   691→                          if (newRule.trim()) {
+   692→                            updateCoachAcademy(selectedAcademy.id, {
+   693→                              rules: {
+   694→                                ...selectedAcademy.rules,
+   695→                                customRules: [
+   696→                                  ...selectedAcademy.rules.customRules,
+   697→                                  newRule.trim(),
+   698→                                ],
+   699→                              },
+   700→                            });
+   701→                            setNewRule('');
+   702→                          }
+   703→                        }}
+   704→                      >
+   705→                        <Plus className="w-4 h-4" />
+   706→                      </Button>
+   707→                    </div>
+   708→                    {selectedAcademy.rules.customRules.length > 0 ? (
+   709→                      <div className="space-y-1.5">
+   710→                        {selectedAcademy.rules.customRules.map((rule, idx) => (
+   711→                          <div
+   712→                            key={idx}
+   713→                            className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-warm-50 dark:bg-warm-700"
+   714→                          >
+   715→                            <span className="text-sm text-warm-700 dark:text-warm-300">
+   716→                              {rule}
+   717→                            </span>
+   718→                            <button
+   719→                              onClick={() =>
+   720→                                updateCoachAcademy(selectedAcademy.id, {
+   721→                                  rules: {
+   722→                                    ...selectedAcademy.rules,
+   723→                                    customRules:
+   724→                                      selectedAcademy.rules.customRules.filter(
+   725→                                        (_, i) => i !== idx
+   726→                                      ),
+   727→                                  },
+   728→                                })
+   729→                              }
+   730→                              className="text-warm-400 hover:text-red-500 transition-colors"
+   731→                            >
+   732→                              <X className="w-4 h-4" />
+   733→                            </button>
+   734→                          </div>
+   735→                        ))}
+   736→                      </div>
+   737→                    ) : (
+   738→                      <p className="text-xs text-warm-500 dark:text-warm-400 text-center py-2">
+   739→                        No custom rules added yet
+   740→                      </p>
+   741→                    )}
+   742→                  </CardContent>
+   743→                </Card>
+   744→              </motion.div>
+   745→            )}
+   746→          </AnimatePresence>
+   747→        </div>
+   748→      </motion.div>
+   749→    );
+   750→  };
+   751→
+   752→  const renderMainView = () => (
+   753→    <motion.div
+   754→      initial={{ opacity: 0 }}
+   755→      animate={{ opacity: 1 }}
+   756→      exit={{ opacity: 0 }}
+   757→      className="flex flex-col h-full"
+   758→    >
+   759→      {/* Header */}
+   760→      <div className="bg-gradient-to-r from-brand-navy to-brand-navy-dark text-white px-4 py-4">
+   761→        <div className="flex items-center gap-3">
+   762→          <Button
+   763→            variant="ghost"
+   764→            size="icon"
+   765→            onClick={onClose}
+   766→            className="text-white hover:bg-white/20"
+   767→          >
+   768→            <ArrowLeft className="w-5 h-5" />
+   769→          </Button>
+   770→          <h1 className="text-lg font-bold tracking-wide">
+   771→            {t('coach.title', lang)}
+   772→          </h1>
+   773→        </div>
+   774→        <p className="text-sm text-warm-300 mt-1 ml-11">
+   775→          {t('coach.myAcademy', lang)}
+   776→        </p>
+   777→      </div>
+   778→
+   779→      {/* Content */}
+   780→      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+   781→        {/* Quick stats */}
+   782→        <div className="grid grid-cols-2 gap-3">
+   783→          <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   784→            <CardContent className="p-4 text-center">
+   785→              <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center mx-auto mb-2">
+   786→                <Users className="w-5 h-5 text-brand-red" />
+   787→              </div>
+   788→              <p className="text-2xl font-bold text-warm-800 dark:text-warm-200">
+   789→                {coachAcademies.length}
+   790→              </p>
+   791→              <p className="text-xs text-warm-500 dark:text-warm-400">
+   792→                {t('coach.myAcademy', lang)}
+   793→              </p>
+   794→            </CardContent>
+   795→          </Card>
+   796→          <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
+   797→            <CardContent className="p-4 text-center">
+   798→              <div className="w-10 h-10 rounded-xl bg-brand-teal/10 flex items-center justify-center mx-auto mb-2">
+   799→                <MapPin className="w-5 h-5 text-brand-teal" />
+   800→              </div>
+   801→              <p className="text-2xl font-bold text-warm-800 dark:text-warm-200">
+   802→                {coachAcademies.reduce((sum, a) => sum + a.totalPlayers, 0)}
+   803→              </p>
+   804→              <p className="text-xs text-warm-500 dark:text-warm-400">
+   805→                {t('coach.totalPlayers', lang)}
+   806→              </p>
+   807→            </CardContent>
+   808→          </Card>
+   809→        </div>
+   810→
+   811→        {/* Academy list */}
+   812→        {coachAcademies.length === 0 ? (
+   813→          <motion.div
+   814→            initial={{ opacity: 0, y: 20 }}
+   815→            animate={{ opacity: 1, y: 0 }}
+   816→            className="text-center py-12"
+   817→          >
+   818→            <div className="w-16 h-16 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center mx-auto mb-4">
+   819→              <Users className="w-8 h-8 text-warm-400" />
+   820→            </div>
+   821→            <p className="text-warm-600 dark:text-warm-400 mb-4">
+   822→              {t('coach.noAcademy', lang)}
+   823→            </p>
+   824→            <Button
+   825→              onClick={() => setSubView('create-academy')}
+   826→              className="bg-brand-red hover:bg-brand-red-dark text-white"
+   827→            >
+   828→              <Plus className="w-4 h-4 mr-1" />
+   829→              {t('coach.createAcademy', lang)}
+   830→            </Button>
+   831→          </motion.div>
+   832→        ) : (
+   833→          <>
+   834→            {coachAcademies.map((academy, idx) => {
+   835→              const players = getPlayers(academy.id);
+   836→              return (
+   837→                <motion.div
+   838→                  key={academy.id}
+   839→                  initial={{ opacity: 0, y: 15 }}
+   840→                  animate={{ opacity: 1, y: 0 }}
+   841→                  transition={{ delay: idx * 0.05 }}
+   842→                >
+   843→                  <Card
+   844→                    className="border-0 shadow-md bg-white dark:bg-warm-800 overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+   845→                    onClick={() => {
+   846→                      setSelectedAcademyId(academy.id);
+   847→                      setSubView('academy-detail');
+   848→                      setDetailTab('players');
+   849→                    }}
+   850→                  >
+   851→                    <div className="h-1.5 bg-gradient-to-r from-brand-red to-brand-gold" />
+   852→                    <CardContent className="p-4">
+   853→                      <div className="flex items-start justify-between">
+   854→                        <div className="flex-1">
+   855→                          <h3 className="font-bold text-warm-800 dark:text-warm-200">
+   856→                            {academy.name}
+   857→                          </h3>
+   858→                          {academy.location && (
+   859→                            <div className="flex items-center gap-1 mt-1 text-xs text-warm-500 dark:text-warm-400">
+   860→                              <MapPin className="w-3 h-3" />
+   861→                              {academy.location}
+   862→                            </div>
+   863→                          )}
+   864→                          {academy.groundName && (
+   865→                            <div className="flex items-center gap-1 mt-0.5 text-xs text-warm-500 dark:text-warm-400">
+   866→                              <Clock className="w-3 h-3" />
+   867→                              {academy.groundName}
+   868→                            </div>
+   869→                          )}
+   870→                        </div>
+   871→                        <div className="flex items-center gap-2">
+   872→                          <Badge
+   873→                            variant="secondary"
+   874→                            className="bg-brand-teal/10 text-brand-teal border-0 text-xs"
+   875→                          >
+   876→                            <Users className="w-3 h-3 mr-1" />
+   877→                            {players.length}
+   878→                          </Badge>
+   879→                          <Button
+   880→                            variant="ghost"
+   881→                            size="icon"
+   882→                            className="h-8 w-8 text-warm-400 hover:text-red-500"
+   883→                            onClick={(e) => {
+   884→                              e.stopPropagation();
+   885→                              handleDeleteAcademy(academy.id);
+   886→                            }}
+   887→                          >
+   888→                            <Trash2 className="w-4 h-4" />
+   889→                          </Button>
+   890→                        </div>
+   891→                      </div>
+   892→
+   893→                      {/* Rules preview */}
+   894→                      <div className="flex flex-wrap gap-1.5 mt-3">
+   895→                        {academy.rules.sundayHoliday && (
+   896→                          <Badge
+   897→                            variant="secondary"
+   898→                            className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-0 text-[10px]"
+   899→                          >
+   900→                            {t('coach.sundayHoliday', lang)}
+   901→                          </Badge>
+   902→                        )}
+   903→                        <Badge
+   904→                          variant="secondary"
+   905→                          className="bg-brand-teal/10 text-brand-teal border-0 text-[10px]"
+   906→                        >
+   907→                          {academy.rules.practiceSchedule === 'one-time'
+   908→                            ? t('coach.oneTimePractice', lang)
+   909→                            : t('coach.bothTimePractice', lang)}
+   910→                        </Badge>
+   911→                        {academy.rules.customRules.slice(0, 2).map((rule, i) => (
+   912→                          <Badge
+   913→                            key={i}
+   914→                            variant="secondary"
+   915→                            className="bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-400 border-0 text-[10px]"
+   916→                          >
+   917→                            {rule}
+   918→                          </Badge>
+   919→                        ))}
+   920→                        {academy.rules.customRules.length > 2 && (
+   921→                          <Badge
+   922→                            variant="secondary"
+   923→                            className="bg-warm-100 dark:bg-warm-700 text-warm-500 border-0 text-[10px]"
+   924→                          >
+   925→                            +{academy.rules.customRules.length - 2} more
+   926→                          </Badge>
+   927→                        )}
+   928→                      </div>
+   929→                    </CardContent>
+   930→                  </Card>
+   931→                </motion.div>
+   932→              );
+   933→            })}
+   934→
+   935→            {/* Add academy button */}
+   936→            <Button
+   937→              onClick={() => setSubView('create-academy')}
+   938→              variant="outline"
+   939→              className="w-full border-dashed border-warm-300 dark:border-warm-600 text-warm-500 dark:text-warm-400 hover:bg-warm-50 dark:hover:bg-warm-700"
+   940→            >
+   941→              <Plus className="w-4 h-4 mr-1" />
+   942→              {t('coach.createAcademy', lang)}
+   943→            </Button>
+   944→          </>
+   945→        )}
+   946→      </div>
+   947→    </motion.div>
+   948→  );
+   949→
+   950→  return (
+   951→    <motion.div
+   952→      initial={{ opacity: 0 }}
+   953→      animate={{ opacity: 1 }}
+   954→      exit={{ opacity: 0 }}
+   955→      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col overflow-hidden"
+   956→    >
+   957→      <AnimatePresence mode="wait">
+   958→        {subView === 'main' && (
+   959→          <motion.div
+   960→            key="main"
+   961→            initial={{ opacity: 0, x: -20 }}
+   962→            animate={{ opacity: 1, x: 0 }}
+   963→            exit={{ opacity: 0, x: -20 }}
+   964→            className="flex flex-col h-full"
+   965→          >
+   966→            {renderMainView()}
+   967→          </motion.div>
+   968→        )}
+   969→        {subView === 'create-academy' && (
+   970→          <motion.div
+   971→            key="create"
+   972→            initial={{ opacity: 0, x: 20 }}
+   973→            animate={{ opacity: 1, x: 0 }}
+   974→            exit={{ opacity: 0, x: 20 }}
+   975→            className="flex flex-col h-full"
+   976→          >
+   977→            {/* Header for create */}
+   978→            <div className="bg-gradient-to-r from-brand-navy to-brand-navy-dark text-white px-4 py-4">
+   979→              <div className="flex items-center gap-3">
+   980→                <Button
+   981→                  variant="ghost"
+   982→                  size="icon"
+   983→                  onClick={() => setSubView('main')}
+   984→                  className="text-white hover:bg-white/20"
+   985→                >
+   986→                  <ArrowLeft className="w-5 h-5" />
+   987→                </Button>
+   988→                <h1 className="text-lg font-bold">
+   989→                  {t('coach.createAcademy', lang)}
+   990→                </h1>
+   991→              </div>
+   992→            </div>
+   993→            <div className="flex-1 overflow-y-auto">
+   994→              {renderCreateAcademy()}
+   995→            </div>
+   996→          </motion.div>
+   997→        )}
+   998→        {subView === 'academy-detail' && (
+   999→          <motion.div
+  1000→            key="detail"
+  1001→            initial={{ opacity: 0, x: 20 }}
+  1002→            animate={{ opacity: 1, x: 0 }}
+  1003→            exit={{ opacity: 0, x: 20 }}
+  1004→            className="flex flex-col h-full"
+  1005→          >
+  1006→            {renderAcademyDetail()}
+  1007→          </motion.div>
+  1008→        )}
+  1009→      </AnimatePresence>
+  1010→    </motion.div>
+  1011→  );
+  1012→}
+  1013→

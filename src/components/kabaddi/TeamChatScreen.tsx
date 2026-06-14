@@ -372,7 +372,7 @@ export default function TeamChatScreen({ onClose }: TeamChatScreenProps) {
   const displayGroups = searchMode ? filteredDateGroups : dateGroups;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-950 flex flex-col overflow-y-auto">
       {/* ─── Header ─────────────────────────────────────────────── */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}

@@ -12,6 +12,8 @@ export interface CurrentUser {
   gender?: string;
   weight?: string;
   practiceGround?: string;
+  position?: string;
+  jerseyNumber?: number;
   email?: string;
   isPremium?: boolean;
   isAdmin?: boolean;
@@ -49,6 +51,7 @@ export type EventType =
   | 'do_or_die_raid'
   | 'all_out'
   | 'empty_raid'
+  | 'self_out'
   | 'substitution'
   | 'timeout'
   | 'yellow_card'
@@ -77,6 +80,8 @@ export interface ActiveMatch {
   awayLineup: MatchPlayer[];
   raidQueue: 'home' | 'away';
   isDoOrDie: boolean;
+  /** Team ID that has a pending do-or-die raid. Null if no do-or-die is active. */
+  doOrDieTeamId: string | null;
   homeTimeouts: number;
   awayTimeouts: number;
   homeOutPlayers: number;
@@ -124,6 +129,20 @@ export interface TeamManagementState {
   teamDetailOpen: boolean;
 }
 
+export interface CoachAcademy {
+  id: string;
+  name: string;
+  location: string;
+  groundName: string;
+  totalPlayers: number;
+  rules: {
+    sundayHoliday: boolean;
+    practiceSchedule: 'one-time' | 'both-time';
+    customRules: string[];
+  };
+  createdAt: number;
+}
+
 interface KabaddiState {
   // Auth
   isAuthenticated: boolean;
@@ -139,7 +158,7 @@ interface KabaddiState {
 
   // Toss State
   showToss: boolean;
-  tossMatchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'> | null;
+  tossMatchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'> | null;
 
   // Home Data cache
   homeData: HomeData;
@@ -157,6 +176,12 @@ interface KabaddiState {
   // Team Management
   teamManagement: TeamManagementState;
 
+  // Coach
+  coachAcademies: CoachAcademy[];
+  addCoachAcademy: (academy: Omit<CoachAcademy, 'id' | 'createdAt'>) => void;
+  removeCoachAcademy: (id: string) => void;
+  updateCoachAcademy: (id: string, data: Partial<CoachAcademy>) => void;
+
   // Actions
   login: (user: CurrentUser) => void;
   logout: () => void;
@@ -164,18 +189,19 @@ interface KabaddiState {
   updateUser: (data: Partial<CurrentUser>) => void;
   setActiveTab: (tab: TabId) => void;
   setHasSeenSplash: (value: boolean) => void;
-  initiateToss: (matchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'>) => void;
+  initiateToss: (matchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'>) => void;
   cancelToss: () => void;
-  startMatch: (match: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'>, firstRaidTeam?: 'home' | 'away') => void;
+  startMatch: (match: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'>, firstRaidTeam?: 'home' | 'away') => void;
   endMatch: () => void;
   updateScore: (team: 'home' | 'away', delta: number) => void;
   addEvent: (event: Omit<MatchEvent, 'id' | 'timestamp'>) => void;
   addBatchEvents: (events: Omit<MatchEvent, 'id' | 'timestamp'>[]) => void;
   undoLastEvent: () => void;
   undoLastRaid: () => void;
+  addPlayerToMatch: (side: 'home' | 'away', player: MatchPlayer) => void;
   switchHalf: () => void;
   setTimer: (time: number) => void;
-  setDoOrDie: (value: boolean) => void;
+  setDoOrDie: (value: boolean, teamId?: string) => void;
   switchRaidQueue: () => void;
   callTimeout: (team: 'home' | 'away') => void;
   setOutPlayers: (team: 'home' | 'away', count: number) => void;
@@ -200,6 +226,9 @@ interface KabaddiState {
   setTeamSearch: (search: string) => void;
   setSelectedTeamId: (teamId: string | null) => void;
   setTeamDetailOpen: (open: boolean) => void;
+
+  // Match transfer / handoff
+  loadMatch: (match: ActiveMatch) => void;
 }
 
 /** Helper: determine which side a teamId belongs to in a match */
@@ -238,6 +267,19 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
       if (side === 'home') {
         homeOutPlayers = Math.max(0, homeOutPlayers - 1);
       } else {
+        awayOutPlayers = Math.max(0, awayOutPlayers - 1);
+      }
+    }
+    // Self-out: defender steps off mat → +1 to raiding team, one of their out players revives
+    if (evt.eventType === 'self_out') {
+      // The self-out player is from the DEFENDING team (opposite of scoring team)
+      if (side === 'home') {
+        // Home scored from self-out → away defender went out
+        awayOutPlayers = Math.min(match.playersPerSide, awayOutPlayers + 1);
+        // Home revives one player
+        homeOutPlayers = Math.max(0, homeOutPlayers - 1);
+      } else {
+        homeOutPlayers = Math.min(match.playersPerSide, homeOutPlayers + 1);
         awayOutPlayers = Math.max(0, awayOutPlayers - 1);
       }
     }
@@ -290,6 +332,32 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
       }
     }
 
+    // Self-out: defender steps off mat during a live raid
+    if (evt.eventType === 'self_out') {
+      const selfOutPlayerId = (details.selfOutPlayerId as string) || evt.playerId;
+      if (selfOutPlayerId) {
+        // The self-out player is from the DEFENDING team (opposite of scoring team)
+        if (side === 'home') {
+          // Home scored → away defender self-out
+          if (!awayOutPlayerIds.includes(selfOutPlayerId)) {
+            awayOutPlayerIds = [...awayOutPlayerIds, selfOutPlayerId];
+          }
+          // Home revives first-out player
+          if (homeOutPlayerIds.length > 0) {
+            homeOutPlayerIds = homeOutPlayerIds.slice(1);
+          }
+        } else {
+          // Away scored → home defender self-out
+          if (!homeOutPlayerIds.includes(selfOutPlayerId)) {
+            homeOutPlayerIds = [...homeOutPlayerIds, selfOutPlayerId];
+          }
+          if (awayOutPlayerIds.length > 0) {
+            awayOutPlayerIds = awayOutPlayerIds.slice(1);
+          }
+        }
+      }
+    }
+
     if (evt.eventType === 'tackle_point' || evt.eventType === 'super_tackle') {
       // Raider goes out. The tackle is scored by the DEFENDING team.
       // So the raider is from the OPPOSING team.
@@ -319,12 +387,44 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
   return { homeScore, awayScore, homeOutPlayers, awayOutPlayers, homeOutPlayerIds, awayOutPlayerIds };
 }
 
-/** Helper: determine raid queue from last raid event */
+/** Event types that constitute a complete raid and should flip the turn */
+const RAID_ENDING_EVENT_TYPES: string[] = [
+  'raid_point', 'tackle_point', 'super_tackle', 'empty_raid',
+  'bonus_point', 'do_or_die_raid', 'super_raid', 'self_out',
+];
+
+/** Event types that do NOT flip the turn (non-raid events) */
+const NON_RAID_EVENT_TYPES: string[] = [
+  'all_out', 'substitution', 'timeout', 'yellow_card', 'red_card', 'green_card',
+];
+
+/**
+ * Event types where the SCORING team is the DEFENDING team.
+ * In these cases, the defending team scored (they made the tackle / raider failed do-or-die),
+ * so they should raid NEXT — the turn goes to the SAME side that scored.
+ *
+ * For all other raid-ending events (raid_point, bonus_point, super_raid, empty_raid, self_out),
+ * the scoring team is the RAIDING team, so the turn goes to the OPPOSITE side.
+ */
+const DEFENDING_TEAM_SCORES: Set<string> = new Set([
+  'tackle_point',
+  'super_tackle',
+  'do_or_die_raid',
+]);
+
+/** Helper: determine raid queue from last raid-ending event */
 function getRaidQueueFromEvents(match: ActiveMatch, events: MatchEvent[]): 'home' | 'away' {
-  const raidEventTypes = ['raid_point', 'tackle_point', 'super_tackle', 'empty_raid', 'bonus_point', 'do_or_die_raid'];
-  const lastRaidEvent = [...events].reverse().find(e => raidEventTypes.includes(e.eventType));
+  const lastRaidEvent = [...events].reverse().find(e => RAID_ENDING_EVENT_TYPES.includes(e.eventType));
   if (lastRaidEvent) {
-    return getTeamSide(match, lastRaidEvent.teamId) === 'home' ? 'away' : 'home';
+    const side = getTeamSide(match, lastRaidEvent.teamId);
+    // If the defending team scored (tackle/super_tackle/do_or_die_raid),
+    // THEY raid next — return the SAME side as the scoring team.
+    if (DEFENDING_TEAM_SCORES.has(lastRaidEvent.eventType)) {
+      return side;
+    }
+    // If the raiding team scored (touch points, bonus, super raid, etc.)
+    // or it was an empty raid, the DEFENDING team raids next — return the OPPOSITE side.
+    return side === 'home' ? 'away' : 'home';
   }
   return match.raidQueue;
 }
@@ -373,6 +473,26 @@ export const useKabaddiStore = create<KabaddiState>()(
         selectedTeamId: null,
         teamDetailOpen: false,
       },
+
+      // Coach
+      coachAcademies: [],
+      addCoachAcademy: (academy) =>
+        set((state) => ({
+          coachAcademies: [
+            ...state.coachAcademies,
+            { ...academy, id: `coach_${Date.now()}`, createdAt: Date.now() },
+          ],
+        })),
+      removeCoachAcademy: (id) =>
+        set((state) => ({
+          coachAcademies: state.coachAcademies.filter((a) => a.id !== id),
+        })),
+      updateCoachAcademy: (id, data) =>
+        set((state) => ({
+          coachAcademies: state.coachAcademies.map((a) =>
+            a.id === id ? { ...a, ...data } : a
+          ),
+        })),
 
       // Actions
       login: (user) =>
@@ -430,6 +550,7 @@ export const useKabaddiStore = create<KabaddiState>()(
             events: [],
             raidQueue: firstRaidTeam || 'home',
             isDoOrDie: false,
+            doOrDieTeamId: null,
             homeTimeouts: 0,
             awayTimeouts: 0,
             homeOutPlayers: 0,
@@ -473,14 +594,21 @@ export const useKabaddiStore = create<KabaddiState>()(
           const updatedEvents = [...state.activeMatch.events, newEvent];
 
           const calculated = recalculateFromEvents(state.activeMatch, updatedEvents);
-          const side = getTeamSide(state.activeMatch, event.teamId);
+
+          // Only flip raidQueue for raid-ending events.
+          // Non-raid events (timeout, substitution, cards, standalone all_out)
+          // should NOT change whose turn it is to raid.
+          const isRaidEndingEvent = RAID_ENDING_EVENT_TYPES.includes(event.eventType);
+          const raidQueue = isRaidEndingEvent
+            ? getRaidQueueFromEvents(state.activeMatch, updatedEvents)
+            : state.activeMatch.raidQueue;
 
           return {
             activeMatch: {
               ...state.activeMatch,
               events: updatedEvents,
               ...calculated,
-              raidQueue: side === 'home' ? 'away' : 'home',
+              raidQueue,
             },
           };
         }),
@@ -556,6 +684,18 @@ export const useKabaddiStore = create<KabaddiState>()(
           };
         }),
 
+      addPlayerToMatch: (side, player) =>
+        set((state) => {
+          if (!state.activeMatch) return {};
+          const lineupKey = side === 'home' ? 'homeLineup' : 'awayLineup';
+          return {
+            activeMatch: {
+              ...state.activeMatch,
+              [lineupKey]: [...state.activeMatch[lineupKey], player],
+            },
+          };
+        }),
+
       switchHalf: () =>
         set((state) => {
           if (!state.activeMatch) return {};
@@ -566,6 +706,7 @@ export const useKabaddiStore = create<KabaddiState>()(
               currentHalf: newHalf,
               timer: state.activeMatch.halfDuration * 60,
               isDoOrDie: false,
+              doOrDieTeamId: null,
             },
           };
         }),
@@ -576,10 +717,16 @@ export const useKabaddiStore = create<KabaddiState>()(
           return { activeMatch: { ...state.activeMatch, timer: time } };
         }),
 
-      setDoOrDie: (value) =>
+      setDoOrDie: (value, teamId?) =>
         set((state) => {
           if (!state.activeMatch) return {};
-          return { activeMatch: { ...state.activeMatch, isDoOrDie: value } };
+          return {
+            activeMatch: {
+              ...state.activeMatch,
+              isDoOrDie: value,
+              doOrDieTeamId: value ? (teamId || null) : null,
+            },
+          };
         }),
 
       switchRaidQueue: () =>
@@ -711,6 +858,15 @@ export const useKabaddiStore = create<KabaddiState>()(
         set((state) => ({
           teamManagement: { ...state.teamManagement, teamDetailOpen: open },
         })),
+
+      // Match transfer / handoff — load a match from a transfer
+      loadMatch: (match) =>
+        set({
+          activeMatch: match,
+          activeTab: 'quick-score' as TabId,
+          showToss: false,
+          tossMatchConfig: null,
+        }),
     }),
     {
       name: 'kabaddi-pro-storage',
@@ -725,6 +881,7 @@ export const useKabaddiStore = create<KabaddiState>()(
         language: state.language,
         hasCompletedOnboarding: state.hasCompletedOnboarding,
         onboardingProfile: state.onboardingProfile,
+        coachAcademies: state.coachAcademies,
       }),
     }
   )
@@ -746,6 +903,8 @@ export function getEventPoints(eventType: EventType): number {
       return 1;
     case 'all_out':
       return 2;
+    case 'self_out':
+      return 1;
     case 'empty_raid':
       return 0;
     case 'substitution':

@@ -1,0 +1,502 @@
+  2000→                      </div>
+  2001→                    </div>
+  2002→                    <div className="w-full h-3 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+  2003→                      <motion.div
+  2004→                        initial={{ width: 0 }}
+  2005→                        animate={{ width: `${Math.min(stat.value, 100)}%` }}
+  2006→                        transition={{ duration: 1.5, ease: 'easeOut', delay: 0.2 + idx * 0.1 }}
+  2007→                        className={`h-full rounded-full bg-gradient-to-r ${stat.color} relative`}
+  2008→                      >
+  2009→                        {/* Shine effect on progress bar */}
+  2010→                        <div className="absolute inset-0 rounded-full overflow-hidden">
+  2011→                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
+  2012→                        </div>
+  2013→                      </motion.div>
+  2014→                    </div>
+  2015→                  </motion.div>
+  2016→                );
+  2017→              })}
+  2018→            </div>
+  2019→          </Card>
+  2020→
+  2021→          {/* Quick stat grid - enhanced */}
+  2022→          <div className="grid grid-cols-2 gap-3 mt-3">
+  2023→            <motion.div
+  2024→              initial={{ opacity: 0, scale: 0.9 }}
+  2025→              animate={{ opacity: 1, scale: 1 }}
+  2026→              transition={{ delay: 0.3 }}
+  2027→              className="text-center p-3 rounded-xl bg-gradient-to-br from-orange-50/80 to-orange-100/30 dark:from-orange-900/15 dark:to-orange-800/5 border border-orange-200/50 dark:border-orange-800/20 hover:scale-[1.02] transition-transform feature-btn-hover"
+  2028→            >
+  2029→              <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center mx-auto mb-1.5 glow-pulse">
+  2030→                <Zap className="w-4 h-4 text-orange-500" />
+  2031→              </div>
+  2032→              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Bonus Points</p>
+  2033→              <p className="text-xl font-black text-orange-500"><AnimatedValue value={profileData.bonusPoints} /></p>
+  2034→            </motion.div>
+  2035→            <motion.div
+  2036→              initial={{ opacity: 0, scale: 0.9 }}
+  2037→              animate={{ opacity: 1, scale: 1 }}
+  2038→              transition={{ delay: 0.35 }}
+  2039→              className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50/80 to-purple-100/30 dark:from-purple-900/15 dark:to-purple-800/5 border border-purple-200/50 dark:border-purple-800/20 hover:scale-[1.02] transition-transform feature-btn-hover"
+  2040→            >
+  2041→              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center mx-auto mb-1.5 glow-pulse">
+  2042→                <Shield className="w-4 h-4 text-purple-500" />
+  2043→              </div>
+  2044→              <p className="text-[10px] text-warm-500 dark:text-warm-400 font-medium">Super Tackles</p>
+  2045→              <p className="text-xl font-black text-purple-500"><AnimatedValue value={profileData.superTackles} /></p>
+  2046→            </motion.div>
+  2047→          </div>
+  2048→        </PremiumLock>
+  2049→      </motion.div>
+  2050→      )}
+  2051→
+  2052→      {/* ═══════════════════════════════════════════ */}
+  2053→      {/* 8. FEATURES GRID with Staggered Animation & Tooltips */}
+  2054→      {/* ═══════════════════════════════════════════ */}
+  2055→      <motion.div
+  2056→        initial={{ opacity: 0, y: 10 }}
+  2057→        animate={{ opacity: 1, y: 0 }}
+  2058→        transition={{ delay: 0.26 }}
+  2059→      >
+  2060→        <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  2061→          <Settings className="w-4 h-4 text-warm-500" />
+  2062→          Features
+  2063→        </h3>
+  2064→        <div className="space-y-5">
+  2065→          {featureCategories.map((category, catIdx) => (
+  2066→            <div key={category.title}>
+  2067→              {/* Enhanced visual category header */}
+  2068→              <div className="flex items-center gap-2 mb-2.5 ml-1">
+  2069→                <div className={`w-1.5 h-1.5 rounded-full ${
+  2070→                  catIdx === 0 ? 'bg-brand-teal' :
+  2071→                  catIdx === 1 ? 'bg-brand-gold' :
+  2072→                  'bg-brand-red'
+  2073→                }`} />
+  2074→                <p className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-widest">{category.title}</p>
+  2075→                <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
+  2076→              </div>
+  2077→              <Card className="shadow-sm overflow-hidden divide-y divide-warm-100 dark:divide-warm-700/50">
+  2078→                {category.items.map((item, idx) => {
+  2079→                  const IconComp = item.icon;
+  2080→                  const isPremiumFeature = item.premium && !isPremium;
+  2081→                  return (
+  2082→                    <motion.button
+  2083→                      key={item.label}
+  2084→                      initial={{ opacity: 0, x: -5 }}
+  2085→                      animate={{ opacity: 1, x: 0 }}
+  2086→                      transition={{ delay: 0.05 * (catIdx * 4 + idx), type: 'spring', stiffness: 200 }}
+  2087→                      onClick={item.onClick}
+  2088→                      className={`w-full flex items-center gap-3 p-3.5 hover:bg-warm-50 dark:hover:bg-warm-200/30 active:bg-warm-100 dark:active:bg-warm-200/50 transition-all duration-200 text-left group hover:translate-x-1 chevron-hover-rotate feature-btn-hover relative ${isPremiumFeature ? 'premium-feature-shimmer' : ''}`}
+  2089→                    >
+  2090→                      {/* Left border accent - enhanced with gradient */}
+  2091→                      <div className={`w-1.5 h-10 rounded-full shrink-0 transition-all duration-200 group-hover:h-12 group-hover:w-2 ${
+  2092→                        item.color === 'brand-teal' ? 'bg-gradient-to-b from-brand-teal to-emerald-600' :
+  2093→                        item.color === 'brand-gold' ? 'bg-gradient-to-b from-brand-gold to-amber-600' :
+  2094→                        item.color === 'brand-red' ? 'bg-gradient-to-b from-brand-red to-red-700' :
+  2095→                        item.color === 'brand-navy' ? 'bg-gradient-to-b from-brand-navy to-slate-700' :
+  2096→                        item.color === 'purple-500' ? 'bg-gradient-to-b from-purple-500 to-purple-700' :
+  2097→                        item.color === 'emerald-500' ? 'bg-gradient-to-b from-emerald-500 to-emerald-700' :
+  2098→                        'bg-warm-400'
+  2099→                      }`} />
+  2100→                      {/* Icon with color coding - enhanced with gradient bg and glow */}
+  2101→                      <motion.div
+  2102→                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-all duration-200 relative ${
+  2103→                          item.color === 'brand-teal' ? 'bg-brand-teal/10' :
+  2104→                          item.color === 'brand-gold' ? 'bg-brand-gold/10' :
+  2105→                          item.color === 'brand-red' ? 'bg-brand-red/10' :
+  2106→                          item.color === 'brand-navy' ? 'bg-brand-navy/10' :
+  2107→                          item.color === 'purple-500' ? 'bg-purple-500/10' :
+  2108→                          item.color === 'emerald-500' ? 'bg-emerald-500/10' :
+  2109→                          'bg-warm-200/50'
+  2110→                        }`}
+  2111→                        whileHover={{
+  2112→                          boxShadow: item.color === 'brand-teal' ? '0 0 12px rgba(20, 184, 166, 0.3)' :
+  2113→                            item.color === 'brand-gold' ? '0 0 12px rgba(245, 158, 11, 0.3)' :
+  2114→                            item.color === 'brand-red' ? '0 0 12px rgba(220, 38, 38, 0.3)' :
+  2115→                            item.color === 'brand-navy' ? '0 0 12px rgba(30, 41, 59, 0.3)' :
+  2116→                            '0 0 8px rgba(100, 116, 139, 0.2)',
+  2117→                        }}
+  2118→                      >
+  2119→                        <IconComp className={`w-4.5 h-4.5 ${
+  2120→                          item.color === 'brand-teal' ? 'text-brand-teal' :
+  2121→                          item.color === 'brand-gold' ? 'text-brand-gold' :
+  2122→                          item.color === 'brand-red' ? 'text-brand-red' :
+  2123→                          item.color === 'brand-navy' ? 'text-brand-navy' :
+  2124→                          item.color === 'purple-500' ? 'text-purple-500' :
+  2125→                          item.color === 'emerald-500' ? 'text-emerald-500' :
+  2126→                          'text-warm-500'
+  2127→                        }`} />
+  2128→                      </motion.div>
+  2129→                      {/* Label and description */}
+  2130→                      <div className="flex-1 min-w-0 relative z-10">
+  2131→                        <div className="flex items-center gap-1.5">
+  2132→                          <p className="text-xs font-semibold text-warm-800 dark:text-warm-700">{item.label}</p>
+  2133→                          {isPremiumFeature && (
+  2134→                            <span className="text-[7px] font-bold text-brand-gold bg-brand-gold/15 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+  2135→                              <Crown className="w-2 h-2" /> PRO
+  2136→                            </span>
+  2137→                          )}
+  2138→                        </div>
+  2139→                        <p className="text-[10px] text-warm-400 dark:text-warm-300">{item.desc}</p>
+  2140→                      </div>
+  2141→                      {/* Premium lock overlay for locked features */}
+  2142→                      {isPremiumFeature && (
+  2143→                        <div className="shrink-0 w-8 h-8 rounded-full bg-brand-gold/10 flex items-center justify-center">
+  2144→                          <Lock className="w-3.5 h-3.5 text-brand-gold/60" />
+  2145→                        </div>
+  2146→                      )}
+  2147→                      {/* Chevron - only for non-premium-locked items */}
+  2148→                      {!isPremiumFeature && (
+  2149→                        <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-400 group-hover:text-warm-500 transition-colors shrink-0 chevron-icon relative z-10" />
+  2150→                      )}
+  2151→                    </motion.button>
+  2152→                  );
+  2153→                })}
+  2154→              </Card>
+  2155→            </div>
+  2156→          ))}
+  2157→        </div>
+  2158→      </motion.div>
+  2159→
+  2160→      {/* ═══════════════════════════════════════════ */}
+  2161→      {/* SECTION DIVIDER - Enhanced */}
+  2162→      {/* ═══════════════════════════════════════════ */}
+  2163→      <div className="flex items-center gap-3 my-2">
+  2164→        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-200 dark:via-warm-700 to-warm-200 dark:to-warm-700" />
+  2165→        <span className="text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-widest">Info & Settings</span>
+  2166→        <div className="flex-1 h-px bg-gradient-to-r from-warm-200 dark:from-warm-700 via-warm-200 dark:via-warm-700 to-transparent" />
+  2167→      </div>
+  2168→
+  2169→      {/* ═══════════════════════════════════════════ */}
+  2170→      {/* 9. PERSONAL INFO & SETTINGS with Enhanced Toggles */}
+  2171→      {/* ═══════════════════════════════════════════ */}
+  2172→      <motion.div
+  2173→        initial={{ opacity: 0, y: 10 }}
+  2174→        animate={{ opacity: 1, y: 0 }}
+  2175→        transition={{ delay: 0.25 }}
+  2176→      >
+  2177→        <Card className="p-4 space-y-4 shadow-sm glass-card">
+  2178→          {/* Phone */}
+  2179→          <div className="flex justify-between text-sm items-center py-1">
+  2180→            <div className="flex items-center gap-2">
+  2181→              <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+  2182→                <Eye className="w-3.5 h-3.5 text-warm-400" />
+  2183→              </div>
+  2184→              <div>
+  2185→                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Phone</span>
+  2186→                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your registered number</p>
+  2187→              </div>
+  2188→            </div>
+  2189→            <div className="flex items-center gap-1.5">
+  2190→              <span className="text-warm-800 dark:text-warm-700 font-medium font-mono text-xs">
+  2191→                {showPhone ? (currentUser?.phone || '—') : (currentUser?.phone ? `****${currentUser.phone.slice(-2)}` : '—')}
+  2192→              </span>
+  2193→              <motion.button
+  2194→                onClick={() => setShowPhone(!showPhone)}
+  2195→                whileTap={{ scale: 0.9 }}
+  2196→                className="w-5 h-5 rounded-full bg-warm-100 dark:bg-warm-200 flex items-center justify-center text-warm-400 hover:text-warm-600 transition-colors"
+  2197→              >
+  2198→                {showPhone ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+  2199→              </motion.button>
+  2200→            </div>
+  2201→          </div>
+  2202→
+  2203→          {/* Weight */}
+  2204→          {currentUser?.weight && (
+  2205→            <div className="flex justify-between text-sm items-center py-1">
+  2206→              <div className="flex items-center gap-2">
+  2207→                <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+  2208→                  <Activity className="w-3.5 h-3.5 text-warm-400" />
+  2209→                </div>
+  2210→                <div>
+  2211→                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Weight</span>
+  2212→                  <p className="text-[10px] text-warm-400 dark:text-warm-300">Your weight category</p>
+  2213→                </div>
+  2214→              </div>
+  2215→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{currentUser.weight}</span>
+  2216→            </div>
+  2217→          )}
+  2218→
+  2219→          {/* Practice Ground */}
+  2220→          {currentUser?.practiceGround && (
+  2221→            <div className="flex justify-between text-sm items-center py-1">
+  2222→              <div className="flex items-center gap-2">
+  2223→                <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+  2224→                  <MapPin className="w-3.5 h-3.5 text-warm-400" />
+  2225→                </div>
+  2226→                <div>
+  2227→                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Practice Ground</span>
+  2228→                  <p className="text-[10px] text-warm-400 dark:text-warm-300">Your training venue</p>
+  2229→                </div>
+  2230→              </div>
+  2231→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs max-w-[150px] truncate">{currentUser.practiceGround}</span>
+  2232→            </div>
+  2233→          )}
+  2234→
+  2235→          {/* Position */}
+  2236→          {profileData.position && (
+  2237→            <div className="flex justify-between text-sm items-center py-1">
+  2238→              <div className="flex items-center gap-2">
+  2239→                <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+  2240→                  <Target className="w-3.5 h-3.5 text-warm-400" />
+  2241→                </div>
+  2242→                <div>
+  2243→                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Position</span>
+  2244→                  <p className="text-[10px] text-warm-400 dark:text-warm-300">Your playing role</p>
+  2245→                </div>
+  2246→              </div>
+  2247→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">{getPositionIcon(profileData.position)} {getPositionLabel(profileData.position)}</span>
+  2248→            </div>
+  2249→          )}
+  2250→
+  2251→          {/* Jersey */}
+  2252→          {profileData.jerseyNumber && (
+  2253→            <div className="flex justify-between text-sm items-center py-1">
+  2254→              <div className="flex items-center gap-2">
+  2255→                <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+  2256→                  <Hash className="w-3.5 h-3.5 text-warm-400" />
+  2257→                </div>
+  2258→                <div>
+  2259→                  <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Jersey</span>
+  2260→                  <p className="text-[10px] text-warm-400 dark:text-warm-300">Your jersey number</p>
+  2261→                </div>
+  2262→              </div>
+  2263→              <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">#{profileData.jerseyNumber}</span>
+  2264→            </div>
+  2265→          )}
+  2266→
+  2267→          {/* Plan */}
+  2268→          <div className="flex justify-between text-sm items-center py-1">
+  2269→            <div className="flex items-center gap-2">
+  2270→              <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+  2271→                <CreditCard className="w-3.5 h-3.5 text-warm-400" />
+  2272→              </div>
+  2273→              <div>
+  2274→                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Plan</span>
+  2275→                <p className="text-[10px] text-warm-400 dark:text-warm-300">Your subscription</p>
+  2276→              </div>
+  2277→            </div>
+  2278→            <span className={`font-medium text-xs flex items-center gap-1 ${isPremium ? 'text-brand-gold' : 'text-warm-600 dark:text-warm-500'}`}>
+  2279→              {isPremium ? <><Crown className="w-3 h-3" /> Premium</> : 'Free'}
+  2280→            </span>
+  2281→          </div>
+  2282→
+  2283→          {/* Language Toggle with Flag Icons - Enhanced */}
+  2284→          <div className="flex justify-between items-center py-1">
+  2285→            <div className="flex items-center gap-2">
+  2286→              <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
+  2287→                <Flag className="w-3.5 h-3.5 text-warm-400" />
+  2288→              </div>
+  2289→              <div>
+  2290→                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Language</span>
+  2291→                <p className="text-[10px] text-warm-400 dark:text-warm-300">App display language</p>
+  2292→              </div>
+  2293→            </div>
+  2294→            <div className="flex items-center gap-1 bg-warm-100 dark:bg-warm-200 rounded-xl p-1">
+  2295→              <motion.button
+  2296→                onClick={() => setLanguage('en')}
+  2297→                whileTap={{ scale: 0.95 }}
+  2298→                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 ${
+  2299→                  language === 'en'
+  2300→                    ? 'bg-brand-teal text-white shadow-md'
+  2301→                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600'
+  2302→                }`}
+  2303→              >
+  2304→                🇬🇧 English
+  2305→              </motion.button>
+  2306→              <motion.button
+  2307→                onClick={() => setLanguage('hi')}
+  2308→                whileTap={{ scale: 0.95 }}
+  2309→                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 ${
+  2310→                  language === 'hi'
+  2311→                    ? 'bg-brand-teal text-white shadow-md'
+  2312→                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-600'
+  2313→                }`}
+  2314→              >
+  2315→                🇮🇳 हिंदी
+  2316→              </motion.button>
+  2317→            </div>
+  2318→          </div>
+  2319→
+  2320→          {/* Dark Mode Toggle with Sun/Moon Animation - Enhanced with animated toggle track */}
+  2321→          <div className="flex justify-between items-center py-1">
+  2322→            <div className="flex items-center gap-2">
+  2323→              <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-brand-gold/20' : 'bg-warm-100 dark:bg-warm-200/50'}`}>
+  2324→                <AnimatePresence mode="wait">
+  2325→                  {darkMode ? (
+  2326→                    <motion.div
+  2327→                      key="moon-icon"
+  2328→                      initial={{ rotate: -90, scale: 0, opacity: 0 }}
+  2329→                      animate={{ rotate: 0, scale: 1, opacity: 1 }}
+  2330→                      exit={{ rotate: 90, scale: 0, opacity: 0 }}
+  2331→                      transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
+  2332→                    >
+  2333→                      <Moon className="w-3.5 h-3.5 text-brand-gold" />
+  2334→                    </motion.div>
+  2335→                  ) : (
+  2336→                    <motion.div
+  2337→                      key="sun-icon"
+  2338→                      initial={{ rotate: 90, scale: 0, opacity: 0 }}
+  2339→                      animate={{ rotate: 0, scale: 1, opacity: 1 }}
+  2340→                      exit={{ rotate: -90, scale: 0, opacity: 0 }}
+  2341→                      transition={{ duration: 0.3, type: 'spring', stiffness: 300 }}
+  2342→                    >
+  2343→                      <Sun className="w-3.5 h-3.5 text-warm-400" />
+  2344→                    </motion.div>
+  2345→                  )}
+  2346→                </AnimatePresence>
+  2347→              </div>
+  2348→              <div>
+  2349→                <span className="text-warm-800 dark:text-warm-700 font-medium text-xs">Theme</span>
+  2350→                <p className="text-[10px] text-warm-400 dark:text-warm-300">{darkMode ? 'Dark mode active' : 'Light mode active'}</p>
+  2351→              </div>
+  2352→            </div>
+  2353→            <motion.button
+  2354→              onClick={toggleDarkMode}
+  2355→              className={`relative flex items-center rounded-full p-1 transition-colors duration-300 ${
+  2356→                darkMode ? 'bg-warm-700' : 'bg-warm-200'
+  2357→              }`}
+  2358→              style={{ width: '52px', height: '28px' }}
+  2359→              whileTap={{ scale: 0.95 }}
+  2360→            >
+  2361→              {/* Animated toggle track background */}
+  2362→              <motion.div
+  2363→                className="absolute inset-0 rounded-full overflow-hidden"
+  2364→                style={{
+  2365→                  background: darkMode
+  2366→                    ? 'linear-gradient(90deg, #1E293B, #334155)'
+  2367→                    : 'linear-gradient(90deg, #E2E8F0, #F1F5F9)',
+  2368→                }}
+  2369→                transition={{ duration: 0.3 }}
+  2370→              />
+  2371→              {/* Stars/moon dots in dark mode */}
+  2372→              {darkMode && (
+  2373→                <>
+  2374→                  <motion.div
+  2375→                    className="absolute top-1.5 left-2 w-1 h-1 rounded-full bg-white/30"
+  2376→                    animate={{ opacity: [0.3, 0.8, 0.3] }}
+  2377→                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+  2378→                  />
+  2379→                  <motion.div
+  2380→                    className="absolute top-3 left-4 w-0.5 h-0.5 rounded-full bg-white/20"
+  2381→                    animate={{ opacity: [0.2, 0.6, 0.2] }}
+  2382→                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+  2383→                  />
+  2384→                </>
+  2385→              )}
+  2386→              {/* Sun rays in light mode */}
+  2387→              {!darkMode && (
+  2388→                <motion.div
+  2389→                  className="absolute top-1 right-3 w-1.5 h-1.5 rounded-full bg-amber-400/20"
+  2390→                  animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
+  2391→                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+  2392→                />
+  2393→              )}
+  2394→              {/* Toggle knob */}
+  2395→              <motion.div
+  2396→                className="relative z-10 w-5 h-5 rounded-full shadow-md flex items-center justify-center"
+  2397→                style={{
+  2398→                  backgroundColor: darkMode ? '#1E293B' : '#FFFFFF',
+  2399→                }}
+  2400→                animate={{ x: darkMode ? 22 : 0 }}
+  2401→                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+  2402→              >
+  2403→                <AnimatePresence mode="wait">
+  2404→                  {darkMode ? (
+  2405→                    <motion.div
+  2406→                      key="toggle-moon"
+  2407→                      initial={{ rotate: -180, scale: 0 }}
+  2408→                      animate={{ rotate: 0, scale: 1 }}
+  2409→                      exit={{ rotate: 180, scale: 0 }}
+  2410→                      transition={{ duration: 0.2 }}
+  2411→                    >
+  2412→                      <Moon className="w-3 h-3 text-brand-gold" />
+  2413→                    </motion.div>
+  2414→                  ) : (
+  2415→                    <motion.div
+  2416→                      key="toggle-sun"
+  2417→                      initial={{ rotate: 180, scale: 0 }}
+  2418→                      animate={{ rotate: 0, scale: 1 }}
+  2419→                      exit={{ rotate: -180, scale: 0 }}
+  2420→                      transition={{ duration: 0.2 }}
+  2421→                    >
+  2422→                      <Sun className="w-3 h-3 text-amber-500" />
+  2423→                    </motion.div>
+  2424→                  )}
+  2425→                </AnimatePresence>
+  2426→              </motion.div>
+  2427→            </motion.button>
+  2428→          </div>
+  2429→        </Card>
+  2430→      </motion.div>
+  2431→
+  2432→      {/* ═══════════════════════════════════════════ */}
+  2433→      {/* EARNINGS DASHBOARD - Admin Only */}
+  2434→      {/* ═══════════════════════════════════════════ */}
+  2435→      {currentUser?.isAdmin && (
+  2436→        <motion.div
+  2437→          initial={{ opacity: 0, y: 10 }}
+  2438→          animate={{ opacity: 1, y: 0 }}
+  2439→          transition={{ delay: 0.28 }}
+  2440→        >
+  2441→          <h3 className="font-bold text-warm-800 dark:text-warm-700 mb-3 flex items-center gap-2">
+  2442→            <IndianRupee className="w-4 h-4 text-emerald-500" />
+  2443→            Earnings Dashboard
+  2444→          </h3>
+  2445→          <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30">
+  2446→            <div className="grid grid-cols-2 gap-3 mb-3">
+  2447→              <div className="p-3 rounded-xl bg-white/80 dark:bg-warm-100/50 border border-emerald-100 dark:border-emerald-800/20">
+  2448→                <div className="flex items-center gap-1.5 mb-1">
+  2449→                  <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+  2450→                  <span className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wide">Total Revenue</span>
+  2451→                </div>
+  2452→                <p className="text-xl font-black text-emerald-700 dark:text-emerald-400">
+  2453→                  ₹{earnings?.totalRevenueINR?.toLocaleString() || '0'}
+  2454→                </p>
+  2455→              </div>
+  2456→              <div className="p-3 rounded-xl bg-white/80 dark:bg-warm-100/50 border border-emerald-100 dark:border-emerald-800/20">
+  2457→                <div className="flex items-center gap-1.5 mb-1">
+  2458→                  <TrendingUp className="w-3.5 h-3.5 text-teal-600" />
+  2459→                  <span className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wide">Last 30 Days</span>
+  2460→                </div>
+  2461→                <p className="text-xl font-black text-teal-700 dark:text-teal-400">
+  2462→                  ₹{earnings?.recentRevenueINR?.toLocaleString() || '0'}
+  2463→                </p>
+  2464→              </div>
+  2465→            </div>
+  2466→            <div className="grid grid-cols-3 gap-2">
+  2467→              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
+  2468→                <p className="text-xs text-warm-500 dark:text-warm-400">Monthly</p>
+  2469→                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.monthlyCount || 0}</p>
+  2470→              </div>
+  2471→              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
+  2472→                <p className="text-xs text-warm-500 dark:text-warm-400">Yearly</p>
+  2473→                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.yearlyCount || 0}</p>
+  2474→              </div>
+  2475→              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
+  2476→                <p className="text-xs text-warm-500 dark:text-warm-400">Lifetime</p>
+  2477→                <p className="text-base font-bold text-warm-800 dark:text-warm-700">{earnings?.lifetimeCount || 0}</p>
+  2478→              </div>
+  2479→            </div>
+  2480→            <div className="mt-3 flex items-center justify-between text-xs text-warm-500 dark:text-warm-400">
+  2481→              <span className="flex items-center gap-1">
+  2482→                <Users className="w-3 h-3" />
+  2483→                {earnings?.totalPayments || 0} premium subscribers
+  2484→              </span>
+  2485→              <span className="flex items-center gap-1">
+  2486→                <CreditCard className="w-3 h-3" />
+  2487→                Cashfree
+  2488→              </span>
+  2489→            </div>
+  2490→          </Card>
+  2491→        </motion.div>
+  2492→      )}
+  2493→
+  2494→      {/* ═══════════════════════════════════════════ */}
+  2495→      {/* 10. LOGOUT BUTTON with Confirmation Dialog */}
+  2496→      {/* ═══════════════════════════════════════════ */}
+  2497→      <motion.div
+  2498→        initial={{ opacity: 0, y: 10 }}
+  2499→        animate={{ opacity: 1, y: 0 }}
+
+[showing lines 2000-2499 of 2552; use offset=2500 with limit to continue reading]

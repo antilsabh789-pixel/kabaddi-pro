@@ -1,0 +1,816 @@
+     1→     1→import { create } from 'zustand';
+     2→     2→import { persist, createJSONStorage } from 'zustand/middleware';
+     3→     3→
+     4→     4→// Types
+     5→     5→export interface CurrentUser {
+     6→     6→  id: string;
+     7→     7→  phone: string;
+     8→     8→  playerCode?: string;
+     9→     9→  name?: string;
+    10→    10→  role: string;
+    11→    11→  avatar?: string;
+    12→    12→  gender?: string;
+    13→    13→  weight?: string;
+    14→    14→  practiceGround?: string;
+    15→    15→  position?: string;
+    16→    16→  jerseyNumber?: number;
+    17→    17→  email?: string;
+    18→    18→  isPremium?: boolean;
+    19→    19→  isAdmin?: boolean;
+    20→    20→  experienceLevel?: OnboardingExperience;
+    21→    21→  createdAt?: number;
+    22→    22→}
+    23→    23→
+    24→    24→export interface MatchPlayer {
+    25→    25→  id: string;
+    26→    26→  name: string;
+    27→    27→  jerseyNumber?: number;
+    28→    28→  playerCode?: string;
+    29→    29→  team: 'home' | 'away';
+    30→    30→}
+    31→    31→
+    32→    32→export interface MatchEvent {
+    33→    33→  id: string;
+    34→    34→  matchId?: string;
+    35→    35→  teamId: string;
+    36→    36→  playerId?: string;
+    37→    37→  eventType: EventType;
+    38→    38→  value: number;
+    39→    39→  details?: string;
+    40→    40→  half: number;
+    41→    41→  playerName?: string;
+    42→    42→  timestamp: number;
+    43→    43→}
+    44→    44→
+    45→    45→export type EventType =
+    46→    46→  | 'raid_point'
+    47→    47→  | 'bonus_point'
+    48→    48→  | 'tackle_point'
+    49→    49→  | 'super_raid'
+    50→    50→  | 'super_tackle'
+    51→    51→  | 'do_or_die_raid'
+    52→    52→  | 'all_out'
+    53→    53→  | 'empty_raid'
+    54→    54→  | 'substitution'
+    55→    55→  | 'timeout'
+    56→    56→  | 'yellow_card'
+    57→    57→  | 'red_card'
+    58→    58→  | 'green_card';
+    59→    59→
+    60→    60→export interface ActiveMatch {
+    61→    61→  id?: string;
+    62→    62→  homeTeamId: string;
+    63→    63→  awayTeamId: string;
+    64→    64→  homeTeam: string;
+    65→    65→  awayTeam: string;
+    66→    66→  homeTeamColor: string;
+    67→    67→  awayTeamColor: string;
+    68→    68→  isLive: boolean;
+    69→    69→  isPractice: boolean;
+    70→    70→  gender: string;
+    71→    71→  halfDuration: number;
+    72→    72→  playersPerSide: number;
+    73→    73→  currentHalf: number;
+    74→    74→  timer: number;
+    75→    75→  homeScore: number;
+    76→    76→  awayScore: number;
+    77→    77→  events: MatchEvent[];
+    78→    78→  homeLineup: MatchPlayer[];
+    79→    79→  awayLineup: MatchPlayer[];
+    80→    80→  raidQueue: 'home' | 'away';
+    81→    81→  isDoOrDie: boolean;
+    82→    82→  homeTimeouts: number;
+    83→    83→  awayTimeouts: number;
+    84→    84→  homeOutPlayers: number;
+    85→    85→  awayOutPlayers: number;
+    86→    86→  homeOutPlayerIds: string[];
+    87→    87→  awayOutPlayerIds: string[];
+    88→    88→}
+    89→    89→
+    90→    90→export type TabId = 'home' | 'tournaments' | 'quick-score' | 'profile';
+    91→    91→
+    92→    92→// Notification types
+    93→    93→export type NotificationType = 'match_start' | 'match_result' | 'achievement' | 'premium' | 'general';
+    94→    94→
+    95→    95→export interface AppNotification {
+    96→    96→  id: string;
+    97→    97→  type: NotificationType;
+    98→    98→  title: string;
+    99→    99→  description: string;
+   100→   100→  timestamp: number;
+   101→   101→  read: boolean;
+   102→   102→}
+   103→   103→
+   104→   104→export type Language = 'en' | 'hi';
+   105→   105→
+   106→   106→export type HomeData = Record<string, unknown> | null;
+   107→   107→
+   108→   108→export type OnboardingPosition = 'raider' | 'defender' | 'all-rounder';
+   109→   109→export type OnboardingExperience = 'beginner' | 'intermediate' | 'advanced';
+   110→   110→export type OnboardingWeightCategory = 'below-60' | '60-70' | '70-80' | '80-90' | 'above-90';
+   111→   111→
+   112→   112→export interface OnboardingProfile {
+   113→   113→  position: OnboardingPosition | null;
+   114→   114→  experience: OnboardingExperience | null;
+   115→   115→  weightCategory: OnboardingWeightCategory | null;
+   116→   116→  selectedTeamId: string | null;
+   117→   117→}
+   118→   118→
+   119→   119→// Team management types
+   120→   120→export type TeamFilter = 'my' | 'all';
+   121→   121→
+   122→   122→export interface TeamManagementState {
+   123→   123→  teamFilter: TeamFilter;
+   124→   124→  teamSearch: string;
+   125→   125→  selectedTeamId: string | null;
+   126→   126→  teamDetailOpen: boolean;
+   127→   127→}
+   128→   128→
+   129→   129→export interface CoachAcademy {
+   130→   130→  id: string;
+   131→   131→  name: string;
+   132→   132→  location: string;
+   133→   133→  groundName: string;
+   134→   134→  totalPlayers: number;
+   135→   135→  rules: {
+   136→   136→    sundayHoliday: boolean;
+   137→   137→    practiceSchedule: 'one-time' | 'both-time';
+   138→   138→    customRules: string[];
+   139→   139→  };
+   140→   140→  createdAt: number;
+   141→   141→}
+   142→   142→
+   143→   143→interface KabaddiState {
+   144→   144→  // Auth
+   145→   145→  isAuthenticated: boolean;
+   146→   146→  isOnboarded: boolean;
+   147→   147→  currentUser: CurrentUser | null;
+   148→   148→  hasSeenSplash: boolean;
+   149→   149→
+   150→   150→  // Navigation
+   151→   151→  activeTab: TabId;
+   152→   152→
+   153→   153→  // Active Match
+   154→   154→  activeMatch: ActiveMatch | null;
+   155→   155→
+   156→   156→  // Toss State
+   157→   157→  showToss: boolean;
+   158→   158→  tossMatchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'> | null;
+   159→   159→
+   160→   160→  // Home Data cache
+   161→   161→  homeData: HomeData;
+   162→   162→
+   163→   163→  // Notifications
+   164→   164→  notifications: AppNotification[];
+   165→   165→
+   166→   166→  // Language
+   167→   167→  language: Language;
+   168→   168→
+   169→   169→  // Onboarding
+   170→   170→  hasCompletedOnboarding: boolean;
+   171→   171→  onboardingProfile: OnboardingProfile;
+   172→   172→
+   173→   173→  // Team Management
+   174→   174→  teamManagement: TeamManagementState;
+   175→   175→
+   176→   176→  // Coach
+   177→   177→  coachAcademies: CoachAcademy[];
+   178→   178→  addCoachAcademy: (academy: Omit<CoachAcademy, 'id' | 'createdAt'>) => void;
+   179→   179→  removeCoachAcademy: (id: string) => void;
+   180→   180→  updateCoachAcademy: (id: string, data: Partial<CoachAcademy>) => void;
+   181→   181→
+   182→   182→  // Actions
+   183→   183→  login: (user: CurrentUser) => void;
+   184→   184→  logout: () => void;
+   185→   185→  setOnboarded: (value?: boolean) => void;
+   186→   186→  updateUser: (data: Partial<CurrentUser>) => void;
+   187→   187→  setActiveTab: (tab: TabId) => void;
+   188→   188→  setHasSeenSplash: (value: boolean) => void;
+   189→   189→  initiateToss: (matchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'>) => void;
+   190→   190→  cancelToss: () => void;
+   191→   191→  startMatch: (match: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'>, firstRaidTeam?: 'home' | 'away') => void;
+   192→   192→  endMatch: () => void;
+   193→   193→  updateScore: (team: 'home' | 'away', delta: number) => void;
+   194→   194→  addEvent: (event: Omit<MatchEvent, 'id' | 'timestamp'>) => void;
+   195→   195→  addBatchEvents: (events: Omit<MatchEvent, 'id' | 'timestamp'>[]) => void;
+   196→   196→  undoLastEvent: () => void;
+   197→   197→  undoLastRaid: () => void;
+   198→   198→  switchHalf: () => void;
+   199→   199→  setTimer: (time: number) => void;
+   200→   200→  setDoOrDie: (value: boolean) => void;
+   201→   201→  switchRaidQueue: () => void;
+   202→   202→  callTimeout: (team: 'home' | 'away') => void;
+   203→   203→  setOutPlayers: (team: 'home' | 'away', count: number) => void;
+   204→   204→  fetchHomeData: () => Promise<HomeData>;
+   205→   205→
+   206→   206→  // Notification actions
+   207→   207→  addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
+   208→   208→  markNotificationRead: (id: string) => void;
+   209→   209→  markAllRead: () => void;
+   210→   210→  clearNotifications: () => void;
+   211→   211→
+   212→   212→  // Language action
+   213→   213→  setLanguage: (lang: Language) => void;
+   214→   214→
+   215→   215→  // Onboarding actions
+   216→   216→  setHasCompletedOnboarding: (value: boolean) => void;
+   217→   217→  setOnboardingProfile: (profile: Partial<OnboardingProfile>) => void;
+   218→   218→  completeOnboarding: () => void;
+   219→   219→
+   220→   220→  // Team management actions
+   221→   221→  setTeamFilter: (filter: TeamFilter) => void;
+   222→   222→  setTeamSearch: (search: string) => void;
+   223→   223→  setSelectedTeamId: (teamId: string | null) => void;
+   224→   224→  setTeamDetailOpen: (open: boolean) => void;
+   225→   225→
+   226→   226→  // Match transfer / handoff
+   227→   227→  loadMatch: (match: ActiveMatch) => void;
+   228→   228→}
+   229→   229→
+   230→   230→/** Helper: determine which side a teamId belongs to in a match */
+   231→   231→function getTeamSide(match: ActiveMatch, teamId: string): 'home' | 'away' {
+   232→   232→  if (teamId === match.homeTeamId) return 'home';
+   233→   233→  return 'away';
+   234→   234→}
+   235→   235→
+   236→   236→/** Helper: recalculate scores, out counts, and out player IDs from a list of events */
+   237→   237→function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
+   238→   238→  let homeScore = 0;
+   239→   239→  let awayScore = 0;
+   240→   240→  let homeOutPlayers = 0;
+   241→   241→  let awayOutPlayers = 0;
+   242→   242→  let homeOutPlayerIds: string[] = [];
+   243→   243→  let awayOutPlayerIds: string[] = [];
+   244→   244→
+   245→   245→  for (const evt of events) {
+   246→   246→    const side = getTeamSide(match, evt.teamId);
+   247→   247→    const points = evt.value;
+   248→   248→    if (side === 'home') {
+   249→   249→      homeScore += points;
+   250→   250→    } else {
+   251→   251→      awayScore += points;
+   252→   252→    }
+   253→   253→
+   254→   254→    // Count-based out tracking (backward compat)
+   255→   255→    if (evt.eventType === 'tackle_point' || evt.eventType === 'super_tackle') {
+   256→   256→      if (side === 'home') {
+   257→   257→        awayOutPlayers = Math.min(match.playersPerSide, awayOutPlayers + 1);
+   258→   258→      } else {
+   259→   259→        homeOutPlayers = Math.min(match.playersPerSide, homeOutPlayers + 1);
+   260→   260→      }
+   261→   261→    }
+   262→   262→    if (evt.eventType === 'raid_point' || evt.eventType === 'bonus_point') {
+   263→   263→      if (side === 'home') {
+   264→   264→        homeOutPlayers = Math.max(0, homeOutPlayers - 1);
+   265→   265→      } else {
+   266→   266→        awayOutPlayers = Math.max(0, awayOutPlayers - 1);
+   267→   267→      }
+   268→   268→    }
+   269→   269→    if (evt.eventType === 'all_out') {
+   270→   270→      if (side === 'home') {
+   271→   271→        awayOutPlayers = 0;
+   272→   272→      } else {
+   273→   273→        homeOutPlayers = 0;
+   274→   274→      }
+   275→   275→    }
+   276→   276→
+   277→   277→    // ID-based out tracking
+   278→   278→    let details: Record<string, unknown> = {};
+   279→   279→    try { details = evt.details ? JSON.parse(evt.details) : {}; } catch { /* skip */ }
+   280→   280→
+   281→   281→    if (evt.eventType === 'raid_point') {
+   282→   282→      const touchedIds: string[] = (details.touchedPlayerIds as string[]) || [];
+   283→   283→      if (side === 'home') {
+   284→   284→        // Home team scored raid → away defenders go out
+   285→   285→        for (const tid of touchedIds) {
+   286→   286→          if (!awayOutPlayerIds.includes(tid)) {
+   287→   287→            awayOutPlayerIds = [...awayOutPlayerIds, tid];
+   288→   288→          }
+   289→   289→        }
+   290→   290→        // Home team revives players (first-out-first-in)
+   291→   291→        const reviveCount = Math.min(evt.value, homeOutPlayerIds.length);
+   292→   292→        if (reviveCount > 0) {
+   293→   293→          homeOutPlayerIds = homeOutPlayerIds.slice(reviveCount);
+   294→   294→        }
+   295→   295→      } else {
+   296→   296→        // Away team scored raid → home defenders go out
+   297→   297→        for (const tid of touchedIds) {
+   298→   298→          if (!homeOutPlayerIds.includes(tid)) {
+   299→   299→            homeOutPlayerIds = [...homeOutPlayerIds, tid];
+   300→   300→          }
+   301→   301→        }
+   302→   302→        const reviveCount = Math.min(evt.value, awayOutPlayerIds.length);
+   303→   303→        if (reviveCount > 0) {
+   304→   304→          awayOutPlayerIds = awayOutPlayerIds.slice(reviveCount);
+   305→   305→        }
+   306→   306→      }
+   307→   307→    }
+   308→   308→
+   309→   309→    if (evt.eventType === 'bonus_point') {
+   310→   310→      // One out player from scoring team revives
+   311→   311→      if (side === 'home' && homeOutPlayerIds.length > 0) {
+   312→   312→        homeOutPlayerIds = homeOutPlayerIds.slice(1);
+   313→   313→      } else if (side === 'away' && awayOutPlayerIds.length > 0) {
+   314→   314→        awayOutPlayerIds = awayOutPlayerIds.slice(1);
+   315→   315→      }
+   316→   316→    }
+   317→   317→
+   318→   318→    if (evt.eventType === 'tackle_point' || evt.eventType === 'super_tackle') {
+   319→   319→      // Raider goes out. The tackle is scored by the DEFENDING team.
+   320→   320→      // So the raider is from the OPPOSING team.
+   321→   321→      const raiderId = (details.raiderId as string) || evt.playerId;
+   322→   322→      if (side === 'home' && raiderId) {
+   323→   323→        // Home team scored tackle → away raider was caught → away raider goes out
+   324→   324→        if (!awayOutPlayerIds.includes(raiderId)) {
+   325→   325→          awayOutPlayerIds = [...awayOutPlayerIds, raiderId];
+   326→   326→        }
+   327→   327→      } else if (side === 'away' && raiderId) {
+   328→   328→        // Away team scored tackle → home raider was caught → home raider goes out
+   329→   329→        if (!homeOutPlayerIds.includes(raiderId)) {
+   330→   330→          homeOutPlayerIds = [...homeOutPlayerIds, raiderId];
+   331→   331→        }
+   332→   332→      }
+   333→   333→    }
+   334→   334→
+   335→   335→    if (evt.eventType === 'all_out') {
+   336→   336→      if (side === 'home') {
+   337→   337→        awayOutPlayerIds = [];
+   338→   338→      } else {
+   339→   339→        homeOutPlayerIds = [];
+   340→   340→      }
+   341→   341→    }
+   342→   342→  }
+   343→   343→
+   344→   344→  return { homeScore, awayScore, homeOutPlayers, awayOutPlayers, homeOutPlayerIds, awayOutPlayerIds };
+   345→   345→}
+   346→   346→
+   347→   347→/** Helper: determine raid queue from last raid event */
+   348→   348→function getRaidQueueFromEvents(match: ActiveMatch, events: MatchEvent[]): 'home' | 'away' {
+   349→   349→  const raidEventTypes = ['raid_point', 'tackle_point', 'super_tackle', 'empty_raid', 'bonus_point', 'do_or_die_raid'];
+   350→   350→  const lastRaidEvent = [...events].reverse().find(e => raidEventTypes.includes(e.eventType));
+   351→   351→  if (lastRaidEvent) {
+   352→   352→    return getTeamSide(match, lastRaidEvent.teamId) === 'home' ? 'away' : 'home';
+   353→   353→  }
+   354→   354→  return match.raidQueue;
+   355→   355→}
+   356→   356→
+   357→   357→export const useKabaddiStore = create<KabaddiState>()(
+   358→   358→  persist(
+   359→   359→    (set, get) => ({
+   360→   360→      // Auth initial state
+   361→   361→      isAuthenticated: false,
+   362→   362→      isOnboarded: false,
+   363→   363→      currentUser: null,
+   364→   364→      hasSeenSplash: false,
+   365→   365→
+   366→   366→      // Navigation initial state
+   367→   367→      activeTab: 'home' as TabId,
+   368→   368→
+   369→   369→      // Active match initial state
+   370→   370→      activeMatch: null,
+   371→   371→
+   372→   372→      // Toss initial state
+   373→   373→      showToss: false,
+   374→   374→      tossMatchConfig: null,
+   375→   375→
+   376→   376→      // Home data cache
+   377→   377→      homeData: null,
+   378→   378→
+   379→   379→      // Notifications
+   380→   380→      notifications: [],
+   381→   381→
+   382→   382→      // Language
+   383→   383→      language: 'en' as Language,
+   384→   384→
+   385→   385→      // Onboarding
+   386→   386→      hasCompletedOnboarding: false,
+   387→   387→      onboardingProfile: {
+   388→   388→        position: null,
+   389→   389→        experience: null,
+   390→   390→        weightCategory: null,
+   391→   391→        selectedTeamId: null,
+   392→   392→      },
+   393→   393→
+   394→   394→      // Team Management
+   395→   395→      teamManagement: {
+   396→   396→        teamFilter: 'my' as TeamFilter,
+   397→   397→        teamSearch: '',
+   398→   398→        selectedTeamId: null,
+   399→   399→        teamDetailOpen: false,
+   400→   400→      },
+   401→   401→
+   402→   402→      // Coach
+   403→   403→      coachAcademies: [],
+   404→   404→      addCoachAcademy: (academy) =>
+   405→   405→        set((state) => ({
+   406→   406→          coachAcademies: [
+   407→   407→            ...state.coachAcademies,
+   408→   408→            { ...academy, id: `coach_${Date.now()}`, createdAt: Date.now() },
+   409→   409→          ],
+   410→   410→        })),
+   411→   411→      removeCoachAcademy: (id) =>
+   412→   412→        set((state) => ({
+   413→   413→          coachAcademies: state.coachAcademies.filter((a) => a.id !== id),
+   414→   414→        })),
+   415→   415→      updateCoachAcademy: (id, data) =>
+   416→   416→        set((state) => ({
+   417→   417→          coachAcademies: state.coachAcademies.map((a) =>
+   418→   418→            a.id === id ? { ...a, ...data } : a
+   419→   419→          ),
+   420→   420→        })),
+   421→   421→
+   422→   422→      // Actions
+   423→   423→      login: (user) =>
+   424→   424→        set({
+   425→   425→          isAuthenticated: true,
+   426→   426→          isOnboarded: !!(user.name && user.gender),
+   427→   427→          currentUser: { ...user, createdAt: user.createdAt || Date.now() },
+   428→   428→        }),
+   429→   429→
+   430→   430→      logout: () =>
+   431→   431→        set({
+   432→   432→          isAuthenticated: false,
+   433→   433→          isOnboarded: false,
+   434→   434→          currentUser: null,
+   435→   435→          activeMatch: null,
+   436→   436→          activeTab: 'home' as TabId,
+   437→   437→          homeData: null,
+   438→   438→        }),
+   439→   439→
+   440→   440→      setOnboarded: (value = true) =>
+   441→   441→        set({ isOnboarded: value }),
+   442→   442→
+   443→   443→      updateUser: (data) =>
+   444→   444→        set((state) => ({
+   445→   445→          currentUser: state.currentUser
+   446→   446→            ? { ...state.currentUser, ...data }
+   447→   447→            : null,
+   448→   448→        })),
+   449→   449→
+   450→   450→      setActiveTab: (tab) => set({ activeTab: tab }),
+   451→   451→
+   452→   452→      setHasSeenSplash: (value: boolean) => set({ hasSeenSplash: value }),
+   453→   453→
+   454→   454→      initiateToss: (matchConfig) =>
+   455→   455→        set({
+   456→   456→          showToss: true,
+   457→   457→          tossMatchConfig: matchConfig,
+   458→   458→        }),
+   459→   459→
+   460→   460→      cancelToss: () =>
+   461→   461→        set({
+   462→   462→          showToss: false,
+   463→   463→          tossMatchConfig: null,
+   464→   464→        }),
+   465→   465→
+   466→   466→      startMatch: (match, firstRaidTeam) =>
+   467→   467→        set({
+   468→   468→          activeMatch: {
+   469→   469→            ...match,
+   470→   470→            isLive: true,
+   471→   471→            currentHalf: 1,
+   472→   472→            timer: match.halfDuration * 60,
+   473→   473→            homeScore: 0,
+   474→   474→            awayScore: 0,
+   475→   475→            events: [],
+   476→   476→            raidQueue: firstRaidTeam || 'home',
+   477→   477→            isDoOrDie: false,
+   478→   478→            homeTimeouts: 0,
+   479→   479→            awayTimeouts: 0,
+   480→   480→            homeOutPlayers: 0,
+   481→   481→            awayOutPlayers: 0,
+   482→   482→            homeOutPlayerIds: [],
+   483→   483→            awayOutPlayerIds: [],
+   484→   484→          },
+   485→   485→          activeTab: 'quick-score',
+   486→   486→          showToss: false,
+   487→   487→          tossMatchConfig: null,
+   488→   488→        }),
+   489→   489→
+   490→   490→      endMatch: () => set({ activeMatch: null }),
+   491→   491→
+   492→   492→      updateScore: (team, delta) =>
+   493→   493→        set((state) => {
+   494→   494→          if (!state.activeMatch) return {};
+   495→   495→          return {
+   496→   496→            activeMatch: {
+   497→   497→              ...state.activeMatch,
+   498→   498→              homeScore:
+   499→   499→                team === 'home'
+   500→   500→                  ? Math.max(0, state.activeMatch.homeScore + delta)
+   501→   501→                  : state.activeMatch.homeScore,
+   502→   502→              awayScore:
+   503→   503→                team === 'away'
+   504→   504→                  ? Math.max(0, state.activeMatch.awayScore + delta)
+   505→   505→                  : state.activeMatch.awayScore,
+   506→   506→            },
+   507→   507→          };
+   508→   508→        }),
+   509→   509→
+   510→   510→      addEvent: (event) =>
+   511→   511→        set((state) => {
+   512→   512→          if (!state.activeMatch) return {};
+   513→   513→          const newEvent: MatchEvent = {
+   514→   514→            ...event,
+   515→   515→            id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+   516→   516→            timestamp: Date.now(),
+   517→   517→          };
+   518→   518→          const updatedEvents = [...state.activeMatch.events, newEvent];
+   519→   519→
+   520→   520→          const calculated = recalculateFromEvents(state.activeMatch, updatedEvents);
+   521→   521→          const side = getTeamSide(state.activeMatch, event.teamId);
+   522→   522→
+   523→   523→          return {
+   524→   524→            activeMatch: {
+   525→   525→              ...state.activeMatch,
+   526→   526→              events: updatedEvents,
+   527→   527→              ...calculated,
+   528→   528→              raidQueue: side === 'home' ? 'away' : 'home',
+   529→   529→            },
+   530→   530→          };
+   531→   531→        }),
+   532→   532→
+   533→   533→      addBatchEvents: (events) =>
+   534→   534→        set((state) => {
+   535→   535→          if (!state.activeMatch || events.length === 0) return {};
+   536→   536→          const newEvents: MatchEvent[] = events.map((e, i) => ({
+   537→   537→            ...e,
+   538→   538→            id: `evt_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+   539→   539→            timestamp: Date.now() + i,
+   540→   540→          }));
+   541→   541→          const updatedEvents = [...state.activeMatch.events, ...newEvents];
+   542→   542→
+   543→   543→          const calculated = recalculateFromEvents(state.activeMatch, updatedEvents);
+   544→   544→          const raidQueue = getRaidQueueFromEvents(state.activeMatch, updatedEvents);
+   545→   545→
+   546→   546→          return {
+   547→   547→            activeMatch: {
+   548→   548→              ...state.activeMatch,
+   549→   549→              events: updatedEvents,
+   550→   550→              ...calculated,
+   551→   551→              raidQueue,
+   552→   552→            },
+   553→   553→          };
+   554→   554→        }),
+   555→   555→
+   556→   556→      undoLastEvent: () =>
+   557→   557→        set((state) => {
+   558→   558→          if (!state.activeMatch || state.activeMatch.events.length === 0) return {};
+   559→   559→          const events = [...state.activeMatch.events];
+   560→   560→          events.pop();
+   561→   561→
+   562→   562→          const calculated = recalculateFromEvents(state.activeMatch, events);
+   563→   563→          const raidQueue = getRaidQueueFromEvents(state.activeMatch, events);
+   564→   564→
+   565→   565→          return {
+   566→   566→            activeMatch: {
+   567→   567→              ...state.activeMatch,
+   568→   568→              events,
+   569→   569→              ...calculated,
+   570→   570→              raidQueue,
+   571→   571→            },
+   572→   572→          };
+   573→   573→        }),
+   574→   574→
+   575→   575→      undoLastRaid: () =>
+   576→   576→        set((state) => {
+   577→   577→          if (!state.activeMatch || state.activeMatch.events.length === 0) return {};
+   578→   578→
+   579→   579→          // Remove events until we've removed a complete "raid" (all events with same timestamp prefix)
+   580→   580→          // A raid batch has events with the same second in timestamp
+   581→   581→          const events = [...state.activeMatch.events];
+   582→   582→          if (events.length === 0) return {};
+   583→   583→
+   584→   584→          // Find the timestamp of the last event
+   585→   585→          const lastTimestamp = events[events.length - 1].timestamp;
+   586→   586→          // Remove all events that have the same timestamp (within 5ms for batch events)
+   587→   587→          while (events.length > 0 && Math.abs(events[events.length - 1].timestamp - lastTimestamp) < 10) {
+   588→   588→            events.pop();
+   589→   589→          }
+   590→   590→
+   591→   591→          const calculated = recalculateFromEvents(state.activeMatch, events);
+   592→   592→          const raidQueue = getRaidQueueFromEvents(state.activeMatch, events);
+   593→   593→
+   594→   594→          return {
+   595→   595→            activeMatch: {
+   596→   596→              ...state.activeMatch,
+   597→   597→              events,
+   598→   598→              ...calculated,
+   599→   599→              raidQueue,
+   600→   600→            },
+   601→   601→          };
+   602→   602→        }),
+   603→   603→
+   604→   604→      switchHalf: () =>
+   605→   605→        set((state) => {
+   606→   606→          if (!state.activeMatch) return {};
+   607→   607→          const newHalf = state.activeMatch.currentHalf === 1 ? 2 : 1;
+   608→   608→          return {
+   609→   609→            activeMatch: {
+   610→   610→              ...state.activeMatch,
+   611→   611→              currentHalf: newHalf,
+   612→   612→              timer: state.activeMatch.halfDuration * 60,
+   613→   613→              isDoOrDie: false,
+   614→   614→            },
+   615→   615→          };
+   616→   616→        }),
+   617→   617→
+   618→   618→      setTimer: (time) =>
+   619→   619→        set((state) => {
+   620→   620→          if (!state.activeMatch) return {};
+   621→   621→          return { activeMatch: { ...state.activeMatch, timer: time } };
+   622→   622→        }),
+   623→   623→
+   624→   624→      setDoOrDie: (value) =>
+   625→   625→        set((state) => {
+   626→   626→          if (!state.activeMatch) return {};
+   627→   627→          return { activeMatch: { ...state.activeMatch, isDoOrDie: value } };
+   628→   628→        }),
+   629→   629→
+   630→   630→      switchRaidQueue: () =>
+   631→   631→        set((state) => {
+   632→   632→          if (!state.activeMatch) return {};
+   633→   633→          return {
+   634→   634→            activeMatch: {
+   635→   635→              ...state.activeMatch,
+   636→   636→              raidQueue: state.activeMatch.raidQueue === 'home' ? 'away' : 'home',
+   637→   637→            },
+   638→   638→          };
+   639→   639→        }),
+   640→   640→
+   641→   641→      callTimeout: (team) =>
+   642→   642→        set((state) => {
+   643→   643→          if (!state.activeMatch) return {};
+   644→   644→          return {
+   645→   645→            activeMatch: {
+   646→   646→              ...state.activeMatch,
+   647→   647→              homeTimeouts:
+   648→   648→                team === 'home'
+   649→   649→                  ? state.activeMatch.homeTimeouts + 1
+   650→   650→                  : state.activeMatch.homeTimeouts,
+   651→   651→              awayTimeouts:
+   652→   652→                team === 'away'
+   653→   653→                  ? state.activeMatch.awayTimeouts + 1
+   654→   654→                  : state.activeMatch.awayTimeouts,
+   655→   655→            },
+   656→   656→          };
+   657→   657→        }),
+   658→   658→
+   659→   659→      setOutPlayers: (team, count) =>
+   660→   660→        set((state) => {
+   661→   661→          if (!state.activeMatch) return {};
+   662→   662→          return {
+   663→   663→            activeMatch: {
+   664→   664→              ...state.activeMatch,
+   665→   665→              homeOutPlayers: team === 'home' ? count : state.activeMatch.homeOutPlayers,
+   666→   666→              awayOutPlayers: team === 'away' ? count : state.activeMatch.awayOutPlayers,
+   667→   667→            },
+   668→   668→          };
+   669→   669→        }),
+   670→   670→
+   671→   671→      fetchHomeData: async () => {
+   672→   672→        try {
+   673→   673→          const res = await fetch('/api/stats');
+   674→   674→          if (!res.ok) throw new Error('Failed to fetch stats');
+   675→   675→
+   676→   676→          const data = await res.json();
+   677→   677→
+   678→   678→          // Cache in store
+   679→   679→          set({ homeData: data });
+   680→   680→          return data;
+   681→   681→        } catch (err) {
+   682→   682→          console.error('fetchHomeData error:', err);
+   683→   683→          return null;
+   684→   684→        }
+   685→   685→      },
+   686→   686→
+   687→   687→      // Notification actions
+   688→   688→      addNotification: (notification) =>
+   689→   689→        set((state) => ({
+   690→   690→          notifications: [
+   691→   691→            {
+   692→   692→              ...notification,
+   693→   693→              id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+   694→   694→              timestamp: Date.now(),
+   695→   695→              read: false,
+   696→   696→            },
+   697→   697→            ...state.notifications,
+   698→   698→          ].slice(0, 50), // Keep max 50 notifications
+   699→   699→        })),
+   700→   700→
+   701→   701→      markNotificationRead: (id) =>
+   702→   702→        set((state) => ({
+   703→   703→          notifications: state.notifications.map((n) =>
+   704→   704→            n.id === id ? { ...n, read: true } : n
+   705→   705→          ),
+   706→   706→        })),
+   707→   707→
+   708→   708→      markAllRead: () =>
+   709→   709→        set((state) => ({
+   710→   710→          notifications: state.notifications.map((n) => ({ ...n, read: true })),
+   711→   711→        })),
+   712→   712→
+   713→   713→      clearNotifications: () => set({ notifications: [] }),
+   714→   714→
+   715→   715→      setLanguage: (lang) => set({ language: lang }),
+   716→   716→
+   717→   717→      // Onboarding actions
+   718→   718→      setHasCompletedOnboarding: (value) => set({ hasCompletedOnboarding: value }),
+   719→   719→
+   720→   720→      setOnboardingProfile: (profile) =>
+   721→   721→        set((state) => ({
+   722→   722→          onboardingProfile: { ...state.onboardingProfile, ...profile },
+   723→   723→        })),
+   724→   724→
+   725→   725→      completeOnboarding: () =>
+   726→   726→        set((state) => ({
+   727→   727→          hasCompletedOnboarding: true,
+   728→   728→          currentUser: state.currentUser
+   729→   729→            ? {
+   730→   730→                ...state.currentUser,
+   731→   731→                ...(state.onboardingProfile.position && { role: state.onboardingProfile.position }),
+   732→   732→                ...(state.onboardingProfile.weightCategory && { weight: state.onboardingProfile.weightCategory }),
+   733→   733→                ...(state.onboardingProfile.experience && { experienceLevel: state.onboardingProfile.experience }),
+   734→   734→                createdAt: state.currentUser.createdAt || Date.now(),
+   735→   735→              }
+   736→   736→            : null,
+   737→   737→        })),
+   738→   738→
+   739→   739→      // Team management actions
+   740→   740→      setTeamFilter: (filter) =>
+   741→   741→        set((state) => ({
+   742→   742→          teamManagement: { ...state.teamManagement, teamFilter: filter },
+   743→   743→        })),
+   744→   744→
+   745→   745→      setTeamSearch: (search) =>
+   746→   746→        set((state) => ({
+   747→   747→          teamManagement: { ...state.teamManagement, teamSearch: search },
+   748→   748→        })),
+   749→   749→
+   750→   750→      setSelectedTeamId: (teamId) =>
+   751→   751→        set((state) => ({
+   752→   752→          teamManagement: { ...state.teamManagement, selectedTeamId: teamId },
+   753→   753→        })),
+   754→   754→
+   755→   755→      setTeamDetailOpen: (open) =>
+   756→   756→        set((state) => ({
+   757→   757→          teamManagement: { ...state.teamManagement, teamDetailOpen: open },
+   758→   758→        })),
+   759→   759→
+   760→   760→      // Match transfer / handoff — load a match from a transfer
+   761→   761→      loadMatch: (match) =>
+   762→   762→        set({
+   763→   763→          activeMatch: match,
+   764→   764→          activeTab: 'quick-score' as TabId,
+   765→   765→          showToss: false,
+   766→   766→          tossMatchConfig: null,
+   767→   767→        }),
+   768→   768→    }),
+   769→   769→    {
+   770→   770→      name: 'kabaddi-pro-storage',
+   771→   771→      storage: createJSONStorage(() => localStorage),
+   772→   772→      // Only persist auth-related fields and notifications
+   773→   773→      partialize: (state) => ({
+   774→   774→        isAuthenticated: state.isAuthenticated,
+   775→   775→        isOnboarded: state.isOnboarded,
+   776→   776→        currentUser: state.currentUser,
+   777→   777→        hasSeenSplash: state.hasSeenSplash,
+   778→   778→        notifications: state.notifications,
+   779→   779→        language: state.language,
+   780→   780→        hasCompletedOnboarding: state.hasCompletedOnboarding,
+   781→   781→        onboardingProfile: state.onboardingProfile,
+   782→   782→        coachAcademies: state.coachAcademies,
+   783→   783→      }),
+   784→   784→    }
+   785→   785→  )
+   786→   786→);
+   787→   787→
+   788→   788→export function getEventPoints(eventType: EventType): number {
+   789→   789→  switch (eventType) {
+   790→   790→    case 'raid_point':
+   791→   791→      return 1;
+   792→   792→    case 'bonus_point':
+   793→   793→      return 1;
+   794→   794→    case 'tackle_point':
+   795→   795→      return 1;
+   796→   796→    case 'super_raid':
+   797→   797→      return 1;
+   798→   798→    case 'super_tackle':
+   799→   799→      return 1;
+   800→   800→    case 'do_or_die_raid':
+   801→   801→      return 1;
+   802→   802→    case 'all_out':
+   803→   803→      return 2;
+   804→   804→    case 'empty_raid':
+   805→   805→      return 0;
+   806→   806→    case 'substitution':
+   807→   807→    case 'timeout':
+   808→   808→    case 'yellow_card':
+   809→   809→    case 'red_card':
+   810→   810→    case 'green_card':
+   811→   811→      return 0;
+   812→   812→    default:
+   813→   813→      return 0;
+   814→   814→  }
+   815→   815→}
+   816→   816→
