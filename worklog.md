@@ -541,3 +541,39 @@ Stage Summary:
 - ✅ All tabs rendering correctly on Vercel
 - ✅ Password reset flow end-to-end verified on Vercel
 - ✅ No console errors or 500 responses
+
+---
+Task ID: 17
+Agent: Main
+Task: Fix Cashfree payment_session_id_invalid error when buying premium
+
+Work Log:
+- Investigated the error: {"message":"payment_session_id is not present or is invalid","code":"payment_session_id_invalid","type":"request_failed"}
+- Root cause: URL/Environment mismatch between order creation and Cashfree SDK
+  - Old code: baseUrl defaulted to PRODUCTION (https://api.cashfree.com/pg)
+  - Old code: env defaulted to 'sandbox'
+  - Orders created on PRODUCTION API → session_id is for production
+  - Cashfree SDK opened in SANDBOX mode → tries to find production session in sandbox → FAILS
+- Also discovered: Cashfree sandbox URL was wrong
+  - Correct: https://sandbox.cashfree.com/pg
+  - Wrong (unreachable): https://sandbox-api.cashfree.com/pg
+- User's Cashfree credentials (appId prefix: 130290) are PRODUCTION credentials
+- They only authenticate with production API, not sandbox
+- Fixed getCashfreeConfig() in all 3 payment files (create-order, verify, webhook):
+  - Auto-selects sandbox/production URL based on CASHFREE_ENV
+  - Changed API version to 2023-08-01 (more stable)
+  - Correct sandbox URL: https://sandbox.cashfree.com/pg
+- Added payment diagnostic endpoint: GET /api/payments?diagnostic=true
+- Improved PremiumUpgradeScreen with better error handling and redirect fallback
+- Added console logging for payment debugging
+- Pushed to Vercel, verified diagnostic endpoint works
+
+Stage Summary:
+- ✅ Code fix deployed to Vercel
+- ⚠️ USER ACTION REQUIRED: Set CASHFREE_ENV=production in Vercel Environment Variables
+  - Go to Vercel Dashboard → Settings → Environment Variables
+  - Add: CASHFREE_ENV = production
+  - This tells the app to use production URL AND production SDK mode
+  - Without this, the app tries sandbox API which rejects the production credentials
+- ✅ Payment diagnostic endpoint available at /api/payments?diagnostic=true
+- ✅ Cashfree redirect URL fallback added if SDK checkout fails
