@@ -504,3 +504,40 @@ Stage Summary:
 - ✅ Beautiful UI with Framer Motion animations, branded red/gold theme
 - ✅ Responsive design with mobile-first approach
 - ✅ Offline indicator, notification panel, dark mode toggle
+
+---
+Task ID: 16
+Agent: Main
+Task: Verify Vercel deployment is up-to-date and working
+
+Work Log:
+- Checked git status: branch was ahead of origin/main by 2 commits (bug fixes + worklog)
+- Pushed both commits to GitHub (70bed02), which auto-triggers Vercel deployment
+- Tested all APIs on Vercel after deployment:
+  - ✅ /api/auth (register): Creates user + PlayerProfile successfully
+  - ✅ /api/auth (login): Returns user on correct credentials
+  - ✅ /api/auth (check-phone): Returns {exists: true/false} correctly
+  - ✅ /api/auth (forgot-password-verify): Returns verification token on correct DOB
+  - ✅ /api/auth (reset-password): Resets password successfully with valid token
+  - ✅ /api/players?search=: Returns 200 (was 500 before bug fix)
+  - ✅ /api/teams?search=: Returns 200 (was potentially 500 before fix)
+  - ✅ /api/tournaments?search=: Returns 200 (was potentially 500 before fix)
+  - ✅ /api/stats: Returns global stats
+- Browser tested on Vercel:
+  - ✅ Splash screen loads
+  - ✅ Login works (registered Vercel User KP1002)
+  - ✅ Onboarding wizard completes
+  - ✅ Home tab with Global Stats, Live Matches, Awards
+  - ✅ Tournaments tab with search, filters, premium prompt
+  - ✅ Quick Score tab with 5-step flow
+  - ✅ Profile tab with avatar, player code, stats, badges, settings
+- Full password reset flow tested on Vercel: verify DOB → reset password → login with new password ✅
+- Local dev logs: All 200 responses, no errors
+
+Stage Summary:
+- ✅ ALL latest code deployed to Vercel and working
+- ✅ Bug fix (SQLite mode:insensitive) is live on Vercel
+- ✅ All auth APIs working on Vercel (PostgreSQL)
+- ✅ All tabs rendering correctly on Vercel
+- ✅ Password reset flow end-to-end verified on Vercel
+- ✅ No console errors or 500 responses
