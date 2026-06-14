@@ -255,3 +255,54 @@ Stage Summary:
 - ✅ Fixed: OTP verification now correctly uses local verification for Fast2SMS
 - ✅ MSG91 server-side verify only used when OTP was sent via MSG91
 - Full sign-up flow should now work: Send OTP → Enter OTP → Verify → Set Password → Register
+
+---
+Task ID: 10
+Agent: Main
+Task: Upgrade Twilio to gold standard OTP provider
+
+Work Log:
+- User requested to try Twilio as OTP provider
+- Upgraded Twilio implementation in `src/lib/otp-provider.ts`:
+  - Added Twilio Verify as Method 1 (purpose-built for OTP, gold standard)
+  - Twilio Verify supports CustomCode (uses our own OTP for local verification compatibility)
+  - If CustomCode not supported, retries without it (Twilio auto-generates OTP)
+  - Direct SMS remains as Method 2 fallback
+  - Better error reporting with Twilio error codes
+  - Detailed logging for every step
+- Added Twilio Verify server-side OTP verification:
+  - `verifyOTPProvider()` now supports Twilio Verify's VerificationCheck API
+  - Checks `data.status === 'approved'` for valid OTP
+  - Falls back to local verification on network errors
+- Updated provider priority order:
+  - NEW: Twilio → Fast2SMS → MSG91 (was: MSG91 → Fast2SMS → Twilio)
+  - Twilio is now #1 priority when configured (most reliable for India)
+- Updated diagnostics to include Twilio-specific info:
+  - `hasTwilioVerifyService` and `hasTwilioPhoneNumber` fields
+  - Smart recommendations based on which providers are available
+- Updated `.env` with detailed Twilio setup instructions:
+  - Option A: Twilio Verify (recommended, no phone number needed)
+  - Option B: Direct SMS (fallback, needs phone number)
+- Updated `src/app/api/auth/route.ts` to pass provider method to verify function
+- Lint passes cleanly
+- Pushed to GitHub (commit: c85db7a), Vercel auto-deploying
+
+Stage Summary:
+- ✅ Twilio is now the GOLD STANDARD OTP provider (priority #1 when configured)
+- ✅ Twilio Verify: No DLT, works with ALL Indian carriers, server-side verification
+- ✅ Smart CustomCode support: uses our own OTP when possible, falls back to auto-generated
+- ⏳ User needs to set up Twilio and add env vars to Vercel
+- Fast2SMS still works as fallback
+- MSG91 still works as last resort
+
+SETUP INSTRUCTIONS FOR TWILIO:
+1. Sign up at https://twilio.com (free trial with $15+ credits)
+2. Go to Dashboard → copy Account SID and Auth Token
+3. Go to Verify → Services → Create Service → Name it "Kabaddi Pro"
+4. Copy the Service SID (starts with "VA...")
+5. Add these to Vercel Environment Variables:
+   - TWILIO_ACCOUNT_SID=(from Dashboard)
+   - TWILIO_AUTH_TOKEN=(from Dashboard)
+   - TWILIO_VERIFY_SERVICE_SID=(from Verify Service, starts with VA)
+   - OTP_PROVIDER=auto (or twilio)
+6. Redeploy
