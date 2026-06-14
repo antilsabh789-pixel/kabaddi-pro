@@ -118,3 +118,40 @@ Stage Summary:
   - Delete "MSG91_SENDER_ID" variable (if exists)
   - Redeploy (push any commit or click Redeploy)
 - Alternative: If user gets DLT approval for their template/sender, they can add them back
+
+---
+Task ID: 5
+Agent: Main
+Task: Fix OTP delivery - implement smart auto-fallback system and identify root cause
+
+Work Log:
+- User reported OTP still not being received on phone
+- Found OTP_PROVIDER was set to "fast2sms" but FAST2SMS_API_KEY was empty → OTP completely broken
+- MSG91 has credentials but API returns "success" without actually delivering SMS
+- Implemented Smart Auto-Fallback OTP System:
+  - New `OTP_PROVIDER=auto` mode tries ALL available providers in order
+  - Priority: Fast2SMS (no DLT, instant) → MSG91 → Twilio
+  - Each provider is tried in sequence until one succeeds
+  - All attempts are logged and returned for debugging
+- Added MSG91 Account Balance Check:
+  - Diagnostic endpoint now calls MSG91 balance API
+  - Result: **MSG91 SMS Balance = 0** (wallet has ₹50 but 0 SMS credits)
+  - This is the confirmed ROOT CAUSE: MSG91 accepts API requests but doesn't deliver SMS when credits are 0
+- Added Fast2SMS Quick route fallback (OTP route → Quick route)
+- Added MSG91 three-method cascade (Direct SMS → OTP API → Flow API)
+- Updated .env: OTP_PROVIDER=auto (was fast2sms with empty key)
+- Pushed to GitHub (commit: 89fab38), Vercel auto-deploying
+- Tested API locally: otp-status returns msg91Balance: 0, recommendation warns about 0 credits
+- Verified Vercel deployment loads correctly via agent-browser
+
+Stage Summary:
+- **ROOT CAUSE CONFIRMED**: MSG91 has 0 SMS credits (wallet ₹50 ≠ SMS credits)
+- Code deployed with smart auto-fallback: tries all providers automatically
+- User MUST do ONE of these:
+  1. **Best option**: Sign up at https://fast2sms.com → Get API key → Add FAST2SMS_API_KEY to Vercel env vars (₹50 free, no DLT needed)
+  2. **Alternative**: Purchase SMS credits on MSG91 (Dashboard → SMS → Buy Credits, NOT wallet top-up)
+  3. **Also**: Update OTP_PROVIDER to "auto" in Vercel env vars
+- Vercel env vars needed:
+  - OTP_PROVIDER=auto (update from current value)
+  - FAST2SMS_API_KEY=(get from fast2sms.com) — OPTIONAL but recommended
+  - MSG91_AUTH_KEY=528840AMmrbUJi0U4b6a2e3858P1 (already set)
