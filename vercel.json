@@ -2,9 +2,5 @@
   "buildCommand": "bash scripts/vercel-build.sh",
   "installCommand": "bun install",
   "framework": "nextjs",
-  "regions": ["bom1"],
-  "env": {
-    "OTP_PROVIDER": "msg91",
-    "OTP_TESTER_MODE": "true"
-  }
+  "regions": ["bom1"]
 }
