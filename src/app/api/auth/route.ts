@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { createHash } from 'crypto';
-import { sendOTP, verifyOTPProvider, isDemoMode } from '@/lib/otp-provider';
+import { sendOTP, verifyOTPProvider, isConfigured } from '@/lib/otp-provider';
 
 // Simple password hashing (for production, use bcrypt)
 function hashPassword(password: string): string {
@@ -31,7 +31,6 @@ async function generatePlayerCode(): Promise<string> {
 
 // ── In-memory OTP Store ─────────────────────────────────────────
 // Stores: phone → { otp, expiresAt, verified, attempts }
-// In production with MSG91/Twilio Verify, this can be replaced by provider-side verification
 const otpStore = new Map<string, {
   otp: string;
   expiresAt: number;
@@ -39,7 +38,7 @@ const otpStore = new Map<string, {
   attempts: number;
   maxAttempts: number;
   resendCount: number;
-  providerUsed: string; // track which provider sent this OTP
+  providerUsed: string;
 }>();
 
 // Lazy cleanup: remove expired OTPs on each access
@@ -75,16 +74,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, phone, password, name, gender, weight, practiceGround, role, email, userId, otp, verificationToken } = body;
 
-    // ── Check OTP Provider Status ────────────────────────────────
-    const demoMode = isDemoMode();
-    
     // Debug: Log the OTP configuration status
     console.log('[OTP Debug]', {
       provider: process.env.OTP_PROVIDER,
       hasAuthKey: !!process.env.MSG91_AUTH_KEY,
       hasTemplateId: !!process.env.MSG91_TEMPLATE_ID,
-      testerMode: process.env.OTP_TESTER_MODE,
-      isDemoMode: demoMode,
+      isConfigured: isConfigured(),
     });
 
     // ── Send Signup OTP ─────────────────────────────────────────
@@ -119,7 +114,7 @@ export async function POST(request: NextRequest) {
       const newOtp = generateOTP();
       const resendCount = existing ? existing.resendCount + 1 : 1;
 
-      // ── Send OTP via real provider ────────────────────────────
+      // ── Send OTP via real provider (MSG91) ─────────────────────
       const otpResult = await sendOTP(phone, newOtp);
 
       if (!otpResult.success) {
@@ -129,8 +124,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Store OTP locally for verification (even if provider does server-side verify,
-      // we keep a local copy as fallback)
+      // Store OTP locally for verification
       otpStore.set(phone, {
         otp: newOtp,
         expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
@@ -141,18 +135,11 @@ export async function POST(request: NextRequest) {
         providerUsed: otpResult.provider,
       });
 
-      // Only include demoOtp when explicitly in demo mode (OTP_PROVIDER=demo)
-      // NEVER show OTP on screen when MSG91 is configured — real SMS only
-      const isExplicitDemoMode = process.env.OTP_PROVIDER === 'demo';
-
       return NextResponse.json({
-        message: isExplicitDemoMode
-          ? 'OTP sent successfully (Demo Mode)'
-          : 'OTP sent successfully to your phone',
-        // Only include demoOtp when OTP_PROVIDER is explicitly set to 'demo'
-        ...(isExplicitDemoMode && otpResult.demoOtp ? { demoOtp: otpResult.demoOtp } : {}),
+        message: 'OTP sent successfully to your phone',
         resendCount,
         provider: otpResult.provider,
+        // NEVER include demoOtp - real SMS only
       });
     }
 
@@ -165,11 +152,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Try provider-side verification first (MSG91 / Twilio Verify)
+      // Try provider-side verification first (MSG91)
       const providerResult = await verifyOTPProvider(phone, otp);
       if (providerResult !== null) {
         if (providerResult.valid) {
-          // Provider verified the OTP successfully
           const stored = otpStore.get(phone);
           if (stored) stored.verified = true;
 
@@ -187,7 +173,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Fallback: Local verification (demo mode or direct SMS)
+      // Fallback: Local verification
       const stored = otpStore.get(phone);
       if (!stored) {
         return NextResponse.json(
@@ -407,35 +393,28 @@ export async function POST(request: NextRequest) {
 
       const user = await db.user.findUnique({ where: { phone } });
 
-      // Check rate limiting (always check, regardless of user existence)
+      // Check rate limiting
       const resetKey = `reset:${phone}`;
       const existing = otpStore.get(resetKey);
       if (existing && existing.resendCount >= 3 && existing.expiresAt > Date.now()) {
         const waitSeconds = Math.ceil((existing.expiresAt - Date.now()) / 1000);
-        // In demo mode, reveal the wait time to help testing
-        if (demoMode) {
-          return NextResponse.json({
-            message: `Too many OTP requests. Please wait ${waitSeconds}s and try again.`,
-            ...(existing.otp && demoMode ? { demoOtp: existing.otp } : {}),
-          });
-        }
         return NextResponse.json({ message: 'OTP sent if account exists' });
       }
 
-      // Generate and store OTP for password reset
-      // Always generate even if user doesn't exist (for demo mode & to not leak user existence)
+      // Generate OTP
       const newOtp = generateOTP();
 
-      // ── Send OTP via real provider (only if user exists in production) ──
+      // Send OTP via real provider (only if user exists)
       let otpResult;
-      if (user || demoMode) {
-        // In production: only send SMS if user exists
-        // In demo mode: always generate OTP for testing
+      if (user) {
         otpResult = await sendOTP(phone, newOtp);
+        if (!otpResult.success) {
+          // Don't reveal error details for security - just say sent
+          console.error('[Forgot Password] OTP send failed:', otpResult.message);
+        }
       } else {
-        // In production, user doesn't exist - don't actually send SMS
-        // but still generate an OTP to prevent timing attacks
-        otpResult = { success: true, message: 'Skipped', provider: 'none' };
+        // User doesn't exist - don't send SMS but don't reveal that
+        otpResult = { success: true, provider: 'none' };
       }
 
       const resendCount = existing ? existing.resendCount + 1 : 1;
@@ -449,13 +428,10 @@ export async function POST(request: NextRequest) {
         providerUsed: otpResult.provider,
       });
 
-      // Don't reveal if OTP was actually sent or if user exists
-      // Only include OTP in response when explicitly in demo mode
-      const isExplicitDemoMode = process.env.OTP_PROVIDER === 'demo';
+      // Don't reveal if user exists, NEVER show OTP on screen
       return NextResponse.json({
         message: 'OTP sent if account exists',
-        // Only return OTP in demo mode
-        ...(isExplicitDemoMode ? { demoOtp: newOtp } : {}),
+        // NO demoOtp field - real SMS only
       });
     }
 
@@ -598,9 +574,8 @@ export async function POST(request: NextRequest) {
 
     // ── Check OTP Provider Status (for frontend) ────────────────
     if (action === 'otp-status') {
-      const isExplicitDemoMode = process.env.OTP_PROVIDER === 'demo';
       const config = {
-        provider: process.env.OTP_PROVIDER || 'demo',
+        provider: process.env.OTP_PROVIDER || 'msg91',
         hasAuthKey: !!process.env.MSG91_AUTH_KEY,
         hasTemplateId: !!process.env.MSG91_TEMPLATE_ID,
       };
@@ -610,10 +585,10 @@ export async function POST(request: NextRequest) {
         if (!config.hasTemplateId) missing.push('MSG91_TEMPLATE_ID');
       }
       return NextResponse.json({
-        provider: isExplicitDemoMode ? 'demo' : (process.env.OTP_PROVIDER || 'demo'),
-        isDemo: isExplicitDemoMode,
+        provider: config.provider,
+        isDemo: false, // NEVER demo mode
+        isConfigured: isConfigured(),
         missingEnvVars: missing,
-        debug: config,
       });
     }
 

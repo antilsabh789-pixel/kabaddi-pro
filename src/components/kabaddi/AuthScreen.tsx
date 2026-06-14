@@ -6,7 +6,7 @@ import {
   Trophy, Shield, Megaphone, ChevronRight, ArrowLeft,
   Phone, Eye, EyeOff, User, Lock, Weight, MapPin,
   CircleDot, Zap, Check, Loader2, KeyRound, ArrowRight, Mail,
-  ShieldCheck, Smartphone, Timer, RefreshCw, MessageSquare
+  ShieldCheck, Smartphone, Timer, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -251,7 +251,7 @@ export default function AuthScreen() {
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
   const [verificationToken, setVerificationToken] = useState('');
-  const [demoOtp, setDemoOtp] = useState('');
+  // demoOtp removed - always real SMS only
   const [otpCountdownDone, setOtpCountdownDone] = useState(false);
   const [resendCount, setResendCount] = useState(0);
 
@@ -280,8 +280,7 @@ export default function AuthScreen() {
   const [forgotStage, setForgotStage] = useState<ForgotStage>('phone');
   const [forgotPhone, setForgotPhone] = useState('');
   const [otpValue, setOtpValue] = useState('');
-  const [forgotDemoOtp, setForgotDemoOtp] = useState('');
-  const [isOtpDemoMode, setIsOtpDemoMode] = useState(true); // true by default, fetched from backend
+  // forgotDemoOtp and isOtpDemoMode removed - always real SMS only
   const [forgotOtpCountdownDone, setForgotOtpCountdownDone] = useState(false);
   const [forgotResendCount, setForgotResendCount] = useState(0);
   const [newPassword, setNewPassword] = useState('');
@@ -302,28 +301,7 @@ export default function AuthScreen() {
     }
   }, [showForgot]);
 
-  // Check OTP provider status on mount
-  useEffect(() => {
-    fetch('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'otp-status' }),
-    })
-      .then(res => res.json())
-      .then(data => {
-        // Only show OTP on screen in genuine demo mode (no real provider configured)
-        // Tester mode is now disabled for production
-        const shouldShowOtp = data.isDemo === true;
-        setIsOtpDemoMode(shouldShowOtp);
-        // Log debug info if MSG91 is misconfigured
-        if (data.missingEnvVars?.length > 0) {
-          console.error('[OTP] Missing env vars:', data.missingEnvVars, '— falling back to demo mode');
-        }
-      })
-      .catch(() => {
-        setIsOtpDemoMode(true);
-      });
-  }, []);
+  // OTP provider status check removed - always real SMS, no demo mode
 
   const passwordStrength = getPasswordStrength(password);
 
@@ -378,8 +356,7 @@ export default function AuthScreen() {
       setOtpSent(true);
       setSignupStep('otp');
       setOtpCountdownDone(false);
-      setDemoOtp(data.demoOtp || '');
-      setIsOtpDemoMode(!!data.demoOtp && data.isDemo !== false); // Only show OTP if backend says it's demo mode
+      // No demo OTP - real SMS only
       setResendCount(data.resendCount || 1);
     } catch {
       setError('Something went wrong. Please try again.');
@@ -648,10 +625,9 @@ export default function AuthScreen() {
         return;
       }
       setForgotStage('otp');
-      setForgotDemoOtp(data.demoOtp || '');
+      // No demo OTP - real SMS only
       setForgotOtpCountdownDone(false);
       setForgotResendCount((prev) => prev + 1);
-      setIsOtpDemoMode(!!data.demoOtp);
     } catch {
       setForgotError('Something went wrong. Please try again.');
     } finally {
@@ -736,7 +712,6 @@ export default function AuthScreen() {
     setOtpSent(false);
     setOtpVerified(false);
     setSignupOtp('');
-    setDemoOtp('');
     setVerificationToken('');
     setConfirmPassword('');
     setTermsAccepted(false);
@@ -796,7 +771,6 @@ export default function AuthScreen() {
                 setNewPassword('');
                 setConfirmNewPassword('');
                 setForgotError('');
-                setForgotDemoOtp('');
                 setForgotOtpCountdownDone(false);
                 setForgotResendCount(0);
               }
@@ -810,7 +784,6 @@ export default function AuthScreen() {
                 setNewPassword('');
                 setConfirmNewPassword('');
                 setForgotError('');
-                setForgotDemoOtp('');
                 setForgotOtpCountdownDone(false);
                 setForgotResendCount(0);
               }
@@ -899,40 +872,20 @@ export default function AuthScreen() {
                       <OTPInput value={otpValue} onChange={setOtpValue} />
                     </div>
 
-                    {/* Real OTP Sent Confirmation */}
-                    {!isOtpDemoMode && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center gap-2.5 mb-3 px-3 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20"
-                      >
-                        <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-                          <Smartphone className="w-3.5 h-3.5 text-white" />
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">SMS Sent</p>
-                          <p className="text-[9px] text-emerald-600/70 dark:text-emerald-400/60">Check your phone for the code</p>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* Demo OTP Banner (only in demo mode) */}
-                    {isOtpDemoMode && forgotDemoOtp && (
-                      <div className="flex items-center justify-center gap-2 mb-3 px-3 py-2.5 rounded-lg bg-brand-gold/10 border border-brand-gold/20">
-                        <MessageSquare className="w-3.5 h-3.5 text-brand-gold shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-warm-400 dark:text-warm-500">Tester OTP</p>
-                          <p className="text-sm font-bold text-brand-gold-dark dark:text-brand-gold tracking-widest">{forgotDemoOtp}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setOtpValue(forgotDemoOtp)}
-                          className="ml-auto text-[10px] font-semibold text-brand-gold hover:text-brand-gold-dark dark:hover:text-brand-gold underline underline-offset-2"
-                        >
-                          Auto-fill
-                        </button>
+                    {/* Real SMS Sent Confirmation - always shown */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2.5 mb-3 px-3 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                        <Smartphone className="w-3.5 h-3.5 text-white" />
                       </div>
-                    )}
+                      <div>
+                        <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">SMS Sent</p>
+                        <p className="text-[9px] text-emerald-600/70 dark:text-emerald-400/60">Check your phone for the code</p>
+                      </div>
+                    </motion.div>
 
                     {/* Resend & Timer & Change Number */}
                     <div className="flex items-center justify-between mb-3">
@@ -955,7 +908,6 @@ export default function AuthScreen() {
                           setForgotStage('phone');
                           setOtpValue('');
                           setForgotError('');
-                          setForgotDemoOtp('');
                         }}
                         className="text-xs font-medium text-warm-400 hover:text-warm-600 dark:text-warm-500 dark:hover:text-warm-300 transition-colors"
                       >
@@ -1081,7 +1033,6 @@ export default function AuthScreen() {
                         setNewPassword('');
                         setConfirmNewPassword('');
                         setForgotError('');
-                        setForgotDemoOtp('');
                         setForgotOtpCountdownDone(false);
                         setForgotResendCount(0);
                       }}
@@ -1436,8 +1387,8 @@ export default function AuthScreen() {
                     <OTPInput value={signupOtp} onChange={setSignupOtp} />
                   </div>
 
-                  {/* Real OTP Sent Confirmation */}
-                  {!isOtpDemoMode && otpSent && (
+                  {/* Real SMS Sent Confirmation - always shown */}
+                  {otpSent && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1451,26 +1402,6 @@ export default function AuthScreen() {
                         <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/60">Check your phone for the 6-digit code</p>
                       </div>
                     </motion.div>
-                  )}
-
-                  {/* OTP Display (only shown in demo/tester mode) */}
-                  {isOtpDemoMode && demoOtp && (
-                    <div className="flex items-center justify-center gap-2 mb-4 px-3 py-2.5 rounded-xl bg-brand-gold/10 border border-brand-gold/20">
-                      <MessageSquare className="w-4 h-4 text-brand-gold shrink-0" />
-                      <div>
-                        <p className="text-[10px] text-warm-400 dark:text-warm-500">
-                          Demo OTP (for testing only)
-                        </p>
-                        <p className="text-sm font-bold text-brand-gold-dark dark:text-brand-gold tracking-widest">{demoOtp}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSignupOtp(demoOtp)}
-                        className="ml-auto text-[10px] font-semibold text-brand-gold hover:text-brand-gold-dark dark:hover:text-brand-gold underline underline-offset-2"
-                      >
-                        Auto-fill
-                      </button>
-                    </div>
                   )}
 
                   {/* Resend & Timer */}

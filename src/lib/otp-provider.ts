@@ -4,10 +4,12 @@
  * Supports:
  * - MSG91 (recommended for India) - https://msg91.com
  * - Twilio (global fallback) - https://twilio.com
- * - Demo mode (for development - OTP returned in API response)
+ * 
+ * NO DEMO MODE - Always uses real SMS providers.
+ * If credentials are missing, the OTP send will FAIL (not fall back to demo).
  * 
  * Setup:
- * 1. Set OTP_PROVIDER in .env (msg91 | twilio | demo)
+ * 1. Set OTP_PROVIDER in .env (msg91 | twilio)
  * 2. Add provider-specific credentials in .env
  * 3. Restart the dev server
  */
@@ -16,8 +18,6 @@
 export interface OTPResult {
   success: boolean;
   message: string;
-  /** Only available in demo mode - the OTP to display on screen */
-  demoOtp?: string;
   /** Provider that was used */
   provider: string;
   /** Request ID from the provider (for tracking) */
@@ -25,7 +25,7 @@ export interface OTPResult {
 }
 
 export interface OTPProviderConfig {
-  provider: 'msg91' | 'twilio' | 'demo';
+  provider: 'msg91' | 'twilio';
   // MSG91
   msg91AuthKey?: string;
   msg91TemplateId?: string;
@@ -39,7 +39,7 @@ export interface OTPProviderConfig {
 // ─── Provider Implementation ────────────────────────────────────
 
 function getConfig(): OTPProviderConfig {
-  const provider = (process.env.OTP_PROVIDER || 'demo').toLowerCase() as OTPProviderConfig['provider'];
+  const provider = (process.env.OTP_PROVIDER || 'msg91').toLowerCase() as OTPProviderConfig['provider'];
   return {
     provider,
     msg91AuthKey: process.env.MSG91_AUTH_KEY,
@@ -53,6 +53,7 @@ function getConfig(): OTPProviderConfig {
 
 /**
  * Validate that the selected provider has all required credentials
+ * Returns an error message if misconfigured, null if OK
  */
 function validateConfig(config: OTPProviderConfig): string | null {
   if (config.provider === 'msg91') {
@@ -62,7 +63,6 @@ function validateConfig(config: OTPProviderConfig): string | null {
   if (config.provider === 'twilio') {
     if (!config.twilioAccountSid) return 'TWILIO_ACCOUNT_SID is required when OTP_PROVIDER=twilio';
     if (!config.twilioAuthToken) return 'TWILIO_AUTH_TOKEN is required when OTP_PROVIDER=twilio';
-    // Verify Service SID is optional (we can use direct SMS if not provided)
   }
   return null;
 }
@@ -79,9 +79,6 @@ async function sendViaMSG91(
   const authKey = config.msg91AuthKey!;
   const templateId = config.msg91TemplateId!;
 
-  // MSG91 Send OTP API
-  // We use the "Send OTP" endpoint which handles OTP generation & sending
-  // Alternatively, we can use the transactional SMS API with our own OTP
   try {
     const response = await fetch('https://control.msg91.com/api/v5/otp', {
       method: 'POST',
@@ -216,7 +213,7 @@ async function sendViaTwilio(
     }
   }
 
-  // Fallback: Direct SMS via Twilio (sends our generated OTP in message)
+  // Fallback: Direct SMS via Twilio
   try {
     const fromNumber = config.twilioPhoneNumber;
     if (!fromNumber) {
@@ -282,7 +279,6 @@ async function verifyViaTwilio(
   const authToken = config.twilioAuthToken!;
 
   if (!config.twilioVerifyServiceSid) {
-    // If using direct SMS, we verify against our stored OTP (handled by the caller)
     return { valid: false, message: 'Local verification required' };
   }
 
@@ -315,33 +311,24 @@ async function verifyViaTwilio(
   }
 }
 
-// ─── Demo Provider ──────────────────────────────────────────────
-// For development only - returns OTP in response
-
-function sendViaDemo(otp: string): OTPResult {
-  console.log(`[Demo OTP] Code: ${otp}`);
-  return {
-    success: true,
-    message: 'OTP sent (demo mode)',
-    demoOtp: otp,
-    provider: 'demo',
-  };
-}
-
 // ─── Public API ─────────────────────────────────────────────────
 
 /**
- * Send an OTP to the given phone number
- * Uses the configured provider (MSG91, Twilio, or Demo)
+ * Send an OTP to the given phone number via real SMS provider.
+ * NO DEMO MODE - will fail if credentials are misconfigured.
  */
 export async function sendOTP(phone: string, otp: string): Promise<OTPResult> {
   const config = getConfig();
 
-  // Validate configuration
+  // Validate configuration - fail hard instead of falling back to demo
   const validationError = validateConfig(config);
   if (validationError) {
-    console.warn(`[OTP] Config warning: ${validationError}. Falling back to demo mode.`);
-    return sendViaDemo(otp);
+    console.error(`[OTP] Configuration error: ${validationError}`);
+    return {
+      success: false,
+      message: `OTP service is not configured: ${validationError}. Please contact support.`,
+      provider: config.provider,
+    };
   }
 
   switch (config.provider) {
@@ -349,9 +336,12 @@ export async function sendOTP(phone: string, otp: string): Promise<OTPResult> {
       return sendViaMSG91(phone, otp, config);
     case 'twilio':
       return sendViaTwilio(phone, otp, config);
-    case 'demo':
     default:
-      return sendViaDemo(otp);
+      return {
+        success: false,
+        message: `Unknown OTP provider: ${config.provider}`,
+        provider: config.provider,
+      };
   }
 }
 
@@ -375,20 +365,27 @@ export async function verifyOTPProvider(
       if (config.twilioVerifyServiceSid) {
         return verifyViaTwilio(phone, otp, config);
       }
-      return null; // Use local verification for direct SMS mode
-    case 'demo':
+      return null;
     default:
-      return null; // Demo uses local verification
+      return null;
   }
 }
 
 /**
- * Check if the app is running in demo OTP mode
+ * Check if OTP is properly configured (always returns false for demo mode now)
+ * This is kept for API compatibility but always returns false
  */
 export function isDemoMode(): boolean {
-  const provider = (process.env.OTP_PROVIDER || 'demo').toLowerCase();
+  // Never demo mode anymore - real SMS only
+  return false;
+}
+
+/**
+ * Check if OTP provider is properly configured
+ */
+export function isConfigured(): boolean {
   const config = getConfig();
-  return provider === 'demo' || !!validateConfig(config);
+  return validateConfig(config) === null;
 }
 
 /**
@@ -396,6 +393,6 @@ export function isDemoMode(): boolean {
  */
 export function getProviderName(): string {
   const config = getConfig();
-  if (validateConfig(config)) return 'Demo (misconfigured)';
+  if (validateConfig(config)) return 'Not Configured';
   return config.provider.toUpperCase();
 }
