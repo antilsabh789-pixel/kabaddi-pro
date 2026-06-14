@@ -125,66 +125,36 @@ async function sendViaFast2SMS(
 ): Promise<OTPResult> {
   const apiKey = config.fast2smsApiKey!;
   const mobile10 = sanitizePhone(phone);
+  const otpMessage = `${otp} is your Kabaddi Pro verification code. Do not share with anyone.`;
 
+  // ── Method 1: Quick SMS Route (BEST - no website verification needed) ──
   try {
-    // Method 1: OTP route (recommended - no DLT needed)
-    const requestBody = new URLSearchParams({
-      route: 'otp',
-      variables_values: otp,
+    const quickBody = new URLSearchParams({
+      route: 'q',                    // Quick route - works WITHOUT website verification
+      message: otpMessage,
+      language: 'english',
       numbers: mobile10,
       flash: '0',
     });
 
-    console.log('[Fast2SMS] Sending OTP to:', mobile10, 'route: otp');
+    console.log('[Fast2SMS] Method 1: Quick SMS to:', mobile10);
 
-    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+    const quickResponse = await fetch('https://www.fast2sms.com/dev/bulkV2', {
       method: 'POST',
       headers: {
         'Authorization': apiKey,
         'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'application/json',
       },
-      body: requestBody.toString(),
+      body: quickBody.toString(),
     });
 
-    const data = await response.json();
-    console.log('[Fast2SMS] API response:', JSON.stringify(data), 'HTTP:', response.status);
+    const quickData = await quickResponse.json();
+    console.log('[Fast2SMS] Quick route response:', JSON.stringify(quickData));
 
-    if (data.return === false) {
-      // OTP route failed, try Quick SMS route as fallback
-      console.warn('[Fast2SMS] OTP route failed, trying Quick route...');
-      
-      const quickBody = new URLSearchParams({
-        route: 'q',              // Quick route
-        message: `Your Kabaddi Pro verification code is ${otp}. Do not share with anyone.`,
-        language: 'english',
-        numbers: mobile10,
-        flash: '0',
-      });
-
-      const quickResponse = await fetch('https://www.fast2sms.com/dev/bulkV2', {
-        method: 'POST',
-        headers: {
-          'Authorization': apiKey,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
-        },
-        body: quickBody.toString(),
-      });
-
-      const quickData = await quickResponse.json();
-      console.log('[Fast2SMS] Quick route response:', JSON.stringify(quickData));
-
-      if (quickData.return === false) {
-        return {
-          success: false,
-          message: quickData.message || 'Fast2SMS Quick route also failed',
-          provider: 'fast2sms',
-          method: 'quick-route',
-          apiResponse: quickData,
-        };
-      }
-
+    // Fast2SMS returns { return: true } on success, { return: false } on failure
+    // Some error codes: 996 = website verification needed (OTP route only)
+    if (quickData.return === true) {
       return {
         success: true,
         message: 'OTP sent via Fast2SMS Quick route',
@@ -195,23 +165,103 @@ async function sendViaFast2SMS(
       };
     }
 
-    return {
-      success: true,
-      message: 'OTP sent via Fast2SMS OTP route',
-      provider: 'fast2sms',
-      requestId: data.request_id,
-      method: 'otp-route',
-      apiResponse: data,
-    };
+    console.warn('[Fast2SMS] Quick route failed:', quickData.message, 'status_code:', quickData.status_code);
   } catch (error) {
-    console.error('[Fast2SMS] Network error:', error);
-    return {
-      success: false,
-      message: 'Fast2SMS service unavailable',
-      provider: 'fast2sms',
-      method: 'otp-route',
-    };
+    console.error('[Fast2SMS] Quick route error:', error);
   }
+
+  // ── Method 2: OTP Route (requires website verification on Fast2SMS) ──
+  try {
+    const otpBody = new URLSearchParams({
+      route: 'otp',
+      variables_values: otp,
+      numbers: mobile10,
+      flash: '0',
+    });
+
+    console.log('[Fast2SMS] Method 2: OTP route to:', mobile10);
+
+    const otpResponse = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body: otpBody.toString(),
+    });
+
+    const otpData = await otpResponse.json();
+    console.log('[Fast2SMS] OTP route response:', JSON.stringify(otpData));
+
+    // Check for success - must have return: true AND no error status_code
+    if (otpData.return === true && otpData.status_code !== 996) {
+      return {
+        success: true,
+        message: 'OTP sent via Fast2SMS OTP route',
+        provider: 'fast2sms',
+        requestId: otpData.request_id,
+        method: 'otp-route',
+        apiResponse: otpData,
+      };
+    }
+
+    // OTP route requires website verification
+    console.warn('[Fast2SMS] OTP route failed:', otpData.message, 'status_code:', otpData.status_code);
+    console.warn('[Fast2SMS] OTP route needs website verification. Go to Fast2SMS Dashboard → OTP Message → Verify Website');
+  } catch (error) {
+    console.error('[Fast2SMS] OTP route error:', error);
+  }
+
+  // ── Method 3: DLT SMS Route (for DLT-registered users) ──
+  try {
+    const dltBody = new URLSearchParams({
+      route: 'dlt',                  // DLT route
+      message: otpMessage,
+      language: 'english',
+      numbers: mobile10,
+      flash: '0',
+      sender_id: 'FSTSMS',           // Fast2SMS default sender
+    });
+
+    console.log('[Fast2SMS] Method 3: DLT route to:', mobile10);
+
+    const dltResponse = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body: dltBody.toString(),
+    });
+
+    const dltData = await dltResponse.json();
+    console.log('[Fast2SMS] DLT route response:', JSON.stringify(dltData));
+
+    if (dltData.return === true) {
+      return {
+        success: true,
+        message: 'OTP sent via Fast2SMS DLT route',
+        provider: 'fast2sms',
+        requestId: dltData.request_id,
+        method: 'dlt-route',
+        apiResponse: dltData,
+      };
+    }
+
+    console.warn('[Fast2SMS] DLT route failed:', dltData.message);
+  } catch (error) {
+    console.error('[Fast2SMS] DLT route error:', error);
+  }
+
+  // All Fast2SMS methods failed
+  return {
+    success: false,
+    message: 'Fast2SMS: All routes failed. Quick route may need credits, OTP route needs website verification (Dashboard → OTP Message), DLT route needs registration.',
+    provider: 'fast2sms',
+    method: 'all-failed',
+  };
 }
 
 // ─── MSG91 Provider ─────────────────────────────────────────────
