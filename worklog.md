@@ -64,3 +64,26 @@ Stage Summary:
 - Build script now properly syncs Prisma schema on every deploy
 - Future deploys will preserve data (no more --force-reset)
 - Local SQLite also fresh and empty
+
+---
+Task ID: 3
+Agent: Main
+Task: Fix OTP not receiving on phone
+
+Work Log:
+- Tested MSG91 API directly - API returns "success" but SMS not delivered
+- Investigated: MSG91 OTP verify API works (OTP is stored on MSG91 servers)
+- Checked account balance: MSG91 transactional SMS balance = 0 (ZERO)
+- This is the ROOT CAUSE: API accepts the request but doesn't deliver SMS when balance is 0
+- Added MSG91_SENDER_ID (KPAPPS) to .env and OTP provider code
+- Made template_id optional in MSG91 - if not provided, uses MSG91's built-in OTP service
+- Added better logging for OTP debugging
+- Pushed fix to GitHub, Vercel auto-deployed
+- User needs to add SMS credits to MSG91 account for OTP to actually reach phones
+
+Stage Summary:
+- Code fix deployed: sender ID added, better MSG91 API integration
+- ROOT CAUSE IDENTIFIED: MSG91 account has 0 SMS balance
+- ACTION NEEDED: User must add SMS credits to their MSG91 account
+- Go to MSG91 Dashboard → Recharge/Add Credits → Add at least ₹100 for SMS delivery
+- MSG91 gives 50 free SMS on signup - may need to check if those were used already
