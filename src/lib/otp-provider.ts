@@ -2,16 +2,17 @@
  * OTP Provider Abstraction Layer
  * 
  * Supports:
- * - MSG91 (recommended for India) - https://msg91.com
+ * - Fast2SMS (recommended for India - NO DLT required!) - https://fast2sms.com
+ * - MSG91 (requires DLT registration) - https://msg91.com
  * - Twilio (global fallback) - https://twilio.com
  * 
  * NO DEMO MODE - Always uses real SMS providers.
- * If credentials are missing, the OTP send will FAIL (not fall back to demo).
  * 
- * MSG91 Delivery Methods (tried in order):
- * 1. Direct SMS API (/api/v2/sendsms) - most reliable, bypasses OTP app
- * 2. Flow API (/api/v5/flow/) - for DLT templates
- * 3. OTP API (/api/v5/otp) - MSG91 built-in OTP service (requires OTP app setup)
+ * IMPORTANT for India:
+ * - MSG91 requires DLT registration (Entity ID + Sender ID + Template + PE-TM Chain)
+ *   Without DLT, MSG91 API returns "success" but SMS is NEVER delivered
+ * - Fast2SMS works WITHOUT DLT registration using Quick SMS route
+ * - Fast2SMS gives ₹50 free credits on signup
  */
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -25,7 +26,9 @@ export interface OTPResult {
 }
 
 export interface OTPProviderConfig {
-  provider: 'msg91' | 'twilio';
+  provider: 'fast2sms' | 'msg91' | 'twilio';
+  // Fast2SMS
+  fast2smsApiKey?: string;
   // MSG91
   msg91AuthKey?: string;
   msg91TemplateId?: string;
@@ -39,9 +42,10 @@ export interface OTPProviderConfig {
 // ─── Provider Implementation ────────────────────────────────────
 
 function getConfig(): OTPProviderConfig {
-  const provider = (process.env.OTP_PROVIDER || 'msg91').toLowerCase() as OTPProviderConfig['provider'];
+  const provider = (process.env.OTP_PROVIDER || 'fast2sms').toLowerCase() as OTPProviderConfig['provider'];
   return {
     provider,
+    fast2smsApiKey: process.env.FAST2SMS_API_KEY,
     msg91AuthKey: process.env.MSG91_AUTH_KEY,
     msg91TemplateId: process.env.MSG91_TEMPLATE_ID,
     twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
@@ -52,6 +56,9 @@ function getConfig(): OTPProviderConfig {
 }
 
 function validateConfig(config: OTPProviderConfig): string | null {
+  if (config.provider === 'fast2sms') {
+    if (!config.fast2smsApiKey) return 'FAST2SMS_API_KEY is required when OTP_PROVIDER=fast2sms';
+  }
   if (config.provider === 'msg91') {
     if (!config.msg91AuthKey) return 'MSG91_AUTH_KEY is required when OTP_PROVIDER=msg91';
   }
@@ -63,59 +70,112 @@ function validateConfig(config: OTPProviderConfig): string | null {
 }
 
 /**
- * Sanitize phone number for MSG91 API
- * MSG91 expects: 91XXXXXXXXXX (no +, with country code)
- * For SMS API: XXXXXXXXXX (10 digits without country code)
+ * Sanitize phone number: ensure 10-digit Indian format
  */
-function sanitizePhoneForMSG91(phone: string): string {
+function sanitizePhone(phone: string): string {
   let cleaned = phone.replace(/[\s\-()]/g, '');
-  if (cleaned.startsWith('+')) cleaned = cleaned.substring(1);
-  if (cleaned.startsWith('0') && cleaned.length === 11) cleaned = '91' + cleaned.substring(1);
-  if (cleaned.length === 10 && /^\d{10}$/.test(cleaned)) cleaned = '91' + cleaned;
-  if (!/^91\d{10}$/.test(cleaned)) {
-    console.warn('[MSG91] Unexpected phone format:', cleaned, '(original:', phone, ')');
+  if (cleaned.startsWith('+91')) cleaned = cleaned.substring(3);
+  if (cleaned.startsWith('91') && cleaned.length === 12) cleaned = cleaned.substring(2);
+  if (cleaned.startsWith('0') && cleaned.length === 11) cleaned = cleaned.substring(1);
+  if (!/^\d{10}$/.test(cleaned)) {
+    console.warn('[OTP] Unexpected phone format:', cleaned, '(original:', phone, ')');
   }
   return cleaned;
 }
 
-/**
- * Extract 10-digit number from sanitized phone (91XXXXXXXXXX → XXXXXXXXXX)
- */
-function get10DigitPhone(phone: string): string {
-  const sanitized = sanitizePhoneForMSG91(phone);
-  if (sanitized.startsWith('91') && sanitized.length === 12) {
-    return sanitized.substring(2);
+// ─── Fast2SMS Provider ──────────────────────────────────────────
+// Fast2SMS is the BEST option for India:
+// - NO DLT registration required
+// - Quick SMS route delivers instantly
+// - ₹50 free credits on signup
+// - API: https://www.fast2sms.com/dev/api
+
+async function sendViaFast2SMS(
+  phone: string,
+  otp: string,
+  config: OTPProviderConfig
+): Promise<OTPResult> {
+  const apiKey = config.fast2smsApiKey!;
+  const mobile10 = sanitizePhone(phone);
+
+  try {
+    const requestBody = new URLSearchParams({
+      route: 'otp',              // Fast2SMS OTP route (no DLT needed)
+      variables_values: otp,      // The OTP value
+      numbers: mobile10,          // 10-digit mobile number
+      flash: '0',                 // Non-flash SMS
+    });
+
+    console.log('[Fast2SMS] Sending OTP to:', mobile10, 'route: otp');
+
+    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body: requestBody.toString(),
+    });
+
+    const data = await response.json();
+    console.log('[Fast2SMS] Full API response:', JSON.stringify(data), 'HTTP status:', response.status);
+
+    if (data.return === false) {
+      console.error('[Fast2SMS] Send failed:', data);
+      return {
+        success: false,
+        message: data.message || 'Failed to send OTP via Fast2SMS',
+        provider: 'fast2sms',
+        method: 'otp-route',
+        apiResponse: data,
+      };
+    }
+
+    console.log('[Fast2SMS] ✅ OTP sent successfully, request_id:', data.request_id);
+    return {
+      success: true,
+      message: 'OTP sent successfully via Fast2SMS',
+      provider: 'fast2sms',
+      requestId: data.request_id,
+      method: 'otp-route',
+      apiResponse: data,
+    };
+  } catch (error) {
+    console.error('[Fast2SMS] Network error:', error);
+    return {
+      success: false,
+      message: 'Fast2SMS service unavailable',
+      provider: 'fast2sms',
+      method: 'otp-route',
+    };
   }
-  return sanitized;
 }
 
-// ─── MSG91 Method 1: Direct SMS API ─────────────────────────────
-// This is the MOST RELIABLE method - sends a regular transactional SMS
-// Bypasses the OTP app entirely, works with just KYC + wallet balance
-// Uses MSG91's own approved sender ID
+// ─── MSG91 Provider (DLT required - fallback only) ──────────────
 
-async function sendViaMSG91DirectSMS(
+async function sendViaMSG91(
   phone: string,
   otp: string,
   config: OTPProviderConfig
 ): Promise<OTPResult> {
   const authKey = config.msg91AuthKey!;
-  const mobile10 = get10DigitPhone(phone);
+  const mobile10 = sanitizePhone(phone);
+  const mobileWithCC = '91' + mobile10;
 
+  // Try Direct SMS API first
   try {
     const requestBody = {
-      sender: 'MSG91',  // MSG91's own DLT-approved sender
-      route: '4',       // Route 4 = Transactional
+      sender: 'MSG91',
+      route: '4',
       country: '91',
-      sms: [
-        {
-          message: `Your Kabaddi Pro verification code is ${otp}. Do not share with anyone. Valid for 5 minutes.`,
-          to: [mobile10],
-        },
-      ],
+      sms: [{
+        message: `Your Kabaddi Pro verification code is ${otp}. Do not share. Valid 5 min.`,
+        to: [mobile10],
+      }],
     };
 
-    console.log('[MSG91 SMS] Sending direct SMS to:', mobile10, '(route: transactional)');
+    console.log('[MSG91] Sending SMS to:', mobile10, 'route: transactional');
 
     const response = await fetch('https://api.msg91.com/api/v2/sendsms', {
       method: 'POST',
@@ -127,255 +187,52 @@ async function sendViaMSG91DirectSMS(
     });
 
     const data = await response.json();
-    console.log('[MSG91 SMS] Full API response:', JSON.stringify(data), 'HTTP status:', response.status);
+    console.log('[MSG91] API response:', JSON.stringify(data));
 
     if (!response.ok || data.type === 'error') {
-      console.error('[MSG91 SMS] Send failed:', data);
+      console.error('[MSG91] Direct SMS failed, trying OTP API...');
+      
+      // Fallback to OTP API
+      const otpResponse = await fetch('https://control.msg91.com/api/v5/otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'authkey': authKey },
+        body: JSON.stringify({ mobile: mobileWithCC, otp: otp }),
+      });
+      const otpData = await otpResponse.json();
+      console.log('[MSG91] OTP API response:', JSON.stringify(otpData));
+
+      if (otpData.type === 'success') {
+        return {
+          success: true,
+          message: 'OTP sent via MSG91 OTP API (may not deliver without DLT)',
+          provider: 'msg91',
+          requestId: otpData.request_id,
+          method: 'otp-api',
+        };
+      }
+
       return {
         success: false,
-        message: data.message || data.msg || 'Failed to send SMS via MSG91',
+        message: 'All MSG91 methods failed. DLT registration required for delivery.',
         provider: 'msg91',
-        method: 'direct-sms',
-        apiResponse: data,
+        method: 'all-failed',
       };
     }
 
-    console.log('[MSG91 SMS] SMS sent successfully, message_id:', data.message);
     return {
       success: true,
-      message: 'OTP sent successfully via MSG91 SMS',
+      message: 'OTP sent via MSG91 Direct SMS',
       provider: 'msg91',
       requestId: data.message,
       method: 'direct-sms',
-      apiResponse: data,
     };
   } catch (error) {
-    console.error('[MSG91 SMS] Network error:', error);
+    console.error('[MSG91] Network error:', error);
     return {
       success: false,
-      message: 'MSG91 SMS service unavailable',
+      message: 'MSG91 service unavailable',
       provider: 'msg91',
-      method: 'direct-sms',
     };
-  }
-}
-
-// ─── MSG91 Method 2: Flow API ───────────────────────────────────
-// Uses DLT-approved template (requires MSG91_TEMPLATE_ID)
-
-async function sendViaMSG91Flow(
-  phone: string,
-  otp: string,
-  config: OTPProviderConfig
-): Promise<OTPResult> {
-  const authKey = config.msg91AuthKey!;
-  const sanitizedPhone = sanitizePhoneForMSG91(phone);
-  const templateId = config.msg91TemplateId;
-
-  if (!templateId) {
-    return {
-      success: false,
-      message: 'MSG91_TEMPLATE_ID required for Flow API',
-      provider: 'msg91',
-      method: 'flow',
-    };
-  }
-
-  try {
-    const requestBody = {
-      template_id: templateId,
-      short_url: 0,
-      recipients: [{ mobiles: sanitizedPhone, OTP: otp }],
-    };
-
-    console.log('[MSG91 Flow] Sending OTP via Flow to:', sanitizedPhone, 'template:', templateId);
-
-    const response = await fetch('https://control.msg91.com/api/v5/flow/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'authkey': authKey,
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const data = await response.json();
-    console.log('[MSG91 Flow] Full API response:', JSON.stringify(data), 'HTTP status:', response.status);
-
-    if (!response.ok || data.type === 'error') {
-      console.error('[MSG91 Flow] Send failed:', data);
-      return {
-        success: false,
-        message: data.message || data.msg || 'Failed to send via MSG91 Flow',
-        provider: 'msg91',
-        method: 'flow',
-        apiResponse: data,
-      };
-    }
-
-    return {
-      success: true,
-      message: 'OTP sent via MSG91 Flow',
-      provider: 'msg91',
-      requestId: data.message,
-      method: 'flow',
-      apiResponse: data,
-    };
-  } catch (error) {
-    console.error('[MSG91 Flow] Network error:', error);
-    return {
-      success: false,
-      message: 'MSG91 Flow unavailable',
-      provider: 'msg91',
-      method: 'flow',
-    };
-  }
-}
-
-// ─── MSG91 Method 3: OTP API ────────────────────────────────────
-// Uses MSG91's built-in OTP service (requires OTP app to be configured in dashboard)
-// This is the LEAST reliable method - often returns "success" but doesn't deliver
-
-async function sendViaMSG91OTP(
-  phone: string,
-  otp: string,
-  config: OTPProviderConfig
-): Promise<OTPResult> {
-  const authKey = config.msg91AuthKey!;
-  const sanitizedPhone = sanitizePhoneForMSG91(phone);
-
-  try {
-    const requestBody: Record<string, string> = {
-      mobile: sanitizedPhone,
-      otp: otp,
-    };
-
-    if (config.msg91TemplateId) {
-      requestBody.template_id = config.msg91TemplateId;
-      requestBody.OTP = otp;
-    }
-
-    console.log('[MSG91 OTP] Sending OTP to:', sanitizedPhone, 'template:', config.msg91TemplateId || 'built-in');
-
-    const response = await fetch('https://control.msg91.com/api/v5/otp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'authkey': authKey,
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const data = await response.json();
-    console.log('[MSG91 OTP] Full API response:', JSON.stringify(data), 'HTTP status:', response.status);
-
-    if (!response.ok || data.type === 'error') {
-      console.error('[MSG91 OTP] Send failed:', data);
-      return {
-        success: false,
-        message: data.message || 'Failed to send OTP via MSG91',
-        provider: 'msg91',
-        method: 'otp-api',
-        apiResponse: data,
-      };
-    }
-
-    return {
-      success: true,
-      message: 'OTP sent via MSG91 OTP API',
-      provider: 'msg91',
-      requestId: data.request_id,
-      method: 'otp-api',
-      apiResponse: data,
-    };
-  } catch (error) {
-    console.error('[MSG91 OTP] Network error:', error);
-    return {
-      success: false,
-      message: 'MSG91 OTP service unavailable',
-      provider: 'msg91',
-      method: 'otp-api',
-    };
-  }
-}
-
-// ─── MSG91 Combined Send ────────────────────────────────────────
-// Try methods in order of reliability:
-// 1. Direct SMS (most reliable, bypasses OTP app)
-// 2. Flow API (if template available)
-// 3. OTP API (least reliable, often silently fails)
-
-async function sendViaMSG91(
-  phone: string,
-  otp: string,
-  config: OTPProviderConfig
-): Promise<OTPResult> {
-  // Method 1: Direct SMS - always try this first
-  console.log('[MSG91] === Trying Method 1: Direct SMS API ===');
-  const smsResult = await sendViaMSG91DirectSMS(phone, otp, config);
-  if (smsResult.success) {
-    console.log('[MSG91] ✅ Direct SMS succeeded');
-    return smsResult;
-  }
-  console.log('[MSG91] ❌ Direct SMS failed:', smsResult.message);
-
-  // Method 2: Flow API (if template available)
-  if (config.msg91TemplateId) {
-    console.log('[MSG91] === Trying Method 2: Flow API ===');
-    const flowResult = await sendViaMSG91Flow(phone, otp, config);
-    if (flowResult.success) {
-      console.log('[MSG91] ✅ Flow API succeeded');
-      return flowResult;
-    }
-    console.log('[MSG91] ❌ Flow API failed:', flowResult.message);
-  }
-
-  // Method 3: OTP API (last resort)
-  console.log('[MSG91] === Trying Method 3: OTP API ===');
-  const otpResult = await sendViaMSG91OTP(phone, otp, config);
-  if (otpResult.success) {
-    console.log('[MSG91] ✅ OTP API succeeded (but may not deliver - check MSG91 dashboard)');
-    return otpResult;
-  }
-
-  console.log('[MSG91] ❌ ALL METHODS FAILED');
-  return {
-    success: false,
-    message: 'All MSG91 delivery methods failed. Please check MSG91 dashboard for errors.',
-    provider: 'msg91',
-    method: 'all-failed',
-  };
-}
-
-/**
- * Verify OTP using MSG91 Verify API
- * Note: Only works with OTP API method. For Direct SMS, we use local verification.
- */
-async function verifyViaMSG91(
-  phone: string,
-  otp: string,
-  config: OTPProviderConfig
-): Promise<{ valid: boolean; message: string }> {
-  const authKey = config.msg91AuthKey!;
-  const sanitizedPhone = sanitizePhoneForMSG91(phone);
-
-  try {
-    const response = await fetch(
-      `https://control.msg91.com/api/v5/otp/verify?mobile=${encodeURIComponent(sanitizedPhone)}&otp=${otp}`,
-      { method: 'GET', headers: { 'authkey': authKey } }
-    );
-
-    const data = await response.json();
-    console.log('[MSG91 Verify] Response:', JSON.stringify(data));
-
-    if (data.type === 'success' || data.message?.toLowerCase().includes('verified')) {
-      return { valid: true, message: 'OTP verified successfully' };
-    }
-
-    return { valid: false, message: data.message || 'Invalid OTP' };
-  } catch (error) {
-    console.error('[MSG91 Verify] Error:', error);
-    return { valid: false, message: 'Verification service unavailable' };
   }
 }
 
@@ -388,6 +245,7 @@ async function sendViaTwilio(
 ): Promise<OTPResult> {
   const accountSid = config.twilioAccountSid!;
   const authToken = config.twilioAuthToken!;
+  const fullPhone = phone.startsWith('+') ? phone : '+91' + sanitizePhone(phone);
 
   if (config.twilioVerifyServiceSid) {
     try {
@@ -399,16 +257,15 @@ async function sendViaTwilio(
             'Content-Type': 'application/x-www-form-urlencoded',
             'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
           },
-          body: new URLSearchParams({ To: phone, Channel: 'sms' }),
+          body: new URLSearchParams({ To: fullPhone, Channel: 'sms' }),
         }
       );
-
       const data = await response.json();
       if (!response.ok) {
         return { success: false, message: data.message || 'Failed via Twilio', provider: 'twilio' };
       }
       return { success: true, message: 'OTP sent via Twilio Verify', provider: 'twilio', requestId: data.sid };
-    } catch (error) {
+    } catch {
       return { success: false, message: 'Twilio unavailable', provider: 'twilio' };
     }
   }
@@ -427,9 +284,9 @@ async function sendViaTwilio(
           'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
         },
         body: new URLSearchParams({
-          To: phone,
+          To: fullPhone,
           From: config.twilioPhoneNumber,
-          Body: `Your Kabaddi Pro verification code is ${otp}. Do not share with anyone. Valid for 5 minutes.`,
+          Body: `Your Kabaddi Pro verification code is ${otp}. Do not share. Valid for 5 minutes.`,
         }),
       }
     );
@@ -438,34 +295,8 @@ async function sendViaTwilio(
       return { success: false, message: data.message || 'Failed via Twilio SMS', provider: 'twilio' };
     }
     return { success: true, message: 'OTP sent via Twilio SMS', provider: 'twilio', requestId: data.sid };
-  } catch (error) {
-    return { success: false, message: 'Twilio unavailable', provider: 'twilio' };
-  }
-}
-
-async function verifyViaTwilio(
-  phone: string,
-  otp: string,
-  config: OTPProviderConfig
-): Promise<{ valid: boolean; message: string }> {
-  if (!config.twilioVerifyServiceSid) return { valid: false, message: 'Local verification required' };
-  
-  try {
-    const response = await fetch(
-      `https://verify.twilio.com/v2/Services/${config.twilioVerifyServiceSid}/VerificationCheck`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic ' + Buffer.from(`${config.twilioAccountSid!}:${config.twilioAuthToken!}`).toString('base64'),
-        },
-        body: new URLSearchParams({ To: phone, Code: otp }),
-      }
-    );
-    const data = await response.json();
-    return data.status === 'approved' ? { valid: true, message: 'OTP verified' } : { valid: false, message: 'Invalid OTP' };
   } catch {
-    return { valid: false, message: 'Verification unavailable' };
+    return { success: false, message: 'Twilio unavailable', provider: 'twilio' };
   }
 }
 
@@ -484,6 +315,7 @@ export async function sendOTP(phone: string, otp: string): Promise<OTPResult> {
   }
 
   switch (config.provider) {
+    case 'fast2sms': return sendViaFast2SMS(phone, otp, config);
     case 'msg91': return sendViaMSG91(phone, otp, config);
     case 'twilio': return sendViaTwilio(phone, otp, config);
     default: return { success: false, message: `Unknown provider: ${config.provider}`, provider: config.provider };
@@ -494,14 +326,26 @@ export async function verifyOTPProvider(
   phone: string,
   otp: string
 ): Promise<{ valid: boolean; message: string } | null> {
+  // MSG91 verify only works with OTP API, Fast2SMS doesn't have server-side verify
+  // We use local verification instead for all providers
   const config = getConfig();
-  if (validateConfig(config)) return null;
-
-  switch (config.provider) {
-    case 'msg91': return verifyViaMSG91(phone, otp, config);
-    case 'twilio': return config.twilioVerifyServiceSid ? verifyViaTwilio(phone, otp, config) : null;
-    default: return null;
+  if (config.provider === 'msg91' && config.msg91AuthKey) {
+    const mobileWithCC = '91' + sanitizePhone(phone);
+    try {
+      const response = await fetch(
+        `https://control.msg91.com/api/v5/otp/verify?mobile=${encodeURIComponent(mobileWithCC)}&otp=${otp}`,
+        { method: 'GET', headers: { 'authkey': config.msg91AuthKey } }
+      );
+      const data = await response.json();
+      if (data.type === 'success' || data.message?.toLowerCase().includes('verified')) {
+        return { valid: true, message: 'OTP verified' };
+      }
+      return { valid: false, message: data.message || 'Invalid OTP' };
+    } catch {
+      return null;
+    }
   }
+  return null; // Use local verification for Fast2SMS and Twilio
 }
 
 export function isDemoMode(): boolean { return false; }
@@ -515,13 +359,13 @@ export function getDiagnosticInfo() {
   const config = getConfig();
   return {
     provider: config.provider,
-    hasAuthKey: !!config.msg91AuthKey,
-    hasTemplateId: !!config.msg91TemplateId,
-    templateId: config.msg91TemplateId || '(none)',
-    authKeyPrefix: config.msg91AuthKey ? config.msg91AuthKey.substring(0, 6) + '...' : '(missing)',
+    hasFast2smsKey: !!config.fast2smsApiKey,
+    hasMsg91AuthKey: !!config.msg91AuthKey,
+    hasMsg91TemplateId: !!config.msg91TemplateId,
     isConfigured: validateConfig(config) === null,
     validationError: validateConfig(config),
-    primaryMethod: 'direct-sms (most reliable)',
-    note: 'MSG91 requires: (1) KYC completed, (2) Wallet balance. Direct SMS bypasses OTP app.',
+    note: config.provider === 'fast2sms'
+      ? 'Fast2SMS: No DLT required, instant delivery. Get API key from https://fast2sms.com → Dev API'
+      : 'MSG91: DLT registration REQUIRED for SMS delivery in India. Without DLT, API returns success but SMS never delivers.',
   };
 }

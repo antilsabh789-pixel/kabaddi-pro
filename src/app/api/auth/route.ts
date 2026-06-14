@@ -77,8 +77,8 @@ export async function POST(request: NextRequest) {
     // Debug: Log the OTP configuration status
     console.log('[OTP Debug]', {
       provider: process.env.OTP_PROVIDER,
-      hasAuthKey: !!process.env.MSG91_AUTH_KEY,
-      hasTemplateId: !!process.env.MSG91_TEMPLATE_ID,
+      hasFast2smsKey: !!process.env.FAST2SMS_API_KEY,
+      hasMsg91AuthKey: !!process.env.MSG91_AUTH_KEY,
       isConfigured: isConfigured(),
     });
 
