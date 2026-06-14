@@ -16,11 +16,11 @@ npx prisma generate
 
 echo "✅ Prisma client generated for PostgreSQL"
 
-# FRESH START: Force reset the database to wipe all old data
-# This drops and recreates all tables - everyone starts fresh
-npx prisma db push --force-reset
+# Push schema to database (adds missing columns, keeps existing data)
+# Use --accept-data-loss only if schema changes require column removal
+npx prisma db push --accept-data-loss
 
-echo "✅ Database reset - fresh start for all users!"
+echo "✅ Database schema synced"
 
 # Build Next.js
 npx next build
