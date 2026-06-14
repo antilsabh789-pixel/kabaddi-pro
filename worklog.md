@@ -235,3 +235,23 @@ Stage Summary:
 - ⚠️ Some numbers may be on DND list (code:427) - this is a telecom restriction, not a bug
 - ⚠️ OTP route still needs website verification (code:996) - not critical since Quick route works
 - ⚠️ MSG91 still has 0 SMS credits - not an issue since Fast2SMS is primary
+
+---
+Task ID: 9
+Agent: Main
+Task: Fix "OTP request invalid" error during verification
+
+Work Log:
+- User received OTP but got "OTP request invalid" error when trying to verify
+- Root cause: verifyOTPProvider() was calling MSG91 verify API even when OTP was sent via Fast2SMS
+- MSG91 has no record of Fast2SMS OTPs, so it returned "invalid"
+- Fix: Added `providerUsed` parameter to verifyOTPProvider()
+  - Only calls MSG91 server-side verification when OTP was actually sent via MSG91
+  - For Fast2SMS/Twilio, uses local verification (OTP stored in server memory)
+- Updated both verify-signup-otp and verify-otp (forgot password) flows
+- Pushed fix (commit: 6755c65), Vercel deploying
+
+Stage Summary:
+- ✅ Fixed: OTP verification now correctly uses local verification for Fast2SMS
+- ✅ MSG91 server-side verify only used when OTP was sent via MSG91
+- Full sign-up flow should now work: Send OTP → Enter OTP → Verify → Set Password → Register
