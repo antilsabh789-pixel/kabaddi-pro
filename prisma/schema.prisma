@@ -46,6 +46,9 @@ model User {
   academies         Academy[]
   academyPlayers    AcademyPlayer[]
   attendances       Attendance[]
+  feeRecords        FeeRecord[]
+  rewards           StudentReward[]
+  parentContacts    ParentContact[]
 }
 
 model PlayerProfile {
@@ -496,8 +499,11 @@ model Academy {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  players     AcademyPlayer[]
-  attendance  Attendance[]
+  players        AcademyPlayer[]
+  attendance     Attendance[]
+  feeRecords     FeeRecord[]
+  rewards        StudentReward[]
+  parentContacts ParentContact[]
 
   @@map("academies")
 }
@@ -526,6 +532,58 @@ model Attendance {
 
   @@unique([academyId, userId, date])
   @@map("attendances")
+}
+
+// ─── Coach Business Models ─────────────────────────────────────
+
+model FeeRecord {
+  id          String   @id @default(cuid())
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  userId      String   // student user ID
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month       String   // e.g. "2025-01", "2025-02"
+  amount      Int      // amount in INR
+  status      String   @default("pending") // pending, paid, overdue
+  paidAt      DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([academyId, userId, month])
+  @@map("fee_records")
+}
+
+model StudentReward {
+  id          String   @id @default(cuid())
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  userId      String   // student user ID
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // player_of_month, best_raider, best_defender, custom
+  title       String
+  description String?
+  points      Int      @default(0)
+  month       String?  // e.g. "2025-01" for monthly awards
+  icon        String?  // emoji or icon name
+  createdAt   DateTime @default(now())
+
+  @@map("student_rewards")
+}
+
+model ParentContact {
+  id          String   @id @default(cuid())
+  userId      String   // student user ID
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  parentName  String
+  parentPhone String
+  relation    String   // father, mother, guardian
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, academyId])
+  @@map("parent_contacts")
 }
 
 // ─── Match Transfer / Scorer Handoff ─────────────────────────────

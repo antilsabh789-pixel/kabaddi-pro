@@ -653,3 +653,85 @@ Stage Summary:
 - ✅ Both main page.tsx and PremiumUpgradeScreen handle payment returns
 - ✅ Pushed to Vercel (commit: 5dc7a00)
 - ⏳ User should test payment flow on Vercel - the "Broken Link!" error should be gone
+
+---
+Task ID: 2
+Agent: Prisma + API Subagent
+Task: Update Prisma schema with coach models and create API routes
+
+Work Log:
+- Added FeeRecord, StudentReward, ParentContact models to Prisma schema
+- Updated User and Academy models with new relations
+- Ran db:push successfully
+- Created API routes for coach attendance, fees, rewards, parents
+
+Stage Summary:
+- Schema updated and pushed to database
+- 4 new API route files created
+
+---
+Task ID: 3
+Agent: CoachDashboard Subagent
+Task: Build comprehensive CoachDashboard component
+
+Work Log:
+- Read existing CoachesCornerScreen.tsx, store.ts, i18n.ts, PremiumLock.tsx for reference
+- Verified Prisma schema already has FeeRecord, StudentReward, ParentContact models
+- Pushed schema to DB (already in sync)
+- Created 4 new coach API routes:
+  - /api/coach/fees/route.ts - GET/POST/PUT fee records with monthly summaries
+  - /api/coach/rewards/route.ts - GET/POST rewards with leaderboard aggregation
+  - /api/coach/parents/route.ts - GET/POST parent contacts
+  - /api/coach/analytics/route.ts - GET analytics with attendance-performance, trends, fee pie data
+- Created CoachDashboard.tsx with 5 tabs:
+  - Academy Tab: list/create/detail academies, add/remove players, schedule settings
+  - Attendance Tab: date picker, bulk mark present/absent, one-tap toggle grid, save, notify parents
+  - Fees Tab: monthly overview, summary cards (collected/pending/overdue), fee records list, mark paid, add fee record, send reminders
+  - Rewards Tab: player of month, give reward form (4 types), points leaderboard, reward history
+  - Analytics Tab: attendance vs performance bar chart, monthly trend line chart, fee collection pie chart (PremiumLock), quick stats
+- Integrated recharts for analytics visualizations (BarChart, LineChart, PieChart)
+- Used glassmorphism styling with brand colors (brand-green for coach, brand-gold for rewards/premium)
+- Added framer-motion AnimatePresence for tab switches
+- Added PremiumLock on advanced analytics (fee pie chart)
+- Updated HomeTab.tsx to import CoachDashboard instead of CoachesCornerScreen
+- Lint passes cleanly, dev server compiles successfully
+
+Stage Summary:
+- Complete CoachDashboard component created with all 5 tabs
+- 4 new API routes for coach business features
+- Integrated into HomeTab (replaces CoachesCornerScreen)
+- Ready for use
+
+---
+Task ID: 19
+Agent: Main
+Task: Coach feature overhaul - signup flow, CoachDashboard, and integration
+
+Work Log:
+- Redesigned AuthScreen signup flow: auth → role (Player/Coach) → details (conditional)
+- Changed Stage type from 'auth'|'details'|'role' to 'auth'|'role'|'details'
+- Coach role now shows first, with feature preview (attendance, fees, rewards, analytics)
+- Coach details only asks for academy name and location (no gender/weight/position)
+- Player details shows full form (gender, weight, practice ground, position)
+- Updated Prisma schema with FeeRecord, StudentReward, ParentContact models
+- Created 5 API routes: /api/coach/attendance, /api/coach/fees, /api/coach/rewards, /api/coach/parents, /api/coach/analytics
+- Built comprehensive CoachDashboard component with 5 tabs:
+  - Academy: Create/manage academies, add players
+  - Attendance: One-tap bulk attendance grid, date picker, parental notification
+  - Fees: Monthly fee tracking, mark as paid, send reminders
+  - Rewards: Player of the Month, give rewards, points leaderboard
+  - Analytics: Attendance-performance charts, fee collection pie chart (premium locked)
+- Updated HomeTab: Prominent Coach Dashboard banner for coach users, green styling
+- Updated HomeTab: Coach Dashboard card now green with "YOUR HUB" badge for coaches
+- Coaches no longer need premium for basic coach features
+- Updated ProfileTab: Added Coach Dashboard shortcut for coach users in feature categories
+- Browser tested: Coach Dashboard renders correctly with all 5 tabs functional
+- Academy creation works, attendance/fees/rewards tabs show proper empty states
+- Lint passes clean
+
+Stage Summary:
+- Complete coach feature overhaul implemented
+- Signup flow now asks Player/Coach FIRST, then conditional details
+- CoachDashboard replaces CoachesCornerScreen with comprehensive features
+- 3 new Prisma models, 5 new API routes, 1 new component
+- Coach users see prominent green dashboard banner on home page

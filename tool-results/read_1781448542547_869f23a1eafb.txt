@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair } from 'lucide-react';
+     6→import { useKabaddiStore, type Language } from '@/lib/store';
+     7→import Portal from '@/components/portal';
+     8→import { useTheme } from 'next-themes';
+     9→import { Card } from '@/components/ui/card';
+    10→import { Button } from '@/components/ui/button';
+    11→import { Input } from '@/components/ui/input';
+    12→import { Badge } from '@/components/ui/badge';
+    13→import { useToast } from '@/hooks/use-toast';
+    14→import {
+    15→  Dialog,
+    16→  DialogContent,
+    17→  DialogHeader,
+    18→  DialogTitle,
+    19→  DialogTrigger,
+    20→} from '@/components/ui/dialog';
+    21→import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+    22→import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line } from 'recharts';
+    23→import PremiumUpgradeScreen from './PremiumUpgradeScreen';
+    24→import PremiumLock from './PremiumLock';
+    25→import TeamManagementScreen from './TeamManagementScreen';
+    26→import PlayerComparisonScreen from './PlayerComparisonScreen';
+    27→import AdvancedStatsScreen from './AdvancedStatsScreen';
+    28→import FollowScreen from './FollowScreen';
+    29→import AchievementsScreen from './AchievementsScreen';
+    30→import ChallengeScreen from './ChallengeScreen';
+    31→import GroundsScreen from './GroundsScreen';
+    32→import ReferralScreen from './ReferralScreen';
+    33→import AIInsightsScreen from './AIInsightsScreen';
+    34→import DataExportScreen from './DataExportScreen';
+    35→import SeasonScreen from './SeasonScreen';
+    36→import PollsScreen from './PollsScreen';
+    37→import SponsorScreen from './SponsorScreen';
+    38→import PlayerStatsScreen from './PlayerStatsScreen';
+    39→import PlayerProfileCard from './PlayerProfileCard';
+    40→import TeamChatScreen from './TeamChatScreen';
+    41→import DailyChallengeScreen from './DailyChallengeScreen';
+    42→import MatchHistoryTimeline from './MatchHistoryTimeline';
+    43→import { t } from '@/lib/i18n';
+    44→
+    45→const POSITIONS = [
+    46→  { id: 'left-raider', labelKey: 'positions.leftRaider', icon: '⬅️', meaning: 'Attacks from left side' },
+    47→  { id: 'right-raider', labelKey: 'positions.rightRaider', icon: '➡️', meaning: 'Attacks from right side' },
+    48→  { id: 'both-raider', labelKey: 'positions.bothRaider', icon: '↔️', meaning: 'Raids from both sides' },
+    49→  { id: 'left-corner', labelKey: 'positions.leftCorner', icon: '🛡️', meaning: 'Defends left corner' },
+    50→  { id: 'right-corner', labelKey: 'positions.rightCorner', icon: '🛡️', meaning: 'Defends right corner' },
+    51→  { id: 'left-cover', labelKey: 'positions.leftCover', icon: '🧱', meaning: 'Cover defender left side' },
+    52→  { id: 'right-cover', labelKey: 'positions.rightCover', icon: '🧱', meaning: 'Cover defender right side' },
+    53→  { id: 'all-rounder', labelKey: 'positions.allRounder', icon: '⭐', meaning: 'Excels in both raid & defense' },
+    54→];
+    55→
+    56→const WEIGHT_CATEGORIES = [
+    57→  { label: 'Under 60kg', value: '60kg' },
+    58→  { label: '60-70kg', value: '65kg' },
+    59→  { label: '70-80kg', value: '75kg' },
+    60→  { label: '80-90kg', value: '85kg' },
+    61→  { label: '90kg+', value: '95kg' },
+    62→];
+    63→
+    64→const PRACTICE_GROUNDS = [
+    65→  'Shivaji Stadium', 'Talkatora Indoor Stadium', 'Thyagaraj Sports Complex',
+    66→  'Indira Gandhi Indoor Stadium', 'Siri Fort Sports Complex', 'Chhatrasal Stadium',
+    67→  'Jawaharlal Nehru Stadium', 'Dr. Karni Singh Shooting Range', 'Other'
+    68→];
+    69→
+    70→interface RecentMatch {
+    71→  id: string;
+    72→  homeTeam: string;
+    73→  awayTeam: string;
+    74→  homeScore: number;
+    75→  awayScore: number;
+    76→  date: string;
+    77→  isPractice: boolean;
+    78→  userTeamSide: 'home' | 'away' | 'unknown';
+    79→  completedAt?: string;
+    80→}
+    81→
+    82→// ─── Animated Value (count-up on first view) ────────────────────
+    83→
+    84→function AnimatedValue({ value, decimals = 0 }: { value: number; decimals?: number }) {
+    85→  const [display, setDisplay] = useState(0);
+    86→  const [hasAnimated, setHasAnimated] = useState(false);
+    87→  const ref = useRef<HTMLSpanElement>(null);
+    88→  const valueRef = useRef(value);
+    89→
+    90→  useEffect(() => {
+    91→    valueRef.current = value;
+    92→  }, [value]);
+    93→
+    94→  useEffect(() => {
+    95→    if (hasAnimated) return;
+    96→    if (value === 0) return;
+    97→
+    98→    const observer = new IntersectionObserver(
+    99→      ([entry]) => {
+   100→        if (entry.isIntersecting && !hasAnimated) {
+   101→          setHasAnimated(true);
+   102→          const targetVal = valueRef.current;
+   103→          const duration = 1200;
+   104→          const startTime = performance.now();
+   105→
+   106→          function step(currentTime: number) {
+   107→            const elapsed = currentTime - startTime;
+   108→            const progress = Math.min(elapsed / duration, 1);
+   109→            const eased = 1 - Math.pow(1 - progress, 3);
+   110→            const current = eased * targetVal;
+   111→            setDisplay(decimals > 0 ? parseFloat(current.toFixed(decimals)) : Math.round(current));
+   112→            if (progress < 1) {
+   113→              requestAnimationFrame(step);
+   114→            }
+   115→          }
+   116→
+   117→          requestAnimationFrame(step);
+   118→        }
+   119→      },
+   120→      { threshold: 0.1 }
+   121→    );
+   122→
+   123→    if (ref.current) observer.observe(ref.current);
+   124→    return () => observer.disconnect();
+   125→  }, [value, decimals, hasAnimated]);
+   126→
+   127→  return <span ref={ref}>{hasAnimated ? (decimals > 0 ? display.toFixed(decimals) : display) : value}</span>;
+   128→}
+   129→
+   130→// ─── Sparkline Mini Chart ────────────────────
+   131→
+   132→function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+   133→  const chartData = data.map((v, i) => ({ x: i, y: v }));
+   134→  return (
+   135→    <div className="w-16 h-6">
+   136→      <ResponsiveContainer width="100%" height="100%">
+   137→        <LineChart data={chartData}>
+   138→          <Line type="monotone" dataKey="y" stroke={color} strokeWidth={1.5} dot={false} />
+   139→        </LineChart>
+   140→      </ResponsiveContainer>
+   141→    </div>
+   142→  );
+   143→}
+   144→
+   145→// ─── Time Ago helper ────────────────────
+   146→
+   147→function timeAgo(dateStr: string): string {
+   148→  if (!dateStr || dateStr === '—') return '';
+   149→  try {
+   150→    const date = new Date(dateStr);
+   151→    if (isNaN(date.getTime())) return dateStr;
+   152→    const now = new Date();
+   153→    const diff = now.getTime() - date.getTime();
+   154→    const mins = Math.floor(diff / 60000);
+   155→    if (mins < 60) return mins <= 1 ? 'just now' : `${mins}m ago`;
+   156→    const hours = Math.floor(mins / 60);
+   157→    if (hours < 24) return `${hours}h ago`;
+   158→    const days = Math.floor(hours / 24);
+   159→    if (days < 7) return `${days}d ago`;
+   160→    const weeks = Math.floor(days / 7);
+   161→    if (weeks < 4) return `${weeks}w ago`;
+   162→    return dateStr;
+   163→  } catch {
+   164→    return dateStr;
+   165→  }
+   166→}
+   167→
+   168→// ─── Level/Rank helper ────────────────────
+   169→
+   170→function getPlayerLevel(totalMatches: number, totalPoints: number): { label: string; color: string; icon: string; progress: number } {
+   171→  const score = totalMatches * 2 + totalPoints;
+   172→  if (score >= 500) return { label: 'Legend', color: 'from-amber-400 to-yellow-600', icon: '👑', progress: 100 };
+   173→  if (score >= 200) return { label: 'Pro', color: 'from-red-500 to-orange-500', icon: '🔥', progress: Math.min(((score - 200) / 300) * 100, 100) };
+   174→  if (score >= 50) return { label: 'Intermediate', color: 'from-teal-500 to-emerald-500', icon: '⚡', progress: Math.min(((score - 50) / 150) * 100, 100) };
+   175→  return { label: 'Beginner', color: 'from-slate-400 to-slate-500', icon: '🌱', progress: Math.min((score / 50) * 100, 100) };
+   176→}
+   177→
+   178→export default function ProfileTab() {
+   179→  const { currentUser, updateUser, logout } = useKabaddiStore();
+   180→  const language = useKabaddiStore((s) => s.language);
+   181→  const setLanguage = useKabaddiStore((s) => s.setLanguage);
+   182→  const { toast } = useToast();
+   183→  const fileInputRef = useRef<HTMLInputElement>(null);
+   184→  const [uploading, setUploading] = useState(false);
+   185→  const [editOpen, setEditOpen] = useState(false);
+   186→  const [showUpgrade, setShowUpgrade] = useState(false);
+   187→  const [showTeamManagement, setShowTeamManagement] = useState(false);
+   188→  const [showPlayerComparison, setShowPlayerComparison] = useState(false);
+   189→  const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+   190→  const [showFollow, setShowFollow] = useState(false);
+   191→  const [showAchievements, setShowAchievements] = useState(false);
+   192→  const [showChallenges, setShowChallenges] = useState(false);
+   193→  const [showGrounds, setShowGrounds] = useState(false);
+   194→  const [showReferral, setShowReferral] = useState(false);
+   195→  const [showAIInsights, setShowAIInsights] = useState(false);
+   196→  const [showDataExport, setShowDataExport] = useState(false);
+   197→  const [showSeason, setShowSeason] = useState(false);
+   198→  const [showPolls, setShowPolls] = useState(false);
+   199→  const [showSponsors, setShowSponsors] = useState(false);
+   200→  const [showStats, setShowStats] = useState(false);
+   201→  const [showProfileCard, setShowProfileCard] = useState(false);
+   202→  const [showTeamChat, setShowTeamChat] = useState(false);
+   203→  const [showDailyChallenge, setShowDailyChallenge] = useState(false);
+   204→  const { theme, setTheme } = useTheme();
+   205→  const darkMode = theme === 'dark';
+   206→  const [editForm, setEditForm] = useState({
+   207→    gender: currentUser?.gender || '',
+   208→    weight: currentUser?.weight?.replace('kg', '') || '',
+   209→    practiceGround: currentUser?.practiceGround || '',
+   210→    position: '',
+   211→    jerseyNumber: '',
+   212→  });
+   213→  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+   214→  const [groundSearch, setGroundSearch] = useState('');
+   215→  const [showGroundSuggestions, setShowGroundSuggestions] = useState(false);
+   216→  const [earnings, setEarnings] = useState<{
+   217→    totalRevenueINR: number;
+   218→    totalPayments: number;
+   219→    monthlyCount: number;
+   220→    yearlyCount: number;
+   221→    lifetimeCount: number;
+   222→    recentRevenueINR: number;
+   223→    recentPaymentsCount: number;
+   224→  } | null>(null);
+   225→
+   226→  const [profileData, setProfileData] = useState({
+   227→    totalRaids: 0,
+   228→    successfulRaids: 0,
+   229→    totalTackles: 0,
+   230→    successfulTackles: 0,
+   231→    bonusPoints: 0,
+   232→    superTackles: 0,
+   233→    overallRating: 0,
+   234→    position: null as string | null,
+   235→    jerseyNumber: null as number | null,
+   236→    playerCode: null as string | null,
+   237→    tournamentMatches: 0,
+   238→    tournamentRaidPoints: 0,
+   239→    tournamentTacklePoints: 0,
+   240→    tournamentTotalPoints: 0,
+   241→    practiceMatches: 0,
+   242→    practiceRaidPoints: 0,
+   243→    practiceTacklePoints: 0,
+   244→    practiceTotalPoints: 0,
+   245→    // User fields from API for syncing
+   246→    userWeight: null as string | null,
+   247→    userGender: null as string | null,
+   248→    userPracticeGround: null as string | null,
+   249→  });
+   250→  const [profileNotFound, setProfileNotFound] = useState(false); // kept for data loading logic but UI card removed
+   251→  const [showPhone, setShowPhone] = useState(false);
+   252→  const [codeCopied, setCodeCopied] = useState(false);
+   253→  const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
+   254→  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+   255→
+   256→  // Member since date - use createdAt timestamp, fallback to 30 days ago
+   257→  const memberSince = currentUser?.createdAt ? new Date(currentUser.createdAt) : new Date(Date.now() - 30 * 86400000);
+   258→
+   259→  const isPremium = currentUser?.isPremium || false;
+   260→
+   261→  const handleCopyCode = () => {
+   262→    const code = profileData.playerCode || currentUser?.playerCode;
+   263→    if (code) {
+   264→      navigator.clipboard.writeText(code).then(() => {
+   265→        setCodeCopied(true);
+   266→        setTimeout(() => setCodeCopied(false), 2000);
+   267→      }).catch(() => {
+   268→        toast({ title: 'Code: ' + code });
+   269→      });
+   270→    }
+   271→  };
+   272→
+   273→  // Load profile data from API
+   274→  const loadProfile = useCallback(async (userId: string) => {
+   275→    try {
+   276→      const res = await fetch(`/api/players/${userId}`);
+   277→      if (res.status === 404) {
+   278→        // Player record doesn't exist yet — return 'not-found' sentinel
+   279→        return 'not-found' as const;
+   280→      }
+   281→      if (res.ok) {
+   282→        const data = await res.json();
+   283→        const fetchedPlayerCode = data.player?.playerCode || null;
+   284→
+   285→        if (data.profile) {
+   286→          return {
+   287→            totalRaids: data.profile.totalRaids || 0,
+   288→            successfulRaids: data.profile.successfulRaids || 0,
+   289→            totalTackles: data.profile.totalTackles || 0,
+   290→            successfulTackles: data.profile.successfulTackles || 0,
+   291→            bonusPoints: data.profile.bonusPoints || 0,
+   292→            superTackles: data.profile.superTackles || 0,
+   293→            overallRating: data.profile.overallRating || 0,
+   294→            position: data.profile.position || null,
+   295→            jerseyNumber: data.profile.jerseyNumber || null,
+   296→            playerCode: fetchedPlayerCode,
+   297→            tournamentMatches: data.profile.tournamentMatches || 0,
+   298→            tournamentRaidPoints: data.profile.tournamentRaidPoints || 0,
+   299→            tournamentTacklePoints: data.profile.tournamentTacklePoints || 0,
+   300→            tournamentTotalPoints: data.profile.tournamentTotalPoints || 0,
+   301→            practiceMatches: data.profile.practiceMatches || 0,
+   302→            practiceRaidPoints: data.profile.practiceRaidPoints || 0,
+   303→            practiceTacklePoints: data.profile.practiceTacklePoints || 0,
+   304→            practiceTotalPoints: data.profile.practiceTotalPoints || 0,
+   305→            // User fields from API for syncing to store
+   306→            userWeight: data.player?.weight || null,
+   307→            userGender: data.player?.gender || null,
+   308→            userPracticeGround: data.player?.practiceGround || null,
+   309→          };
+   310→        } else {
+   311→          return {
+   312→            totalRaids: 0,
+   313→            successfulRaids: 0,
+   314→            totalTackles: 0,
+   315→            successfulTackles: 0,
+   316→            bonusPoints: 0,
+   317→            superTackles: 0,
+   318→            overallRating: 0,
+   319→            position: null,
+   320→            jerseyNumber: null,
+   321→            playerCode: fetchedPlayerCode,
+   322→            tournamentMatches: 0,
+   323→            tournamentRaidPoints: 0,
+   324→            tournamentTacklePoints: 0,
+   325→            tournamentTotalPoints: 0,
+   326→            practiceMatches: 0,
+   327→            practiceRaidPoints: 0,
+   328→            practiceTacklePoints: 0,
+   329→            practiceTotalPoints: 0,
+   330→            // User fields from API for syncing to store
+   331→            userWeight: data.player?.weight || null,
+   332→            userGender: data.player?.gender || null,
+   333→            userPracticeGround: data.player?.practiceGround || null,
+   334→          };
+   335→        }
+   336→      }
+   337→    } catch {
+   338→      // Return fallback data
+   339→    }
+   340→    return null;
+   341→  }, []);
+   342→
+   343→  // Load recent matches from API
+   344→  const loadRecentMatches = useCallback(async (userId: string) => {
+   345→    try {
+   346→      const res = await fetch('/api/matches?limit=5');
+   347→      if (res.ok) {
+   348→        const data = await res.json();
+   349→        if (data.matches && Array.isArray(data.matches)) {
+   350→          const matches: RecentMatch[] = data.matches.map((m: Record<string, unknown>) => {
+   351→            const homeTeam = (m.homeTeam as Record<string, string>)?.name || 'Team A';
+   352→            const awayTeam = (m.awayTeam as Record<string, string>)?.name || 'Team B';
+   353→            const scorers = m.scorers as Array<Record<string, string>> | undefined;
+   354→            const userScored = scorers?.some((s) => s.userId === userId);
+   355→            let userTeamSide: 'home' | 'away' | 'unknown' = 'unknown';
+   356→            if (userScored) {
+   357→              const userScorer = scorers?.find((s) => s.userId === userId);
+   358→              if (userScorer?.teamId === m.homeTeamId) userTeamSide = 'home';
+   359→              else if (userScorer?.teamId === m.awayTeamId) userTeamSide = 'away';
+   360→            }
+   361→            return {
+   362→              id: m.id as string,
+   363→              homeTeam,
+   364→              awayTeam,
+   365→              homeScore: (m.homeScore as number) || 0,
+   366→              awayScore: (m.awayScore as number) || 0,
+   367→              date: m.completedAt ? new Date(m.completedAt as string).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
+   368→              isPractice: (m.isPractice as boolean) || false,
+   369→              userTeamSide,
+   370→              completedAt: m.completedAt as string | undefined,
+   371→            };
+   372→          });
+   373→          setRecentMatches(matches);
+   374→        }
+   375→      }
+   376→    } catch {
+   377→      // Silently fail
+   378→    }
+   379→  }, []);
+   380→
+   381→  useEffect(() => {
+   382→    if (!currentUser?.id) return;
+   383→    let cancelled = false;
+   384→    loadProfile(currentUser.id).then((data) => {
+   385→      if (cancelled) return;
+   386→      if (data === 'not-found') {
+   387→        // Player record doesn't exist in DB yet — still allow profile editing
+   388→        setProfileNotFound(true);
+   389→      } else if (data) {
+   390→        setProfileNotFound(false);
+   391→        setProfileData(data);
+   392→        setEditForm(prev => ({
+   393→          ...prev,
+   394→          position: data.position || '',
+   395→          jerseyNumber: data.jerseyNumber?.toString() || '',
+   396→        }));
+   397→        // Sync all profile fields to Zustand store for consistent display
+   398→        const storeUpdate: Record<string, unknown> = {
+   399→          position: data.position || undefined,
+   400→          jerseyNumber: data.jerseyNumber || undefined,
+   401→        };
+   402→        if (data.userWeight) storeUpdate.weight = data.userWeight;
+   403→        if (data.userGender) storeUpdate.gender = data.userGender;
+   404→        if (data.userPracticeGround) storeUpdate.practiceGround = data.userPracticeGround;
+   405→        if (data.playerCode && !currentUser?.playerCode) {
+   406→          storeUpdate.playerCode = data.playerCode;
+   407→        }
+   408→        updateUser(storeUpdate);
+   409→      } else {
+   410→        // Network error or other failure — don't block the UI
+   411→        setProfileNotFound(false);
+   412→      }
+   413→    });
+   414→    loadRecentMatches(currentUser.id);
+   415→    return () => { cancelled = true; };
+   416→  }, [currentUser?.id, loadProfile, loadRecentMatches, updateUser, currentUser?.playerCode]);
+   417→
+   418→  // Load earnings data for admin users
+   419→  useEffect(() => {
+   420→    if (!currentUser?.isAdmin) return;
+   421→    let cancelled = false;
+   422→    fetch('/api/payments?status=paid')
+   423→      .then(res => res.json())
+   424→      .then(data => {
+   425→        if (!cancelled && data.summary) {
+   426→          setEarnings(data.summary);
+   427→        }
+   428→      })
+   429→      .catch(() => {});
+   430→    return () => { cancelled = true; };
+   431→  }, [currentUser?.isAdmin]);
+   432→
+   433→  const toggleDarkMode = () => {
+   434→    setTheme(darkMode ? 'light' : 'dark');
+   435→  };
+   436→
+   437→  useEffect(() => {
+   438→    setEditForm({
+   439→      gender: currentUser?.gender || '',
+   440→      weight: currentUser?.weight?.replace('kg', '') || '',
+   441→      practiceGround: currentUser?.practiceGround || '',
+   442→      position: currentUser?.position || profileData.position || '',
+   443→      jerseyNumber: (currentUser?.jerseyNumber || profileData.jerseyNumber)?.toString() || '',
+   444→    });
+   445→  }, [currentUser, profileData.position, profileData.jerseyNumber, editOpen]);
+   446→
+   447→  // ─── Avatar Upload ───
+   448→  const handleAvatarClick = () => {
+   449→    fileInputRef.current?.click();
+   450→  };
+   451→
+   452→  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   453→    const file = e.target.files?.[0];
+   454→    if (!file || !currentUser?.id) return;
+   455→
+   456→    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+   457→    if (!allowedTypes.includes(file.type)) {
+   458→      toast({ title: 'Invalid file type', description: 'Only JPEG, PNG, WebP, GIF allowed.', variant: 'destructive' });
+   459→      return;
+   460→    }
+   461→
+   462→    if (file.size > 5 * 1024 * 1024) {
+   463→      toast({ title: 'File too large', description: 'Max 5MB allowed.', variant: 'destructive' });
+   464→      return;
+   465→    }
+   466→
+   467→    // Show preview immediately
+   468→    const previewUrl = URL.createObjectURL(file);
+   469→    setAvatarPreview(previewUrl);
+   470→
+   471→    setUploading(true);
+   472→    try {
+   473→      const reader = new FileReader();
+   474→      const base64Promise = new Promise<string>((resolve, reject) => {
+   475→        reader.onload = () => resolve(reader.result as string);
+   476→        reader.onerror = reject;
+   477→      });
+   478→      reader.readAsDataURL(file);
+   479→      const fileData = await base64Promise;
+   480→
+   481→      const res = await fetch('/api/upload', {
+   482→        method: 'POST',
+   483→        headers: { 'Content-Type': 'application/json' },
+   484→        body: JSON.stringify({
+   485→          fileData,
+   486→          fileName: file.name,
+   487→          fileType: file.type,
+   488→          userId: currentUser.id,
+   489→        }),
+   490→      });
+   491→
+   492→      if (res.ok) {
+   493→        const data = await res.json();
+   494→        const avatarUrl = data.url;
+   495→        updateUser({ avatar: avatarUrl });
+   496→        toast({ title: 'Profile picture updated!' });
+   497→      } else {
+   498→        const data = await res.json();
+   499→        toast({ title: 'Upload failed', description: data.error || 'Please try again.', variant: 'destructive' });
+   500→      }
+   501→    } catch {
+   502→      toast({ title: 'Upload failed', description: 'Please try again.', variant: 'destructive' });
+   503→    } finally {
+   504→      setUploading(false);
+   505→      setAvatarPreview(null);
+   506→      if (fileInputRef.current) fileInputRef.current.value = '';
+   507→    }
+   508→  };
+   509→
+   510→  // ─── Save Profile ───
+   511→  const handleSaveProfile = async () => {
+   512→    // Optimistically update local state immediately for responsive UI
+   513→    const updatedPosition = editForm.position || undefined;
+   514→    const updatedJerseyNumber = editForm.jerseyNumber ? parseInt(editForm.jerseyNumber) : undefined;
+   515→    const updatedWeight = editForm.weight ? `${editForm.weight}kg` : undefined;
+   516→    const updatedGender = editForm.gender || undefined;
+   517→    const updatedPracticeGround = editForm.practiceGround || undefined;
+   518→
+   519→    // Update Zustand store with all fields (including position & jerseyNumber)
+   520→    updateUser({
+   521→      gender: updatedGender,
+   522→      weight: updatedWeight,
+   523→      practiceGround: updatedPracticeGround,
+   524→      position: updatedPosition,
+   525→      jerseyNumber: updatedJerseyNumber,
+   526→    });
+   527→
+   528→    // Update local profileData immediately for instant display
+   529→    setProfileData(prev => ({
+   530→      ...prev,
+   531→      position: updatedPosition || prev.position,
+   532→      jerseyNumber: updatedJerseyNumber ?? prev.jerseyNumber,
+   533→    }));
+   534→    setProfileNotFound(false);
+   535→
+   536→    try {
+   537→      const updateBody: Record<string, unknown> = {
+   538→        gender: editForm.gender,
+   539→        weight: editForm.weight ? `${editForm.weight}kg` : undefined,
+   540→        practiceGround: editForm.practiceGround || undefined,
+   541→        position: editForm.position || undefined,
+   542→        jerseyNumber: editForm.jerseyNumber ? parseInt(editForm.jerseyNumber) : undefined,
+   543→      };
+   544→
+   545→      const res = await fetch(`/api/players/${currentUser?.id}`, {
+   546→        method: 'PUT',
+   547→        headers: { 'Content-Type': 'application/json' },
+   548→        body: JSON.stringify(updateBody),
+   549→      });
+   550→
+   551→      // If save was successful, reload profile to get server-confirmed data
+   552→      if (res.ok && currentUser?.id) {
+   553→        const data = await loadProfile(currentUser.id);
+   554→        if (data && data !== 'not-found') {
+   555→          setProfileData(data);
+   556→          setEditForm(prev => ({
+   557→            ...prev,
+   558→            position: data.position || '',
+   559→            jerseyNumber: data.jerseyNumber?.toString() || '',
+   560→          }));
+   561→          // Sync all returned fields to store
+   562→          const reloadedUpdate: Record<string, unknown> = {
+   563→            position: data.position || undefined,
+   564→            jerseyNumber: data.jerseyNumber || undefined,
+   565→          };
+   566→          if (data.userWeight) reloadedUpdate.weight = data.userWeight;
+   567→          if (data.userGender) reloadedUpdate.gender = data.userGender;
+   568→          if (data.userPracticeGround) reloadedUpdate.practiceGround = data.userPracticeGround;
+   569→          if (data.playerCode && !currentUser?.playerCode) {
+   570→            reloadedUpdate.playerCode = data.playerCode;
+   571→          }
+   572→          updateUser(reloadedUpdate);
+   573→        }
+   574→      } else {
+   575→        // API failed but local state is already updated optimistically
+   576→        console.warn('Profile API save failed, local state updated');
+   577→      }
+   578→    } catch {
+   579→      // API failed but local state is already updated optimistically
+   580→      console.warn('Profile API save failed, local state updated');
+   581→    }
+   582→    setEditOpen(false);
+   583→    toast({ title: 'Profile updated!' });
+   584→  };
+   585→
+   586→  // ─── Tournament Stats (used for main profile, leaderboard, awards) ───
+   587→  const tournamentRaidPoints = profileData.tournamentRaidPoints;
+   588→  const tournamentTacklePoints = profileData.tournamentTacklePoints;
+   589→  const tournamentTotalPoints = profileData.tournamentTotalPoints;
+   590→  const tournamentMatches = profileData.tournamentMatches;
+   591→
+   592→  // ─── Practice Stats (separate tab) ───
+   593→  const practiceRaidPoints = profileData.practiceRaidPoints;
+   594→  const practiceTacklePoints = profileData.practiceTacklePoints;
+   595→  const practiceTotalPoints = profileData.practiceTotalPoints;
+   596→  const practiceMatches = profileData.practiceMatches;
+   597→
+   598→  // Main profile uses tournament-only stats
+   599→  const raidPoints = tournamentRaidPoints;
+   600→  const tacklePoints = tournamentTacklePoints;
+   601→  const totalPoints = tournamentTotalPoints;
+   602→  const totalMatches = tournamentMatches;
+   603→
+   604→  // Success rates still use combined data for accuracy (more data = better rate)
+   605→  const raidSuccessRate = profileData.totalRaids > 0 ? (profileData.successfulRaids / profileData.totalRaids) * 100 : 0;
+   606→  const tackleSuccessRate = profileData.totalTackles > 0 ? (profileData.successfulTackles / profileData.totalTackles) * 100 : 0;
+   607→
+   608→  // Use calculated level if player has match history, otherwise use self-reported experience
+   609→  const calculatedLevel = getPlayerLevel(totalMatches, totalPoints);
+   610→  const experienceMap: Record<string, { label: string; color: string; icon: string; progress: number }> = {
+   611→    beginner: { label: 'Beginner', color: 'from-slate-400 to-slate-500', icon: '🌱', progress: 10 },
+   612→    intermediate: { label: 'Intermediate', color: 'from-teal-500 to-emerald-500', icon: '⚡', progress: 40 },
+   613→    advanced: { label: 'Advanced', color: 'from-red-500 to-orange-500', icon: '🔥', progress: 70 },
+   614→  };
+   615→  const selfReportedLevel = currentUser?.experienceLevel ? experienceMap[currentUser.experienceLevel] : null;
+   616→  const playerLevel = totalMatches > 0 ? calculatedLevel : (selfReportedLevel || calculatedLevel);
+   617→
+   618→  const performanceData = [
+   619→    { name: 'Raids', value: profileData.successfulRaids },
+   620→    { name: 'Tackles', value: profileData.successfulTackles },
+   621→    { name: 'Bonus', value: profileData.bonusPoints * 10 },
+   622→    { name: 'S.Tkl', value: profileData.superTackles * 10 },
+   623→  ];
+   624→
+   625→  const barColors = ['#DC2626', '#1E293B', '#14B8A6', '#475569'];
+   626→
+   627→  // Donut chart data for score breakdown
+   628→  const donutData = [
+   629→    { name: 'Raid', value: raidPoints, fill: '#EA580C' },
+   630→    { name: 'Tackle', value: tacklePoints, fill: '#059669' },
+   631→    { name: 'Bonus', value: profileData.bonusPoints, fill: '#D97706' },
+   632→  ].filter(d => d.value > 0);
+   633→
+   634→  // Radar chart data for player skills
+   635→  const radarData = [
+   636→    { subject: 'Raid', player: Math.min(raidSuccessRate, 100), avg: 50 },
+   637→    { subject: 'Tackle', player: Math.min(tackleSuccessRate, 100), avg: 45 },
+   638→    { subject: 'Bonus', player: Math.min(profileData.bonusPoints * 5, 100), avg: 30 },
+   639→    { subject: 'Speed', player: Math.min((totalMatches * 3 + raidPoints) * 0.5, 100), avg: 40 },
+   640→    { subject: 'Stamina', player: Math.min(totalMatches * 5, 100), avg: 35 },
+   641→    { subject: 'Strategy', player: Math.min(profileData.superTackles * 10 + profileData.overallRating * 10, 100), avg: 38 },
+   642→  ];
+   643→
+   644→  // Sparkline data (simulated from recent performance)
+   645→  const raidSparkline = [3, 5, 2, 7, 4, 6, raidPoints % 10 + 2];
+   646→  const tackleSparkline = [1, 3, 2, 4, 2, 3, tacklePoints % 8 + 1];
+   647→  const ratingSparkline = [4, 5, 3, 6, 5, 7, Math.round(profileData.overallRating)];
+   648→
+   649→  // Enhanced badges with categories, locked states, and progress
+   650→  // All badges are based on TOURNAMENT stats only (not practice)
+   651→  const badgeCategories = [
+   652→    {
+   653→      title: 'Performance',
+   654→      badges: [
+   655→        { icon: '⚡', label: 'Super Raider', condition: tournamentRaidPoints >= 20, premium: false, progress: Math.min((tournamentRaidPoints / 20) * 100, 100), threshold: '20 tourney raid pts' },
+   656→        { icon: '🔥', label: 'On Fire', condition: raidPoints >= 30, premium: true, progress: Math.min((raidPoints / 30) * 100, 100), threshold: '30 tourney raid pts' },
+   657→        { icon: '🎯', label: 'Precision', condition: raidSuccessRate >= 70, premium: true, progress: Math.min((raidSuccessRate / 70) * 100, 100), threshold: '70% raid rate' },
+   658→      ],
+   659→    },
+   660→    {
+   661→      title: 'Consistency',
+   662→      badges: [
+   663→        { icon: '🛡️', label: 'Iron Wall', condition: tournamentTacklePoints >= 10, premium: false, progress: Math.min((tournamentTacklePoints / 10) * 100, 100), threshold: '10 tourney tackle pts' },
+   664→        { icon: '🧱', label: 'Fortress', condition: tackleSuccessRate >= 70, premium: true, progress: Math.min((tackleSuccessRate / 70) * 100, 100), threshold: '70% tackle rate' },
+   665→        { icon: '🏆', label: 'Veteran', condition: tournamentMatches >= 15, premium: true, progress: Math.min((tournamentMatches / 15) * 100, 100), threshold: '15 tourney matches' },
+   666→      ],
+   667→    },
+   668→    {
+   669→      title: 'Social',
+   670→      badges: [
+   671→        { icon: '💪', label: 'All-Rounder', condition: raidPoints >= 20 && tacklePoints >= 20, premium: false, progress: Math.min(((raidPoints >= 20 ? 1 : raidPoints / 20) + (tacklePoints >= 20 ? 1 : tacklePoints / 20)) * 50, 100), threshold: '20+ in both (tourney)' },
+   672→        { icon: '🌟', label: 'Team Player', condition: totalMatches >= 10, premium: false, progress: Math.min((totalMatches / 10) * 100, 100), threshold: '10 tourney matches' },
+   673→      ],
+   674→    },
+   675→    {
+   676→      title: 'Special',
+   677→      badges: [
+   678→        { icon: '👑', label: 'Legend', condition: totalPoints >= 100, premium: true, progress: Math.min((totalPoints / 100) * 100, 100), threshold: '100 tourney pts' },
+   679→        { icon: '💎', label: 'Diamond', condition: isPremium && totalPoints >= 50, premium: true, progress: isPremium ? Math.min((totalPoints / 50) * 100, 100) : 0, threshold: 'PRO + 50 tourney pts' },
+   680→      ],
+   681→    },
+   682→  ];
+   683→
+   684→  // Feature categories
+   685→  const featureCategories = [
+   686→    {
+   687→      title: 'Team & Stats',
+   688→      items: [
+   689→        { icon: Users, label: 'My Teams', desc: 'Manage your teams', color: 'brand-teal', premium: false, onClick: () => setShowTeamManagement(true) },
+   690→        { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', premium: true, onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
+   691→        { icon: Activity, label: 'My Stats', desc: 'View your stats', color: 'brand-red', premium: false, onClick: () => setShowStats(true) },
+   692→        { icon: Users, label: 'Follow', desc: 'Find & connect', color: 'brand-navy', premium: false, onClick: () => setShowFollow(true) },
+   693→        { icon: MessageCircle, label: 'Team Chat', desc: 'Message teammates', color: 'brand-navy', premium: false, onClick: () => setShowTeamChat(true) },
+   694→      ],
+   695→    },
+   696→    {
+   697→      title: 'Achievements',
+   698→      items: [
+   699→        { icon: Award, label: 'Achievements', desc: 'Unlock badges', color: 'brand-gold', premium: false, onClick: () => setShowAchievements(true) },
+   700→        { icon: Crosshair, label: 'Daily Quests', desc: 'Earn XP & streaks', color: 'orange-500', premium: false, onClick: () => setShowDailyChallenge(true) },
+   701→        { icon: Swords, label: 'Challenges', desc: 'Rival teams', color: 'brand-red', premium: false, onClick: () => setShowChallenges(true) },
+   702→        { icon: MapPin, label: 'Grounds', desc: 'Find venues', color: 'brand-teal', premium: false, onClick: () => setShowGrounds(true) },
+   703→        { icon: Gift, label: 'Refer & Earn', desc: 'Free Premium', color: 'brand-gold', premium: false, onClick: () => setShowReferral(true) },
+   704→      ],
+   705→    },
+   706→    {
+   707→      title: 'Advanced',
+   708→      items: [
+   709→        { icon: Brain, label: 'AI Insights', desc: 'Smart analysis', color: 'purple-500', premium: false, onClick: () => setShowAIInsights(true) },
+   710→        { icon: Calendar, label: 'Seasons', desc: 'Track yearly', color: 'brand-teal', premium: false, onClick: () => setShowSeason(true) },
+   711→        { icon: Vote, label: 'Predictions', desc: 'Vote & predict', color: 'brand-gold', premium: false, onClick: () => setShowPolls(true) },
+   712→        { icon: Download, label: 'Export Data', desc: 'CSV download', color: 'brand-navy', premium: false, onClick: () => setShowDataExport(true) },
+   713→        { icon: Briefcase, label: 'Sponsors', desc: 'Manage ads', color: 'emerald-500', premium: false, onClick: () => setShowSponsors(true) },
+   714→      ],
+   715→    },
+   716→  ];
+   717→
+   718→  const getPositionLabel = (pos: string | null) => {
+   719→    if (!pos) return null;
+   720→    const found = POSITIONS.find(p => p.id === pos);
+   721→    return found ? t(found.labelKey, language) : pos;
+   722→  };
+   723→
+   724→  const getPositionIcon = (pos: string | null) => {
+   725→    if (!pos) return null;
+   726→    const found = POSITIONS.find(p => p.id === pos);
+   727→    return found ? found.icon : '🏅';
+   728→  };
+   729→
+   730→  const getMatchResult = (match: RecentMatch): 'W' | 'L' | 'D' => {
+   731→    if (match.userTeamSide === 'unknown') {
+   732→      return match.homeScore === match.awayScore ? 'D' : 'D';
+   733→    }
+   734→    const myScore = match.userTeamSide === 'home' ? match.homeScore : match.awayScore;
+   735→    const oppScore = match.userTeamSide === 'home' ? match.awayScore : match.homeScore;
+   736→    if (myScore > oppScore) return 'W';
+   737→    if (myScore < oppScore) return 'L';
+   738→    return 'D';
+   739→  };
+   740→
+   741→  const getResultColor = (result: 'W' | 'L' | 'D') => {
+   742→    switch (result) {
+   743→      case 'W': return 'bg-emerald-500 text-white';
+   744→      case 'L': return 'bg-red-500 text-white';
+   745→      case 'D': return 'bg-amber-500 text-white';
+   746→    }
+   747→  };
+   748→
+   749→  const getResultBg = (result: 'W' | 'L' | 'D') => {
+   750→    switch (result) {
+   751→      case 'W': return 'border-l-emerald-500';
+   752→      case 'L': return 'border-l-red-500';
+   753→      case 'D': return 'border-l-amber-500';
+   754→    }
+   755→  };
+   756→
+   757→  // Detailed breakdown stat items with progress
+   758→  const detailedStats = [
+   759→    { label: 'Raid Success', value: raidSuccessRate, max: 100, color: 'from-orange-400 via-red-500 to-amber-500', icon: Zap, iconColor: 'text-orange-500', prev: raidSuccessRate - 5 },
+   760→    { label: 'Tackle Success', value: tackleSuccessRate, max: 100, color: 'from-emerald-400 via-teal-500 to-green-500', icon: Shield, iconColor: 'text-emerald-500', prev: tackleSuccessRate - 3 },
+   761→    { label: 'Super Tackles', value: Math.min(profileData.superTackles * 10, 100), max: 100, color: 'from-purple-400 via-purple-500 to-pink-500', icon: Target, iconColor: 'text-purple-500', prev: Math.min((profileData.superTackles - 1) * 10, 100) },
+   762→    { label: 'Bonus Points', value: Math.min(profileData.bonusPoints * 5, 100), max: 100, color: 'from-amber-400 via-yellow-500 to-orange-500', icon: Star, iconColor: 'text-amber-500', prev: Math.min((profileData.bonusPoints - 1) * 5, 100) },
+   763→    { label: 'Match Impact', value: Math.min(profileData.overallRating * 10, 100), max: 100, color: 'from-rose-400 via-red-500 to-brand-red', icon: Flame, iconColor: 'text-rose-500', prev: Math.min((profileData.overallRating - 0.5) * 10, 100) },
+   764→  ];
+   765→
+   766→  return (
+   767→    <div className="px-3 py-4 space-y-4">
+   768→      {/* Overlays - rendered through Portal to escape scroll container */}
+   769→      <Portal>
+   770→      {showUpgrade && (
+   771→        <PremiumUpgradeScreen
+   772→          onClose={() => setShowUpgrade(false)}
+   773→          feature="Premium Features"
+   774→        />
+   775→      )}
+   776→      {showTeamManagement && (
+   777→        <TeamManagementScreen onClose={() => setShowTeamManagement(false)} />
+   778→      )}
+   779→      {showPlayerComparison && (
+   780→        <PlayerComparisonScreen onClose={() => setShowPlayerComparison(false)} />
+   781→      )}
+   782→      {showAdvancedStats && currentUser?.id && (
+   783→        <AdvancedStatsScreen userId={currentUser.id} onClose={() => setShowAdvancedStats(false)} />
+   784→      )}
+   785→      {showFollow && (
+   786→        <FollowScreen onClose={() => setShowFollow(false)} />
+   787→      )}
+   788→      {showAchievements && (
+   789→        <AchievementsScreen onClose={() => setShowAchievements(false)} />
+   790→      )}
+   791→      {showChallenges && (
+   792→        <ChallengeScreen onClose={() => setShowChallenges(false)} />
+   793→      )}
+   794→      {showGrounds && (
+   795→        <GroundsScreen onClose={() => setShowGrounds(false)} />
+   796→      )}
+   797→      {showReferral && (
+   798→        <ReferralScreen onClose={() => setShowReferral(false)} />
+   799→      )}
+   800→      {showAIInsights && (
+   801→        <AIInsightsScreen onClose={() => setShowAIInsights(false)} />
+   802→      )}
+   803→      {showStats && currentUser?.id && (
+   804→        <PlayerStatsScreen userId={currentUser.id} onClose={() => setShowStats(false)} />
+   805→      )}
+   806→      {showDataExport && (
+   807→        <DataExportScreen onClose={() => setShowDataExport(false)} />
+   808→      )}
+   809→      {showSeason && (
+   810→        <SeasonScreen onClose={() => setShowSeason(false)} />
+   811→      )}
+   812→      {showPolls && (
+   813→        <PollsScreen onClose={() => setShowPolls(false)} />
+   814→      )}
+   815→      {showSponsors && (
+   816→        <SponsorScreen onClose={() => setShowSponsors(false)} />
+   817→      )}
+   818→      {showTeamChat && (
+   819→        <TeamChatScreen onClose={() => setShowTeamChat(false)} />
+   820→      )}
+   821→      {showDailyChallenge && (
+   822→        <DailyChallengeScreen onClose={() => setShowDailyChallenge(false)} />
+   823→      )}
+   824→      </Portal>
+   825→
+   826→      {/* Player Profile Card Overlay - also needs Portal */}
+   827→      <Portal>
+   828→      <AnimatePresence>
+   829→        {showProfileCard && (
+   830→          <motion.div
+   831→            initial={{ opacity: 0 }}
+   832→            animate={{ opacity: 1 }}
+   833→            exit={{ opacity: 0 }}
+   834→            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4"
+   835→            onClick={(e) => { if (e.target === e.currentTarget) setShowProfileCard(false); }}
+   836→          >
+   837→            <motion.div
+   838→              initial={{ scale: 0.9, y: 30 }}
+   839→              animate={{ scale: 1, y: 0 }}
+   840→              exit={{ scale: 0.9, y: 30 }}
+   841→              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+   842→              className="w-full max-w-sm my-8"
+   843→            >
+   844→              <div className="flex justify-end mb-2">
+   845→                <button
+   846→                  onClick={() => setShowProfileCard(false)}
+   847→                  className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+   848→                >
+   849→                  <X className="w-4 h-4" />
+   850→                </button>
+   851→              </div>
+   852→              <PlayerProfileCard />
+   853→            </motion.div>
+   854→          </motion.div>
+   855→        )}
+   856→      </AnimatePresence>
+   857→      </Portal>
+   858→
+   859→      {/* Hidden file input for avatar upload - uses opacity+absolute instead of display:none for better cross-browser support */}
+   860→      <input
+   861→        ref={fileInputRef}
+   862→        type="file"
+   863→        accept="image/jpeg,image/png,image/webp,image/gif"
+   864→        className="absolute opacity-0 w-0 h-0 overflow-hidden pointer-events-none"
+   865→        style={{ position: 'absolute' }}
+   866→        onChange={handleFileChange}
+   867→        aria-hidden="true"
+   868→        tabIndex={-1}
+   869→      />
+   870→
+   871→      {/* ═══════════════════════════════════════════ */}
+   872→      {/* 1. PROFILE HEADER with Dynamic Gradient Banner */}
+   873→      {/* ═══════════════════════════════════════════ */}
+   874→      <motion.div
+   875→        initial={{ opacity: 0, y: 10 }}
+   876→        animate={{ opacity: 1, y: 0 }}
+   877→        className="relative rounded-2xl shadow-lg overflow-visible"
+   878→      >
+   879→        {/* Dynamic Gradient Banner Background */}
+   880→        <div className="relative bg-gradient-to-br from-brand-red via-red-700 to-brand-gold-dark dark:from-brand-red-dark dark:via-red-900 dark:to-amber-900 pt-5 pb-14 px-5 profile-banner-gradient overflow-hidden rounded-2xl">
+   881→          {/* Animated Mesh Pattern */}
+   882→          <div className="absolute inset-0 opacity-10">
+   883→            <motion.div
+   884→              className="absolute inset-0"
+   885→              style={{
+   886→                backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px),
+   887→                  repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 11px)`,
+   888→              }}
+   889→              animate={{ backgroundPositionX: [0, 20, 0] }}
+   890→              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+   891→            />
+   892→            {/* Animated floating circles */}
+   893→            <motion.div
+   894→              className="absolute -top-8 -right-8 w-32 h-32 rounded-full border-4 border-white/20"
+   895→              animate={{ rotate: 360 }}
+   896→              transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
+   897→            />
+   898→            <motion.div
+   899→              className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full border-4 border-white/15"
+   900→              animate={{ rotate: -360 }}
+   901→              transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+   902→            />
+   903→            <motion.div
+   904→              className="absolute top-4 right-20 w-12 h-12 rounded-full border-2 border-white/10"
+   905→              animate={{ scale: [1, 1.3, 1] }}
+   906→              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+   907→            />
+   908→            {/* Dot pattern */}
+   909→            <div className="absolute inset-0" style={{
+   910→              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)',
+   911→              backgroundSize: '16px 16px',
+   912→            }} />
+   913→            {/* Animated diagonal lines */}
+   914→            <motion.div
+   915→              className="absolute inset-0 opacity-30"
+   916→              style={{
+   917→                background: `linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.05) 50%, transparent 60%)`,
+   918→                backgroundSize: '200% 200%',
+   919→              }}
+   920→              animate={{ backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'] }}
+   921→              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+   922→            />
+   923→          </div>
+   924→
+   925→          {/* Edit Profile Button & Share Profile Button */}
+   926→          <div className="relative z-10 flex justify-end gap-2 mb-2">
+   927→            <Button
+   928→              variant="ghost"
+   929→              size="sm"
+   930→              onClick={() => setShowProfileCard(true)}
+   931→              className="text-white/80 hover:text-white hover:bg-white/10 rounded-full px-3 h-8 text-xs gap-1.5"
+   932→            >
+   933→              <Share2 className="w-3.5 h-3.5" />
+   934→              {t('common.share', language)}
+   935→            </Button>
+   936→            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+   937→              <DialogTrigger asChild>
+   938→                <Button
+   939→                  variant="ghost"
+   940→                  size="sm"
+   941→                  className="text-white/80 hover:text-white hover:bg-white/15 rounded-full px-3 h-8 text-xs gap-1.5 transition-all duration-200 hover:scale-105"
+   942→                >
+   943→                  <Edit3 className="w-3.5 h-3.5" />
+   944→                  {t('profile.editProfile', language)}
+   945→                </Button>
+   946→              </DialogTrigger>
+   947→              <DialogContent className="bg-warm-50 dark:bg-warm-100 border-warm-300 max-h-[85vh] overflow-y-auto">
+   948→                <DialogHeader>
+   949→                  <DialogTitle className="text-warm-800 dark:text-warm-800">{t('profile.editProfile', language)}</DialogTitle>
+   950→                </DialogHeader>
+   951→                <div className="space-y-5 mt-2">
+   952→                  {/* Avatar Upload with Preview */}
+   953→                  <div className="flex flex-col items-center gap-3">
+   954→                    <div className="relative">
+   955→                      <div className="w-20 h-20 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-3xl overflow-hidden border-3 border-brand-red/20 shadow-lg">
+   956→                        {avatarPreview || currentUser?.avatar ? (
+   957→                          <img src={avatarPreview || currentUser?.avatar} alt="Preview" className="w-full h-full object-cover" />
+   958→                        ) : (
+   959→                          <span>{currentUser?.gender === 'female' ? '👩' : '👨'}</span>
+   960→                        )}
+   961→                      </div>
+   962→                      <button
+   963→                        onClick={handleAvatarClick}
+   964→                        disabled={uploading}
+   965→                        className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-white shadow-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50"
+   966→                      >
+   967→                        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+   968→                      </button>
+   969→                    </div>
+   970→                    <p className="text-[10px] text-warm-400">Tap to change photo</p>
+   971→                  </div>
+   972→
+   973→                  {/* Gender Selection */}
+   974→                  <div>
+   975→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Gender</label>
+   976→                    <div className="grid grid-cols-2 gap-3">
+   977→                      <button
+   978→                        onClick={() => setEditForm({ ...editForm, gender: 'male' })}
+   979→                        className={`p-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+   980→                          editForm.gender === 'male'
+   981→                            ? 'border-brand-teal bg-brand-teal/10 text-brand-teal'
+   982→                            : 'border-warm-300 text-warm-600 dark:border-warm-200'
+   983→                        }`}
+   984→                      >
+   985→                        <span className="text-lg">♂</span> Boy
+   986→                      </button>
+   987→                      <button
+   988→                        onClick={() => setEditForm({ ...editForm, gender: 'female' })}
+   989→                        className={`p-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+   990→                          editForm.gender === 'female'
+   991→                            ? 'border-brand-red bg-brand-red/10 text-brand-red'
+   992→                            : 'border-warm-300 text-warm-600 dark:border-warm-200'
+   993→                        }`}
+   994→                      >
+   995→                        <span className="text-lg">♀</span> Girl
+   996→                      </button>
+   997→                    </div>
+   998→                  </div>
+   999→
+  1000→                  {/* Weight Category Selector */}
+  1001→                  <div>
+  1002→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Weight Category</label>
+  1003→                    <div className="grid grid-cols-3 gap-2">
+  1004→                      {WEIGHT_CATEGORIES.map((cat) => (
+  1005→                        <button
+  1006→                          key={cat.value}
+  1007→                          onClick={() => setEditForm({ ...editForm, weight: cat.value.replace('kg', '') })}
+  1008→                          className={`p-2 rounded-lg border-2 text-xs font-medium transition-all ${
+  1009→                            editForm.weight === cat.value.replace('kg', '')
+  1010→                              ? 'border-brand-teal bg-brand-teal/10 text-brand-teal'
+  1011→                              : 'border-warm-300 bg-white dark:bg-warm-50 text-warm-600 dark:text-warm-500 hover:border-warm-200'
+  1012→                          }`}
+  1013→                        >
+  1014→                          {cat.label}
+  1015→                        </button>
+  1016→                      ))}
+  1017→                    </div>
+  1018→                    <div className="relative mt-2">
+  1019→                      <Input
+  1020→                        type="number"
+  1021→                        placeholder="Or enter custom weight"
+  1022→                        value={editForm.weight}
+  1023→                        onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+  1024→                        className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl pr-12"
+  1025→                      />
+  1026→                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">kg</span>
+  1027→                    </div>
+  1028→                  </div>
+  1029→
+  1030→                  {/* Practice Ground with Autocomplete */}
+  1031→                  <div className="relative">
+  1032→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Practice Ground</label>
+  1033→                    <Input
+  1034→                      placeholder="Search for a ground..."
+  1035→                      value={groundSearch || editForm.practiceGround}
+  1036→                      onChange={(e) => {
+  1037→                        setGroundSearch(e.target.value);
+  1038→                        setEditForm({ ...editForm, practiceGround: e.target.value });
+  1039→                        setShowGroundSuggestions(true);
+  1040→                      }}
+  1041→                      onFocus={() => setShowGroundSuggestions(true)}
+  1042→                      onBlur={() => setTimeout(() => setShowGroundSuggestions(false), 200)}
+  1043→                      className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl"
+  1044→                    />
+  1045→                    {showGroundSuggestions && groundSearch && (
+  1046→                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-warm-50 border border-warm-300 dark:border-warm-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
+  1047→                        {PRACTICE_GROUNDS.filter(g => g.toLowerCase().includes(groundSearch.toLowerCase())).map((ground) => (
+  1048→                          <button
+  1049→                            key={ground}
+  1050→                            onClick={() => {
+  1051→                              setEditForm({ ...editForm, practiceGround: ground });
+  1052→                              setGroundSearch(ground);
+  1053→                              setShowGroundSuggestions(false);
+  1054→                            }}
+  1055→                            className="w-full text-left px-3 py-2 text-xs text-warm-700 dark:text-warm-600 hover:bg-warm-100 dark:hover:bg-warm-200 transition-colors"
+  1056→                          >
+  1057→                            <MapPin className="w-3 h-3 inline mr-1.5 text-warm-400" />
+  1058→                            {ground}
+  1059→                          </button>
+  1060→                        ))}
+  1061→                      </div>
+  1062→                    )}
+  1063→                  </div>
+  1064→
+  1065→                  {/* Jersey Number */}
+  1066→                  <div>
+  1067→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Jersey Number</label>
+  1068→                    <div className="relative">
+  1069→                      <Input
+  1070→                        type="number"
+  1071→                        placeholder="Your jersey number"
+  1072→                        value={editForm.jerseyNumber}
+  1073→                        onChange={(e) => setEditForm({ ...editForm, jerseyNumber: e.target.value })}
+  1074→                        className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl pr-12"
+  1075→                        min={1}
+  1076→                        max={99}
+  1077→                      />
+  1078→                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">#</span>
+  1079→                    </div>
+  1080→                  </div>
+  1081→
+  1082→                  {/* Position Selection with Visual Icons */}
+  1083→                  <div>
+  1084→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Position</label>
+  1085→                    <div className="grid grid-cols-2 gap-2">
+  1086→                      {POSITIONS.map((pos) => (
+  1087→                        <button
+  1088→                          key={pos.id}
+  1089→                          onClick={() => setEditForm({ ...editForm, position: editForm.position === pos.id ? '' : pos.id })}
+  1090→                          className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+  1091→                            editForm.position === pos.id
+  1092→                              ? 'border-brand-teal bg-brand-teal/10'
+  1093→                              : 'border-warm-300 bg-white dark:bg-warm-50 hover:border-warm-200'
+  1094→                          }`}
+  1095→                        >
+  1096→                          <div className="flex items-center gap-1.5">
+  1097→                            <span className="text-base">{pos.icon}</span>
+  1098→                            <span className={`text-xs font-semibold ${editForm.position === pos.id ? 'text-brand-teal' : 'text-warm-700 dark:text-warm-600'}`}>
+  1099→                              {t(pos.labelKey, language)}
+  1100→                            </span>
+  1101→                          </div>
+  1102→                          <p className="text-[9px] text-warm-400 mt-0.5 ml-6">{pos.meaning}</p>
+  1103→                        </button>
+  1104→                      ))}
+  1105→                    </div>
+  1106→                  </div>
+  1107→
+  1108→                  <Button
+  1109→                    onClick={handleSaveProfile}
+  1110→                    className="w-full bg-brand-red hover:bg-brand-red-dark text-white rounded-xl"
+  1111→                  >
+  1112→                    {t('common.save', language)}
+  1113→                  </Button>
+  1114→                </div>
+  1115→              </DialogContent>
+  1116→            </Dialog>
+  1117→          </div>
+  1118→
+  1119→          {/* Name and Gender with Position Badge */}
+  1120→          <div className="relative z-10 text-center">
+  1121→            <h2 className={`text-xl font-bold text-white flex items-center justify-center gap-1.5 ${isPremium ? 'text-2xl' : ''}`}>
+  1122→              <span className={isPremium ? 'bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 bg-clip-text text-transparent font-extrabold drop-shadow-[0_0_8px_rgba(245,158,11,0.3)]' : 'text-white'}>
+  1123→                {currentUser?.name || 'Player'}
+  1124→              </span>
+  1125→              {isPremium && (
+  1126→                <span className="relative inline-flex items-center ml-0.5">
+  1127→                  <Badge className="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 text-[8px] border-0 font-extrabold px-1.5 py-0 shadow-lg shadow-yellow-400/20 overflow-hidden">
+  1128→                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+  1129→                    <Crown className="w-2.5 h-2.5 mr-0.5 relative z-10" />PRO
+  1130→                  </Badge>
+  1131→                </span>
+  1132→              )}
+  1133→              {currentUser?.gender === 'male' ? (
+  1134→                <span className="text-blue-300">♂</span>
+  1135→              ) : currentUser?.gender === 'female' ? (
+  1136→                <span className="text-pink-300">♀</span>
+  1137→              ) : null}
+  1138→              {isPremium ? (
+  1139→                <motion.div
+  1140→                  initial={{ scale: 0, rotate: -180 }}
+  1141→                  animate={{ scale: 1, rotate: 0 }}
+  1142→                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+  1143→                  className="inline-flex items-center"
+  1144→                >
+  1145→                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-yellow-400 via-amber-400 to-yellow-500 flex items-center justify-center shadow-lg shadow-yellow-400/30 ring-2 ring-yellow-300/30">
+  1146→                    <Crown className="w-4 h-4 text-yellow-900" />
+  1147→                  </div>
+  1148→                </motion.div>
+  1149→              ) : null}
+  1150→            </h2>
+  1151→
+  1152→            {/* Position badge with kabaddi-themed icon */}
+  1153→            {(profileData.position || currentUser?.position) && (
+  1154→              <div className="flex items-center justify-center gap-1.5 mt-1.5">
+  1155→                <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 flex items-center gap-1.5">
+  1156→                  <span className="text-sm">{getPositionIcon(profileData.position || currentUser?.position || '')}</span>
+  1157→                  <span className="text-white/90 text-xs font-semibold">{getPositionLabel(profileData.position || currentUser?.position || '')}</span>
+  1158→                  {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+  1159→                    <span className="text-white/60 text-[10px] font-mono">#{profileData.jerseyNumber || currentUser?.jerseyNumber}</span>
+  1160→                  )}
+  1161→                </span>
+  1162→              </div>
+  1163→            )}
+  1164→
+  1165→            {/* Weight & Practice Ground */}
+  1166→            <div className="flex items-center justify-center gap-3 mt-1.5 text-white/70 text-xs">
+  1167→              {currentUser?.weight && (
+  1168→                <span className="flex items-center gap-1">
+  1169→                  <Activity className="w-3 h-3" />
+  1170→                  {currentUser.weight}
+  1171→                </span>
+  1172→              )}
+  1173→              {currentUser?.practiceGround && (
+  1174→                <span className="flex items-center gap-1">
+  1175→                  <MapPin className="w-3 h-3" />
+  1176→                  {currentUser.practiceGround}
+  1177→                </span>
+  1178→              )}
+  1179→            </div>
+  1180→
+  1181→            {/* Badges Row */}
+  1182→            <div className="flex items-center justify-center gap-2 mt-2">
+  1183→              {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+  1184→                <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
+  1185→                  #{profileData.jerseyNumber || currentUser?.jerseyNumber}
+  1186→                </span>
+  1187→              )}
+  1188→              {isPremium && (
+  1189→                <span className="relative px-2.5 py-1 rounded-full bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 text-xs font-extrabold shadow-md shadow-yellow-400/20 overflow-hidden">
+  1190→                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+  1191→                  <span className="relative z-10 flex items-center gap-1"><Crown className="w-3 h-3" />PRO</span>
+  1192→                </span>
+  1193→              )}
+  1194→            </div>
+  1195→
+  1196→            {/* Level/Rank Indicator */}
+  1197→            <motion.div
+  1198→              initial={{ opacity: 0, y: 10 }}
+  1199→              animate={{ opacity: 1, y: 0 }}
+  1200→              transition={{ delay: 0.3 }}
+  1201→              className="mt-3 flex items-center justify-center gap-2"
+  1202→            >
+  1203→              <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${playerLevel.color} text-white text-xs font-bold flex items-center gap-1 shadow-lg`}>
+  1204→                <span>{playerLevel.icon}</span>
+  1205→                {playerLevel.label}
+  1206→              </div>
+  1207→            </motion.div>
+  1208→
+  1209→            {/* Level progress bar with gradient */}
+  1210→            <div className="mt-2 mx-auto max-w-[160px]">
+  1211→              <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
+  1212→                <motion.div
+  1213→                  initial={{ width: 0 }}
+  1214→                  animate={{ width: `${playerLevel.progress}%` }}
+  1215→                  transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
+  1216→                  className="h-full rounded-full bg-gradient-to-r from-white/50 via-white/80 to-brand-gold/80 relative"
+  1217→                >
+  1218→                  {/* Shine effect */}
+  1219→                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
+  1220→                </motion.div>
+  1221→              </div>
+  1222→              <p className="text-[9px] text-white/40 mt-1">{playerLevel.progress.toFixed(0)}% to next level</p>
+  1223→            </div>
+  1224→
+  1225→            {/* Member Since */}
+  1226→            <p className="text-white/40 text-[10px] mt-2">
+  1227→              <Clock className="w-3 h-3 inline mr-1" />
+  1228→              Member since {memberSince.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+  1229→            </p>
+  1230→
+  1231→            <p className="text-white/60 text-sm capitalize mt-0.5">{currentUser?.role || 'Player'}</p>
+  1232→          </div>
+  1233→        </div>
+  1234→
+  1235→        {/* Avatar overlapping the banner with enhanced animated border ring and profile completeness */}
+  1236→        <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 z-20">
+  1237→          <div className="relative">
+  1238→            {/* Animated rotating border ring - enhanced with more colors */}
+  1239→            <motion.div
+  1240→              className="absolute -inset-3 rounded-full"
+  1241→              style={{
+  1242→                background: `conic-gradient(from 0deg, #DC2626, #F59E0B, #14B8A6, #3B82F6, #8B5CF6, #EC4899, #DC2626)`,
+  1243→              }}
+  1244→              animate={{ rotate: 360 }}
+  1245→              transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+  1246→            />
+  1247→            <div className="absolute -inset-[6px] rounded-full bg-white dark:bg-warm-900" />
+  1248→            {/* Pulsing outer glow - enhanced */}
+  1249→            <motion.div
+  1250→              className="absolute -inset-4 rounded-full"
+  1251→              animate={{
+  1252→                boxShadow: [
+  1253→                  '0 0 0 0 rgba(220, 38, 38, 0.4), 0 0 0 0 rgba(245, 158, 11, 0.3), 0 0 0 0 rgba(20, 184, 166, 0.2)',
+  1254→                  '0 0 0 12px rgba(220, 38, 38, 0), 0 0 0 8px rgba(245, 158, 11, 0.1), 0 0 0 4px rgba(20, 184, 166, 0.05)',
+  1255→                  '0 0 0 0 rgba(220, 38, 38, 0), 0 0 0 0 rgba(245, 158, 11, 0), 0 0 0 0 rgba(20, 184, 166, 0)',
+  1256→                ],
+  1257→              }}
+  1258→              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+  1259→            />
+  1260→            {/* Profile completeness ring */}
+  1261→            <svg className="absolute -inset-1 w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90 pointer-events-none z-10" viewBox="0 0 140 140">
+  1262→              <circle cx="70" cy="70" r="66" fill="none" stroke="rgba(220,38,38,0.1)" strokeWidth="2" />
+  1263→              <motion.circle
+  1264→                cx="70" cy="70" r="66" fill="none"
+  1265→                stroke="url(#completenessGrad)"
+  1266→                strokeWidth="2.5"
+  1267→                strokeLinecap="round"
+  1268→                strokeDasharray={2 * Math.PI * 66}
+  1269→                initial={{ strokeDashoffset: 2 * Math.PI * 66 }}
+  1270→                animate={{ strokeDashoffset: 2 * Math.PI * 66 * (1 - playerLevel.progress / 100) }}
+  1271→                transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
+  1272→              />
+  1273→              <defs>
+  1274→                <linearGradient id="completenessGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+  1275→                  <stop offset="0%" stopColor="#DC2626" />
+  1276→                  <stop offset="50%" stopColor="#F59E0B" />
+  1277→                  <stop offset="100%" stopColor="#14B8A6" />
+  1278→                </linearGradient>
+  1279→              </defs>
+  1280→            </svg>
+  1281→            <div className={`w-28 h-28 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-4xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-2xl relative ${
+  1282→              profileData.position?.includes('raider') || profileData.position?.includes('both')
+  1283→                ? 'position-ring-raider'
+  1284→                : profileData.position?.includes('corner') || profileData.position?.includes('cover')
+  1285→                  ? 'position-ring-defender'
+  1286→                  : profileData.position === 'all-rounder'
+  1287→                    ? 'position-ring-allrounder'
+  1288→                    : ''
+  1289→            }`}>
+  1290→              {currentUser?.avatar ? (
+  1291→                <img
+  1292→                  src={currentUser.avatar}
+  1293→                  alt={currentUser.name || 'Player'}
+  1294→                  className="w-full h-full object-cover"
+  1295→                />
+  1296→              ) : (
+  1297→                <span>
+  1298→                  {currentUser?.gender === 'female' ? '👩' : '👨'}
+  1299→                </span>
+  1300→              )}
+  1301→            </div>
+  1302→            {/* Animated level badge with bounce */}
+  1303→            <motion.div
+  1304→              className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-30"
+  1305→              initial={{ scale: 0, y: 10 }}
+  1306→              animate={{ scale: 1, y: 0 }}
+  1307→              transition={{ type: 'spring', stiffness: 400, damping: 15, delay: 0.5 }}
+  1308→            >
+  1309→              <motion.div
+  1310→                className={`px-3 py-1 rounded-full bg-gradient-to-r ${playerLevel.color} text-white text-[10px] font-bold flex items-center gap-1 shadow-lg whitespace-nowrap`}
+  1311→                animate={{ y: [0, -3, 0] }}
+  1312→                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+  1313→              >
+  1314→                <span>{playerLevel.icon}</span>
+  1315→                {playerLevel.label}
+  1316→              </motion.div>
+  1317→            </motion.div>
+  1318→            <button
+  1319→              onClick={handleAvatarClick}
+  1320→              disabled={uploading}
+  1321→              className="absolute bottom-1 right-1 w-9 h-9 rounded-full bg-brand-red flex items-center justify-center text-white shadow-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50 border-2 border-white dark:border-warm-100"
+  1322→            >
+  1323→              {uploading ? (
+  1324→                <Loader2 className="w-4 h-4 animate-spin" />
+  1325→              ) : (
+  1326→                <Camera className="w-4 h-4" />
+  1327→              )}
+  1328→            </button>
+  1329→          </div>
+  1330→        </div>
+  1331→      </motion.div>
+  1332→
+  1333→      {/* Spacer for avatar overlap */}
+  1334→      <div className="h-16" />
+  1335→
+  1336→      {/* Player Code - Glassmorphism Card */}
+  1337→      {(profileData.playerCode || currentUser?.playerCode) && (
+  1338→        <motion.div
+  1339→          initial={{ opacity: 0, scale: 0.9 }}
+  1340→          animate={{ opacity: 1, scale: 1 }}
+  1341→          transition={{ delay: 0.1, type: 'spring', stiffness: 300 }}
+  1342→          className="pt-2"
+  1343→        >
+  1344→          <button
+  1345→            onClick={handleCopyCode}
+  1346→            className="w-full inline-flex items-center gap-3 px-4 py-3.5 rounded-xl backdrop-blur-md bg-white/40 dark:bg-white/10 border border-white/30 dark:border-white/10 hover:bg-white/50 dark:hover:bg-white/15 active:scale-[0.98] transition-all shadow-lg"
+  1347→          >
+  1348→            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-md shrink-0">
+  1349→              <Hash className="w-5 h-5 text-white" />
+  1350→            </div>
+  1351→            <div className="text-left flex-1">
+  1352→              <p className="text-[10px] font-semibold text-warm-400 uppercase tracking-wider leading-none">Player Code</p>
+  1353→              <p className="text-xl font-black text-warm-800 dark:text-warm-100 font-mono leading-tight tracking-wider">{profileData.playerCode || currentUser?.playerCode}</p>
+  1354→            </div>
+  1355→            <div className="shrink-0">
+  1356→              <AnimatePresence mode="wait">
+  1357→                {codeCopied ? (
+  1358→                  <motion.div
+  1359→                    key="check"
+  1360→                    initial={{ scale: 0 }}
+  1361→                    animate={{ scale: 1 }}
+  1362→                    exit={{ scale: 0 }}
+  1363→                    className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center"
+  1364→                  >
+  1365→                    <Check className="w-4 h-4 text-white" />
+  1366→                  </motion.div>
+  1367→                ) : (
+  1368→                  <motion.div
+  1369→                    key="copy"
+  1370→                    initial={{ scale: 0 }}
+  1371→                    animate={{ scale: 1 }}
+  1372→                    exit={{ scale: 0 }}
+  1373→                    className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center"
+  1374→                  >
+  1375→                    <Copy className="w-3.5 h-3.5 text-warm-400" />
+  1376→                  </motion.div>
+  1377→                )}
+  1378→              </AnimatePresence>
+  1379→            </div>
+  1380→          </button>
+  1381→        </motion.div>
+  1382→      )}
+  1383→
+  1384→      {/* ═══════════════════════════════════════════ */}
+  1385→      {/* PREMIUM CARD */}
+  1386→      {/* ═══════════════════════════════════════════ */}
+  1387→      {!isPremium && (
+  1388→        <motion.div
+  1389→          initial={{ opacity: 0, y: 10 }}
+  1390→          animate={{ opacity: 1, y: 0 }}
+  1391→          transition={{ delay: 0.15 }}
+  1392→        >
+  1393→          <button
+  1394→            onClick={() => setShowUpgrade(true)}
+  1395→            className="w-full relative overflow-hidden rounded-2xl p-[2px] active:scale-[0.98] transition-transform premium-card-shimmer"
+  1396→          >
+  1397→            {/* Animated gradient border */}
+  1398→            <motion.div
+  1399→              className="absolute inset-0 rounded-2xl"
+  1400→              style={{ background: 'linear-gradient(90deg, #F59E0B, #EAB308, #F59E0B, #D97706, #F59E0B)' }}
+  1401→              animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
+  1402→              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+  1403→            />
+  1404→            <div className="relative rounded-2xl bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 p-5 overflow-hidden">
+  1405→              {/* Enhanced shimmer animation */}
+  1406→              <motion.div
+  1407→                className="absolute inset-0"
+  1408→                style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)', backgroundSize: '200% 100%' }}
+  1409→                animate={{ backgroundPosition: ['200% 0%', '-200% 0%'] }}
+  1410→                transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }}
+  1411→              />
+  1412→              {/* Sparkle effects */}
+  1413→              <div className="absolute top-3 right-8 w-2 h-2 rounded-full bg-white/70" style={{ animation: 'twinkle 2s infinite' }} />
+  1414→              <div className="absolute top-8 right-16 w-1.5 h-1.5 rounded-full bg-white/50" style={{ animation: 'twinkle 2s 0.5s infinite' }} />
+  1415→              <div className="absolute bottom-4 right-10 w-2 h-2 rounded-full bg-white/60" style={{ animation: 'twinkle 2s 1s infinite' }} />
+  1416→              <div className="absolute top-6 left-12 w-1 h-1 rounded-full bg-white/40" style={{ animation: 'twinkle 2s 1.5s infinite' }} />
+  1417→              <div className="relative z-10">
+  1418→                <div className="flex items-center justify-between mb-3">
+  1419→                  <div className="flex items-center gap-3">
+  1420→                    <motion.div
+  1421→                      className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg"
+  1422→                      animate={{ rotate: [0, -5, 5, 0] }}
+  1423→                      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+  1424→                    >
+  1425→                      <Crown className="w-8 h-8 text-white" />
+  1426→                    </motion.div>
+  1427→                    <div className="text-left">
+  1428→                      <p className="text-white font-bold text-lg">{t('profile.goPremium', language)}</p>
+  1429→                      <p className="text-white/80 text-xs">Unlock stats, host tournaments & more</p>
+  1430→                    </div>
+  1431→                  </div>
+  1432→                  <div className="bg-white/25 backdrop-blur-sm rounded-xl px-5 py-2.5 text-center">
+  1433→                    <span className="text-white text-xl font-black">₹99</span>
+  1434→                    <span className="text-white/80 text-xs block">/mo</span>
+  1435→                  </div>
+  1436→                </div>
+  1437→                {/* Feature icons with descriptions */}
+  1438→                <div className="grid grid-cols-3 gap-2 mt-3">
+  1439→                  {[
+  1440→                    { icon: <BarChart3 className="w-3.5 h-3.5" />, text: 'Advanced Stats' },
+  1441→                    { icon: <Swords className="w-3.5 h-3.5" />, text: 'Tournaments' },
+  1442→                    { icon: <Award className="w-3.5 h-3.5" />, text: 'All Badges' },
+  1443→                  ].map((feature, i) => (
+  1444→                    <div key={i} className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2 py-1.5">
+  1445→                      <div className="text-white/90">{feature.icon}</div>
+  1446→                      <span className="text-[9px] text-white/80 font-medium">{feature.text}</span>
+  1447→                    </div>
+  1448→                  ))}
+  1449→                </div>
+  1450→              </div>
+  1451→            </div>
+  1452→          </button>
+  1453→        </motion.div>
+  1454→      )}
+  1455→
+  1456→      {/* Premium Active Card */}
+  1457→      {isPremium && (
+  1458→        <motion.div
+  1459→          initial={{ opacity: 0, y: 10 }}
+  1460→          animate={{ opacity: 1, y: 0 }}
+  1461→          transition={{ delay: 0.15 }}
+  1462→        >
+  1463→          <Card className="p-4 bg-gradient-to-r from-yellow-400/10 via-amber-400/5 to-yellow-400/10 border border-yellow-400/20 dark:from-yellow-400/20 dark:via-amber-400/10 dark:to-yellow-400/20 overflow-hidden relative">
+  1464→            {/* Shimmer effect on premium card */}
+  1465→            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/5 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+  1466→            <div className="flex items-center justify-between relative z-10">
+  1467→              <div className="flex items-center gap-3">
+  1468→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400/20 to-amber-400/20 flex items-center justify-center shadow-md shadow-yellow-400/10">
+  1469→                  <Crown className="w-5 h-5 text-yellow-500" />
+  1470→                </div>
+  1471→                <div className="text-left">
+  1472→                  <p className="text-warm-800 dark:text-warm-100 font-bold text-sm">{t('profile.premiumActive', language)}</p>
+  1473→                  <p className="text-warm-500 dark:text-warm-300 text-xs">{t('profile.allFeaturesUnlocked', language)}</p>
+  1474→                </div>
+  1475→              </div>
+  1476→              <Badge className="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 border-0 text-xs font-extrabold shadow-md shadow-yellow-400/20 overflow-hidden relative">
+  1477→                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+  1478→                <Crown className="w-3 h-3 mr-1 relative z-10" />
+  1479→                <span className="relative z-10">PRO</span>
+  1480→              </Badge>
+  1481→            </div>
+  1482→          </Card>
+  1483→        </motion.div>
+  1484→      )}
+  1485→
+  1486→      {/* ═══════════════════════════════════════════ */}
+  1487→      {/* 2. STATS CARDS with Circular Progress Rings */}
+  1488→      {/* ═══════════════════════════════════════════ */}
+  1489→      {(
+  1490→      <motion.div
+  1491→        initial={{ opacity: 0, y: 10 }}
+  1492→        animate={{ opacity: 1, y: 0 }}
+  1493→        transition={{ delay: 0.1 }}
+  1494→        className="grid grid-cols-3 gap-2"
+  1495→      >
+  1496→        {[
+  1497→          { label: t('profile.raidPointsLong', language), value: raidPoints, icon: Zap, color: 'orange', sparkData: raidSparkline, trend: raidPoints > 0 ? 12 : 0, glow: 'stat-glow-orange', ringColor: '#EA580C', ringBg: '#EA580C20', pct: Math.min((raidPoints / Math.max(totalPoints, 1)) * 100, 100) },
+  1498→          { label: t('profile.tacklePointsLong', language), value: tacklePoints, icon: Shield, color: 'emerald', sparkData: tackleSparkline, trend: tacklePoints > 0 ? 8 : 0, glow: 'stat-glow-emerald', ringColor: '#059669', ringBg: '#05966920', pct: Math.min((tacklePoints / Math.max(totalPoints, 1)) * 100, 100) },
+  1499→          { label: t('profile.rating', language), value: parseFloat(profileData.overallRating.toFixed(1)), icon: Swords, color: 'amber', sparkData: ratingSparkline, trend: profileData.overallRating > 0 ? -3 : 0, decimals: 1, glow: 'stat-glow-amber', ringColor: '#D97706', ringBg: '#D9770620', pct: Math.min(profileData.overallRating * 10, 100) },
+  1500→        ].map((stat, idx) => {
+  1501→          const IconComp = stat.icon;
+  1502→          const circumference = 2 * Math.PI * 28;
+  1503→          const strokeDashoffset = circumference - (stat.pct / 100) * circumference;
+  1504→          return (
+  1505→            <motion.div
+  1506→              key={stat.label}
+  1507→              initial={{ opacity: 0, y: 15 }}
+  1508→              animate={{ opacity: 1, y: 0 }}
+  1509→              transition={{ delay: 0.1 + idx * 0.08 }}
+  1510→              className={`glass-card rounded-xl p-2.5 shadow-lg ${stat.glow} hover:scale-[1.03] transition-transform duration-200 relative overflow-hidden`}
+  1511→            >
+  1512→              {/* Circular Progress Ring Background */}
+  1513→              <div className="flex justify-center mb-2">
+  1514→                <div className="relative w-16 h-16">
+  1515→                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+  1516→                    <circle cx="32" cy="32" r="28" fill="none" stroke={stat.ringBg} strokeWidth="4" />
+  1517→                    <motion.circle
+  1518→                      cx="32" cy="32" r="28" fill="none"
+  1519→                      stroke={stat.ringColor}
+  1520→                      strokeWidth="4"
+  1521→                      strokeLinecap="round"
+  1522→                      strokeDasharray={circumference}
+  1523→                      initial={{ strokeDashoffset: circumference }}
+  1524→                      animate={{ strokeDashoffset }}
+  1525→                      transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 + idx * 0.1 }}
+  1526→                    />
+  1527→                  </svg>
+  1528→                  <div className="absolute inset-0 flex items-center justify-center">
+  1529→                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+  1530→                      stat.color === 'orange' ? 'bg-orange-500/15' :
+  1531→                      stat.color === 'emerald' ? 'bg-emerald-500/15' :
+  1532→                      'bg-amber-500/15'
+  1533→                    }`}>
+  1534→                      <IconComp className={`w-4 h-4 ${
+  1535→                        stat.color === 'orange' ? 'text-orange-500' :
+  1536→                        stat.color === 'emerald' ? 'text-emerald-500' :
+  1537→                        'text-amber-500'
+  1538→                      }`} />
+  1539→                    </div>
+  1540→                  </div>
+  1541→                </div>
+  1542→              </div>
+  1543→              <div className={`text-lg font-black text-center ${
+  1544→                stat.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
+  1545→                stat.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
+  1546→                'text-amber-600 dark:text-amber-400'
+  1547→              }`}>
+  1548→                <AnimatedValue value={stat.value} decimals={stat.decimals || 0} />
+  1549→              </div>
+  1550→              <div className="flex items-center justify-between mt-0.5">
+  1551→                <div className="text-[10px] text-warm-600 dark:text-warm-300">{stat.label}</div>
+  1552→                {stat.trend !== 0 && (
+  1553→                  <div className={`flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+  1554→                    stat.trend > 0 ? 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400 dark:bg-emerald-500/15' : 'text-red-600 bg-red-500/10 dark:text-red-400 dark:bg-red-500/15'
+  1555→                  }`}>
+  1556→                    {stat.trend > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+  1557→                    {Math.abs(stat.trend)}%
+  1558→                  </div>
+  1559→                )}
+  1560→              </div>
+  1561→            </motion.div>
+  1562→          );
+  1563→        })}
+  1564→      </motion.div>
+  1565→      )}
+  1566→
+  1567→      {/* ═══════════════════════════════════════════ */}
+  1568→      {/* 3. SCORE BREAKDOWN with Donut/Ring Chart */}
+  1569→      {/* ═══════════════════════════════════════════ */}
+  1570→      {(
+  1571→      <motion.div
+  1572→        initial={{ opacity: 0, y: 10 }}
+  1573→        animate={{ opacity: 1, y: 0 }}
+  1574→        transition={{ delay: 0.12 }}
+  1575→      >
+  1576→        <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+  1577→          <Trophy className="w-4 h-4 text-brand-gold" />
+  1578→          {t('profile.detailedBreakdown', language)}
+  1579→        </h3>
+  1580→
+  1581→        <div className="grid grid-cols-5 gap-3">
+  1582→          {/* Donut Chart - Enhanced */}
+  1583→          <Card className="col-span-2 p-3 shadow-sm flex items-center justify-center glass-card">
+  1584→            <div className="w-full h-36 relative">
+  1585→              {donutData.length > 0 ? (
+  1586→                <ResponsiveContainer width="100%" height="100%">
+  1587→                  <PieChart>
+  1588→                    <Pie
+  1589→                      data={donutData}
+  1590→                      cx="50%"
+  1591→                      cy="50%"
+  1592→                      innerRadius={38}
+  1593→                      outerRadius={58}
+  1594→                      dataKey="value"
+  1595→                      strokeWidth={3}
+  1596→                      stroke="var(--card)"
+  1597→                      animationBegin={300}
+  1598→                      animationDuration={1500}
+  1599→                      animationEasing="ease-out"
+  1600→                    >
+  1601→                      {donutData.map((entry, index) => (
+  1602→                        <Cell key={`cell-${index}`} fill={entry.fill} />
+  1603→                      ))}
+  1604→                    </Pie>
+  1605→                  </PieChart>
+  1606→                </ResponsiveContainer>
+  1607→              ) : (
+  1608→                <div className="flex items-center justify-center h-full text-warm-400 text-xs">No data yet</div>
+  1609→              )}
+  1610→              {/* Center label - enhanced */}
+  1611→              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+  1612→                <motion.span
+  1613→                  initial={{ scale: 0 }}
+  1614→                  animate={{ scale: 1 }}
+  1615→                  transition={{ delay: 0.8, type: 'spring', stiffness: 300 }}
+  1616→                  className="text-xl font-black text-warm-800 dark:text-warm-100"
+  1617→                >
+  1618→                  <AnimatedValue value={totalPoints} />
+  1619→                </motion.span>
+  1620→                <span className="text-[8px] font-bold text-warm-400 uppercase tracking-wider">🏆 Tourney Pts</span>
+  1621→              </div>
+  1622→            </div>
+  1623→          </Card>
+  1624→
+  1625→          {/* Legend & Breakdown - Enhanced */}
+  1626→          <div className="col-span-3 space-y-2">
+  1627→            {donutData.map((item) => {
+  1628→              const pct = totalPoints > 0 ? ((item.value / totalPoints) * 100).toFixed(0) : 0;
+  1629→              return (
+  1630→                <motion.div
+  1631→                  key={item.name}
+  1632→                  initial={{ opacity: 0, x: 10 }}
+  1633→                  animate={{ opacity: 1, x: 0 }}
+  1634→                  transition={{ delay: 0.5 + donutData.indexOf(item) * 0.1 }}
+  1635→                  className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-warm-100/50 dark:hover:bg-warm-200/30 transition-colors"
+  1636→                >
+  1637→                  <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.fill }} />
+  1638→                  <span className="text-xs font-medium text-warm-600 dark:text-warm-300 flex-1">{item.name}</span>
+  1639→                  <span className="text-xs font-black text-warm-800 dark:text-warm-100">{item.value}</span>
+  1640→                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${item.fill}15`, color: item.fill }}>{pct}%</span>
+  1641→                </motion.div>
+  1642→              );
+  1643→            })}
+  1644→
+  1645→            {/* Success Rate Progress Bars - Enhanced */}
+  1646→            <div className="mt-2 space-y-2.5 pt-2 border-t border-warm-200 dark:border-warm-300">
+  1647→              <div>
+  1648→                <div className="flex items-center justify-between mb-1">
+  1649→                  <div className="flex items-center gap-1.5">
+  1650→                    <div className="w-5 h-5 rounded-md bg-orange-500/10 flex items-center justify-center">
+  1651→                      <Zap className="w-3 h-3 text-orange-500" />
+  1652→                    </div>
+  1653→                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-300">{t('profile.raidSuccess', language)}</span>
+  1654→                  </div>
+  1655→                  <span className="text-[10px] font-black text-orange-500">{raidSuccessRate.toFixed(0)}%</span>
+  1656→                </div>
+  1657→                <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden progress-glow">
+  1658→                  <motion.div
+  1659→                    initial={{ width: 0 }}
+  1660→                    animate={{ width: `${Math.min(raidSuccessRate, 100)}%` }}
+  1661→                    transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 }}
+  1662→                    className="h-full rounded-full bg-gradient-to-r from-orange-400 via-red-500 to-amber-500"
+  1663→                  />
+  1664→                </div>
+  1665→              </div>
+  1666→              <div>
+  1667→                <div className="flex items-center justify-between mb-1">
+  1668→                  <div className="flex items-center gap-1.5">
+  1669→                    <div className="w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center">
+  1670→                      <Shield className="w-3 h-3 text-emerald-500" />
+  1671→                    </div>
+  1672→                    <span className="text-[10px] font-semibold text-warm-600 dark:text-warm-300">{t('profile.tackleSuccess', language)}</span>
+  1673→                  </div>
+  1674→                  <span className="text-[10px] font-black text-emerald-500">{tackleSuccessRate.toFixed(0)}%</span>
+  1675→                </div>
+  1676→                <div className="w-full h-2.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden progress-glow">
+  1677→                  <motion.div
+  1678→                    initial={{ width: 0 }}
+  1679→                    animate={{ width: `${Math.min(tackleSuccessRate, 100)}%` }}
+  1680→                    transition={{ duration: 1.5, ease: 'easeOut', delay: 0.4 }}
+  1681→                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-500 to-green-500"
+  1682→                  />
+  1683→                </div>
+  1684→              </div>
+  1685→            </div>
+  1686→          </div>
+  1687→        </div>
+  1688→
+  1689→        {/* ═══ Practice Stats Section ═══ */}
+  1690→        <motion.div
+  1691→          initial={{ opacity: 0, y: 10 }}
+  1692→          animate={{ opacity: 1, y: 0 }}
+  1693→          transition={{ delay: 0.13 }}
+  1694→        >
+  1695→          <Card className="overflow-hidden border-0 shadow-sm">
+  1696→            <div className="p-4 bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-900/15 dark:to-teal-900/10">
+  1697→              {/* Section Header */}
+  1698→              <div className="flex items-center justify-between mb-3">
+  1699→                <div className="flex items-center gap-2">
+  1700→                  <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+  1701→                    <span className="text-sm">🏋️</span>
+  1702→                  </div>
+  1703→                  <div>
+  1704→                    <h3 className="text-sm font-bold text-warm-800 dark:text-warm-200">Practice Stats</h3>
+  1705→                    <p className="text-[9px] text-warm-500 dark:text-warm-400">Not counted in leaderboard or awards</p>
+  1706→                  </div>
+  1707→                </div>
+  1708→                {practiceMatches > 0 && (
+  1709→                  <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+  1710→                    {practiceMatches} matches
+  1711→                  </Badge>
+  1712→                )}
+  1713→              </div>
+  1714→
+  1715→              {practiceMatches > 0 ? (
+  1716→                <>
+  1717→                  {/* Practice Stats Grid */}
+  1718→                  <div className="grid grid-cols-4 gap-2 mb-3">
+  1719→                    <div className="text-center p-2 rounded-xl bg-white/60 dark:bg-warm-800/40">
+  1720→                      <p className="text-lg font-black text-warm-800 dark:text-warm-100">{practiceMatches}</p>
+  1721→                      <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Matches</p>
+  1722→                    </div>
+  1723→                    <div className="text-center p-2 rounded-xl bg-orange-500/10 dark:bg-orange-500/5">
+  1724→                      <p className="text-lg font-black text-orange-500">{practiceRaidPoints}</p>
+  1725→                      <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Raid Pts</p>
+  1726→                    </div>
+  1727→                    <div className="text-center p-2 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/5">
+  1728→                      <p className="text-lg font-black text-emerald-500">{practiceTacklePoints}</p>
+  1729→                      <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Tackle Pts</p>
+  1730→                    </div>
+  1731→                    <div className="text-center p-2 rounded-xl bg-amber-500/10 dark:bg-amber-500/5">
+  1732→                      <p className="text-lg font-black text-amber-600 dark:text-amber-400">{practiceTotalPoints}</p>
+  1733→                      <p className="text-[8px] text-warm-500 dark:text-warm-400 uppercase font-semibold">Total Pts</p>
+  1734→                    </div>
+  1735→                  </div>
+  1736→
+  1737→                  {/* Comparison Bar */}
+  1738→                  <div className="bg-white/40 dark:bg-warm-800/30 rounded-xl p-3">
+  1739→                    <p className="text-[10px] font-semibold text-warm-600 dark:text-warm-300 mb-2">Points Distribution</p>
+  1740→                    <div className="h-3 rounded-full bg-warm-200 dark:bg-warm-700 overflow-hidden flex">
+  1741→                      {practiceTotalPoints > 0 && (
+  1742→                        <>
+  1743→                          <motion.div
+  1744→                            initial={{ width: 0 }}
+  1745→                            animate={{ width: `${(practiceRaidPoints / practiceTotalPoints) * 100}%` }}
+  1746→                            transition={{ duration: 0.8, delay: 0.3 }}
+  1747→                            className="h-full bg-gradient-to-r from-orange-400 to-orange-500"
+  1748→                          />
+  1749→                          <motion.div
+  1750→                            initial={{ width: 0 }}
+  1751→                            animate={{ width: `${(practiceTacklePoints / practiceTotalPoints) * 100}%` }}
+  1752→                            transition={{ duration: 0.8, delay: 0.4 }}
+  1753→                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500"
+  1754→                          />
+  1755→                        </>
+  1756→                      )}
+  1757→                    </div>
+  1758→                    <div className="flex items-center justify-between mt-2">
+  1759→                      <div className="flex items-center gap-1.5">
+  1760→                        <div className="w-2 h-2 rounded-full bg-orange-500" />
+  1761→                        <span className="text-[9px] text-warm-500 dark:text-warm-400">Raid {practiceTotalPoints > 0 ? Math.round((practiceRaidPoints / practiceTotalPoints) * 100) : 0}%</span>
+  1762→                      </div>
+  1763→                      <div className="flex items-center gap-1.5">
+  1764→                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+  1765→                        <span className="text-[9px] text-warm-500 dark:text-warm-400">Tackle {practiceTotalPoints > 0 ? Math.round((practiceTacklePoints / practiceTotalPoints) * 100) : 0}%</span>
+  1766→                      </div>
+  1767→                    </div>
+  1768→                  </div>
+  1769→                </>
+  1770→              ) : (
+  1771→                <div className="text-center py-4">
+  1772→                  <p className="text-xs text-warm-500 dark:text-warm-400 font-medium">No practice matches yet</p>
+  1773→                  <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">Start a practice match to track your training stats</p>
+  1774→                </div>
+  1775→              )}
+  1776→            </div>
+  1777→          </Card>
+  1778→        </motion.div>
+  1779→
+  1780→        {/* Tournament vs Practice Overview (compact) */}
+  1781→        <div className="grid grid-cols-2 gap-3 mt-1">
+  1782→          <motion.div
+  1783→            initial={{ opacity: 0, x: -15 }}
+  1784→            animate={{ opacity: 1, x: 0 }}
+  1785→            transition={{ delay: 0.3 }}
+  1786→            whileHover={{ scale: 1.02, y: -2 }}
+  1787→            className="transition-transform"
+  1788→          >
+  1789→            <Card className="p-3 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/20 shadow-sm relative overflow-hidden">
+  1790→              {/* Decorative gradient accent */}
+  1791→              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
+  1792→              <div className="flex items-center gap-1.5 mb-2">
+  1793→                <span className="text-sm">🏆</span>
+  1794→                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Tournament</span>
+  1795→                <span className="text-[8px] font-semibold text-amber-500/60 dark:text-amber-400/40 ml-auto">COUNTS</span>
+  1796→              </div>
+  1797→              <div className="space-y-1.5">
+  1798→                <div className="flex justify-between text-[11px]">
+  1799→                  <span className="text-warm-500 dark:text-warm-400">{t('profile.matches', language)}</span>
+  1800→                  <span className="text-warm-800 dark:text-warm-100 font-semibold">{profileData.tournamentMatches}</span>
+  1801→                </div>
+  1802→                <div className="flex justify-between text-[11px]">
+  1803→                  <span className="text-warm-500 dark:text-warm-400">{t('common.raidPts', language)}</span>
+  1804→                  <span className="text-orange-500 font-semibold">{profileData.tournamentRaidPoints}</span>
+  1805→                </div>
+  1806→                <div className="flex justify-between text-[11px]">
+  1807→                  <span className="text-warm-500 dark:text-warm-400">{t('common.tacklePts', language)}</span>
+  1808→                  <span className="text-emerald-500 font-semibold">{profileData.tournamentTacklePoints}</span>
+  1809→                </div>
+  1810→                <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+  1811→                  <span className="text-warm-500 dark:text-warm-400">{t('common.totalPts', language)}</span>
+  1812→                  <span className="text-warm-800 dark:text-warm-100 font-bold">{profileData.tournamentTotalPoints}</span>
+  1813→                </div>
+  1814→              </div>
+  1815→            </Card>
+  1816→          </motion.div>
+  1817→          <motion.div
+  1818→            initial={{ opacity: 0, x: 15 }}
+  1819→            animate={{ opacity: 1, x: 0 }}
+  1820→            transition={{ delay: 0.4 }}
+  1821→            whileHover={{ scale: 1.02, y: -2 }}
+  1822→            className="transition-transform"
+  1823→          >
+  1824→            <Card className="p-3 bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/20 shadow-sm relative overflow-hidden">
+  1825→              {/* Decorative gradient accent */}
+  1826→              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+  1827→              <div className="flex items-center gap-1.5 mb-2">
+  1828→                <span className="text-sm">🏋️</span>
+  1829→                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Practice</span>
+  1830→                <span className="text-[8px] font-semibold text-emerald-500/60 dark:text-emerald-400/40 ml-auto">TRAINING</span>
+  1831→              </div>
+  1832→              <div className="space-y-1.5">
+  1833→                <div className="flex justify-between text-[11px]">
+  1834→                  <span className="text-warm-500 dark:text-warm-400">{t('profile.matches', language)}</span>
+  1835→                  <span className="text-warm-800 dark:text-warm-100 font-semibold">{profileData.practiceMatches}</span>
+  1836→                </div>
+  1837→                <div className="flex justify-between text-[11px]">
+  1838→                  <span className="text-warm-500 dark:text-warm-400">{t('common.raidPts', language)}</span>
+  1839→                  <span className="text-orange-500 font-semibold">{profileData.practiceRaidPoints}</span>
+  1840→                </div>
+  1841→                <div className="flex justify-between text-[11px]">
+  1842→                  <span className="text-warm-500 dark:text-warm-400">{t('common.tacklePts', language)}</span>
+  1843→                  <span className="text-emerald-500 font-semibold">{profileData.practiceTacklePoints}</span>
+  1844→                </div>
+  1845→                <div className="flex justify-between text-[11px] border-t border-warm-200 dark:border-warm-300 pt-1">
+  1846→                  <span className="text-warm-500 dark:text-warm-400">{t('common.totalPts', language)}</span>
+  1847→                  <span className="text-warm-800 dark:text-warm-100 font-bold">{profileData.practiceTotalPoints}</span>
+  1848→                </div>
+  1849→              </div>
+  1850→            </Card>
+  1851→          </motion.div>
+  1852→        </div>
+  1853→      </motion.div>
+  1854→      )}
+  1855→
+  1856→      {/* ═══════════════════════════════════════════ */}
+  1857→      {/* 4. MATCH HISTORY TIMELINE (Enhanced) */}
+  1858→      {/* ═══════════════════════════════════════════ */}
+  1859→      {(
+  1860→      <motion.div
+  1861→        initial={{ opacity: 0, y: 10 }}
+  1862→        animate={{ opacity: 1, y: 0 }}
+  1863→        transition={{ delay: 0.14 }}
+  1864→      >
+  1865→        <MatchHistoryTimeline
+  1866→          matches={recentMatches.map((m) => ({
+  1867→            id: m.id,
+  1868→            homeTeam: m.homeTeam,
+  1869→            awayTeam: m.awayTeam,
+  1870→            homeScore: m.homeScore,
+  1871→            awayScore: m.awayScore,
+  1872→            date: m.date,
+  1873→            isPractice: m.isPractice,
+  1874→            userTeamSide: m.userTeamSide,
+  1875→            completedAt: m.completedAt,
+  1876→          }))}
+  1877→        />
+  1878→      </motion.div>
+  1879→      )}
+  1880→
+  1881→      {/* ═══════════════════════════════════════════ */}
+  1882→      {/* 5. BADGES Section with Categories, Locked & Progress */}
+  1883→      {/* ═══════════════════════════════════════════ */}
+  1884→      {(
+  1885→      <motion.div
+  1886→        initial={{ opacity: 0, y: 10 }}
+  1887→        animate={{ opacity: 1, y: 0 }}
+  1888→        transition={{ delay: 0.15 }}
+  1889→      >
+  1890→        <PremiumLock feature="Detailed Badges">
+  1891→          <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+  1892→            <Award className="w-4 h-4 text-brand-gold" />
+  1893→            {t('profile.badges', language)}
+  1894→          </h3>
+  1895→          <div className="space-y-4">
+  1896→            {badgeCategories.map((category) => (
+  1897→              <div key={category.title}>
+  1898→                <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-300 uppercase tracking-wider mb-2">{category.title}</p>
+  1899→                <div className="flex flex-wrap gap-2 justify-center">
+  1900→                  {category.badges.map((badge, idx) => {
+  1901→                    const isLocked = badge.premium && !isPremium;
+  1902→                    return (
+  1903→                      <motion.div
+  1904→                        key={badge.label}
+  1905→                        initial={{ opacity: 0, scale: 0.8, y: 10 }}
+  1906→                        animate={{ opacity: 1, scale: 1, y: 0 }}
+  1907→                        transition={{ delay: 0.06 * idx, type: 'spring', stiffness: 300 }}
+  1908→                        whileHover={{ scale: 1.08, y: -2 }}
+  1909→                        className="transition-transform"
+  1910→                      >
+  1911→                        <Tooltip>
+  1912→                          <TooltipTrigger asChild>
+  1913→                            <div
+  1914→                              className={`relative flex flex-col items-center px-3 py-2.5 rounded-xl border-2 transition-all min-w-[76px] max-w-[90px] cursor-default ${
+  1915→                                badge.condition
+  1916→                                  ? 'bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 border-brand-gold/40 shadow-md badge-unlocked-shimmer'
+  1917→                                  : isLocked
+  1918→                                    ? 'bg-warm-100/30 dark:bg-warm-200/20 border-warm-200/60 dark:border-warm-300/50 badge-locked relative overflow-hidden'
+  1919→                                    : 'bg-warm-100 dark:bg-warm-200/50 border-warm-200 dark:border-warm-300 hover:border-brand-gold/30'
+  1920→                              }`}
+  1921→                            >
+  1922→                              {/* Locked badge shimmer effect */}
+  1923→                              {isLocked && (
+  1924→                                <motion.div
+  1925→                                  className="absolute inset-0 pointer-events-none"
+  1926→                                  style={{
+  1927→                                    background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)',
+  1928→                                    backgroundSize: '200% 100%',
+  1929→                                  }}
+  1930→                                  animate={{ backgroundPosition: ['200% 0%', '-200% 0%'] }}
+  1931→                                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+  1932→                                />
+  1933→                              )}
+  1934→                              <motion.span
+  1935→                                className="text-xl relative z-10"
+  1936→                                animate={badge.condition ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : {}}
+  1937→                                transition={badge.condition ? { duration: 2.5, repeat: Infinity, repeatDelay: 4 } : {}}
+  1938→                              >
+  1939→                                {isLocked ? <Lock className="w-4 h-4 text-warm-400" /> : badge.icon}
+  1940→                              </motion.span>
+  1941→                              <span className={`text-[9px] font-bold mt-1 relative z-10 ${
+  1942→                                badge.condition ? 'text-brand-gold' : 'text-warm-400 dark:text-warm-500'
+  1943→                              }`}>
+  1944→                                {badge.label}
+  1945→                              </span>
+  1946→                              {/* Progress indicator for partially completed - enhanced */}
+  1947→                              {!badge.condition && !isLocked && badge.progress > 0 && (
+  1948→                                <div className="w-full mt-1 relative z-10">
+  1949→                                  <div className="w-full h-1.5 bg-warm-200 dark:bg-warm-300 rounded-full overflow-hidden">
+  1950→                                    <motion.div
+  1951→                                      initial={{ width: 0 }}
+  1952→                                      animate={{ width: `${badge.progress}%` }}
+  1953→                                      transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+  1954→                                      className="h-full rounded-full bg-gradient-to-r from-brand-gold/60 to-brand-gold"
+  1955→                                    />
+  1956→                                  </div>
+  1957→                                  <span className="text-[7px] text-warm-400 font-medium">{badge.progress.toFixed(0)}%</span>
+  1958→                                </div>
+  1959→                              )}
+  1960→                              {isLocked && (
+  1961→                                <span className="text-[7px] font-bold text-brand-gold/60 mt-0.5 flex items-center gap-0.5 relative z-10">
+  1962→                                  <Crown className="w-2 h-2" /> PRO
+  1963→                                </span>
+  1964→                              )}
+  1965→                              {/* Unlocked checkmark */}
+  1966→                              {badge.condition && (
+  1967→                                <motion.div
+  1968→                                  initial={{ scale: 0 }}
+  1969→                                  animate={{ scale: 1 }}
+  1970→                                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm"
+  1971→                                >
+  1972→                                  <Check className="w-2.5 h-2.5 text-white" />
+  1973→                                </motion.div>
+  1974→                              )}
+  1975→                            </div>
+  1976→                          </TooltipTrigger>
+  1977→                          <TooltipContent side="bottom">
+  1978→                            <p className="font-semibold">{badge.condition ? '✨ Unlocked!' : `${badge.threshold} needed`}</p>
+  1979→                            {!badge.condition && <p className="text-[9px] opacity-70">{badge.progress.toFixed(0)}% progress</p>}
+  1980→                          </TooltipContent>
+  1981→                        </Tooltip>
+  1982→                      </motion.div>
+  1983→                    );
+  1984→                  })}
+  1985→                </div>
+  1986→              </div>
+  1987→            ))}
+  1988→          </div>
+  1989→        </PremiumLock>
+  1990→      </motion.div>
+  1991→      )}
+  1992→
+  1993→      {/* ═══════════════════════════════════════════ */}
+  1994→      {/* 6. PERFORMANCE RADAR/SPIDER CHART */}
+  1995→      {/* ═══════════════════════════════════════════ */}
+  1996→      {(
+  1997→      <motion.div
+  1998→        initial={{ opacity: 0, y: 10 }}
+  1999→        animate={{ opacity: 1, y: 0 }}
+  2000→        transition={{ delay: 0.2 }}
+
+[showing lines 1-2000 of 2713; use offset=2001 with limit to continue reading]

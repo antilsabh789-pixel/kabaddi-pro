@@ -42,6 +42,7 @@ import {
   MessageCircle,
   Crosshair,
   Megaphone,
+  IndianRupee,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -81,7 +82,7 @@ import MatchHistoryScreen from './MatchHistoryScreen';
 import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchTimelineScreen from './MatchTimelineScreen';
-import CoachesCornerScreen from './CoachesCornerScreen';
+import CoachDashboard from './CoachDashboard';
 import LiveCommentaryTicker, { toCommentaryMatchInfo, type CommentaryMatchInfo } from './LiveCommentaryTicker';
 import LiveMatchCommentaryFeed, { type LiveMatchCommentaryInfo } from './LiveMatchCommentaryFeed';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
@@ -1180,7 +1181,7 @@ export default function HomeTab() {
         />
       )}
       {showCoachesCorner && (
-        <CoachesCornerScreen onClose={() => setShowCoachesCorner(false)} />
+        <CoachDashboard onClose={() => setShowCoachesCorner(false)} />
       )}
       {showTeamsLeaderboard && (
         <TeamsLeaderboardScreen onClose={() => setShowTeamsLeaderboard(false)} />
@@ -1516,6 +1517,43 @@ export default function HomeTab() {
             </CardContent>
           </Card>
         </section>
+      )}
+
+      {/* ─── Coach Dashboard Banner (COACH USERS ONLY) ─── */}
+      {currentUser?.role === 'coach' && (
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="px-4 mt-5"
+        >
+          <Card
+            className="p-4 cursor-pointer transition-all duration-200 active:scale-[0.98] hover:shadow-xl relative overflow-hidden bg-gradient-to-br from-brand-green/15 via-brand-green/5 to-brand-green/10 dark:from-brand-green/20 dark:via-brand-green/5 dark:to-brand-green/10 border-brand-green/25 dark:border-brand-green/15"
+            onClick={() => setShowCoachesCorner(true)}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-brand-green/5 via-transparent to-brand-green/5" />
+            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-brand-green to-brand-green-dark rounded-r" />
+            <div className="flex items-center gap-4 relative z-10">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-green to-brand-green-dark flex items-center justify-center shadow-lg shadow-brand-green/30 shrink-0">
+                <Megaphone className="w-7 h-7 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Coach Dashboard</h3>
+                  <Badge className="bg-brand-green/20 text-brand-green border-brand-green/30 text-[8px] px-1.5">YOUR HUB</Badge>
+                </div>
+                <p className="text-xs text-warm-500 dark:text-warm-400 mt-0.5">Manage academy, attendance, fees & rewards</p>
+                <div className="flex gap-3 mt-2">
+                  <span className="text-[10px] text-warm-400 flex items-center gap-1"><Calendar className="w-3 h-3" /> Attendance</span>
+                  <span className="text-[10px] text-warm-400 flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Fees</span>
+                  <span className="text-[10px] text-warm-400 flex items-center gap-1"><Trophy className="w-3 h-3" /> Rewards</span>
+                  <span className="text-[10px] text-warm-400 flex items-center gap-1"><BarChart3 className="w-3 h-3" /> Analytics</span>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-brand-green/50 shrink-0" />
+            </div>
+          </Card>
+        </motion.section>
       )}
 
       {/* ─── Live Matches (FREE) ─── */}
@@ -2994,17 +3032,22 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
-          {/* Coach's Corner - teal for coaching (PREMIUM) */}
+          {/* Coach Dashboard - primary feature for coaches, premium for players */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.8 }}
           >
             <Card
-              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700 group card-hover-lift"
+              className={`p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden group card-hover-lift ${
+                currentUser?.role === 'coach'
+                  ? 'bg-gradient-to-br from-brand-green/20 to-brand-green/5 dark:from-brand-green/15 dark:to-brand-green/5 border-brand-green/30 dark:border-brand-green/20 ring-1 ring-brand-green/20'
+                  : 'bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700'
+              }`}
               onClick={() => {
-                if (!isPremium) {
-                  setUpgradeFeature("Coach's Corner");
+                // Coaches always have access, players need premium
+                if (currentUser?.role !== 'coach' && !isPremium) {
+                  setUpgradeFeature("Coach Dashboard");
                   setShowUpgrade(true);
                   return;
                 }
@@ -3013,25 +3056,36 @@ export default function HomeTab() {
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_5.5s_ease-in-out_infinite]" />
               <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-gold" />
-              {!isPremium && (
+              <div className={`absolute left-0 top-0 bottom-0 w-1 ${currentUser?.role === 'coach' ? 'bg-gradient-to-b from-brand-green to-brand-green-dark' : 'bg-gradient-to-b from-brand-teal to-brand-gold'}`} />
+              {currentUser?.role !== 'coach' && !isPremium && (
                 <div className="absolute top-2 right-2 z-20">
                   <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-md shadow-yellow-400/30">
                     <Lock className="w-3 h-3 text-white" />
                   </div>
                 </div>
               )}
+              {currentUser?.role === 'coach' && (
+                <div className="absolute top-2 right-2 z-20">
+                  <Badge className="bg-brand-green/20 text-brand-green border-brand-green/30 text-[8px] px-1.5 py-0">COACH</Badge>
+                </div>
+              )}
               <div className="flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 flex items-center justify-center relative shadow-sm group-hover:shadow-md group-hover:shadow-brand-teal/20 transition-shadow shrink-0">
-                  <Megaphone className="w-4.5 h-4.5 text-brand-teal" />
-                  {!isPremium && <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />}
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center relative shadow-sm group-hover:shadow-md transition-shadow shrink-0 ${
+                  currentUser?.role === 'coach'
+                    ? 'bg-gradient-to-br from-brand-green/40 to-brand-green/20 shadow-brand-green/20'
+                    : 'bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 shadow-brand-teal/20'
+                }`}>
+                  <Megaphone className={`w-4.5 h-4.5 ${currentUser?.role === 'coach' ? 'text-brand-green' : 'text-brand-teal'}`} />
+                  {currentUser?.role !== 'coach' && !isPremium && <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />}
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100 flex items-center gap-1">
-                    {t('coach.title', language)}
-                    {!isPremium && <span className="text-[8px] font-extrabold text-yellow-600 dark:text-yellow-400 bg-yellow-400/20 dark:bg-yellow-400/10 px-1 rounded">PRO</span>}
+                    {currentUser?.role === 'coach' ? 'Coach Dashboard' : t('coach.title', language)}
+                    {currentUser?.role !== 'coach' && !isPremium && <span className="text-[8px] font-extrabold text-yellow-600 dark:text-yellow-400 bg-yellow-400/20 dark:bg-yellow-400/10 px-1 rounded">PRO</span>}
                   </p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">{t('coach.manageTeam', language)}</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">
+                    {currentUser?.role === 'coach' ? 'Manage academy, attendance & fees' : t('coach.manageTeam', language)}
+                  </p>
                 </div>
               </div>
             </Card>

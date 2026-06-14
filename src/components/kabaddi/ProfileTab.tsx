@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import Portal from '@/components/portal';
 import { useTheme } from 'next-themes';
@@ -40,6 +40,7 @@ import PlayerProfileCard from './PlayerProfileCard';
 import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchHistoryTimeline from './MatchHistoryTimeline';
+import CoachDashboard from './CoachDashboard';
 import { t } from '@/lib/i18n';
 
 const POSITIONS = [
@@ -196,6 +197,7 @@ export default function ProfileTab() {
   const [showDataExport, setShowDataExport] = useState(false);
   const [showSeason, setShowSeason] = useState(false);
   const [showPolls, setShowPolls] = useState(false);
+  const [showCoachDashboard, setShowCoachDashboard] = useState(false);
   const [showSponsors, setShowSponsors] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showProfileCard, setShowProfileCard] = useState(false);
@@ -686,6 +688,7 @@ export default function ProfileTab() {
     {
       title: 'Team & Stats',
       items: [
+        ...(currentUser?.role === 'coach' ? [{ icon: Megaphone, label: 'Coach Dashboard', desc: 'Academy, attendance & fees', color: 'brand-green', premium: false, onClick: () => setShowCoachDashboard(true) }] : []),
         { icon: Users, label: 'My Teams', desc: 'Manage your teams', color: 'brand-teal', premium: false, onClick: () => setShowTeamManagement(true) },
         { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', premium: true, onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
         { icon: Activity, label: 'My Stats', desc: 'View your stats', color: 'brand-red', premium: false, onClick: () => setShowStats(true) },
@@ -796,6 +799,9 @@ export default function ProfileTab() {
       )}
       {showReferral && (
         <ReferralScreen onClose={() => setShowReferral(false)} />
+      )}
+      {showCoachDashboard && (
+        <CoachDashboard onClose={() => setShowCoachDashboard(false)} />
       )}
       {showAIInsights && (
         <AIInsightsScreen onClose={() => setShowAIInsights(false)} />

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useKabaddiStore } from '@/lib/store';
 
-type Stage = 'auth' | 'details' | 'role';
+type Stage = 'auth' | 'role' | 'details';
 type ForgotStage = 'verify' | 'new-password' | 'success';
 
 const roles = [
@@ -29,7 +29,7 @@ const roles = [
   {
     id: 'coach',
     title: 'Coach',
-    description: 'Manage teams, strategies, and match tactics',
+    description: 'Manage your academy, attendance, fees, and team performance',
     icon: Megaphone,
     color: 'from-brand-green to-brand-green-dark',
     borderColor: 'border-brand-green/40',
@@ -347,8 +347,8 @@ export default function AuthScreen() {
 
   const goBack = useCallback(() => {
     setDirection(-1);
-    if (stage === 'role') setStage('details');
-    else if (stage === 'details') setStage('auth');
+    if (stage === 'details') setStage('role');
+    else if (stage === 'role') setStage('auth');
   }, [stage]);
 
   const toggleRole = useCallback((roleId: string) => {
@@ -552,8 +552,15 @@ export default function AuthScreen() {
   // ── Details Continue ──────────────────────────────────────────
   const handleDetailsContinue = useCallback(() => {
     setError('');
-    if (!gender) {
+    const isCoach = selectedRoles.has('coach') && !selectedRoles.has('player');
+
+    if (!isCoach && !gender) {
       setError('Please select your gender');
+      return;
+    }
+
+    if (isCoach && !practiceGround.trim()) {
+      setError('Please enter your academy / playground location');
       return;
     }
 
@@ -565,13 +572,13 @@ export default function AuthScreen() {
         body: JSON.stringify({
           userId: currentUser.id,
           action: 'update-details',
-          gender: gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender,
-          weight: weight ? `${weight.replace(/kg$/i, '')}kg` : undefined,
+          gender: !isCoach ? (gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender) : undefined,
+          weight: !isCoach && weight ? `${weight.replace(/kg$/i, '')}kg` : undefined,
           practiceGround: practiceGround || undefined,
         }),
       }).catch(() => {});
 
-      if (position) {
+      if (!isCoach && position) {
         fetch(`/api/players/${currentUser.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -581,14 +588,15 @@ export default function AuthScreen() {
     }
 
     useKabaddiStore.getState().updateUser({
-      gender: gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender,
-      weight: weight ? `${weight.replace(/kg$/i, '')}kg` : undefined,
+      gender: !isCoach ? (gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender) : undefined,
+      weight: !isCoach && weight ? `${weight.replace(/kg$/i, '')}kg` : undefined,
       practiceGround: practiceGround || undefined,
-      position: position || undefined,
+      position: !isCoach ? (position || undefined) : undefined,
     });
 
-    goNext('role');
-  }, [gender, weight, practiceGround, position, goNext]);
+    // After details, finish onboarding
+    setOnboarded(true);
+  }, [gender, weight, practiceGround, position, selectedRoles, setOnboarded]);
 
   // ── Role Get Started ──────────────────────────────────────────
   const handleGetStarted = useCallback(async () => {
@@ -608,11 +616,13 @@ export default function AuthScreen() {
         });
         useKabaddiStore.getState().updateUser({ role: roleValue });
       }
-      setOnboarded(true);
+      // If coach with no player role, go to coach details (just location)
+      // If player, go to full player details
+      goNext('details');
     } finally {
       setIsSubmitting(false);
     }
-  }, [setOnboarded, selectedRoles]);
+  }, [selectedRoles, goNext]);
 
   // ── Forgot Password: Verify with DOB ─────────────────────────
   const handleForgotVerify = useCallback(async () => {
@@ -702,7 +712,7 @@ export default function AuthScreen() {
     setForgotVerificationToken('');
   }, []);
 
-  const stageIndex: Record<Stage, number> = { auth: 0, details: 1, role: 2 };
+  const stageIndex: Record<Stage, number> = { auth: 0, role: 1, details: 2 };
 
   // Toggle signup mode
   const handleToggleSignUp = useCallback(() => {
@@ -1462,180 +1472,7 @@ export default function AuthScreen() {
             )}
 
             {/* ═══════════════════════════════════════════
-                Stage 2: Details (Gender, Weight, Practice Ground)
-                ═══════════════════════════════════════════ */}
-            {stage === 'details' && (
-              <motion.div
-                key="details"
-                custom={direction}
-                variants={slideVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
-              >
-                <div className="flex justify-center gap-2 mb-5">
-                  {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
-                    <motion.div
-                      key={s}
-                      className="h-1.5 rounded-full"
-                      animate={{
-                        width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
-                        backgroundColor:
-                          stageIndex[stage] === idx
-                            ? '#DC2626'
-                            : stageIndex[stage] > idx
-                              ? '#B91C1C'
-                              : '#CBD5E1',
-                      }}
-                      transition={{ duration: 0.5 }}
-                    />
-                  ))}
-                </div>
-
-                <motion.button
-                  whileHover={{ x: -3 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={goBack}
-                  className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-1" />
-                  Back
-                </motion.button>
-
-                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">Tell us about yourself</h2>
-                <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
-                  Help us personalize your experience
-                </p>
-
-                {/* Gender Selection */}
-                <div className="w-full mb-5">
-                  <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-3 block">
-                    Gender <span className="text-brand-red">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.03, y: -2 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => {
-                        setGender('boy');
-                        if (error) setError('');
-                      }}
-                      className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
-                        gender === 'boy'
-                          ? 'border-brand-blue bg-gradient-to-br from-brand-blue to-brand-blue-dark shadow-lg shadow-brand-blue/25'
-                          : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-blue/40 hover:shadow-md'
-                      }`}
-                    >
-                      {gender === 'boy' && (
-                        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 2, opacity: 0.1 }} className="absolute w-20 h-20 rounded-full bg-white" />
-                      )}
-                      <span className={`text-4xl leading-none relative z-10 ${gender === 'boy' ? 'text-white drop-shadow-lg' : 'text-brand-blue'}`}>♂</span>
-                      <span className={`text-sm font-bold relative z-10 ${gender === 'boy' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>Boy</span>
-                      {gender === 'boy' && (
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
-                          <Zap className="w-4 h-4 text-white/60" />
-                        </motion.div>
-                      )}
-                    </motion.button>
-
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.03, y: -2 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => {
-                        setGender('girl');
-                        if (error) setError('');
-                      }}
-                      className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
-                        gender === 'girl'
-                          ? 'border-brand-red bg-gradient-to-br from-brand-red to-brand-red-dark shadow-lg shadow-brand-red/25'
-                          : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-red/40 hover:shadow-md'
-                      }`}
-                    >
-                      {gender === 'girl' && (
-                        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 2, opacity: 0.1 }} className="absolute w-20 h-20 rounded-full bg-white" />
-                      )}
-                      <span className={`text-4xl leading-none relative z-10 ${gender === 'girl' ? 'text-white drop-shadow-lg' : 'text-brand-red'}`}>♀</span>
-                      <span className={`text-sm font-bold relative z-10 ${gender === 'girl' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>Girl</span>
-                      {gender === 'girl' && (
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
-                          <Zap className="w-4 h-4 text-white/60" />
-                        </motion.div>
-                      )}
-                    </motion.button>
-                  </div>
-                </div>
-
-                {/* Weight */}
-                <div className="relative mb-4">
-                  <Weight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 pointer-events-none" />
-                  <Input
-                    type="text"
-                    placeholder="Weight (e.g. 65)"
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
-                  />
-                </div>
-
-                {/* Practice Ground */}
-                <div className="relative mb-4">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 pointer-events-none" />
-                  <Input
-                    type="text"
-                    placeholder="Practice ground / Academy name"
-                    value={practiceGround}
-                    onChange={(e) => setPracticeGround(e.target.value)}
-                    className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
-                  />
-                </div>
-
-                {/* Position Selection */}
-                <div className="mb-5">
-                  <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">Playing Position</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['Raider', 'Defender', 'All-Rounder'].map((pos) => (
-                      <motion.button
-                        key={pos}
-                        type="button"
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => setPosition(pos.toLowerCase().replace('-', '-'))}
-                        className={`py-2.5 px-2 rounded-xl border-2 text-xs font-semibold transition-all ${
-                          position === pos.toLowerCase().replace('-', '-')
-                            ? 'border-brand-red bg-brand-red/10 text-brand-red'
-                            : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 text-warm-600 dark:text-warm-400 hover:border-brand-red/30'
-                        }`}
-                      >
-                        {pos}
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-
-                <AnimatePresence>
-                  {error && (
-                    <motion.p initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-brand-red text-sm mb-3 text-center">{error}</motion.p>
-                  )}
-                </AnimatePresence>
-
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button
-                    onClick={handleDetailsContinue}
-                    disabled={!gender}
-                    className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-red/25 transition-all"
-                  >
-                    Continue <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </motion.div>
-              </motion.div>
-            )}
-
-            {/* ═══════════════════════════════════════════
-                Stage 3: Role Selection
+                Stage 2: Role Selection (FIRST after auth)
                 ═══════════════════════════════════════════ */}
             {stage === 'role' && (
               <motion.div
@@ -1649,7 +1486,7 @@ export default function AuthScreen() {
                 className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
               >
                 <div className="flex justify-center gap-2 mb-5">
-                  {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+                  {(['auth', 'role', 'details'] as Stage[]).map((s, idx) => (
                     <motion.div
                       key={s}
                       className="h-1.5 rounded-full"
@@ -1677,7 +1514,7 @@ export default function AuthScreen() {
                   Back
                 </motion.button>
 
-                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1 text-center">Choose Your Role</h2>
+                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1 text-center">Are you a Player or Coach?</h2>
                 <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
                   Select how you&apos;ll use Kabaddi Pro
                 </p>
@@ -1727,6 +1564,25 @@ export default function AuthScreen() {
                   })}
                 </div>
 
+                {/* Coach feature preview */}
+                {selectedRoles.has('coach') && !selectedRoles.has('player') && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-4 p-3 rounded-xl bg-brand-green/10 border border-brand-green/20"
+                  >
+                    <p className="text-xs font-semibold text-brand-green-dark dark:text-brand-green mb-1">Coach Features Include:</p>
+                    <ul className="text-[10px] text-warm-600 dark:text-warm-400 space-y-0.5">
+                      <li>📋 Digital Register & Attendance</li>
+                      <li>💰 Fee Management & Ledger</li>
+                      <li>🏆 Student Incentive & Rewards</li>
+                      <li>📊 Attendance-to-Performance Analytics</li>
+                      <li>📢 Parental Notification Gateway</li>
+                    </ul>
+                  </motion.div>
+                )}
+
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
                     onClick={handleGetStarted}
@@ -1740,11 +1596,241 @@ export default function AuthScreen() {
                       </div>
                     ) : (
                       <>
-                        Get Started <ChevronRight className="w-4 h-4 ml-1" />
+                        Continue <ChevronRight className="w-4 h-4 ml-1" />
                       </>
                     )}
                   </Button>
                 </motion.div>
+              </motion.div>
+            )}
+
+            {/* ═══════════════════════════════════════════
+                Stage 3: Details (Conditional - Player vs Coach)
+                ═══════════════════════════════════════════ */}
+            {stage === 'details' && (
+              <motion.div
+                key="details"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+              >
+                <div className="flex justify-center gap-2 mb-5">
+                  {(['auth', 'role', 'details'] as Stage[]).map((s, idx) => (
+                    <motion.div
+                      key={s}
+                      className="h-1.5 rounded-full"
+                      animate={{
+                        width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+                        backgroundColor:
+                          stageIndex[stage] === idx
+                            ? '#DC2626'
+                            : stageIndex[stage] > idx
+                              ? '#B91C1C'
+                              : '#CBD5E1',
+                      }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  ))}
+                </div>
+
+                <motion.button
+                  whileHover={{ x: -3 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={goBack}
+                  className="self-start flex items-center text-warm-500 dark:text-warm-400 hover:text-warm-800 dark:hover:text-warm-200 transition-colors mb-4 text-sm"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  Back
+                </motion.button>
+
+                {/* Coach-only details */}
+                {selectedRoles.has('coach') && !selectedRoles.has('player') ? (
+                  <>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-green to-brand-green-dark flex items-center justify-center">
+                        <Megaphone className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Coach Setup</h2>
+                        <p className="text-warm-500 dark:text-warm-400 text-sm">Tell us about your academy</p>
+                      </div>
+                    </div>
+
+                    {/* Academy / Playground Name */}
+                    <div className="relative mb-4">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-green/60 pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder="Academy / Playground name *"
+                        value={practiceGround}
+                        onChange={(e) => { setPracticeGround(e.target.value); if (error) setError(''); }}
+                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
+                      />
+                    </div>
+
+                    {/* Location Details */}
+                    <div className="relative mb-4">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-green/60 pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder="City / Area (e.g. Pune, Kothrud)"
+                        value={weight}
+                        onChange={(e) => setWeight(e.target.value)}
+                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
+                      />
+                    </div>
+
+                    <AnimatePresence>
+                      {error && (
+                        <motion.p initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-brand-red text-sm mb-3 text-center">{error}</motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        onClick={handleDetailsContinue}
+                        disabled={!practiceGround.trim()}
+                        className="w-full h-12 bg-gradient-to-r from-brand-green to-brand-green-dark hover:from-brand-green hover:to-brand-green text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-green/25 transition-all"
+                      >
+                        Start Coaching <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </motion.div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1">Tell us about yourself</h2>
+                    <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+                      Help us personalize your experience
+                    </p>
+
+                    {/* Gender Selection */}
+                    <div className="w-full mb-5">
+                      <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-3 block">
+                        Gender <span className="text-brand-red">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.03, y: -2 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => {
+                            setGender('boy');
+                            if (error) setError('');
+                          }}
+                          className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
+                            gender === 'boy'
+                              ? 'border-brand-blue bg-gradient-to-br from-brand-blue to-brand-blue-dark shadow-lg shadow-brand-blue/25'
+                              : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-blue/40 hover:shadow-md'
+                          }`}
+                        >
+                          {gender === 'boy' && (
+                            <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 2, opacity: 0.1 }} className="absolute w-20 h-20 rounded-full bg-white" />
+                          )}
+                          <span className={`text-4xl leading-none relative z-10 ${gender === 'boy' ? 'text-white drop-shadow-lg' : 'text-brand-blue'}`}>♂</span>
+                          <span className={`text-sm font-bold relative z-10 ${gender === 'boy' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>Boy</span>
+                          {gender === 'boy' && (
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
+                              <Zap className="w-4 h-4 text-white/60" />
+                            </motion.div>
+                          )}
+                        </motion.button>
+
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.03, y: -2 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => {
+                            setGender('girl');
+                            if (error) setError('');
+                          }}
+                          className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 transition-all overflow-hidden ${
+                            gender === 'girl'
+                              ? 'border-brand-red bg-gradient-to-br from-brand-red to-brand-red-dark shadow-lg shadow-brand-red/25'
+                              : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 hover:border-brand-red/40 hover:shadow-md'
+                          }`}
+                        >
+                          {gender === 'girl' && (
+                            <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 2, opacity: 0.1 }} className="absolute w-20 h-20 rounded-full bg-white" />
+                          )}
+                          <span className={`text-4xl leading-none relative z-10 ${gender === 'girl' ? 'text-white drop-shadow-lg' : 'text-brand-red'}`}>♀</span>
+                          <span className={`text-sm font-bold relative z-10 ${gender === 'girl' ? 'text-white' : 'text-warm-700 dark:text-warm-300'}`}>Girl</span>
+                          {gender === 'girl' && (
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-2 right-2 z-10">
+                              <Zap className="w-4 h-4 text-white/60" />
+                            </motion.div>
+                          )}
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    {/* Weight */}
+                    <div className="relative mb-4">
+                      <Weight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder="Weight (e.g. 65)"
+                        value={weight}
+                        onChange={(e) => setWeight(e.target.value)}
+                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
+                      />
+                    </div>
+
+                    {/* Practice Ground */}
+                    <div className="relative mb-4">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder="Practice ground / Academy name"
+                        value={practiceGround}
+                        onChange={(e) => setPracticeGround(e.target.value)}
+                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
+                      />
+                    </div>
+
+                    {/* Position Selection */}
+                    <div className="mb-5">
+                      <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">Playing Position</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['Raider', 'Defender', 'All-Rounder'].map((pos) => (
+                          <motion.button
+                            key={pos}
+                            type="button"
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => setPosition(pos.toLowerCase().replace('-', '-'))}
+                            className={`py-2.5 px-2 rounded-xl border-2 text-xs font-semibold transition-all ${
+                              position === pos.toLowerCase().replace('-', '-')
+                                ? 'border-brand-red bg-brand-red/10 text-brand-red'
+                                : 'border-warm-300/60 dark:border-warm-600/40 bg-white/60 dark:bg-white/5 text-warm-600 dark:text-warm-400 hover:border-brand-red/30'
+                            }`}
+                          >
+                            {pos}
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <AnimatePresence>
+                      {error && (
+                        <motion.p initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-brand-red text-sm mb-3 text-center">{error}</motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        onClick={handleDetailsContinue}
+                        disabled={!gender}
+                        className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-red/25 transition-all"
+                      >
+                        Continue <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </motion.div>
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
