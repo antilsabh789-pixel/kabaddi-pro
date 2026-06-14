@@ -915,7 +915,7 @@ export default function AuthScreen() {
                       <div className="flex items-center justify-center gap-2 mb-3 px-3 py-2.5 rounded-lg bg-brand-gold/10 border border-brand-gold/20">
                         <MessageSquare className="w-3.5 h-3.5 text-brand-gold shrink-0" />
                         <div>
-                          <p className="text-[10px] text-warm-400 dark:text-warm-500">Demo OTP</p>
+                          <p className="text-[10px] text-warm-400 dark:text-warm-500">Tester OTP</p>
                           <p className="text-sm font-bold text-brand-gold-dark dark:text-brand-gold tracking-widest">{forgotDemoOtp}</p>
                         </div>
                         <button
@@ -1458,7 +1458,7 @@ export default function AuthScreen() {
                       <MessageSquare className="w-4 h-4 text-brand-gold shrink-0" />
                       <div>
                         <p className="text-[10px] text-warm-400 dark:text-warm-500">
-                          {process.env.NODE_ENV === 'development' ? 'Tester OTP' : 'Demo OTP'} (auto-filled for testing)
+                          Tester OTP — SMS also sent to phone
                         </p>
                         <p className="text-sm font-bold text-brand-gold-dark dark:text-brand-gold tracking-widest">{demoOtp}</p>
                       </div>
