@@ -16,6 +16,12 @@ npx prisma generate
 
 echo "✅ Prisma client generated for PostgreSQL"
 
+# FRESH START: Force reset the database to wipe all old data
+# This drops and recreates all tables - everyone starts fresh
+npx prisma db push --force-reset
+
+echo "✅ Database reset - fresh start for all users!"
+
 # Build Next.js
 npx next build
 
