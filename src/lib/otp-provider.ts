@@ -533,10 +533,13 @@ export async function sendOTP(phone: string, otp: string): Promise<OTPResult> {
 
 export async function verifyOTPProvider(
   phone: string,
-  otp: string
+  otp: string,
+  providerUsed?: string
 ): Promise<{ valid: boolean; message: string } | null> {
+  // Only use MSG91 server-side verification if the OTP was actually sent via MSG91
+  // When OTP is sent via Fast2SMS or Twilio, MSG91 has no record and will return "invalid"
   const config = getConfig();
-  if (config.msg91AuthKey) {
+  if (config.msg91AuthKey && providerUsed === 'msg91') {
     const mobileWithCC = '91' + sanitizePhone(phone);
     try {
       const response = await fetch(
@@ -552,6 +555,7 @@ export async function verifyOTPProvider(
       return null;
     }
   }
+  // For all other providers (Fast2SMS, Twilio), use local verification
   return null;
 }
 

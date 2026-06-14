@@ -167,8 +167,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Try provider-side verification first (MSG91)
-      const providerResult = await verifyOTPProvider(phone, otp);
+      // Check local OTP store first to know which provider was used
+      const storedForProvider = otpStore.get(phone);
+      const providerUsed = storedForProvider?.providerUsed;
+
+      // Try provider-side verification ONLY if OTP was sent via MSG91
+      // (Fast2SMS/Twilio don't have server-side verify - use local verification)
+      const providerResult = await verifyOTPProvider(phone, otp, providerUsed);
       if (providerResult !== null) {
         if (providerResult.valid) {
           const stored = otpStore.get(phone);
@@ -188,7 +193,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Fallback: Local verification
+      // Local verification (used for Fast2SMS, Twilio, and as MSG91 fallback)
       const stored = otpStore.get(phone);
       if (!stored) {
         return NextResponse.json(
@@ -459,8 +464,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Try provider-side verification first
-      const providerResult = await verifyOTPProvider(phone, otp);
+      // Check which provider was used for this OTP
+      const resetStored = otpStore.get(`reset:${phone}`);
+      const resetProviderUsed = resetStored?.providerUsed;
+
+      // Try provider-side verification ONLY if OTP was sent via MSG91
+      const providerResult = await verifyOTPProvider(phone, otp, resetProviderUsed);
       if (providerResult !== null) {
         if (providerResult.valid) {
           const stored = otpStore.get(`reset:${phone}`);
