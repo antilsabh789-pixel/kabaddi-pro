@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
             OR: [
               { name: { contains: search } },
               { phone: { contains: search } },
-              { playerCode: { contains: search, mode: 'insensitive' } },
+              { playerCode: { contains: search } },
             ],
           }
         : undefined,

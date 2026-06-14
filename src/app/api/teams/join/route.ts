@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Find team by code
     const team = await db.team.findFirst({
-      where: { teamCode: { equals: teamCode, mode: 'insensitive' } },
+      where: { teamCode: { equals: teamCode } },
       include: { members: { include: { user: { include: { profile: true } } } } },
     });
 
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     }
 
     const team = await db.team.findFirst({
-      where: { teamCode: { equals: code, mode: 'insensitive' } },
+      where: { teamCode: { equals: code } },
       include: {
         members: {
           include: { user: { select: { id: true, name: true, avatar: true } } },

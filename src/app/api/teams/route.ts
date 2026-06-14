@@ -48,8 +48,8 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { name: { contains: search } },
-        { teamCode: { contains: search, mode: 'insensitive' } },
-        { shortName: { contains: search, mode: 'insensitive' } },
+        { teamCode: { contains: search } },
+        { shortName: { contains: search } },
       ];
     }
 

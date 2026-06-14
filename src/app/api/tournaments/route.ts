@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { name: { contains: search } },
-        { tournamentCode: { contains: search, mode: 'insensitive' } },
+        { tournamentCode: { contains: search } },
       ];
       // Remove status/gender from top-level if using OR (they need to be inside AND)
       if (status || (gender && gender !== 'all')) {
