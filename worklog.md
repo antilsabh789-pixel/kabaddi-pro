@@ -619,3 +619,37 @@ Stage Summary:
 5. After whitelisting, the payment checkout will work properly
 
 Alternative: If you have a custom domain, add that instead and update the Vercel deployment URL.
+
+---
+Task ID: 19
+Agent: Main
+Task: Fix Cashfree "Broken Link" error - replace JS SDK with direct redirect approach
+
+Work Log:
+- User whitelisted `kabaddi-app-cyan.vercel.app` in Cashfree dashboard (both domains now Approved)
+- But Cashfree "Broken Link!" error still persisted - Cashfree SDK checks domain even with _modal mode
+- Root cause: Cashfree JS SDK (even in _modal mode) verifies the originating domain before loading checkout
+- Solution: Completely removed Cashfree JS SDK dependency - use direct redirect to Cashfree's hosted payment page
+- Cashfree's hosted payment page lives on Cashfree's own domain (payments.cashfree.com), so NO domain whitelisting is needed
+- Flow: Create order → Get payment_session_id → Redirect user to `https://payments.cashfree.com/pg/orders/pay/{payment_session_id}`
+- After payment, Cashfree redirects user back to our `return_url` with `order_id` param
+- Added payment verification on app return:
+  - Main page.tsx useEffect detects `?payment=redirect&order_id=xxx` URL params
+  - Also checks localStorage for `pendingPaymentOrderId` (saved before redirect)
+  - Verifies payment status via POST /api/payments/verify
+  - On success: updates user to premium via `updateUser({ isPremium: true })`
+- Updated PremiumUpgradeScreen:
+  - Removed Cashfree JS SDK loading code
+  - Removed Cashfree global type declaration
+  - Simplified handleActivate: create order → redirect to Cashfree payment URL
+  - Button shows "Redirecting to payment..." during redirect
+- Cleaned up return_url in create-order: `?payment=redirect&order_id={cashfreeOrderId}`
+
+Stage Summary:
+- ✅ Cashfree JS SDK completely removed - no more domain whitelisting issues
+- ✅ Direct redirect to Cashfree's hosted payment page (works without whitelisting)
+- ✅ Payment verification on return from Cashfree redirect
+- ✅ localStorage persistence for pending payment order IDs
+- ✅ Both main page.tsx and PremiumUpgradeScreen handle payment returns
+- ✅ Pushed to Vercel (commit: 5dc7a00)
+- ⏳ User should test payment flow on Vercel - the "Broken Link!" error should be gone
