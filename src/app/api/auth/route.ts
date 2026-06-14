@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       provider: process.env.OTP_PROVIDER,
       hasAuthKey: !!process.env.MSG91_AUTH_KEY,
       hasTemplateId: !!process.env.MSG91_TEMPLATE_ID,
+      hasSenderId: !!process.env.MSG91_SENDER_ID,
       isConfigured: isConfigured(),
     });
 
@@ -578,17 +579,21 @@ export async function POST(request: NextRequest) {
         provider: process.env.OTP_PROVIDER || 'msg91',
         hasAuthKey: !!process.env.MSG91_AUTH_KEY,
         hasTemplateId: !!process.env.MSG91_TEMPLATE_ID,
+        hasSenderId: !!process.env.MSG91_SENDER_ID,
       };
       const missing = [];
       if (config.provider === 'msg91') {
+        // Only AUTH_KEY is required. Template ID & Sender ID are optional.
+        // Without template, MSG91 uses its built-in OTP service (guaranteed delivery)
         if (!config.hasAuthKey) missing.push('MSG91_AUTH_KEY');
-        if (!config.hasTemplateId) missing.push('MSG91_TEMPLATE_ID');
       }
       return NextResponse.json({
         provider: config.provider,
         isDemo: false, // NEVER demo mode
         isConfigured: isConfigured(),
         missingEnvVars: missing,
+        usingTemplate: config.hasTemplateId,
+        usingSenderId: config.hasSenderId,
       });
     }
 
