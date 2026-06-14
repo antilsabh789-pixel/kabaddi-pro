@@ -306,3 +306,36 @@ SETUP INSTRUCTIONS FOR TWILIO:
    - TWILIO_VERIFY_SERVICE_SID=(from Verify Service, starts with VA)
    - OTP_PROVIDER=auto (or twilio)
 6. Redeploy
+
+---
+Task ID: 11
+Agent: Main
+Task: Fix OTP not receiving - diagnose all provider failures
+
+Work Log:
+- Tested OTP on Vercel with diagnostic endpoint
+- Found the ROOT CAUSES for ALL 3 providers:
+  1. **Twilio**: Error 21608 - Trial account can only send to VERIFIED numbers. Need to upgrade at twilio.com/user/account/billing
+  2. **Fast2SMS**: Quick route works for non-DND numbers, but user's number is on DND list (code:427)
+  3. **MSG91**: Returns "success" but has 0 SMS credits → SMS NEVER delivers (silent failure!)
+- Applied fixes:
+  - Reordered Fast2SMS routes: Quick route FIRST (most reliable), then OTP, then DLT
+  - Added DND detection with helpful message: "deactivate DND by sending START to 1909"
+  - Added Twilio trial account detection (error 21608) - skips fast with clear upgrade message
+  - Added MSG91 balance check BEFORE sending - prevents silent "success" with 0 credits
+  - Updated provider priority: Fast2SMS (works now) → Twilio (when upgraded) → MSG91 (needs credits)
+  - Added user-friendly error messages for DND and trial account errors
+- Deployed to Vercel (commit: d3f7dbb)
+
+Stage Summary:
+- ✅ Fast2SMS Quick route WORKS for non-DND numbers
+- ✅ MSG91 balance check prevents silent failures
+- ✅ Twilio trial account detected with clear upgrade message
+- ✅ DND numbers get helpful "send START to 1909" message
+- ❌ User's phone number appears to be on DND list - this is the main blocker
+
+CURRENT STATUS - User needs to do ONE of these:
+1. **QUICKEST FIX**: Use a different phone number that's NOT on DND list
+2. **Deactivate DND**: Send "START" to 1909 from the DND number, then try again
+3. **Upgrade Twilio**: Add billing info at twilio.com/user/account/billing → Works with ALL numbers including DND
+4. **Add MSG91 credits**: Buy SMS credits (NOT wallet top-up) at MSG91 Dashboard
