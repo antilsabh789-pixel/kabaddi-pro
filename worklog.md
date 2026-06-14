@@ -87,3 +87,34 @@ Stage Summary:
 - ACTION NEEDED: User must add SMS credits to their MSG91 account
 - Go to MSG91 Dashboard → Recharge/Add Credits → Add at least ₹100 for SMS delivery
 - MSG91 gives 50 free SMS on signup - may need to check if those were used already
+
+---
+Task ID: 4
+Agent: Main
+Task: Fix OTP not receiving - MSG91 SMS delivery failure
+
+Work Log:
+- User reported OTP not being received on phone
+- Tested MSG91 API directly - returns "success" but SMS not delivered
+- User screenshots revealed:
+  1. MSG91 wallet has ₹50 balance (not 0 as initially suspected)
+  2. MSG91 sent "Alert for Failed SMS API" email with error code 400
+- Error 400 = SMS rejected by telecom operators due to DLT (Distributed Ledger Technology) non-compliance
+- ROOT CAUSE: Custom template + sender ID (KPAPPS) is NOT DLT-approved
+- India requires all commercial SMS to go through DLT-registered entities since 2020
+- Without DLT registration, MSG91 accepts the API request but telecom operators reject the SMS
+- FIX: Use MSG91's built-in OTP service (no custom template/sender needed)
+  - MSG91's own service uses their DLT-registered sender = guaranteed delivery
+  - Removed MSG91_TEMPLATE_ID and MSG91_SENDER_ID from .env
+  - Made template_id optional in OTP provider code
+  - Updated otp-status endpoint to not require template_id
+- Vercel still has MSG91_TEMPLATE_ID set - needs to be removed from Vercel Dashboard
+
+Stage Summary:
+- Code fix deployed to Vercel
+- CRITICAL: User must remove MSG91_TEMPLATE_ID from Vercel Environment Variables
+  - Go to Vercel Dashboard → Settings → Environment Variables
+  - Delete "MSG91_TEMPLATE_ID" variable
+  - Delete "MSG91_SENDER_ID" variable (if exists)
+  - Redeploy (push any commit or click Redeploy)
+- Alternative: If user gets DLT approval for their template/sender, they can add them back
