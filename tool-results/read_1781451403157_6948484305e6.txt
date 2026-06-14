@@ -1,0 +1,602 @@
+   600→   600→
+   601→   601→  // ── Role Get Started ──────────────────────────────────────────
+   602→   602→  const handleGetStarted = useCallback(async () => {
+   603→   603→    setIsSubmitting(true);
+   604→   604→    try {
+   605→   605→      const currentUser = useKabaddiStore.getState().currentUser;
+   606→   606→      if (currentUser?.id) {
+   607→   607→        const roleValue = Array.from(selectedRoles).join(',') || 'player';
+   608→   608→        await fetch('/api/auth', {
+   609→   609→          method: 'POST',
+   610→   610→          headers: { 'Content-Type': 'application/json' },
+   611→   611→          body: JSON.stringify({
+   612→   612→            userId: currentUser.id,
+   613→   613→            action: 'update-details',
+   614→   614→            role: roleValue,
+   615→   615→          }),
+   616→   616→        });
+   617→   617→        useKabaddiStore.getState().updateUser({ role: roleValue });
+   618→   618→      }
+   619→   619→      // If coach with no player role, go to coach details (just location)
+   620→   620→      // If player, go to full player details
+   621→   621→      goNext('details');
+   622→   622→    } finally {
+   623→   623→      setIsSubmitting(false);
+   624→   624→    }
+   625→   625→  }, [selectedRoles, goNext]);
+   626→   626→
+   627→   627→  // ── Forgot Password: Verify with DOB ─────────────────────────
+   628→   628→  const handleForgotVerify = useCallback(async () => {
+   629→   629→    setForgotError('');
+   630→   630→    if (forgotPhone.length !== 10) {
+   631→   631→      setForgotError('Please enter a valid 10-digit phone number');
+   632→   632→      return;
+   633→   633→    }
+   634→   634→    if (!forgotDobDay || !forgotDobMonth || !forgotDobYear) {
+   635→   635→      setForgotError('Please select your date of birth');
+   636→   636→      return;
+   637→   637→    }
+   638→   638→
+   639→   639→    const dateOfBirth = formatDOB(forgotDobDay, forgotDobMonth, forgotDobYear);
+   640→   640→    setForgotSubmitting(true);
+   641→   641→    try {
+   642→   642→      const res = await fetch('/api/auth', {
+   643→   643→        method: 'POST',
+   644→   644→        headers: { 'Content-Type': 'application/json' },
+   645→   645→        body: JSON.stringify({
+   646→   646→          action: 'forgot-password-verify',
+   647→   647→          phone: `+91${forgotPhone}`,
+   648→   648→          dateOfBirth,
+   649→   649→        }),
+   650→   650→      });
+   651→   651→      const data = await res.json();
+   652→   652→      if (!res.ok) {
+   653→   653→        setForgotError(data.error || 'Verification failed');
+   654→   654→        return;
+   655→   655→      }
+   656→   656→      setForgotVerificationToken(data.verificationToken);
+   657→   657→      setForgotStage('new-password');
+   658→   658→    } catch {
+   659→   659→      setForgotError('Something went wrong. Please try again.');
+   660→   660→    } finally {
+   661→   661→      setForgotSubmitting(false);
+   662→   662→    }
+   663→   663→  }, [forgotPhone, forgotDobDay, forgotDobMonth, forgotDobYear]);
+   664→   664→
+   665→   665→  // ── Forgot Password: Reset Password ──────────────────────────
+   666→   666→  const handleResetPassword = useCallback(async () => {
+   667→   667→    setForgotError('');
+   668→   668→    if (newPassword.length < 6) {
+   669→   669→      setForgotError('Password must be at least 6 characters');
+   670→   670→      return;
+   671→   671→    }
+   672→   672→    if (newPassword !== confirmNewPassword) {
+   673→   673→      setForgotError('Passwords do not match');
+   674→   674→      return;
+   675→   675→    }
+   676→   676→    setForgotSubmitting(true);
+   677→   677→    try {
+   678→   678→      const res = await fetch('/api/auth', {
+   679→   679→        method: 'POST',
+   680→   680→        headers: { 'Content-Type': 'application/json' },
+   681→   681→        body: JSON.stringify({
+   682→   682→          action: 'reset-password',
+   683→   683→          phone: `+91${forgotPhone}`,
+   684→   684→          password: newPassword,
+   685→   685→          verificationToken: forgotVerificationToken,
+   686→   686→        }),
+   687→   687→      });
+   688→   688→      const data = await res.json();
+   689→   689→      if (!res.ok) {
+   690→   690→        setForgotError(data.error || 'Failed to reset password');
+   691→   691→        return;
+   692→   692→      }
+   693→   693→      setForgotStage('success');
+   694→   694→    } catch {
+   695→   695→      setForgotError('Something went wrong. Please try again.');
+   696→   696→    } finally {
+   697→   697→      setForgotSubmitting(false);
+   698→   698→    }
+   699→   699→  }, [newPassword, confirmNewPassword, forgotPhone, forgotVerificationToken]);
+   700→   700→
+   701→   701→  // ── Close forgot password modal ──────────────────────────────
+   702→   702→  const closeForgotModal = useCallback(() => {
+   703→   703→    setShowForgot(false);
+   704→   704→    setForgotStage('verify');
+   705→   705→    setForgotPhone('');
+   706→   706→    setForgotDobDay('');
+   707→   707→    setForgotDobMonth('');
+   708→   708→    setForgotDobYear('');
+   709→   709→    setForgotError('');
+   710→   710→    setNewPassword('');
+   711→   711→    setConfirmNewPassword('');
+   712→   712→    setForgotVerificationToken('');
+   713→   713→  }, []);
+   714→   714→
+   715→   715→  const stageIndex: Record<Stage, number> = { auth: 0, role: 1, details: 2 };
+   716→   716→
+   717→   717→  // Toggle signup mode
+   718→   718→  const handleToggleSignUp = useCallback(() => {
+   719→   719→    setIsSignUp(!isSignUp);
+   720→   720→    setError('');
+   721→   721→    setPhoneExists(false);
+   722→   722→    setConfirmPassword('');
+   723→   723→    setTermsAccepted(false);
+   724→   724→    setName('');
+   725→   725→    setDobDay('');
+   726→   726→    setDobMonth('');
+   727→   727→    setDobYear('');
+   728→   728→  }, [isSignUp]);
+   729→   729→
+   730→   730→  return (
+   731→   731→    <div className="min-h-screen bg-gradient-to-br from-warm-50 via-white to-warm-100 dark:from-brand-navy-dark dark:via-brand-navy-dark dark:to-brand-navy flex flex-col px-4 relative overflow-hidden">
+   732→   732→      {/* ── Animated Background ── */}
+   733→   733→      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+   734→   734→        <div className="absolute inset-0 bg-gradient-to-br from-brand-red/5 via-transparent to-brand-navy/10 dark:from-brand-red/8 dark:via-transparent dark:to-brand-navy/15" />
+   735→   735→        <div className="absolute -top-40 -right-40 w-96 h-96 bg-brand-red/8 dark:bg-brand-red/5 rounded-full blur-3xl" />
+   736→   736→        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-brand-red-dark/8 dark:bg-brand-red-dark/5 rounded-full blur-3xl" />
+   737→   737→        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-brand-red/12 dark:bg-brand-red/6 rounded-full blur-3xl" />
+   738→   738→        <div className="absolute bottom-1/4 right-0 w-64 h-64 bg-brand-gold/8 dark:bg-brand-gold/5 rounded-full blur-3xl" />
+   739→   739→        <div className="absolute top-10 left-10 w-48 h-48 bg-brand-teal/6 dark:bg-brand-teal/4 rounded-full blur-3xl" />
+   740→   740→        <CourtPattern />
+   741→   741→        <FloatingParticles />
+   742→   742→        <div
+   743→   743→          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full border border-brand-gold/5 dark:border-brand-gold/3"
+   744→   744→          style={{ animation: 'spin-slow 60s linear infinite' }}
+   745→   745→        />
+   746→   746→        <div
+   747→   747→          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] rounded-full border border-brand-red/5 dark:border-brand-red/3"
+   748→   748→          style={{ animation: 'spin-slow 45s linear infinite reverse' }}
+   749→   749→        />
+   750→   750→      </div>
+   751→   751→
+   752→   752→      {/* ── Success Overlay ── */}
+   753→   753→      <AnimatePresence>
+   754→   754→        {showSuccess && (
+   755→   755→          <motion.div
+   756→   756→            initial={{ opacity: 0 }}
+   757→   757→            animate={{ opacity: 1 }}
+   758→   758→            exit={{ opacity: 0 }}
+   759→   759→            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center"
+   760→   760→          >
+   761→   761→            <SuccessCheckmark />
+   762→   762→          </motion.div>
+   763→   763→        )}
+   764→   764→      </AnimatePresence>
+   765→   765→
+   766→   766→      {/* ── Forgot Password Modal ── */}
+   767→   767→      <AnimatePresence>
+   768→   768→        {showForgot && (
+   769→   769→          <motion.div
+   770→   770→            ref={forgotOverlayRef}
+   771→   771→            initial={{ opacity: 0 }}
+   772→   772→            animate={{ opacity: 1 }}
+   773→   773→            exit={{ opacity: 0 }}
+   774→   774→            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4"
+   775→   775→            onClick={(e) => {
+   776→   776→              if (e.target === e.currentTarget) closeForgotModal();
+   777→   777→            }}
+   778→   778→            onKeyDown={(e) => {
+   779→   779→              if (e.key === 'Escape') closeForgotModal();
+   780→   780→            }}
+   781→   781→            tabIndex={-1}
+   782→   782→          >
+   783→   783→            <motion.div
+   784→   784→              initial={{ scale: 0.9, y: 30 }}
+   785→   785→              animate={{ scale: 1, y: 0 }}
+   786→   786→              exit={{ scale: 0.9, y: 30 }}
+   787→   787→              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+   788→   788→              className="w-full max-w-sm bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6 shadow-2xl"
+   789→   789→            >
+   790→   790→              <AnimatePresence mode="wait">
+   791→   791→                {/* ── Stage: Verify with Phone + DOB ── */}
+   792→   792→                {forgotStage === 'verify' && (
+   793→   793→                  <motion.div key="forgot-verify" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+   794→   794→                    <div className="flex items-center gap-3 mb-4">
+   795→   795→                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
+   796→   796→                        <KeyRound className="w-6 h-6 text-white" />
+   797→   797→                      </div>
+   798→   798→                      <div>
+   799→   799→                        <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100">Reset Password</h3>
+   800→   800→                        <p className="text-xs text-warm-500 dark:text-warm-400">Verify your identity to continue</p>
+   801→   801→                      </div>
+   802→   802→                    </div>
+   803→   803→
+   804→   804→                    <p className="text-xs text-warm-500 dark:text-warm-400 mb-4">
+   805→   805→                      Enter your phone number and date of birth to verify your identity
+   806→   806→                    </p>
+   807→   807→
+   808→   808→                    {/* Phone Input */}
+   809→   809→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">Phone Number</label>
+   810→   810→                    <div className="flex gap-2 mb-4">
+   811→   811→                      <div className="flex items-center justify-center h-12 px-3 rounded-xl bg-brand-red/10 border border-brand-red/30 text-brand-red font-bold text-sm shrink-0">
+   812→   812→                        +91
+   813→   813→                      </div>
+   814→   814→                      <Input
+   815→   815→                        type="tel"
+   816→   816→                        inputMode="numeric"
+   817→   817→                        maxLength={10}
+   818→   818→                        placeholder="Enter phone number"
+   819→   819→                        value={forgotPhone}
+   820→   820→                        onChange={(e) => {
+   821→   821→                          const val = e.target.value.replace(/\D/g, '');
+   822→   822→                          setForgotPhone(val);
+   823→   823→                          if (forgotError) setForgotError('');
+   824→   824→                        }}
+   825→   825→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl"
+   826→   826→                      />
+   827→   827→                    </div>
+   828→   828→
+   829→   829→                    {/* Date of Birth */}
+   830→   830→                    <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+   831→   831→                      <span className="flex items-center gap-1.5">
+   832→   832→                        <Calendar className="w-3.5 h-3.5 text-brand-red/60" />
+   833→   833→                        Date of Birth
+   834→   834→                      </span>
+   835→   835→                    </label>
+   836→   836→                    <div className="mb-4">
+   837→   837→                      <DOBPicker
+   838→   838→                        day={forgotDobDay}
+   839→   839→                        month={forgotDobMonth}
+   840→   840→                        year={forgotDobYear}
+   841→   841→                        onChange={(d, m, y) => {
+   842→   842→                          setForgotDobDay(d);
+   843→   843→                          setForgotDobMonth(m);
+   844→   844→                          setForgotDobYear(y);
+   845→   845→                          if (forgotError) setForgotError('');
+   846→   846→                        }}
+   847→   847→                      />
+   848→   848→                    </div>
+   849→   849→
+   850→   850→                    <AnimatePresence>
+   851→   851→                      {forgotError && (
+   852→   852→                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-brand-red text-xs mb-3 text-center">{forgotError}</motion.p>
+   853→   853→                      )}
+   854→   854→                    </AnimatePresence>
+   855→   855→
+   856→   856→                    <Button
+   857→   857→                      onClick={handleForgotVerify}
+   858→   858→                      disabled={forgotSubmitting || forgotPhone.length !== 10 || !forgotDobDay || !forgotDobMonth || !forgotDobYear}
+   859→   859→                      className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-red/25"
+   860→   860→                    >
+   861→   861→                      {forgotSubmitting ? (
+   862→   862→                        <div className="flex items-center gap-2">
+   863→   863→                          <Loader2 className="w-4 h-4 animate-spin" />
+   864→   864→                          Verifying...
+   865→   865→                        </div>
+   866→   866→                      ) : (
+   867→   867→                        <>Verify <ArrowRight className="w-4 h-4 ml-1" /></>
+   868→   868→                      )}
+   869→   869→                    </Button>
+   870→   870→                  </motion.div>
+   871→   871→                )}
+   872→   872→
+   873→   873→                {/* ── Stage: New Password ── */}
+   874→   874→                {forgotStage === 'new-password' && (
+   875→   875→                  <motion.div key="forgot-newpw" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+   876→   876→                    <div className="flex items-center gap-3 mb-4">
+   877→   877→                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-teal to-emerald-600 flex items-center justify-center">
+   878→   878→                        <Lock className="w-6 h-6 text-white" />
+   879→   879→                      </div>
+   880→   880→                      <div>
+   881→   881→                        <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100">New Password</h3>
+   882→   882→                        <p className="text-xs text-warm-500 dark:text-warm-400">Choose a strong password</p>
+   883→   883→                      </div>
+   884→   884→                    </div>
+   885→   885→
+   886→   886→                    {/* Verified badge */}
+   887→   887→                    <div className="flex items-center justify-center gap-2 mb-4">
+   888→   888→                      <motion.div
+   889→   889→                        initial={{ scale: 0 }}
+   890→   890→                        animate={{ scale: 1 }}
+   891→   891→                        transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+   892→   892→                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/25"
+   893→   893→                      >
+   894→   894→                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+   895→   895→                        <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Identity verified</span>
+   896→   896→                      </motion.div>
+   897→   897→                    </div>
+   898→   898→
+   899→   899→                    <div className="relative mb-3">
+   900→   900→                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+   901→   901→                      <Input
+   902→   902→                        type={showNewPassword ? 'text' : 'password'}
+   903→   903→                        placeholder="New password"
+   904→   904→                        value={newPassword}
+   905→   905→                        onChange={(e) => { setNewPassword(e.target.value); if (forgotError) setForgotError(''); }}
+   906→   906→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10 pr-12"
+   907→   907→                      />
+   908→   908→                      <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-brand-teal">
+   909→   909→                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+   910→   910→                      </button>
+   911→   911→                    </div>
+   912→   912→
+   913→   913→                    {newPassword && (
+   914→   914→                      <div className="mb-3">
+   915→   915→                        <div className="w-full h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
+   916→   916→                          <motion.div
+   917→   917→                            initial={{ width: 0 }}
+   918→   918→                            animate={{ width: `${getPasswordStrength(newPassword).pct}%` }}
+   919→   919→                            className={`h-full rounded-full ${getPasswordStrength(newPassword).barColor}`}
+   920→   920→                          />
+   921→   921→                        </div>
+   922→   922→                        <p className={`text-[10px] mt-1 font-medium ${getPasswordStrength(newPassword).color}`}>
+   923→   923→                          {getPasswordStrength(newPassword).label}
+   924→   924→                        </p>
+   925→   925→                      </div>
+   926→   926→                    )}
+   927→   927→
+   928→   928→                    <div className="relative mb-4">
+   929→   929→                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-teal/60 pointer-events-none" />
+   930→   930→                      <Input
+   931→   931→                        type="password"
+   932→   932→                        placeholder="Confirm new password"
+   933→   933→                        value={confirmNewPassword}
+   934→   934→                        onChange={(e) => { setConfirmNewPassword(e.target.value); if (forgotError) setForgotError(''); }}
+   935→   935→                        className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
+   936→   936→                      />
+   937→   937→                    </div>
+   938→   938→
+   939→   939→                    {confirmNewPassword && newPassword !== confirmNewPassword && (
+   940→   940→                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-red-500 text-xs mb-3">Passwords do not match</motion.p>
+   941→   941→                    )}
+   942→   942→
+   943→   943→                    <AnimatePresence>
+   944→   944→                      {forgotError && (
+   945→   945→                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-brand-red text-xs mb-3 text-center">{forgotError}</motion.p>
+   946→   946→                      )}
+   947→   947→                    </AnimatePresence>
+   948→   948→
+   949→   949→                    <Button
+   950→   950→                      onClick={handleResetPassword}
+   951→   951→                      disabled={forgotSubmitting || newPassword.length < 6 || newPassword !== confirmNewPassword}
+   952→   952→                      className="w-full h-12 bg-gradient-to-r from-brand-teal to-emerald-600 hover:from-brand-teal hover:to-emerald-500 text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-teal/25"
+   953→   953→                    >
+   954→   954→                      {forgotSubmitting ? (
+   955→   955→                        <div className="flex items-center gap-2">
+   956→   956→                          <Loader2 className="w-4 h-4 animate-spin" />
+   957→   957→                          Resetting...
+   958→   958→                        </div>
+   959→   959→                      ) : (
+   960→   960→                        <>Reset Password <ArrowRight className="w-4 h-4 ml-1" /></>
+   961→   961→                      )}
+   962→   962→                    </Button>
+   963→   963→                  </motion.div>
+   964→   964→                )}
+   965→   965→
+   966→   966→                {/* ── Stage: Success ── */}
+   967→   967→                {forgotStage === 'success' && (
+   968→   968→                  <motion.div key="forgot-success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="text-center py-4">
+   969→   969→                    <SuccessCheckmark />
+   970→   970→                    <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100 mb-1">Password Reset!</h3>
+   971→   971→                    <p className="text-sm text-warm-500 dark:text-warm-400 mb-6">Your password has been changed successfully.</p>
+   972→   972→                    <Button
+   973→   973→                      onClick={closeForgotModal}
+   974→   974→                      className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold rounded-xl shadow-lg shadow-brand-red/25"
+   975→   975→                    >
+   976→   976→                      Login Now <ArrowRight className="w-4 h-4 ml-1" />
+   977→   977→                    </Button>
+   978→   978→                  </motion.div>
+   979→   979→                )}
+   980→   980→              </AnimatePresence>
+   981→   981→            </motion.div>
+   982→   982→          </motion.div>
+   983→   983→        )}
+   984→   984→      </AnimatePresence>
+   985→   985→
+   986→   986→      {/* ── Enhanced Logo Section ── */}
+   987→   987→      <motion.div
+   988→   988→        className="flex flex-col items-center mb-8 relative z-10"
+   989→   989→        initial={{ opacity: 0, scale: 0.8 }}
+   990→   990→        animate={{ opacity: 1, scale: 1 }}
+   991→   991→        transition={{ duration: 0.6, ease: 'easeOut', type: 'spring', stiffness: 200 }}
+   992→   992→      >
+   993→   993→        <div className="relative mb-4">
+   994→   994→          <div className="absolute -inset-3 rounded-2xl bg-brand-red/20 dark:bg-brand-red/10 blur-lg pulse-glow" />
+   995→   995→          <div
+   996→   996→            className="absolute -inset-1.5 rounded-2xl border-2 border-brand-gold/30 dark:border-brand-gold/20"
+   997→   997→            style={{ animation: 'spin-slow 20s linear infinite' }}
+   998→   998→          />
+   999→   999→          <motion.div
+  1000→  1000→            initial={{ scale: 0 }}
+  1001→  1001→            animate={{ scale: 1 }}
+  1002→  1002→            transition={{ delay: 0.2, type: 'spring', stiffness: 300, damping: 15 }}
+  1003→  1003→            whileHover={{ scale: 1.08, rotate: 5 }}
+  1004→  1004→            whileTap={{ scale: 0.95 }}
+  1005→  1005→            className="w-18 h-18 rounded-2xl bg-gradient-to-br from-brand-red via-brand-red-dark to-brand-red flex items-center justify-center shadow-xl shadow-brand-red/40 cursor-pointer relative z-10"
+  1006→  1006→            style={{ width: 72, height: 72 }}
+  1007→  1007→          >
+  1008→  1008→            <Trophy className="w-9 h-9 text-white drop-shadow-lg" />
+  1009→  1009→          </motion.div>
+  1010→  1010→        </div>
+  1011→  1011→
+  1012→  1012→        <motion.h1
+  1013→  1013→          initial={{ opacity: 0, y: 10 }}
+  1014→  1014→          animate={{ opacity: 1, y: 0 }}
+  1015→  1015→          transition={{ delay: 0.3 }}
+  1016→  1016→          className="text-3xl font-black tracking-wider"
+  1017→  1017→        >
+  1018→  1018→          <span className="gradient-text">KABADDI</span>{' '}
+  1019→  1019→          <span className="gradient-text">PRO</span>
+  1020→  1020→        </motion.h1>
+  1021→  1021→
+  1022→  1022→        <motion.p
+  1023→  1023→          initial={{ opacity: 0, y: 8 }}
+  1024→  1024→          animate={{ opacity: 1, y: 0 }}
+  1025→  1025→          transition={{ delay: 0.4, duration: 0.5 }}
+  1026→  1026→          className="text-warm-500 dark:text-warm-400 text-xs tracking-widest mt-1.5 font-medium uppercase"
+  1027→  1027→        >
+  1028→  1028→          Live Scoring &amp; Tournaments
+  1029→  1029→        </motion.p>
+  1030→  1030→
+  1031→  1031→        {/* Version Badge */}
+  1032→  1032→        <motion.div
+  1033→  1033→          initial={{ opacity: 0 }}
+  1034→  1034→          animate={{ opacity: 1 }}
+  1035→  1035→          transition={{ delay: 0.6 }}
+  1036→  1036→          className="mt-2"
+  1037→  1037→        >
+  1038→  1038→          <span className="text-[9px] font-mono text-warm-400/60 dark:text-warm-500/60">v1.0</span>
+  1039→  1039→        </motion.div>
+  1040→  1040→      </motion.div>
+  1041→  1041→
+  1042→  1042→      {/* ── Stage content ── */}
+  1043→  1043→      <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10">
+  1044→  1044→        <div className="w-full max-w-sm">
+  1045→  1045→          <AnimatePresence mode="wait" custom={direction}>
+  1046→  1046→
+  1047→  1047→            {/* ═══════════════════════════════════════════
+  1048→  1048→                Stage 1: Login / Sign Up
+  1049→  1049→                ═══════════════════════════════════════════ */}
+  1050→  1050→            {stage === 'auth' && (
+  1051→  1051→              <motion.div
+  1052→  1052→                key="auth"
+  1053→  1053→                custom={direction}
+  1054→  1054→                variants={slideVariants}
+  1055→  1055→                initial="enter"
+  1056→  1056→                animate="center"
+  1057→  1057→                exit="exit"
+  1058→  1058→                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+  1059→  1059→                className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-2xl border border-white/30 dark:border-white/10 p-6 shadow-xl shadow-black/5 dark:shadow-black/20"
+  1060→  1060→              >
+  1061→  1061→                {/* Progress dots at top */}
+  1062→  1062→                <div className="flex justify-center gap-2 mb-5">
+  1063→  1063→                  {(['auth', 'details', 'role'] as Stage[]).map((s, idx) => (
+  1064→  1064→                    <motion.div
+  1065→  1065→                      key={s}
+  1066→  1066→                      className="h-1.5 rounded-full transition-all duration-500"
+  1067→  1067→                      animate={{
+  1068→  1068→                        width: stageIndex[stage] === idx ? 32 : stageIndex[stage] > idx ? 16 : 16,
+  1069→  1069→                        backgroundColor:
+  1070→  1070→                          stageIndex[stage] === idx
+  1071→  1071→                            ? '#DC2626'
+  1072→  1072→                            : stageIndex[stage] > idx
+  1073→  1073→                              ? '#B91C1C'
+  1074→  1074→                              : '#CBD5E1',
+  1075→  1075→                      }}
+  1076→  1076→                    />
+  1077→  1077→                  ))}
+  1078→  1078→                </div>
+  1079→  1079→
+  1080→  1080→                {/* ── LOGIN MODE ── */}
+  1081→  1081→                {!isSignUp && (
+  1082→  1082→                  <>
+  1083→  1083→                    <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1 text-center">
+  1084→  1084→                      Welcome Back!
+  1085→  1085→                    </h2>
+  1086→  1086→                    <p className="text-warm-500 dark:text-warm-400 text-sm mb-6 text-center">
+  1087→  1087→                      Login to your Kabaddi Pro account
+  1088→  1088→                    </p>
+  1089→  1089→
+  1090→  1090→                    {/* Phone Input */}
+  1091→  1091→                    <div className="w-full flex gap-2 mb-3">
+  1092→  1092→                      <div className="flex items-center justify-center h-12 px-3 rounded-xl bg-brand-red/10 border border-brand-red/30 text-brand-red dark:text-brand-red-light font-bold text-sm shrink-0 gap-1.5">
+  1093→  1093→                        <Phone className="w-3.5 h-3.5" />
+  1094→  1094→                        +91
+  1095→  1095→                      </div>
+  1096→  1096→                      <motion.div className="flex-1 relative" whileFocus={{ scale: 1.01 }}>
+  1097→  1097→                        <Input
+  1098→  1098→                          type="tel"
+  1099→  1099→                          inputMode="numeric"
+  1100→  1100→                          maxLength={10}
+  1101→  1101→                          placeholder="Enter 10-digit number"
+  1102→  1102→                          value={phone}
+  1103→  1103→                          onChange={(e) => {
+  1104→  1104→                            const val = e.target.value.replace(/\D/g, '');
+  1105→  1105→                            setPhone(val);
+  1106→  1106→                            if (error) setError('');
+  1107→  1107→                          }}
+  1108→  1108→                          className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+  1109→  1109→                        />
+  1110→  1110→                      </motion.div>
+  1111→  1111→                    </div>
+  1112→  1112→
+  1113→  1113→                    {/* Password Input */}
+  1114→  1114→                    <div className="w-full relative mb-1">
+  1115→  1115→                      <div className="relative">
+  1116→  1116→                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-red/60 dark:text-brand-red-light/60 pointer-events-none" />
+  1117→  1117→                        <Input
+  1118→  1118→                          type={showPassword ? 'text' : 'password'}
+  1119→  1119→                          placeholder="Enter password"
+  1120→  1120→                          value={password}
+  1121→  1121→                          onChange={(e) => {
+  1122→  1122→                            setPassword(e.target.value);
+  1123→  1123→                            if (error) setError('');
+  1124→  1124→                          }}
+  1125→  1125→                          onKeyDown={(e) => {
+  1126→  1126→                            if (e.key === 'Enter') handleLogin();
+  1127→  1127→                          }}
+  1128→  1128→                          className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 text-base rounded-xl pl-10 pr-12 focus:ring-2 focus:ring-brand-red/40 focus:border-brand-red/60 transition-all"
+  1129→  1129→                        />
+  1130→  1130→                        <motion.button
+  1131→  1131→                          type="button"
+  1132→  1132→                          whileHover={{ scale: 1.1 }}
+  1133→  1133→                          whileTap={{ scale: 0.9 }}
+  1134→  1134→                          onClick={() => setShowPassword(!showPassword)}
+  1135→  1135→                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-warm-400 hover:text-brand-red dark:text-warm-500 dark:hover:text-brand-red-light transition-colors"
+  1136→  1136→                        >
+  1137→  1137→                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+  1138→  1138→                        </motion.button>
+  1139→  1139→                      </div>
+  1140→  1140→
+  1141→  1141→                      {password && password.length < 6 && (
+  1142→  1142→                        <motion.p
+  1143→  1143→                          initial={{ opacity: 0, x: -8 }}
+  1144→  1144→                          animate={{ opacity: 1, x: 0 }}
+  1145→  1145→                          className="text-xs text-warm-400 dark:text-warm-500 mt-1.5 ml-1"
+  1146→  1146→                        >
+  1147→  1147→                          Password must be at least 6 characters
+  1148→  1148→                        </motion.p>
+  1149→  1149→                      )}
+  1150→  1150→                    </div>
+  1151→  1151→
+  1152→  1152→                    {/* Forgot Password Link */}
+  1153→  1153→                    <div className="flex justify-end mb-3">
+  1154→  1154→                      <motion.button
+  1155→  1155→                        whileHover={{ x: 2 }}
+  1156→  1156→                        whileTap={{ scale: 0.95 }}
+  1157→  1157→                        onClick={() => { setShowForgot(true); setForgotStage('verify'); }}
+  1158→  1158→                        className="text-xs font-medium text-brand-red dark:text-brand-red-light hover:text-brand-red-dark dark:hover:text-brand-red transition-colors"
+  1159→  1159→                      >
+  1160→  1160→                        Forgot Password?
+  1161→  1161→                      </motion.button>
+  1162→  1162→                    </div>
+  1163→  1163→
+  1164→  1164→                    {/* Error Message */}
+  1165→  1165→                    <AnimatePresence>
+  1166→  1166→                      {error && <ErrorMessage message={error} />}
+  1167→  1167→                    </AnimatePresence>
+  1168→  1168→
+  1169→  1169→                    {/* Login Button */}
+  1170→  1170→                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+  1171→  1171→                      <Button
+  1172→  1172→                        onClick={handleLogin}
+  1173→  1173→                        disabled={isSubmitting || phone.length !== 10 || password.length < 6}
+  1174→  1174→                        className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold text-base rounded-xl disabled:opacity-40 shadow-lg shadow-brand-red/25 hover:shadow-xl hover:shadow-brand-red/30 transition-all relative overflow-hidden group"
+  1175→  1175→                      >
+  1176→  1176→                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-transparent group-hover:via-white/20 transition-all duration-500 -translate-x-full group-hover:translate-x-full" />
+  1177→  1177→                        <span className="relative z-10 flex items-center justify-center gap-1.5">
+  1178→  1178→                          {isSubmitting ? (
+  1179→  1179→                            <>
+  1180→  1180→                              <Loader2 className="w-4 h-4 animate-spin" />
+  1181→  1181→                              Please wait...
+  1182→  1182→                            </>
+  1183→  1183→                          ) : (
+  1184→  1184→                            <>
+  1185→  1185→                              Login
+  1186→  1186→                              <ChevronRight className="w-4 h-4" />
+  1187→  1187→                            </>
+  1188→  1188→                          )}
+  1189→  1189→                        </span>
+  1190→  1190→                      </Button>
+  1191→  1191→                    </motion.div>
+  1192→  1192→                  </>
+  1193→  1193→                )}
+  1194→  1194→
+  1195→  1195→                {/* ── SIGNUP MODE ── */}
+  1196→  1196→                {isSignUp && (
+  1197→  1197→                  <>
+  1198→  1198→                    <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100 mb-1 text-center">
+  1199→  1199→                      Create Account
+
+[showing lines 600-1199 of 1852; use offset=1200 with limit to continue reading]

@@ -225,7 +225,7 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser } =
+  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding } =
     useKabaddiStore();
 
   // Wait for Zustand persist to hydrate from localStorage
@@ -324,9 +324,14 @@ export default function Home() {
     return <AuthScreen />;
   }
 
-  // Show onboarding wizard for first-time users
+  // Show onboarding wizard for first-time players (coaches skip this)
   if (isAuthenticated && isOnboarded && !hasCompletedOnboarding) {
-    return <OnboardingWizard />;
+    if (currentUser?.role === 'coach') {
+      // Auto-complete onboarding for coaches
+      completeOnboarding();
+    } else {
+      return <OnboardingWizard />;
+    }
   }
 
   // Show toss screen if a toss is in progress

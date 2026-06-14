@@ -12,6 +12,7 @@ export interface CurrentUser {
   gender?: string;
   weight?: string;
   practiceGround?: string;
+  location?: string;
   position?: string;
   jerseyNumber?: number;
   email?: string;
@@ -830,7 +831,7 @@ export const useKabaddiStore = create<KabaddiState>()(
           currentUser: state.currentUser
             ? {
                 ...state.currentUser,
-                ...(state.onboardingProfile.position && { role: state.onboardingProfile.position }),
+                ...(state.onboardingProfile.position && { position: state.onboardingProfile.position }),
                 ...(state.onboardingProfile.weightCategory && { weight: state.onboardingProfile.weightCategory }),
                 ...(state.onboardingProfile.experience && { experienceLevel: state.onboardingProfile.experience }),
                 createdAt: state.currentUser.createdAt || Date.now(),

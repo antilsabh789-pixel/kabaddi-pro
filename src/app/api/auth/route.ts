@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Build update data from allowed fields only
-      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'role', 'avatar', 'dateOfBirth'];
+      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'role', 'avatar', 'dateOfBirth'];
       const updateData: Record<string, unknown> = {};
 
       for (const field of allowedFields) {

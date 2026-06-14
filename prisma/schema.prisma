@@ -23,6 +23,7 @@ model User {
   gender         String?  // boy, girl
   weight         String?  // e.g., "65kg", "70kg"
   practiceGround String?  // practice ground / academy name
+  location       String?  // city / area for coaches
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

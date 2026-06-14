@@ -310,8 +310,9 @@ export default function AuthScreen() {
   const [gender, setGender] = useState<'boy' | 'girl' | ''>('');
   const [weight, setWeight] = useState('');
   const [practiceGround, setPracticeGround] = useState('');
+  const [coachLocation, setCoachLocation] = useState('');
   const [position, setPosition] = useState('');
-  const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
+  const [selectedRole, setSelectedRole] = useState<'player' | 'coach' | ''>('');
 
   // Forgot password flow
   const [showForgot, setShowForgot] = useState(false);
@@ -351,16 +352,8 @@ export default function AuthScreen() {
     else if (stage === 'role') setStage('auth');
   }, [stage]);
 
-  const toggleRole = useCallback((roleId: string) => {
-    setSelectedRoles((prev) => {
-      const next = new Set(prev);
-      if (next.has(roleId)) {
-        next.delete(roleId);
-      } else {
-        next.add(roleId);
-      }
-      return next;
-    });
+  const selectRole = useCallback((roleId: 'player' | 'coach') => {
+    setSelectedRole(roleId);
   }, []);
 
   // ── Check Phone Availability ──────────────────────────────────
@@ -480,7 +473,7 @@ export default function AuthScreen() {
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
-        goNext('details');
+        goNext('role');
       }, 800);
     } catch {
       setError('Something went wrong. Please try again.');
@@ -552,7 +545,7 @@ export default function AuthScreen() {
   // ── Details Continue ──────────────────────────────────────────
   const handleDetailsContinue = useCallback(() => {
     setError('');
-    const isCoach = selectedRoles.has('coach') && !selectedRoles.has('player');
+    const isCoach = selectedRole === 'coach';
 
     if (!isCoach && !gender) {
       setError('Please select your gender');
@@ -560,7 +553,7 @@ export default function AuthScreen() {
     }
 
     if (isCoach && !practiceGround.trim()) {
-      setError('Please enter your academy / playground location');
+      setError('Please enter your academy / playground name');
       return;
     }
 
@@ -575,6 +568,7 @@ export default function AuthScreen() {
           gender: !isCoach ? (gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender) : undefined,
           weight: !isCoach && weight ? `${weight.replace(/kg$/i, '')}kg` : undefined,
           practiceGround: practiceGround || undefined,
+          location: isCoach ? coachLocation || undefined : undefined,
         }),
       }).catch(() => {});
 
@@ -591,12 +585,13 @@ export default function AuthScreen() {
       gender: !isCoach ? (gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender) : undefined,
       weight: !isCoach && weight ? `${weight.replace(/kg$/i, '')}kg` : undefined,
       practiceGround: practiceGround || undefined,
+      location: isCoach ? coachLocation || undefined : undefined,
       position: !isCoach ? (position || undefined) : undefined,
     });
 
     // After details, finish onboarding
     setOnboarded(true);
-  }, [gender, weight, practiceGround, position, selectedRoles, setOnboarded]);
+  }, [gender, weight, practiceGround, coachLocation, position, selectedRole, setOnboarded]);
 
   // ── Role Get Started ──────────────────────────────────────────
   const handleGetStarted = useCallback(async () => {
@@ -604,25 +599,23 @@ export default function AuthScreen() {
     try {
       const currentUser = useKabaddiStore.getState().currentUser;
       if (currentUser?.id) {
-        const roleValue = Array.from(selectedRoles).join(',') || 'player';
         await fetch('/api/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: currentUser.id,
             action: 'update-details',
-            role: roleValue,
+            role: selectedRole,
           }),
         });
-        useKabaddiStore.getState().updateUser({ role: roleValue });
+        useKabaddiStore.getState().updateUser({ role: selectedRole });
       }
-      // If coach with no player role, go to coach details (just location)
-      // If player, go to full player details
+      // Go to role-specific details
       goNext('details');
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedRoles, goNext]);
+  }, [selectedRole, goNext]);
 
   // ── Forgot Password: Verify with DOB ─────────────────────────
   const handleForgotVerify = useCallback(async () => {
@@ -1522,14 +1515,14 @@ export default function AuthScreen() {
                 <div className="space-y-4 mb-6">
                   {roles.map((r) => {
                     const Icon = r.icon;
-                    const isSelected = selectedRoles.has(r.id);
+                    const isSelected = selectedRole === r.id;
                     return (
                       <motion.button
                         key={r.id}
                         type="button"
                         whileHover={{ scale: 1.02, y: -2 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => toggleRole(r.id)}
+                        onClick={() => selectRole(r.id as 'player' | 'coach')}
                         className={`w-full p-4 rounded-2xl border-2 transition-all flex items-center gap-4 ${
                           isSelected
                             ? `${r.borderColor} bg-gradient-to-r ${r.color} shadow-lg ${r.glowColor}`
@@ -1565,7 +1558,7 @@ export default function AuthScreen() {
                 </div>
 
                 {/* Coach feature preview */}
-                {selectedRoles.has('coach') && !selectedRoles.has('player') && (
+                {selectedRole === 'coach' && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -1586,7 +1579,7 @@ export default function AuthScreen() {
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
                     onClick={handleGetStarted}
-                    disabled={isSubmitting || selectedRoles.size === 0}
+                    disabled={isSubmitting || !selectedRole}
                     className="w-full h-12 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-semibold rounded-xl disabled:opacity-40 shadow-lg shadow-brand-red/25 transition-all"
                   >
                     {isSubmitting ? (
@@ -1648,7 +1641,7 @@ export default function AuthScreen() {
                 </motion.button>
 
                 {/* Coach-only details */}
-                {selectedRoles.has('coach') && !selectedRoles.has('player') ? (
+                {selectedRole === 'coach' ? (
                   <>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-green to-brand-green-dark flex items-center justify-center">
@@ -1672,14 +1665,14 @@ export default function AuthScreen() {
                       />
                     </div>
 
-                    {/* Location Details */}
+                    {/* City / Location */}
                     <div className="relative mb-4">
                       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-green/60 pointer-events-none" />
                       <Input
                         type="text"
                         placeholder="City / Area (e.g. Pune, Kothrud)"
-                        value={weight}
-                        onChange={(e) => setWeight(e.target.value)}
+                        value={coachLocation}
+                        onChange={(e) => setCoachLocation(e.target.value)}
                         className="h-12 bg-white/60 dark:bg-white/5 border-warm-300/60 dark:border-warm-600/40 text-warm-800 dark:text-warm-100 placeholder:text-warm-400 text-base rounded-xl pl-10"
                       />
                     </div>

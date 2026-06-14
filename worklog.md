@@ -735,3 +735,40 @@ Stage Summary:
 - CoachDashboard replaces CoachesCornerScreen with comprehensive features
 - 3 new Prisma models, 5 new API routes, 1 new component
 - Coach users see prominent green dashboard banner on home page
+
+---
+Task ID: 9
+Agent: Main
+Task: Fix signup flow - Role selection must appear BEFORE player details, coach asks only playground/location
+
+Work Log:
+- Analyzed existing AuthScreen signup flow: auth → details (skipped role selection!)
+- Found critical bug: handleRegister went directly to 'details' stage, skipping 'role' stage
+- Found data bug: coach city/location was stored in `weight` field (reused weight state variable)
+- Found store bug: completeOnboarding() overwrote user `role` (player/coach) with `position` (raider/defender)
+- Added `location` field to User model in Prisma schema
+- Ran `bun run db:push` to sync database
+- Updated auth API route to include `location` in allowedFields for update-details
+- Updated CurrentUser type in store to include `location` field
+- Fixed AuthScreen.tsx:
+  - Changed handleRegister to go to 'role' stage instead of 'details'
+  - Replaced `selectedRoles` (Set<string>, toggle) with `selectedRole` (single string, exclusive)
+  - Added `coachLocation` state for coach city/area (separate from `weight`)
+  - Updated role selection UI to be exclusive (radio-style, not checkbox-style)
+  - Coach details form now uses `coachLocation` instead of reusing `weight` state
+  - Updated handleDetailsContinue to save `location` properly for coaches
+  - Updated handleGetStarted to save single role value
+- Fixed store.ts: completeOnboarding() now sets `position` instead of overwriting `role`
+- Updated page.tsx: Coaches auto-skip OnboardingWizard (no position/experience needed)
+- Added `completeOnboarding` to page.tsx store destructuring
+- Tested both flows via agent-browser:
+  - Coach signup: Register → Role Selection (Coach) → Coach Setup (academy + city) → Main app ✓
+  - Player signup: Register → Role Selection (Player) → Player Details (gender/weight/ground/position) → Onboarding → Main app ✓
+
+Stage Summary:
+- Signup flow now correctly shows Player/Coach selection BEFORE any detail fields
+- Coach-only form: Academy/Playground name + City/Area (no gender, weight, position)
+- Player form: Gender + Weight + Practice Ground + Position (unchanged)
+- Fixed 3 bugs: registration skipping role selection, coach location in weight field, onboarding overwriting role
+- Added `location` field to User model for proper coach city/area storage
+- Coaches skip the OnboardingWizard entirely
