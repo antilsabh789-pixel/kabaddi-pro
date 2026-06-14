@@ -40,3 +40,27 @@ Stage Summary:
 - Only real MSG91 SMS OTP works now
 - If MSG91 credentials are missing, the OTP send will fail with an error (not fall back to demo)
 - For Vercel deployment: ensure `OTP_PROVIDER=msg91`, `MSG91_AUTH_KEY`, and `MSG91_TEMPLATE_ID` are set in Vercel Environment Variables
+
+---
+Task ID: 2
+Agent: Main
+Task: Complete database reset on Vercel and fix payment gateway error
+
+Work Log:
+- User reported: old user data still exists on Vercel, payment gateway shows "cashfreeOrderId column does not exist" error
+- Root cause: vercel-build.sh only ran `prisma generate` but NOT `prisma db push`, so the PostgreSQL database schema was out of sync
+- The Payment table was missing the `cashfreeOrderId` column on Vercel's PostgreSQL
+- Fixed vercel-build.sh to include `prisma db push` 
+- Used `--force-reset` flag for one deploy to wipe ALL data from Vercel PostgreSQL
+- Then changed back to `--accept-data-loss` (normal push) for future deploys to preserve data
+- Verified on Vercel:
+  - Previously registered phone (+919876543210) now accepts new sign-up → database is wiped
+  - Payment API returns "User not found" instead of column error → schema is fixed
+  - OTP status: `{"provider":"msg91","isDemo":false,"isConfigured":true,"missingEnvVars":[]}`
+
+Stage Summary:
+- Vercel PostgreSQL database completely wiped — ALL users, matches, payments gone
+- Payment table schema fixed — `cashfreeOrderId` column now exists
+- Build script now properly syncs Prisma schema on every deploy
+- Future deploys will preserve data (no more --force-reset)
+- Local SQLite also fresh and empty
