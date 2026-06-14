@@ -772,3 +772,49 @@ Stage Summary:
 - Fixed 3 bugs: registration skipping role selection, coach location in weight field, onboarding overwriting role
 - Added `location` field to User model for proper coach city/area storage
 - Coaches skip the OnboardingWizard entirely
+
+---
+Task ID: 10
+Agent: Main
+Task: Fix kabaddi scoring system - proper rules (revival, all-out, do-or-die, vertical mat layout)
+
+Work Log:
+- Analyzed the full LiveScoringScreen (2966 lines) and store.ts scoring logic
+- Identified multiple critical rule violations in recalculateFromEvents:
+  - Revival didn't follow FIFO properly for all event types
+  - All-Out wasn't auto-detected when all defenders eliminated
+  - Super Tackle revival wasn't handled correctly
+  - Do-or-Die raid failed state wasn't properly tracking out players
+- Rewrote recalculateFromEvents with proper Pro Kabaddi League rules:
+  - Raid Point: Each point = 1 player revival from front of out queue (FIFO)
+  - Tackle Point: Raider goes out, defending team revives 1 player
+  - Super Tackle: 2 points total (1 tackle + 1 super tackle), 2 revivals for defending team
+  - Bonus Point: 1 revival for scoring team
+  - Self-Out: Defender goes out, scoring team revives 1 player
+  - All-Out: When all 7 defenders out → +2 pts, clear entire out queue, all 7 revive
+  - Do-or-Die: Failed do-or-die = raider out + defending team gets 1 point + 1 revival
+  - Empty Raid counter tracked per team for do-or-die trigger
+- Fixed processRaidResult in LiveScoringScreen:
+  - All-Out auto-detection after successful raid (remainingDefenders <= 0)
+  - All-Out auto-detection after raider caught (last active player)
+  - All-Out auto-detection after failed do-or-die (last active player)
+  - Super Tackle check: ≤3 active defenders on court
+  - All-Out celebration with sound feedback
+- Redesigned scoring UI layout:
+  - Changed from horizontal side-by-side split to VERTICAL kabaddi mat layout
+  - Away team at TOP (rotated 180° to face the other way, like a real court)
+  - Compact score divider in the middle with scores + timer
+  - Home team at BOTTOM (normal orientation)
+  - Kabaddi court pattern in the center divider
+  - Removed redundant Revival/Out-Players panel
+- Tested: App loads, login works, Quick Score tab accessible
+- Lint passes clean
+- Pushed to GitHub (triggers Vercel auto-deploy)
+
+Stage Summary:
+- Complete kabaddi scoring rules overhaul following Pro Kabaddi League standards
+- Revival system now properly implements FIFO (1 point = 1 player revival)
+- All-Out is auto-detected and auto-handled (+2 pts, clear queue, revive all 7)
+- Super Tackle correctly awards 2 points when ≤3 defenders
+- Vertical mat layout with teams facing each other like a real kabaddi court
+- Do-or-Die properly tracked per team from empty raid events
