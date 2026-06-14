@@ -442,3 +442,30 @@ Stage Summary:
 - ✅ All loading states, error messages, and animations working
 - ✅ Same visual identity and animation system preserved
 - ✅ Lint passes, dev server running
+
+---
+Task ID: 14
+Agent: Main
+Task: Verify and deploy password-based auth (no OTP) to Vercel
+
+Work Log:
+- Tested all new auth APIs locally and on Vercel:
+  - ✅ check-phone: Returns { exists: false } for new number, { exists: true } for registered
+  - ✅ register: Creates user with phone + password + name + DOB, returns user without password
+  - ✅ login: Returns user on correct credentials, generic error on wrong credentials
+  - ✅ forgot-password-verify: Returns verification token on correct DOB, generic error on wrong DOB
+  - ✅ reset-password: Updates password with valid token, rejects invalid token
+- Tested AuthScreen UI via agent-browser:
+  - ✅ Login screen shows correctly (Phone + Password + Forgot Password + Sign Up link)
+  - ✅ Sign Up screen shows correctly (Phone + Name + Password + Confirm + DOB Picker + Terms + Sign Up)
+  - ✅ DOB Picker with Day/Month/Year dropdowns
+- Cleaned up test user from local DB
+- Pushed to Vercel (commit: fefeba5), deployed and tested
+
+Stage Summary:
+- ✅ OTP completely REMOVED from the entire app (frontend + backend)
+- ✅ Simple password auth: Sign Up with phone + name + password + DOB, Login with phone + password
+- ✅ DOB-based password reset: Verify with date of birth → set new password → done
+- ✅ All APIs tested and working on Vercel
+- ✅ No more SMS provider dependencies needed!
+- ✅ Phone availability check on signup prevents duplicate registration
