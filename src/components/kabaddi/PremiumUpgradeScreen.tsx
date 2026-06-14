@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Crown,
@@ -179,6 +179,64 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
   const [couponApplied, setCouponApplied] = useState<{ discount: number; label: string } | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [checkingCoupon, setCheckingCoupon] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  // Verify payment with backend
+  const verifyPayment = useCallback(async (orderId: string) => {
+    setVerifying(true);
+    try {
+      const verifyRes = await fetch('/api/payments/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+
+      const verifyData = await verifyRes.json();
+
+      if (verifyData.success) {
+        setActivated(true);
+        setActivating(false);
+        if (verifyData.user) {
+          updateUser({ isPremium: true });
+        }
+        toast({
+          title: '🎉 Premium Activated!',
+          description: 'Welcome to Kabaddi Pro Premium! All features unlocked.',
+        });
+      } else {
+        setPaymentError(verifyData.error || 'Payment verification failed. Please contact support.');
+        setActivating(false);
+      }
+    } catch (err) {
+      console.error('Payment verification error:', err);
+      setPaymentError('Could not verify payment. Please contact support if you were charged.');
+      setActivating(false);
+    } finally {
+      setVerifying(false);
+    }
+  }, [updateUser, toast]);
+
+  // Handle payment result from URL params (when redirected back after payment)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    const orderId = params.get('order_id');
+
+    if (paymentStatus && orderId) {
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('payment');
+      url.searchParams.delete('order_id');
+      window.history.replaceState({}, '', url.toString());
+
+      if (paymentStatus === 'success' || paymentStatus === 'redirect') {
+        verifyPayment(orderId);
+      } else if (paymentStatus === 'failed') {
+        setPaymentError('Payment was not completed. Please try again.');
+        setActivating(false);
+      }
+    }
+  }, [verifyPayment]);
 
   const currentPlan = PLANS.find(p => p.id === selectedPlan)!;
   const discountedPaise = couponApplied
@@ -273,21 +331,36 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       console.log(`[Cashfree] Opening checkout: mode=${cfMode}, hasSessionId=${!!orderData.paymentSessionId}, orderId=${orderData.orderId}`);
       const cf = new CashfreeClass({ mode: cfMode });
 
-      // Open checkout — Cashfree will handle the payment UI
+      // Open checkout in POPUP/MODAL mode — avoids domain whitelisting issues
+      // When using _modal, Cashfree opens a popup overlay and doesn't need the return_url
+      // This prevents the "Broken Link" error from Cashfree
       try {
         const result = await cf.checkout({
           paymentSessionId: orderData.paymentSessionId,
-          redirectTarget: '_self',
+          redirectTarget: '_modal',
         });
         console.log('[Cashfree] Checkout result:', result);
+
+        // If checkout returns a result, verify the payment
+        if (result) {
+          await verifyPayment(orderData.orderId);
+        } else {
+          // User closed the popup without completing payment
+          setActivating(false);
+          toast({
+            title: 'Payment cancelled',
+            description: 'You closed the payment window. Try again when ready.',
+          });
+        }
       } catch (checkoutError) {
         console.error('[Cashfree] Checkout error:', checkoutError);
-        // If the SDK checkout fails, try the redirect approach as fallback
-        const cashfreePayUrl = cfMode === 'sandbox'
-          ? `https://sandbox.cashfree.com/pg/orders/pay/${orderData.paymentSessionId}`
-          : `https://payments.cashfree.com/pg/orders/pay/${orderData.paymentSessionId}`;
-        console.log('[Cashfree] Falling back to redirect URL:', cashfreePayUrl);
-        window.location.href = cashfreePayUrl;
+        setActivating(false);
+        setPaymentError('Payment window could not be opened. Please check your popup blocker and try again.');
+        toast({
+          title: 'Payment error',
+          description: 'Could not open payment window. Please allow popups and try again.',
+          variant: 'destructive',
+        });
       }
 
     } catch (error) {
@@ -300,7 +373,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       });
       setActivating(false);
     }
-  }, [currentUser, selectedPlan, couponApplied, couponCode, discountedPaise, updateUser, toast, onClose]);
+  }, [currentUser, selectedPlan, couponApplied, couponCode, discountedPaise, updateUser, toast, verifyPayment]);
 
   return (
     <AnimatePresence>
@@ -550,10 +623,15 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
               <div className="p-4 pt-2 pb-6">
                 <Button
                   onClick={handleActivate}
-                  disabled={activating}
+                  disabled={activating || verifying}
                   className="w-full h-12 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-400 hover:opacity-90 text-white font-bold rounded-xl text-base shadow-lg shadow-amber-500/25"
                 >
-                  {activating ? (
+                  {verifying ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Verifying payment...</span>
+                    </div>
+                  ) : activating ? (
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-5 h-5 animate-spin" />
                       <span>Opening payment...</span>

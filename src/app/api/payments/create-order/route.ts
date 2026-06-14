@@ -108,12 +108,14 @@ export async function POST(request: NextRequest) {
     const cashfreeOrderId = `kp_${plan}_${Date.now()}_${userId.slice(-6)}`;
 
     // Determine return URL based on environment
+    // For _modal checkout mode, return_url is used as fallback only
+    // It must match a whitelisted domain in Cashfree merchant dashboard
     const host = request.headers.get('host') || 'localhost:3000';
     const protocol = request.headers.get('x-forwarded-proto') || 'https';
-    const returnUrl = `${protocol}://${host}/api/payments/verify?order_id=${cashfreeOrderId}`;
+    const returnUrl = `${protocol}://${host}/?payment=redirect&order_id=${cashfreeOrderId}`;
 
     // Create order with Cashfree API
-    const orderPayload = {
+    const orderPayload: Record<string, unknown> = {
       order_id: cashfreeOrderId,
       order_amount: amountINR,
       order_currency: 'INR',
@@ -125,10 +127,14 @@ export async function POST(request: NextRequest) {
       },
       order_meta: {
         return_url: returnUrl,
-        notify_url: `${protocol}://${host}/api/payments/webhook`,
       },
       order_note: `Kabaddi Pro ${plan} plan${couponCode ? ` (coupon: ${couponCode})` : ''}`,
     };
+
+    // Only add notify_url if we have a publicly accessible URL (not localhost)
+    if (host !== 'localhost:3000') {
+      (orderPayload.order_meta as Record<string, unknown>).notify_url = `${protocol}://${host}/api/payments/webhook`;
+    }
 
     console.log(`[Cashfree] Creating order: baseUrl=${config.baseUrl}, env=${config.env}, apiVersion=${config.apiVersion}, orderId=${cashfreeOrderId}`);
 
