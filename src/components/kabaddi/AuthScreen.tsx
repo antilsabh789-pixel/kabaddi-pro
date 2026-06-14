@@ -1136,19 +1136,14 @@ export default function AuthScreen() {
           Live Scoring &amp; Tournaments
         </motion.p>
 
-        {/* Version & Tester Badge */}
+        {/* Version Badge */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
-          className="flex items-center gap-2 mt-2"
+          className="mt-2"
         >
-          <span className="text-[9px] font-mono text-warm-400/60 dark:text-warm-500/60">v1.0-beta</span>
-          {isOtpDemoMode && (
-            <span className="px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 border border-amber-300/50 dark:border-amber-500/30 text-[8px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
-              Tester Mode
-            </span>
-          )}
+          <span className="text-[9px] font-mono text-warm-400/60 dark:text-warm-500/60">v1.0</span>
         </motion.div>
       </motion.div>
 
@@ -1452,13 +1447,13 @@ export default function AuthScreen() {
                     </motion.div>
                   )}
 
-                  {/* Tester/Demo OTP Display (shown in demo or tester mode) */}
+                  {/* OTP Display (only shown in demo/tester mode) */}
                   {isOtpDemoMode && demoOtp && (
                     <div className="flex items-center justify-center gap-2 mb-4 px-3 py-2.5 rounded-xl bg-brand-gold/10 border border-brand-gold/20">
                       <MessageSquare className="w-4 h-4 text-brand-gold shrink-0" />
                       <div>
                         <p className="text-[10px] text-warm-400 dark:text-warm-500">
-                          Tester OTP — SMS also sent to phone
+                          Demo OTP (for testing only)
                         </p>
                         <p className="text-sm font-bold text-brand-gold-dark dark:text-brand-gold tracking-widest">{demoOtp}</p>
                       </div>

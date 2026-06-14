@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useKabaddiStore } from '@/lib/store';
 import Portal from '@/components/portal';
 import Image from 'next/image';
-import { AlertTriangle, RefreshCw, MessageSquare, Bug } from 'lucide-react';
+import { AlertTriangle, RefreshCw, MessageSquare } from 'lucide-react';
 
 // Dynamic imports with SSR disabled to reduce server memory usage
 const SplashScreen = dynamic(() => import('@/components/kabaddi/SplashScreen'), { ssr: false });
@@ -338,28 +338,6 @@ export default function Home() {
         </AnimatePresence>
         </Portal>
 
-        {/* Tester Feedback Button */}
-        <Portal>
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 1, type: 'spring', stiffness: 300, damping: 15 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => {
-              const msg = prompt('📝 Report a bug or give feedback:');
-              if (msg?.trim()) {
-                console.log('[Tester Feedback]', msg);
-                // In production, this would send to a feedback API
-                alert('Thanks! Feedback recorded. 🙏');
-              }
-            }}
-            className="fixed bottom-24 right-4 z-30 w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/30 flex items-center justify-center text-white"
-            title="Report Bug / Feedback"
-          >
-            <Bug className="w-4 h-4" />
-          </motion.button>
-        </Portal>
       </div>
     </ErrorBoundary>
   );
