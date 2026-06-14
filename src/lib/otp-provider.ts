@@ -72,17 +72,44 @@ function validateConfig(config: OTPProviderConfig): string | null {
 // 1. With template_id: Uses custom DLT-approved template (requires sender ID)
 // 2. Without template_id: Uses MSG91's built-in OTP service (MSG91's own sender)
 
+/**
+ * Sanitize phone number for MSG91 API
+ * MSG91 expects format: 91XXXXXXXXXX (no + sign, with country code)
+ */
+function sanitizePhoneForMSG91(phone: string): string {
+  // Remove all spaces, dashes, parentheses
+  let cleaned = phone.replace(/[\s\-()]/g, '');
+  // Remove leading + if present
+  if (cleaned.startsWith('+')) {
+    cleaned = cleaned.substring(1);
+  }
+  // If number starts with 0 (local format like 09876543210), replace with 91
+  if (cleaned.startsWith('0') && cleaned.length === 11) {
+    cleaned = '91' + cleaned.substring(1);
+  }
+  // If number is 10 digits only (no country code), prepend 91
+  if (cleaned.length === 10 && /^\d{10}$/.test(cleaned)) {
+    cleaned = '91' + cleaned;
+  }
+  // Validate final format: should be 12 digits starting with 91
+  if (!/^91\d{10}$/.test(cleaned)) {
+    console.warn('[MSG91] Unexpected phone format after sanitization:', cleaned, '(original:', phone, ')');
+  }
+  return cleaned;
+}
+
 async function sendViaMSG91(
   phone: string,
   otp: string,
   config: OTPProviderConfig
 ): Promise<OTPResult> {
   const authKey = config.msg91AuthKey!;
+  const sanitizedPhone = sanitizePhoneForMSG91(phone);
 
   try {
     // Build the request body
     const requestBody: Record<string, string> = {
-      mobile: phone, // Format: 91XXXXXXXXXX (10 digits with country code)
+      mobile: sanitizedPhone, // Format: 91XXXXXXXXXX (no + sign, with country code)
       otp: otp,
       OTP: otp, // Template variable
     };
@@ -92,7 +119,7 @@ async function sendViaMSG91(
       requestBody.template_id = config.msg91TemplateId;
     }
 
-    console.log('[MSG91] Sending OTP to:', phone, 'with template:', !!config.msg91TemplateId, 'sender: MSG91-default');
+    console.log('[MSG91] Sending OTP to:', sanitizedPhone, '(original:', phone, ') template:', !!config.msg91TemplateId, 'sender: MSG91-default');
 
     const response = await fetch('https://control.msg91.com/api/v5/otp', {
       method: 'POST',
@@ -105,6 +132,9 @@ async function sendViaMSG91(
 
     const data = await response.json();
 
+    // Log FULL response for debugging delivery issues
+    console.log('[MSG91] Full API response:', JSON.stringify(data), 'HTTP status:', response.status);
+
     if (!response.ok || data.type === 'error') {
       console.error('[MSG91] Send failed:', data);
       return {
@@ -114,7 +144,7 @@ async function sendViaMSG91(
       };
     }
 
-    console.log('[MSG91] OTP sent successfully, request_id:', data.request_id);
+    console.log('[MSG91] OTP sent successfully, request_id:', data.request_id, 'message:', data.message);
     return {
       success: true,
       message: 'OTP sent successfully via MSG91',
@@ -140,10 +170,11 @@ async function verifyViaMSG91(
   config: OTPProviderConfig
 ): Promise<{ valid: boolean; message: string }> {
   const authKey = config.msg91AuthKey!;
+  const sanitizedPhone = sanitizePhoneForMSG91(phone);
 
   try {
     const response = await fetch(
-      `https://control.msg91.com/api/v5/otp/verify?mobile=${encodeURIComponent(phone)}&otp=${otp}`,
+      `https://control.msg91.com/api/v5/otp/verify?mobile=${encodeURIComponent(sanitizedPhone)}&otp=${otp}`,
       {
         method: 'GET',
         headers: {
