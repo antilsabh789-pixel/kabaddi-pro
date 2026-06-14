@@ -8,23 +8,19 @@
  * NO DEMO MODE - Always uses real SMS providers.
  * If credentials are missing, the OTP send will FAIL (not fall back to demo).
  * 
- * MSG91 Delivery Note:
- * - KYC must be completed on MSG91 for SMS delivery in India (TRAI regulation)
- * - Without KYC, API returns success but SMS is NOT delivered by carriers
- * - Complete KYC at: https://control.msg91.com → Profile → KYC
+ * MSG91 Delivery Methods (tried in order):
+ * 1. Direct SMS API (/api/v2/sendsms) - most reliable, bypasses OTP app
+ * 2. Flow API (/api/v5/flow/) - for DLT templates
+ * 3. OTP API (/api/v5/otp) - MSG91 built-in OTP service (requires OTP app setup)
  */
 
 // ─── Types ──────────────────────────────────────────────────────
 export interface OTPResult {
   success: boolean;
   message: string;
-  /** Provider that was used */
   provider: string;
-  /** Request ID from the provider (for tracking) */
   requestId?: string;
-  /** Full API response for debugging */
   apiResponse?: Record<string, unknown>;
-  /** Method used to send */
   method?: string;
 }
 
@@ -55,14 +51,9 @@ function getConfig(): OTPProviderConfig {
   };
 }
 
-/**
- * Validate that the selected provider has all required credentials
- * Returns an error message if misconfigured, null if OK
- */
 function validateConfig(config: OTPProviderConfig): string | null {
   if (config.provider === 'msg91') {
     if (!config.msg91AuthKey) return 'MSG91_AUTH_KEY is required when OTP_PROVIDER=msg91';
-    // Template ID is optional - we can use MSG91's built-in OTP service without it
   }
   if (config.provider === 'twilio') {
     if (!config.twilioAccountSid) return 'TWILIO_ACCOUNT_SID is required when OTP_PROVIDER=twilio';
@@ -71,47 +62,107 @@ function validateConfig(config: OTPProviderConfig): string | null {
   return null;
 }
 
-// ─── MSG91 Provider ─────────────────────────────────────────────
-// MSG91 is India's most popular SMS/OTP provider
-// Docs: https://docs.msg91.com
-//
-// Delivery methods (tried in order):
-// 1. MSG91 SMS Flow API (with template) - best for custom DLT templates
-// 2. MSG91 OTP API (built-in service) - uses MSG91's own DLT sender
-//
-// IMPORTANT: KYC must be completed on MSG91 for delivery!
-
 /**
  * Sanitize phone number for MSG91 API
- * MSG91 expects format: 91XXXXXXXXXX (no + sign, with country code)
+ * MSG91 expects: 91XXXXXXXXXX (no +, with country code)
+ * For SMS API: XXXXXXXXXX (10 digits without country code)
  */
 function sanitizePhoneForMSG91(phone: string): string {
-  // Remove all spaces, dashes, parentheses
   let cleaned = phone.replace(/[\s\-()]/g, '');
-  // Remove leading + if present
-  if (cleaned.startsWith('+')) {
-    cleaned = cleaned.substring(1);
-  }
-  // If number starts with 0 (local format like 09876543210), replace with 91
-  if (cleaned.startsWith('0') && cleaned.length === 11) {
-    cleaned = '91' + cleaned.substring(1);
-  }
-  // If number is 10 digits only (no country code), prepend 91
-  if (cleaned.length === 10 && /^\d{10}$/.test(cleaned)) {
-    cleaned = '91' + cleaned;
-  }
-  // Validate final format: should be 12 digits starting with 91
+  if (cleaned.startsWith('+')) cleaned = cleaned.substring(1);
+  if (cleaned.startsWith('0') && cleaned.length === 11) cleaned = '91' + cleaned.substring(1);
+  if (cleaned.length === 10 && /^\d{10}$/.test(cleaned)) cleaned = '91' + cleaned;
   if (!/^91\d{10}$/.test(cleaned)) {
-    console.warn('[MSG91] Unexpected phone format after sanitization:', cleaned, '(original:', phone, ')');
+    console.warn('[MSG91] Unexpected phone format:', cleaned, '(original:', phone, ')');
   }
   return cleaned;
 }
 
 /**
- * Method 1: Send OTP via MSG91 SMS Flow API
- * This uses a DLT-approved template and is more reliable for delivery
- * Requires MSG91_TEMPLATE_ID to be set
+ * Extract 10-digit number from sanitized phone (91XXXXXXXXXX → XXXXXXXXXX)
  */
+function get10DigitPhone(phone: string): string {
+  const sanitized = sanitizePhoneForMSG91(phone);
+  if (sanitized.startsWith('91') && sanitized.length === 12) {
+    return sanitized.substring(2);
+  }
+  return sanitized;
+}
+
+// ─── MSG91 Method 1: Direct SMS API ─────────────────────────────
+// This is the MOST RELIABLE method - sends a regular transactional SMS
+// Bypasses the OTP app entirely, works with just KYC + wallet balance
+// Uses MSG91's own approved sender ID
+
+async function sendViaMSG91DirectSMS(
+  phone: string,
+  otp: string,
+  config: OTPProviderConfig
+): Promise<OTPResult> {
+  const authKey = config.msg91AuthKey!;
+  const mobile10 = get10DigitPhone(phone);
+
+  try {
+    const requestBody = {
+      sender: 'MSG91',  // MSG91's own DLT-approved sender
+      route: '4',       // Route 4 = Transactional
+      country: '91',
+      sms: [
+        {
+          message: `Your Kabaddi Pro verification code is ${otp}. Do not share with anyone. Valid for 5 minutes.`,
+          to: [mobile10],
+        },
+      ],
+    };
+
+    console.log('[MSG91 SMS] Sending direct SMS to:', mobile10, '(route: transactional)');
+
+    const response = await fetch('https://api.msg91.com/api/v2/sendsms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'authkey': authKey,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await response.json();
+    console.log('[MSG91 SMS] Full API response:', JSON.stringify(data), 'HTTP status:', response.status);
+
+    if (!response.ok || data.type === 'error') {
+      console.error('[MSG91 SMS] Send failed:', data);
+      return {
+        success: false,
+        message: data.message || data.msg || 'Failed to send SMS via MSG91',
+        provider: 'msg91',
+        method: 'direct-sms',
+        apiResponse: data,
+      };
+    }
+
+    console.log('[MSG91 SMS] SMS sent successfully, message_id:', data.message);
+    return {
+      success: true,
+      message: 'OTP sent successfully via MSG91 SMS',
+      provider: 'msg91',
+      requestId: data.message,
+      method: 'direct-sms',
+      apiResponse: data,
+    };
+  } catch (error) {
+    console.error('[MSG91 SMS] Network error:', error);
+    return {
+      success: false,
+      message: 'MSG91 SMS service unavailable',
+      provider: 'msg91',
+      method: 'direct-sms',
+    };
+  }
+}
+
+// ─── MSG91 Method 2: Flow API ───────────────────────────────────
+// Uses DLT-approved template (requires MSG91_TEMPLATE_ID)
+
 async function sendViaMSG91Flow(
   phone: string,
   otp: string,
@@ -134,15 +185,10 @@ async function sendViaMSG91Flow(
     const requestBody = {
       template_id: templateId,
       short_url: 0,
-      recipients: [
-        {
-          mobiles: sanitizedPhone,
-          OTP: otp,
-        },
-      ],
+      recipients: [{ mobiles: sanitizedPhone, OTP: otp }],
     };
 
-    console.log('[MSG91 Flow] Sending OTP via Flow API to:', sanitizedPhone, 'template:', templateId);
+    console.log('[MSG91 Flow] Sending OTP via Flow to:', sanitizedPhone, 'template:', templateId);
 
     const response = await fetch('https://control.msg91.com/api/v5/flow/', {
       method: 'POST',
@@ -160,17 +206,16 @@ async function sendViaMSG91Flow(
       console.error('[MSG91 Flow] Send failed:', data);
       return {
         success: false,
-        message: data.message || data.msg || 'Failed to send OTP via MSG91 Flow',
+        message: data.message || data.msg || 'Failed to send via MSG91 Flow',
         provider: 'msg91',
         method: 'flow',
         apiResponse: data,
       };
     }
 
-    console.log('[MSG91 Flow] OTP sent successfully');
     return {
       success: true,
-      message: 'OTP sent successfully via MSG91 Flow',
+      message: 'OTP sent via MSG91 Flow',
       provider: 'msg91',
       requestId: data.message,
       method: 'flow',
@@ -180,18 +225,17 @@ async function sendViaMSG91Flow(
     console.error('[MSG91 Flow] Network error:', error);
     return {
       success: false,
-      message: 'MSG91 Flow service unavailable',
+      message: 'MSG91 Flow unavailable',
       provider: 'msg91',
       method: 'flow',
     };
   }
 }
 
-/**
- * Method 2: Send OTP via MSG91 OTP API (built-in service)
- * This uses MSG91's own DLT-registered sender and template
- * Works without template_id - MSG91 handles everything
- */
+// ─── MSG91 Method 3: OTP API ────────────────────────────────────
+// Uses MSG91's built-in OTP service (requires OTP app to be configured in dashboard)
+// This is the LEAST reliable method - often returns "success" but doesn't deliver
+
 async function sendViaMSG91OTP(
   phone: string,
   otp: string,
@@ -201,13 +245,11 @@ async function sendViaMSG91OTP(
   const sanitizedPhone = sanitizePhoneForMSG91(phone);
 
   try {
-    // Build the request body - only mobile and otp for built-in service
     const requestBody: Record<string, string> = {
       mobile: sanitizedPhone,
       otp: otp,
     };
 
-    // Add template_id ONLY if provided
     if (config.msg91TemplateId) {
       requestBody.template_id = config.msg91TemplateId;
       requestBody.OTP = otp;
@@ -238,10 +280,9 @@ async function sendViaMSG91OTP(
       };
     }
 
-    console.log('[MSG91 OTP] OTP sent successfully, request_id:', data.request_id);
     return {
       success: true,
-      message: 'OTP sent successfully via MSG91',
+      message: 'OTP sent via MSG91 OTP API',
       provider: 'msg91',
       requestId: data.request_id,
       method: 'otp-api',
@@ -251,42 +292,64 @@ async function sendViaMSG91OTP(
     console.error('[MSG91 OTP] Network error:', error);
     return {
       success: false,
-      message: 'MSG91 service unavailable. Please try again.',
+      message: 'MSG91 OTP service unavailable',
       provider: 'msg91',
       method: 'otp-api',
     };
   }
 }
 
-/**
- * MSG91 Combined Send: 
- * - With template: Try Flow API first, then OTP API
- * - Without template: Use OTP API only (built-in service, guaranteed delivery)
- */
+// ─── MSG91 Combined Send ────────────────────────────────────────
+// Try methods in order of reliability:
+// 1. Direct SMS (most reliable, bypasses OTP app)
+// 2. Flow API (if template available)
+// 3. OTP API (least reliable, often silently fails)
+
 async function sendViaMSG91(
   phone: string,
   otp: string,
   config: OTPProviderConfig
 ): Promise<OTPResult> {
-  // If template ID is available AND valid, try Flow API first
-  if (config.msg91TemplateId) {
-    console.log('[MSG91] Template available, trying Flow API first...');
-    const flowResult = await sendViaMSG91Flow(phone, otp, config);
-    if (flowResult.success) return flowResult;
-    
-    // Flow failed, try OTP API with template
-    console.log('[MSG91] Flow API failed, trying OTP API with template...');
-    return sendViaMSG91OTP(phone, otp, config);
+  // Method 1: Direct SMS - always try this first
+  console.log('[MSG91] === Trying Method 1: Direct SMS API ===');
+  const smsResult = await sendViaMSG91DirectSMS(phone, otp, config);
+  if (smsResult.success) {
+    console.log('[MSG91] ✅ Direct SMS succeeded');
+    return smsResult;
   }
-  
-  // NO template = use MSG91's built-in OTP service (best delivery rate)
-  // This uses MSG91's own DLT-registered sender - no custom template needed
-  console.log('[MSG91] No template - using built-in OTP service (guaranteed delivery)');
-  return sendViaMSG91OTP(phone, otp, config);
+  console.log('[MSG91] ❌ Direct SMS failed:', smsResult.message);
+
+  // Method 2: Flow API (if template available)
+  if (config.msg91TemplateId) {
+    console.log('[MSG91] === Trying Method 2: Flow API ===');
+    const flowResult = await sendViaMSG91Flow(phone, otp, config);
+    if (flowResult.success) {
+      console.log('[MSG91] ✅ Flow API succeeded');
+      return flowResult;
+    }
+    console.log('[MSG91] ❌ Flow API failed:', flowResult.message);
+  }
+
+  // Method 3: OTP API (last resort)
+  console.log('[MSG91] === Trying Method 3: OTP API ===');
+  const otpResult = await sendViaMSG91OTP(phone, otp, config);
+  if (otpResult.success) {
+    console.log('[MSG91] ✅ OTP API succeeded (but may not deliver - check MSG91 dashboard)');
+    return otpResult;
+  }
+
+  console.log('[MSG91] ❌ ALL METHODS FAILED');
+  return {
+    success: false,
+    message: 'All MSG91 delivery methods failed. Please check MSG91 dashboard for errors.',
+    provider: 'msg91',
+    method: 'all-failed',
+  };
 }
 
 /**
  * Verify OTP using MSG91 Verify API
+ * Note: Only works with OTP API method. For Direct SMS, we use local verification.
  */
 async function verifyViaMSG91(
   phone: string,
@@ -299,12 +362,7 @@ async function verifyViaMSG91(
   try {
     const response = await fetch(
       `https://control.msg91.com/api/v5/otp/verify?mobile=${encodeURIComponent(sanitizedPhone)}&otp=${otp}`,
-      {
-        method: 'GET',
-        headers: {
-          'authkey': authKey,
-        },
-      }
+      { method: 'GET', headers: { 'authkey': authKey } }
     );
 
     const data = await response.json();
@@ -322,8 +380,6 @@ async function verifyViaMSG91(
 }
 
 // ─── Twilio Provider ────────────────────────────────────────────
-// Twilio Verify is the recommended way for OTP via Twilio
-// Docs: https://www.twilio.com/docs/verify
 
 async function sendViaTwilio(
   phone: string,
@@ -333,7 +389,6 @@ async function sendViaTwilio(
   const accountSid = config.twilioAccountSid!;
   const authToken = config.twilioAuthToken!;
 
-  // If Twilio Verify Service SID is configured, use Verify API (recommended)
   if (config.twilioVerifyServiceSid) {
     try {
       const response = await fetch(
@@ -344,51 +399,25 @@ async function sendViaTwilio(
             'Content-Type': 'application/x-www-form-urlencoded',
             'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
           },
-          body: new URLSearchParams({
-            To: phone,
-            Channel: 'sms',
-          }),
+          body: new URLSearchParams({ To: phone, Channel: 'sms' }),
         }
       );
 
       const data = await response.json();
-
       if (!response.ok) {
-        console.error('[Twilio Verify] Send failed:', data);
-        return {
-          success: false,
-          message: data.message || 'Failed to send OTP via Twilio',
-          provider: 'twilio',
-        };
+        return { success: false, message: data.message || 'Failed via Twilio', provider: 'twilio' };
       }
-
-      return {
-        success: true,
-        message: 'OTP sent successfully via Twilio Verify',
-        provider: 'twilio',
-        requestId: data.sid,
-      };
+      return { success: true, message: 'OTP sent via Twilio Verify', provider: 'twilio', requestId: data.sid };
     } catch (error) {
-      console.error('[Twilio Verify] Network error:', error);
-      return {
-        success: false,
-        message: 'Twilio service unavailable. Please try again.',
-        provider: 'twilio',
-      };
+      return { success: false, message: 'Twilio unavailable', provider: 'twilio' };
     }
   }
 
-  // Fallback: Direct SMS via Twilio
-  try {
-    const fromNumber = config.twilioPhoneNumber;
-    if (!fromNumber) {
-      return {
-        success: false,
-        message: 'TWILIO_PHONE_NUMBER is required for direct SMS',
-        provider: 'twilio',
-      };
-    }
+  if (!config.twilioPhoneNumber) {
+    return { success: false, message: 'TWILIO_PHONE_NUMBER required', provider: 'twilio' };
+  }
 
+  try {
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
@@ -399,54 +428,28 @@ async function sendViaTwilio(
         },
         body: new URLSearchParams({
           To: phone,
-          From: fromNumber,
-          Body: `Your Kabaddi Pro verification code is ${otp}. Do not share this with anyone. Valid for 5 minutes.`,
+          From: config.twilioPhoneNumber,
+          Body: `Your Kabaddi Pro verification code is ${otp}. Do not share with anyone. Valid for 5 minutes.`,
         }),
       }
     );
-
     const data = await response.json();
-
     if (!response.ok) {
-      console.error('[Twilio SMS] Send failed:', data);
-      return {
-        success: false,
-        message: data.message || 'Failed to send SMS via Twilio',
-        provider: 'twilio',
-      };
+      return { success: false, message: data.message || 'Failed via Twilio SMS', provider: 'twilio' };
     }
-
-    return {
-      success: true,
-      message: 'OTP sent successfully via Twilio SMS',
-      provider: 'twilio',
-      requestId: data.sid,
-    };
+    return { success: true, message: 'OTP sent via Twilio SMS', provider: 'twilio', requestId: data.sid };
   } catch (error) {
-    console.error('[Twilio SMS] Network error:', error);
-    return {
-      success: false,
-      message: 'Twilio service unavailable. Please try again.',
-      provider: 'twilio',
-    };
+    return { success: false, message: 'Twilio unavailable', provider: 'twilio' };
   }
 }
 
-/**
- * Verify OTP using Twilio Verify API
- */
 async function verifyViaTwilio(
   phone: string,
   otp: string,
   config: OTPProviderConfig
 ): Promise<{ valid: boolean; message: string }> {
-  const accountSid = config.twilioAccountSid!;
-  const authToken = config.twilioAuthToken!;
-
-  if (!config.twilioVerifyServiceSid) {
-    return { valid: false, message: 'Local verification required' };
-  }
-
+  if (!config.twilioVerifyServiceSid) return { valid: false, message: 'Local verification required' };
+  
   try {
     const response = await fetch(
       `https://verify.twilio.com/v2/Services/${config.twilioVerifyServiceSid}/VerificationCheck`,
@@ -454,127 +457,71 @@ async function verifyViaTwilio(
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+          'Authorization': 'Basic ' + Buffer.from(`${config.twilioAccountSid!}:${config.twilioAuthToken!}`).toString('base64'),
         },
-        body: new URLSearchParams({
-          To: phone,
-          Code: otp,
-        }),
+        body: new URLSearchParams({ To: phone, Code: otp }),
       }
     );
-
     const data = await response.json();
-
-    if (data.status === 'approved') {
-      return { valid: true, message: 'OTP verified successfully' };
-    }
-
-    return { valid: false, message: 'Invalid OTP' };
-  } catch (error) {
-    console.error('[Twilio Verify] Verify error:', error);
-    return { valid: false, message: 'Verification service unavailable' };
+    return data.status === 'approved' ? { valid: true, message: 'OTP verified' } : { valid: false, message: 'Invalid OTP' };
+  } catch {
+    return { valid: false, message: 'Verification unavailable' };
   }
 }
 
 // ─── Public API ─────────────────────────────────────────────────
 
-/**
- * Send an OTP to the given phone number via real SMS provider.
- * NO DEMO MODE - will fail if credentials are misconfigured.
- */
 export async function sendOTP(phone: string, otp: string): Promise<OTPResult> {
   const config = getConfig();
-
-  // Validate configuration - fail hard instead of falling back to demo
   const validationError = validateConfig(config);
   if (validationError) {
     console.error(`[OTP] Configuration error: ${validationError}`);
     return {
       success: false,
-      message: `OTP service is not configured: ${validationError}. Please contact support.`,
+      message: `OTP service not configured: ${validationError}`,
       provider: config.provider,
     };
   }
 
   switch (config.provider) {
-    case 'msg91':
-      return sendViaMSG91(phone, otp, config);
-    case 'twilio':
-      return sendViaTwilio(phone, otp, config);
-    default:
-      return {
-        success: false,
-        message: `Unknown OTP provider: ${config.provider}`,
-        provider: config.provider,
-      };
+    case 'msg91': return sendViaMSG91(phone, otp, config);
+    case 'twilio': return sendViaTwilio(phone, otp, config);
+    default: return { success: false, message: `Unknown provider: ${config.provider}`, provider: config.provider };
   }
 }
 
-/**
- * Verify an OTP using the provider's verification API
- * Returns null if provider doesn't support server-side verification
- * (in which case, local verification should be used)
- */
 export async function verifyOTPProvider(
   phone: string,
   otp: string
 ): Promise<{ valid: boolean; message: string } | null> {
   const config = getConfig();
-  const validationError = validateConfig(config);
-  if (validationError) return null;
+  if (validateConfig(config)) return null;
 
   switch (config.provider) {
-    case 'msg91':
-      return verifyViaMSG91(phone, otp, config);
-    case 'twilio':
-      if (config.twilioVerifyServiceSid) {
-        return verifyViaTwilio(phone, otp, config);
-      }
-      return null;
-    default:
-      return null;
+    case 'msg91': return verifyViaMSG91(phone, otp, config);
+    case 'twilio': return config.twilioVerifyServiceSid ? verifyViaTwilio(phone, otp, config) : null;
+    default: return null;
   }
 }
 
-/**
- * Check if OTP is properly configured (always returns false for demo mode now)
- * This is kept for API compatibility but always returns false
- */
-export function isDemoMode(): boolean {
-  // Never demo mode anymore - real SMS only
-  return false;
-}
-
-/**
- * Check if OTP provider is properly configured
- */
-export function isConfigured(): boolean {
-  const config = getConfig();
-  return validateConfig(config) === null;
-}
-
-/**
- * Get the current provider name for display
- */
+export function isDemoMode(): boolean { return false; }
+export function isConfigured(): boolean { return validateConfig(getConfig()) === null; }
 export function getProviderName(): string {
   const config = getConfig();
-  if (validateConfig(config)) return 'Not Configured';
-  return config.provider.toUpperCase();
+  return validateConfig(config) ? 'Not Configured' : config.provider.toUpperCase();
 }
 
-/**
- * Get diagnostic info about OTP provider configuration
- */
 export function getDiagnosticInfo() {
   const config = getConfig();
   return {
     provider: config.provider,
     hasAuthKey: !!config.msg91AuthKey,
     hasTemplateId: !!config.msg91TemplateId,
-    templateId: config.msg91TemplateId || '(none - using built-in)',
+    templateId: config.msg91TemplateId || '(none)',
     authKeyPrefix: config.msg91AuthKey ? config.msg91AuthKey.substring(0, 6) + '...' : '(missing)',
     isConfigured: validateConfig(config) === null,
     validationError: validateConfig(config),
-    note: 'MSG91 requires: (1) KYC completed, (2) Valid template or built-in OTP service, (3) Wallet balance for delivery',
+    primaryMethod: 'direct-sms (most reliable)',
+    note: 'MSG91 requires: (1) KYC completed, (2) Wallet balance. Direct SMS bypasses OTP app.',
   };
 }
