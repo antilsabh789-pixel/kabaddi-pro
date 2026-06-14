@@ -75,8 +75,9 @@ function getAvailableProviders(config: OTPProviderConfig): Array<'fast2sms' | 'm
   }
 
   // Priority order by RELIABILITY for India:
-  // Twilio Verify (GOLD STANDARD - no DLT, works with ALL carriers) → Fast2SMS (no DLT) → MSG91 (needs DLT)
-  const order: Array<'fast2sms' | 'msg91' | 'twilio'> = ['twilio', 'fast2sms', 'msg91'];
+  // Fast2SMS Quick (no DLT, works now) → Twilio (best when upgraded) → MSG91 (needs DLT + credits)
+  // Note: Twilio trial accounts can't send to unverified numbers (error 21608)
+  const order: Array<'fast2sms' | 'msg91' | 'twilio'> = ['fast2sms', 'twilio', 'msg91'];
   for (const p of order) {
     if (!available.includes(p) && hasCredentials(config, p)) {
       available.push(p);
@@ -106,9 +107,9 @@ function sanitizePhone(phone: string): string {
 }
 
 // ─── Fast2SMS Provider ──────────────────────────────────────────
-// Fast2SMS routes (ORDERED BY COST - cheapest first):
-// - OTP route: ~₹0.30/SMS (requires website verification in Fast2SMS dashboard)
-// - Quick route (q): ~₹5/SMS (NO verification needed - EXPENSIVE, last resort only)
+// Fast2SMS routes (ORDERED BY RELIABILITY - most likely to work first):
+// - Quick route (q): Most reliable, NO verification needed, ~₹5/SMS
+// - OTP route: ~₹0.30/SMS but needs website verification in Fast2SMS dashboard
 // - DLT route: Requires DLT registration
 
 async function sendViaFast2SMS(
@@ -121,7 +122,62 @@ async function sendViaFast2SMS(
   const otpMessage = `${otp} is your Kabaddi Pro verification code. Do not share with anyone.`;
   const routeErrors: string[] = [];
 
-  // ── Method 1: OTP Route (~₹0.30/SMS - CHEAPEST, needs website verification) ──
+  // ── Method 1: Quick SMS Route (MOST RELIABLE - no verification needed!) ──
+  try {
+    const quickBody = new URLSearchParams({
+      route: 'q',
+      message: otpMessage,
+      language: 'english',
+      numbers: mobile10,
+      flash: '0',
+    });
+
+    console.log('[Fast2SMS] Method 1: Quick SMS to:', mobile10, '(most reliable)');
+
+    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body: quickBody.toString(),
+    });
+
+    const data = await response.json();
+    console.log('[Fast2SMS] Quick route full response:', JSON.stringify(data));
+
+    if (data.return === true) {
+      console.log('[Fast2SMS] ✅ Quick route SUCCESS');
+      return {
+        success: true,
+        message: 'OTP sent via Fast2SMS Quick route',
+        provider: 'fast2sms',
+        requestId: data.request_id,
+        method: 'quick-route',
+        apiResponse: data,
+      };
+    }
+
+    // DND number check - if number is on DND, other routes won't help either
+    if (data.status_code === 427) {
+      console.warn('[Fast2SMS] Number is on DND list - other routes will also fail');
+      return {
+        success: false,
+        message: `Fast2SMS: This phone number is on the DND (Do Not Disturb) list. Please use a different number or deactivate DND by sending "START" to 1909.`,
+        provider: 'fast2sms',
+        method: 'quick-route',
+      };
+    }
+
+    routeErrors.push(`Quick: "${data.message}" (code:${data.status_code})`);
+    console.warn('[Fast2SMS] Quick route FAILED:', data.message, 'code:', data.status_code);
+  } catch (error) {
+    routeErrors.push(`Quick: Network error`);
+    console.error('[Fast2SMS] Quick route error:', error);
+  }
+
+  // ── Method 2: OTP Route (~₹0.30/SMS - cheaper but needs website verification) ──
   try {
     const otpBody = new URLSearchParams({
       route: 'otp',
@@ -130,7 +186,7 @@ async function sendViaFast2SMS(
       flash: '0',
     });
 
-    console.log('[Fast2SMS] Method 1: OTP route to:', mobile10, '(~₹0.30/SMS)');
+    console.log('[Fast2SMS] Method 2: OTP route to:', mobile10, '(~₹0.30/SMS)');
 
     const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
       method: 'POST',
@@ -164,7 +220,7 @@ async function sendViaFast2SMS(
     console.error('[Fast2SMS] OTP route error:', error);
   }
 
-  // ── Method 2: DLT Route (variable cost, needs DLT registration) ──
+  // ── Method 3: DLT Route (needs DLT registration) ──
   try {
     const dltBody = new URLSearchParams({
       route: 'dlt',
@@ -175,7 +231,7 @@ async function sendViaFast2SMS(
       sender_id: 'FSTSMS',
     });
 
-    console.log('[Fast2SMS] Method 2: DLT route to:', mobile10);
+    console.log('[Fast2SMS] Method 3: DLT route to:', mobile10);
 
     const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
       method: 'POST',
@@ -207,50 +263,6 @@ async function sendViaFast2SMS(
   } catch (error) {
     routeErrors.push(`DLT: Network error`);
     console.error('[Fast2SMS] DLT route error:', error);
-  }
-
-  // ── Method 3: Quick SMS Route (~₹5/SMS - EXPENSIVE, last resort only!) ──
-  try {
-    const quickBody = new URLSearchParams({
-      route: 'q',
-      message: otpMessage,
-      language: 'english',
-      numbers: mobile10,
-      flash: '0',
-    });
-
-    console.log('[Fast2SMS] Method 3: Quick SMS to:', mobile10, '(~₹5/SMS - EXPENSIVE!)');
-
-    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
-      method: 'POST',
-      headers: {
-        'Authorization': apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-      },
-      body: quickBody.toString(),
-    });
-
-    const data = await response.json();
-    console.log('[Fast2SMS] Quick route full response:', JSON.stringify(data));
-
-    if (data.return === true) {
-      console.log('[Fast2SMS] ✅ Quick route SUCCESS (~₹5/SMS - consider setting up OTP route to save money)');
-      return {
-        success: true,
-        message: 'OTP sent via Fast2SMS Quick route (~₹5/SMS)',
-        provider: 'fast2sms',
-        requestId: data.request_id,
-        method: 'quick-route',
-        apiResponse: data,
-      };
-    }
-
-    routeErrors.push(`Quick: "${data.message}" (code:${data.status_code})`);
-    console.warn('[Fast2SMS] Quick route FAILED:', data.message, 'code:', data.status_code);
-  } catch (error) {
-    routeErrors.push(`Quick: Network error`);
-    console.error('[Fast2SMS] Quick route error:', error);
   }
 
   return {
@@ -390,11 +402,17 @@ async function sendViaMSG91(
 //   - Works reliably in India with ALL carriers (no DLT needed!)
 // - Direct SMS: Fallback if Verify Service SID not configured
 //
+// IMPORTANT: Twilio TRIAL accounts can only send to VERIFIED numbers!
+// Error 21608 = "The phone number is unverified. Trial accounts cannot send messages
+// to unverified numbers; verify it at twilio.com/user/account/phone-numbers/verified"
+// FIX: Upgrade your Twilio account by adding a payment method.
+//
 // Setup: https://www.twilio.com/en-us/verify
 // 1. Sign up at twilio.com (free trial available)
 // 2. Get Account SID + Auth Token from Dashboard
 // 3. Create a Verify Service: https://www.twilio.com/console/verify/services
 // 4. Set TWILIO_VERIFY_SERVICE_SID env var
+// 5. UPGRADE your account by adding billing info at twilio.com/user/account/billing
 
 async function sendViaTwilio(
   phone: string,
@@ -442,6 +460,18 @@ async function sendViaTwilio(
         };
       }
 
+      // Trial account error (21608) - skip immediately, don't waste time
+      if (data.code === 21608) {
+        console.warn('[Twilio] ❌ TRIAL ACCOUNT - can only send to verified numbers. Upgrade at twilio.com/user/account/billing');
+        return {
+          success: false,
+          message: 'Twilio trial account: Cannot send to unverified numbers. Please upgrade your Twilio account at twilio.com/user/account/billing or verify the phone number at twilio.com/user/account/phone-numbers/verified',
+          provider: 'twilio',
+          method: 'verify',
+          apiResponse: { code: data.code, message: data.message, isTrialError: true },
+        };
+      }
+
       // If CustomCode not supported (older Twilio), retry without it
       if (data.code === 51007 || (data.message && data.message.includes('CustomCode'))) {
         console.log('[Twilio] CustomCode not supported, retrying without it...');
@@ -471,17 +501,27 @@ async function sendViaTwilio(
           };
         }
 
+        // Check trial error on retry too
+        if (retryData.code === 21608) {
+          return {
+            success: false,
+            message: 'Twilio trial account: Cannot send to unverified numbers. Please upgrade at twilio.com/user/account/billing',
+            provider: 'twilio',
+            method: 'verify-auto',
+            apiResponse: { code: retryData.code, message: retryData.message, isTrialError: true },
+          };
+        }
+
         return {
           success: false,
           message: `Twilio Verify failed: ${retryData.message || 'Unknown error'}`,
           provider: 'twilio',
-          method: 'verify',
+          method: 'verify-auto',
           apiResponse: retryData,
         };
       }
 
       console.warn('[Twilio] Verify failed:', data.message || data.status);
-      // Don't fall through to direct SMS if Verify is configured - it's the preferred method
       return {
         success: false,
         message: `Twilio Verify failed: ${data.message || 'Unknown error'} (code: ${data.code || 'N/A'})`,
@@ -535,6 +575,17 @@ async function sendViaTwilio(
         requestId: data.sid,
         method: 'direct-sms',
         apiResponse: { status: data.status, sid: data.sid, to: data.to },
+      };
+    }
+
+    // Trial account error for direct SMS too
+    if (data.code === 21608) {
+      return {
+        success: false,
+        message: 'Twilio trial account: Cannot send to unverified numbers. Upgrade at twilio.com/user/account/billing',
+        provider: 'twilio',
+        method: 'direct-sms',
+        apiResponse: { code: data.code, message: data.message, isTrialError: true },
       };
     }
 

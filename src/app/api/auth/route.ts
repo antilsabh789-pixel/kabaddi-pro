@@ -133,8 +133,27 @@ export async function POST(request: NextRequest) {
       }
 
       if (!otpResult.success) {
+        // Check for specific user-actionable errors
+        const errorMsg = otpResult.message || 'Failed to send OTP. Please try again.';
+        
+        // DND list error - tell user specifically what to do
+        if (errorMsg.includes('DND') || errorMsg.includes('Do Not Disturb')) {
+          return NextResponse.json(
+            { error: 'This phone number is on the DND (Do Not Disturb) list. Please deactivate DND by sending "START" to 1909, or try a different number.' },
+            { status: 400 }
+          );
+        }
+
+        // Twilio trial account error
+        if (errorMsg.includes('trial account') || errorMsg.includes('unverified numbers')) {
+          return NextResponse.json(
+            { error: 'OTP service is temporarily unavailable. Please try again in a few minutes.' },
+            { status: 503 }
+          );
+        }
+
         return NextResponse.json(
-          { error: otpResult.message || 'Failed to send OTP. Please try again.' },
+          { error: errorMsg },
           { status: 500 }
         );
       }
