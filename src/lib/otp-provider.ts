@@ -1,18 +1,16 @@
 /**
- * OTP Provider Abstraction Layer
+ * OTP Provider Abstraction Layer with Smart Auto-Fallback
  * 
- * Supports:
- * - Fast2SMS (recommended for India - NO DLT required!) - https://fast2sms.com
- * - MSG91 (requires DLT registration) - https://msg91.com
- * - Twilio (global fallback) - https://twilio.com
+ * Strategy: Try ALL available providers automatically until one succeeds.
+ * Order: Fast2SMS (best for India, no DLT) → MSG91 → Twilio
  * 
- * NO DEMO MODE - Always uses real SMS providers.
+ * If OTP_PROVIDER is set, that provider is tried FIRST, then falls back to others.
+ * If OTP_PROVIDER is "auto" or not set, tries all providers in optimal order.
  * 
  * IMPORTANT for India:
- * - MSG91 requires DLT registration (Entity ID + Sender ID + Template + PE-TM Chain)
- *   Without DLT, MSG91 API returns "success" but SMS is NEVER delivered
- * - Fast2SMS works WITHOUT DLT registration using Quick SMS route
- * - Fast2SMS gives ₹50 free credits on signup
+ * - MSG91 requires DLT registration + SMS credits. Without both, API returns "success" but SMS NEVER delivers.
+ * - Fast2SMS works WITHOUT DLT registration. ₹50 free credits on signup.
+ * - Recommended: Sign up at https://fast2sms.com and add FAST2SMS_API_KEY
  */
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -23,10 +21,20 @@ export interface OTPResult {
   requestId?: string;
   apiResponse?: Record<string, unknown>;
   method?: string;
+  attempts?: OTPAttempt[];
+}
+
+export interface OTPAttempt {
+  provider: string;
+  method: string;
+  success: boolean;
+  message: string;
+  httpStatus?: number;
+  apiResponse?: Record<string, unknown>;
 }
 
 export interface OTPProviderConfig {
-  provider: 'fast2sms' | 'msg91' | 'twilio';
+  preferredProvider: 'auto' | 'fast2sms' | 'msg91' | 'twilio';
   // Fast2SMS
   fast2smsApiKey?: string;
   // MSG91
@@ -39,12 +47,13 @@ export interface OTPProviderConfig {
   twilioVerifyServiceSid?: string;
 }
 
-// ─── Provider Implementation ────────────────────────────────────
+// ─── Config ─────────────────────────────────────────────────────
 
 function getConfig(): OTPProviderConfig {
-  const provider = (process.env.OTP_PROVIDER || 'fast2sms').toLowerCase() as OTPProviderConfig['provider'];
+  const raw = (process.env.OTP_PROVIDER || 'auto').toLowerCase();
+  const preferredProvider = (['auto', 'fast2sms', 'msg91', 'twilio'].includes(raw) ? raw : 'auto') as OTPProviderConfig['preferredProvider'];
   return {
-    provider,
+    preferredProvider,
     fast2smsApiKey: process.env.FAST2SMS_API_KEY,
     msg91AuthKey: process.env.MSG91_AUTH_KEY,
     msg91TemplateId: process.env.MSG91_TEMPLATE_ID,
@@ -55,18 +64,41 @@ function getConfig(): OTPProviderConfig {
   };
 }
 
-function validateConfig(config: OTPProviderConfig): string | null {
-  if (config.provider === 'fast2sms') {
-    if (!config.fast2smsApiKey) return 'FAST2SMS_API_KEY is required when OTP_PROVIDER=fast2sms';
+/**
+ * Get the list of available providers with credentials, in priority order.
+ * The preferred provider goes first, then others by reliability.
+ */
+function getAvailableProviders(config: OTPProviderConfig): Array<'fast2sms' | 'msg91' | 'twilio'> {
+  const available: Array<'fast2sms' | 'msg91' | 'twilio'> = [];
+  
+  // If a specific provider is preferred, try it first
+  if (config.preferredProvider !== 'auto') {
+    const pref = config.preferredProvider;
+    if (hasCredentials(config, pref)) {
+      available.push(pref);
+    } else {
+      console.warn(`[OTP] Preferred provider "${pref}" has no credentials, skipping to auto-order`);
+    }
   }
-  if (config.provider === 'msg91') {
-    if (!config.msg91AuthKey) return 'MSG91_AUTH_KEY is required when OTP_PROVIDER=msg91';
+
+  // Add remaining providers in optimal order for India:
+  // Fast2SMS first (no DLT, instant), then MSG91, then Twilio
+  const order: Array<'fast2sms' | 'msg91' | 'twilio'> = ['fast2sms', 'msg91', 'twilio'];
+  for (const p of order) {
+    if (!available.includes(p) && hasCredentials(config, p)) {
+      available.push(p);
+    }
   }
-  if (config.provider === 'twilio') {
-    if (!config.twilioAccountSid) return 'TWILIO_ACCOUNT_SID is required when OTP_PROVIDER=twilio';
-    if (!config.twilioAuthToken) return 'TWILIO_AUTH_TOKEN is required when OTP_PROVIDER=twilio';
+
+  return available;
+}
+
+function hasCredentials(config: OTPProviderConfig, provider: 'fast2sms' | 'msg91' | 'twilio'): boolean {
+  switch (provider) {
+    case 'fast2sms': return !!config.fast2smsApiKey;
+    case 'msg91': return !!config.msg91AuthKey;
+    case 'twilio': return !!(config.twilioAccountSid && config.twilioAuthToken);
   }
-  return null;
 }
 
 /**
@@ -84,11 +116,7 @@ function sanitizePhone(phone: string): string {
 }
 
 // ─── Fast2SMS Provider ──────────────────────────────────────────
-// Fast2SMS is the BEST option for India:
-// - NO DLT registration required
-// - Quick SMS route delivers instantly
-// - ₹50 free credits on signup
-// - API: https://www.fast2sms.com/dev/api
+// Best for India: No DLT required, instant delivery, ₹50 free credits
 
 async function sendViaFast2SMS(
   phone: string,
@@ -99,11 +127,12 @@ async function sendViaFast2SMS(
   const mobile10 = sanitizePhone(phone);
 
   try {
+    // Method 1: OTP route (recommended - no DLT needed)
     const requestBody = new URLSearchParams({
-      route: 'otp',              // Fast2SMS OTP route (no DLT needed)
-      variables_values: otp,      // The OTP value
-      numbers: mobile10,          // 10-digit mobile number
-      flash: '0',                 // Non-flash SMS
+      route: 'otp',
+      variables_values: otp,
+      numbers: mobile10,
+      flash: '0',
     });
 
     console.log('[Fast2SMS] Sending OTP to:', mobile10, 'route: otp');
@@ -119,23 +148,56 @@ async function sendViaFast2SMS(
     });
 
     const data = await response.json();
-    console.log('[Fast2SMS] Full API response:', JSON.stringify(data), 'HTTP status:', response.status);
+    console.log('[Fast2SMS] API response:', JSON.stringify(data), 'HTTP:', response.status);
 
     if (data.return === false) {
-      console.error('[Fast2SMS] Send failed:', data);
+      // OTP route failed, try Quick SMS route as fallback
+      console.warn('[Fast2SMS] OTP route failed, trying Quick route...');
+      
+      const quickBody = new URLSearchParams({
+        route: 'q',              // Quick route
+        message: `Your Kabaddi Pro verification code is ${otp}. Do not share with anyone.`,
+        language: 'english',
+        numbers: mobile10,
+        flash: '0',
+      });
+
+      const quickResponse = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+        method: 'POST',
+        headers: {
+          'Authorization': apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
+        body: quickBody.toString(),
+      });
+
+      const quickData = await quickResponse.json();
+      console.log('[Fast2SMS] Quick route response:', JSON.stringify(quickData));
+
+      if (quickData.return === false) {
+        return {
+          success: false,
+          message: quickData.message || 'Fast2SMS Quick route also failed',
+          provider: 'fast2sms',
+          method: 'quick-route',
+          apiResponse: quickData,
+        };
+      }
+
       return {
-        success: false,
-        message: data.message || 'Failed to send OTP via Fast2SMS',
+        success: true,
+        message: 'OTP sent via Fast2SMS Quick route',
         provider: 'fast2sms',
-        method: 'otp-route',
-        apiResponse: data,
+        requestId: quickData.request_id,
+        method: 'quick-route',
+        apiResponse: quickData,
       };
     }
 
-    console.log('[Fast2SMS] ✅ OTP sent successfully, request_id:', data.request_id);
     return {
       success: true,
-      message: 'OTP sent successfully via Fast2SMS',
+      message: 'OTP sent via Fast2SMS OTP route',
       provider: 'fast2sms',
       requestId: data.request_id,
       method: 'otp-route',
@@ -152,7 +214,7 @@ async function sendViaFast2SMS(
   }
 }
 
-// ─── MSG91 Provider (DLT required - fallback only) ──────────────
+// ─── MSG91 Provider ─────────────────────────────────────────────
 
 async function sendViaMSG91(
   phone: string,
@@ -162,78 +224,114 @@ async function sendViaMSG91(
   const authKey = config.msg91AuthKey!;
   const mobile10 = sanitizePhone(phone);
   const mobileWithCC = '91' + mobile10;
+  const message = `Your Kabaddi Pro verification code is ${otp}. Do not share with anyone. Valid for 5 minutes.`;
 
-  // Try Direct SMS API first
+  // ── Method 1: Direct SMS API (transactional) ──────────────
   try {
-    const requestBody = {
+    const smsBody = {
       sender: 'MSG91',
       route: '4',
       country: '91',
-      sms: [{
-        message: `Your Kabaddi Pro verification code is ${otp}. Do not share. Valid 5 min.`,
-        to: [mobile10],
-      }],
+      sms: [{ message, to: [mobile10] }],
     };
 
-    console.log('[MSG91] Sending SMS to:', mobile10, 'route: transactional');
+    console.log('[MSG91] Method 1: Direct SMS to:', mobile10);
 
-    const response = await fetch('https://api.msg91.com/api/v2/sendsms', {
+    const smsResponse = await fetch('https://api.msg91.com/api/v2/sendsms', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'authkey': authKey,
-      },
-      body: JSON.stringify(requestBody),
+      headers: { 'Content-Type': 'application/json', 'authkey': authKey },
+      body: JSON.stringify(smsBody),
     });
 
-    const data = await response.json();
-    console.log('[MSG91] API response:', JSON.stringify(data));
+    const smsData = await smsResponse.json();
+    console.log('[MSG91] Direct SMS response:', JSON.stringify(smsData), 'HTTP:', smsResponse.status);
 
-    if (!response.ok || data.type === 'error') {
-      console.error('[MSG91] Direct SMS failed, trying OTP API...');
-      
-      // Fallback to OTP API
-      const otpResponse = await fetch('https://control.msg91.com/api/v5/otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'authkey': authKey },
-        body: JSON.stringify({ mobile: mobileWithCC, otp: otp }),
-      });
-      const otpData = await otpResponse.json();
-      console.log('[MSG91] OTP API response:', JSON.stringify(otpData));
-
-      if (otpData.type === 'success') {
-        return {
-          success: true,
-          message: 'OTP sent via MSG91 OTP API (may not deliver without DLT)',
-          provider: 'msg91',
-          requestId: otpData.request_id,
-          method: 'otp-api',
-        };
-      }
-
+    if (smsResponse.ok && smsData.type !== 'error') {
       return {
-        success: false,
-        message: 'All MSG91 methods failed. DLT registration required for delivery.',
+        success: true,
+        message: 'OTP sent via MSG91 Direct SMS',
         provider: 'msg91',
-        method: 'all-failed',
+        requestId: smsData.message,
+        method: 'direct-sms',
+        apiResponse: smsData,
       };
     }
-
-    return {
-      success: true,
-      message: 'OTP sent via MSG91 Direct SMS',
-      provider: 'msg91',
-      requestId: data.message,
-      method: 'direct-sms',
-    };
+    console.warn('[MSG91] Direct SMS failed:', smsData.message || smsData.type);
   } catch (error) {
-    console.error('[MSG91] Network error:', error);
-    return {
-      success: false,
-      message: 'MSG91 service unavailable',
-      provider: 'msg91',
-    };
+    console.error('[MSG91] Direct SMS error:', error);
   }
+
+  // ── Method 2: OTP API ──────────────────────────────────────
+  try {
+    console.log('[MSG91] Method 2: OTP API to:', mobileWithCC);
+
+    const otpResponse = await fetch('https://control.msg91.com/api/v5/otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'authkey': authKey },
+      body: JSON.stringify({ 
+        mobile: mobileWithCC, 
+        otp,
+        otp_length: '6',
+        otp_expiry: '5',
+      }),
+    });
+
+    const otpData = await otpResponse.json();
+    console.log('[MSG91] OTP API response:', JSON.stringify(otpData));
+
+    if (otpData.type === 'success') {
+      return {
+        success: true,
+        message: 'OTP sent via MSG91 OTP API',
+        provider: 'msg91',
+        requestId: otpData.request_id,
+        method: 'otp-api',
+        apiResponse: otpData,
+      };
+    }
+  } catch (error) {
+    console.error('[MSG91] OTP API error:', error);
+  }
+
+  // ── Method 3: Flow API (if template available) ─────────────
+  if (config.msg91TemplateId) {
+    try {
+      console.log('[MSG91] Method 3: Flow API with template:', config.msg91TemplateId);
+
+      const flowBody = {
+        template_id: config.msg91TemplateId,
+        recipients: [{ mobiles: mobileWithCC, var: otp }],
+      };
+
+      const flowResponse = await fetch('https://control.msg91.com/api/v5/flow/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'authkey': authKey },
+        body: JSON.stringify(flowBody),
+      });
+
+      const flowData = await flowResponse.json();
+      console.log('[MSG91] Flow API response:', JSON.stringify(flowData));
+
+      if (flowResponse.ok) {
+        return {
+          success: true,
+          message: 'OTP sent via MSG91 Flow API',
+          provider: 'msg91',
+          method: 'flow-api',
+          apiResponse: flowData,
+        };
+      }
+    } catch (error) {
+      console.error('[MSG91] Flow API error:', error);
+    }
+  }
+
+  return {
+    success: false,
+    message: 'All MSG91 methods failed. Check: 1) SMS credits (not wallet balance), 2) DLT registration, 3) Sender ID approval',
+    provider: 'msg91',
+    method: 'all-failed',
+  };
 }
 
 // ─── Twilio Provider ────────────────────────────────────────────
@@ -247,6 +345,7 @@ async function sendViaTwilio(
   const authToken = config.twilioAuthToken!;
   const fullPhone = phone.startsWith('+') ? phone : '+91' + sanitizePhone(phone);
 
+  // Try Twilio Verify first (better for OTP)
   if (config.twilioVerifyServiceSid) {
     try {
       const response = await fetch(
@@ -262,16 +361,17 @@ async function sendViaTwilio(
       );
       const data = await response.json();
       if (!response.ok) {
-        return { success: false, message: data.message || 'Failed via Twilio', provider: 'twilio' };
+        return { success: false, message: data.message || 'Failed via Twilio Verify', provider: 'twilio', method: 'verify' };
       }
-      return { success: true, message: 'OTP sent via Twilio Verify', provider: 'twilio', requestId: data.sid };
+      return { success: true, message: 'OTP sent via Twilio Verify', provider: 'twilio', requestId: data.sid, method: 'verify' };
     } catch {
-      return { success: false, message: 'Twilio unavailable', provider: 'twilio' };
+      // Fall through to direct SMS
     }
   }
 
+  // Direct SMS via Twilio
   if (!config.twilioPhoneNumber) {
-    return { success: false, message: 'TWILIO_PHONE_NUMBER required', provider: 'twilio' };
+    return { success: false, message: 'TWILIO_PHONE_NUMBER required for direct SMS', provider: 'twilio', method: 'direct-sms' };
   }
 
   try {
@@ -292,44 +392,105 @@ async function sendViaTwilio(
     );
     const data = await response.json();
     if (!response.ok) {
-      return { success: false, message: data.message || 'Failed via Twilio SMS', provider: 'twilio' };
+      return { success: false, message: data.message || 'Failed via Twilio SMS', provider: 'twilio', method: 'direct-sms' };
     }
-    return { success: true, message: 'OTP sent via Twilio SMS', provider: 'twilio', requestId: data.sid };
+    return { success: true, message: 'OTP sent via Twilio SMS', provider: 'twilio', requestId: data.sid, method: 'direct-sms' };
   } catch {
-    return { success: false, message: 'Twilio unavailable', provider: 'twilio' };
+    return { success: false, message: 'Twilio unavailable', provider: 'twilio', method: 'direct-sms' };
   }
 }
 
-// ─── Public API ─────────────────────────────────────────────────
+// ─── MSG91 Balance Check ────────────────────────────────────────
+
+async function checkMSG91Balance(authKey: string): Promise<{ balance: number | null; route: string; raw: Record<string, unknown> }> {
+  try {
+    const response = await fetch('https://api.msg91.com/api/balance.php?authkey=' + authKey + '&type=1', {
+      method: 'GET',
+      headers: { 'authkey': authKey },
+    });
+    const text = await response.text();
+    const balance = parseFloat(text);
+    return { balance: isNaN(balance) ? null : balance, route: 'transactional', raw: { response: text } };
+  } catch {
+    return { balance: null, route: 'transactional', raw: { error: 'Failed to check balance' } };
+  }
+}
+
+// ─── Smart Send: Auto-Fallback Across Providers ─────────────────
 
 export async function sendOTP(phone: string, otp: string): Promise<OTPResult> {
   const config = getConfig();
-  const validationError = validateConfig(config);
-  if (validationError) {
-    console.error(`[OTP] Configuration error: ${validationError}`);
+  const providers = getAvailableProviders(config);
+  const attempts: OTPAttempt[] = [];
+
+  if (providers.length === 0) {
+    console.error('[OTP] NO providers configured! Add at least one: FAST2SMS_API_KEY, MSG91_AUTH_KEY, or Twilio credentials');
     return {
       success: false,
-      message: `OTP service not configured: ${validationError}`,
-      provider: config.provider,
+      message: 'No OTP provider configured. Please add FAST2SMS_API_KEY or MSG91_AUTH_KEY to your environment variables.',
+      provider: 'none',
+      attempts,
     };
   }
 
-  switch (config.provider) {
-    case 'fast2sms': return sendViaFast2SMS(phone, otp, config);
-    case 'msg91': return sendViaMSG91(phone, otp, config);
-    case 'twilio': return sendViaTwilio(phone, otp, config);
-    default: return { success: false, message: `Unknown provider: ${config.provider}`, provider: config.provider };
+  console.log(`[OTP] Available providers (in order): ${providers.join(' → ')}`);
+
+  // Try each provider in order until one succeeds
+  for (const provider of providers) {
+    console.log(`[OTP] Trying provider: ${provider}...`);
+    
+    let result: OTPResult;
+    switch (provider) {
+      case 'fast2sms':
+        result = await sendViaFast2SMS(phone, otp, config);
+        break;
+      case 'msg91':
+        result = await sendViaMSG91(phone, otp, config);
+        break;
+      case 'twilio':
+        result = await sendViaTwilio(phone, otp, config);
+        break;
+      default:
+        result = { success: false, message: `Unknown provider: ${provider}`, provider };
+    }
+
+    attempts.push({
+      provider,
+      method: result.method || 'unknown',
+      success: result.success,
+      message: result.message,
+      apiResponse: result.apiResponse,
+    });
+
+    if (result.success) {
+      console.log(`[OTP] ✅ Success with ${provider} (${result.method})`);
+      result.attempts = attempts;
+      return result;
+    }
+
+    console.warn(`[OTP] ❌ ${provider} failed: ${result.message}`);
+    // Continue to next provider
   }
+
+  // All providers failed
+  console.error('[OTP] All providers failed!');
+  return {
+    success: false,
+    message: `All ${providers.length} OTP provider(s) failed. Attempts: ${attempts.map(a => `${a.provider}(${a.method}): ${a.message}`).join('; ')}`,
+    provider: 'all-failed',
+    attempts,
+  };
 }
+
+// ─── Verify OTP ─────────────────────────────────────────────────
 
 export async function verifyOTPProvider(
   phone: string,
   otp: string
 ): Promise<{ valid: boolean; message: string } | null> {
-  // MSG91 verify only works with OTP API, Fast2SMS doesn't have server-side verify
-  // We use local verification instead for all providers
   const config = getConfig();
-  if (config.provider === 'msg91' && config.msg91AuthKey) {
+  // Only MSG91 has server-side OTP verification
+  if (config.msg91AuthKey) {
     const mobileWithCC = '91' + sanitizePhone(phone);
     try {
       const response = await fetch(
@@ -345,27 +506,50 @@ export async function verifyOTPProvider(
       return null;
     }
   }
-  return null; // Use local verification for Fast2SMS and Twilio
+  return null; // Use local verification for other providers
 }
+
+// ─── Public Helpers ─────────────────────────────────────────────
 
 export function isDemoMode(): boolean { return false; }
-export function isConfigured(): boolean { return validateConfig(getConfig()) === null; }
-export function getProviderName(): string {
+
+export function isConfigured(): boolean { 
   const config = getConfig();
-  return validateConfig(config) ? 'Not Configured' : config.provider.toUpperCase();
+  return getAvailableProviders(config).length > 0;
 }
 
-export function getDiagnosticInfo() {
+export function getProviderName(): string {
   const config = getConfig();
+  const providers = getAvailableProviders(config);
+  if (providers.length === 0) return 'Not Configured';
+  if (config.preferredProvider === 'auto') return providers.join(' → ') + ' (auto)';
+  return providers[0].toUpperCase();
+}
+
+export async function getDiagnosticInfo() {
+  const config = getConfig();
+  const providers = getAvailableProviders(config);
+  
+  // Check MSG91 balance if key exists
+  let msg91Balance: { balance: number | null; route: string; raw: Record<string, unknown> } | null = null;
+  if (config.msg91AuthKey) {
+    msg91Balance = await checkMSG91Balance(config.msg91AuthKey);
+  }
+
   return {
-    provider: config.provider,
+    preferredProvider: config.preferredProvider,
+    availableProviders: providers,
     hasFast2smsKey: !!config.fast2smsApiKey,
     hasMsg91AuthKey: !!config.msg91AuthKey,
     hasMsg91TemplateId: !!config.msg91TemplateId,
-    isConfigured: validateConfig(config) === null,
-    validationError: validateConfig(config),
-    note: config.provider === 'fast2sms'
-      ? 'Fast2SMS: No DLT required, instant delivery. Get API key from https://fast2sms.com → Dev API'
-      : 'MSG91: DLT registration REQUIRED for SMS delivery in India. Without DLT, API returns success but SMS never delivers.',
+    hasTwilioCreds: !!(config.twilioAccountSid && config.twilioAuthToken),
+    isConfigured: providers.length > 0,
+    msg91Balance: msg91Balance?.balance,
+    msg91BalanceRaw: msg91Balance?.raw,
+    recommendation: providers.length === 0
+      ? '⚠️ NO providers configured! Add FAST2SMS_API_KEY (recommended) or MSG91_AUTH_KEY to your environment variables.'
+      : providers.includes('fast2sms')
+        ? '✅ Fast2SMS available - best for India (no DLT, instant delivery)'
+        : '⚠️ Only MSG91 available. MSG91 requires: 1) SMS credits (not just wallet), 2) DLT registration, 3) Approved sender ID. Consider adding FAST2SMS_API_KEY as backup.',
   };
 }

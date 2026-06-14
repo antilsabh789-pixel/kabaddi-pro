@@ -110,12 +110,27 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Check if any OTP provider is configured
+      if (!isConfigured()) {
+        const diag = await getDiagnosticInfo();
+        console.error('[OTP] No providers configured!', JSON.stringify(diag));
+        return NextResponse.json(
+          { error: 'OTP service is not configured. Please add FAST2SMS_API_KEY or MSG91_AUTH_KEY to environment variables.' },
+          { status: 503 }
+        );
+      }
+
       // Generate OTP
       const newOtp = generateOTP();
       const resendCount = existing ? existing.resendCount + 1 : 1;
 
-      // ── Send OTP via real provider (MSG91) ─────────────────────
+      // ── Send OTP via provider (with auto-fallback) ──────────
       const otpResult = await sendOTP(phone, newOtp);
+
+      // Log all attempts for debugging
+      if (otpResult.attempts) {
+        console.log('[OTP] All attempts:', JSON.stringify(otpResult.attempts));
+      }
 
       if (!otpResult.success) {
         return NextResponse.json(
@@ -574,7 +589,7 @@ export async function POST(request: NextRequest) {
 
     // ── Check OTP Provider Status (for frontend) ────────────────
     if (action === 'otp-status') {
-      const diag = getDiagnosticInfo();
+      const diag = await getDiagnosticInfo();
       return NextResponse.json({
         ...diag,
         isDemo: false,
@@ -591,12 +606,13 @@ export async function POST(request: NextRequest) {
       }
       const testOtp = String(100000 + Math.floor(Math.random() * 900000));
       const result = await sendOTP(phone, testOtp);
+      const diag = await getDiagnosticInfo();
       return NextResponse.json({
         phone: phone,
         sanitizedPhone: phone.replace('+', '').replace(/^0/, '91'),
         otp: testOtp,
         result,
-        diagnostic: getDiagnosticInfo(),
+        diagnostic: diag,
       });
     }
 
