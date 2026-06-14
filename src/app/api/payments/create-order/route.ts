@@ -108,11 +108,11 @@ export async function POST(request: NextRequest) {
     const cashfreeOrderId = `kp_${plan}_${Date.now()}_${userId.slice(-6)}`;
 
     // Determine return URL based on environment
-    // For _modal checkout mode, return_url is used as fallback only
-    // It must match a whitelisted domain in Cashfree merchant dashboard
+    // Cashfree will redirect to this URL after payment, appending order_id as a query param
+    // The frontend will then verify the payment status
     const host = request.headers.get('host') || 'localhost:3000';
     const protocol = request.headers.get('x-forwarded-proto') || 'https';
-    const returnUrl = `${protocol}://${host}/?payment=redirect&order_id=${cashfreeOrderId}`;
+    const returnUrl = `${protocol}://${host}/?payment=redirect`;
 
     // Create order with Cashfree API
     const orderPayload: Record<string, unknown> = {
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
         customer_phone: user.phone || '9999999999',
       },
       order_meta: {
-        return_url: returnUrl,
+        return_url: `${returnUrl}&order_id=${cashfreeOrderId}`,
       },
       order_note: `Kabaddi Pro ${plan} plan${couponCode ? ` (coupon: ${couponCode})` : ''}`,
     };

@@ -225,7 +225,7 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding } =
+  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser } =
     useKabaddiStore();
 
   // Wait for Zustand persist to hydrate from localStorage
@@ -235,6 +235,65 @@ export default function Home() {
     }, 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Handle payment return from Cashfree redirect
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    const orderId = params.get('order_id') || localStorage.getItem('pendingPaymentOrderId');
+
+    if (paymentStatus && orderId) {
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('payment');
+      url.searchParams.delete('order_id');
+      url.searchParams.delete('cf_order_id');
+      window.history.replaceState({}, '', url.toString());
+
+      // Clear localStorage
+      localStorage.removeItem('pendingPaymentOrderId');
+      localStorage.removeItem('pendingPaymentPlan');
+
+      if (paymentStatus === 'success' || paymentStatus === 'redirect') {
+        // Verify payment with backend
+        fetch('/api/payments/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              updateUser({ isPremium: true });
+            }
+          })
+          .catch(err => console.error('Payment verification error:', err));
+      }
+    } else {
+      // Check localStorage for pending payment (user returned from Cashfree)
+      const pendingOrderId = localStorage.getItem('pendingPaymentOrderId');
+      if (pendingOrderId) {
+        localStorage.removeItem('pendingPaymentOrderId');
+        localStorage.removeItem('pendingPaymentPlan');
+
+        // Verify payment
+        fetch('/api/payments/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: pendingOrderId }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              updateUser({ isPremium: true });
+            }
+          })
+          .catch(err => console.error('Payment verification error:', err));
+      }
+    }
+  }, [isAuthenticated, currentUser?.id, updateUser]);
 
   // Scroll to top whenever activeTab changes
   useEffect(() => {

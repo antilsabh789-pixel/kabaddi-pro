@@ -1,14 +1,5 @@
 'use client';
 
-// Cashfree global type
-declare global {
-  interface Window {
-    Cashfree?: new (config: { mode: 'production' | 'sandbox' }) => {
-      checkout: (options: { paymentSessionId: string; redirectTarget?: string }) => Promise<string | void>;
-    };
-  }
-}
-
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -216,25 +207,41 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
     }
   }, [updateUser, toast]);
 
-  // Handle payment result from URL params (when redirected back after payment)
+  // Handle payment result from URL params or localStorage (when redirected back after payment)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
-    const orderId = params.get('order_id');
+    let orderId = params.get('order_id');
 
-    if (paymentStatus && orderId) {
+    // Also check Cashfree's standard redirect params
+    const cfOrderId = params.get('cf_order_id') || params.get('order_id');
+
+    // Check localStorage for pending payment (saved before redirect)
+    const pendingOrderId = localStorage.getItem('pendingPaymentOrderId');
+
+    // Determine which order ID to verify
+    const orderIdToVerify = orderId || cfOrderId || pendingOrderId;
+
+    if (paymentStatus && orderIdToVerify) {
       // Clean URL
       const url = new URL(window.location.href);
       url.searchParams.delete('payment');
       url.searchParams.delete('order_id');
+      url.searchParams.delete('cf_order_id');
       window.history.replaceState({}, '', url.toString());
 
       if (paymentStatus === 'success' || paymentStatus === 'redirect') {
-        verifyPayment(orderId);
+        verifyPayment(orderIdToVerify);
       } else if (paymentStatus === 'failed') {
         setPaymentError('Payment was not completed. Please try again.');
         setActivating(false);
       }
+    } else if (pendingOrderId && !paymentStatus) {
+      // User returned from Cashfree redirect but without explicit success/fail param
+      // Verify the payment anyway to check if it was completed
+      localStorage.removeItem('pendingPaymentOrderId');
+      localStorage.removeItem('pendingPaymentPlan');
+      verifyPayment(pendingOrderId);
     }
   }, [verifyPayment]);
 
@@ -306,62 +313,23 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
         throw new Error('No payment session ID received. Please try again.');
       }
 
-      // Step 2: Load Cashfree SDK dynamically
-      if (typeof window !== 'undefined' && !window.Cashfree) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-          script.async = true;
-          script.onload = () => {
-            console.log('[Cashfree] SDK loaded successfully');
-            resolve();
-          };
-          script.onerror = () => reject(new Error('Failed to load payment gateway. Please check your internet connection.'));
-          document.body.appendChild(script);
-        });
-      }
+      // Step 2: Redirect directly to Cashfree's hosted payment page
+      // This bypasses the JS SDK entirely — no domain whitelisting needed!
+      // Payment happens on Cashfree's own domain, then redirects back to our return_url
+      const isProduction = orderData.env === 'production';
+      const cashfreePayUrl = isProduction
+        ? `https://payments.cashfree.com/pg/orders/pay/${orderData.paymentSessionId}`
+        : `https://sandbox.cashfree.com/pg/orders/pay/${orderData.paymentSessionId}`;
 
-      // Step 3: Open Cashfree checkout
-      const CashfreeClass = window.Cashfree;
-      if (!CashfreeClass) {
-        throw new Error('Payment gateway not available. Please try again.');
-      }
+      console.log(`[Cashfree] Redirecting to hosted checkout: env=${orderData.env}, orderId=${orderData.orderId}`);
+      console.log(`[Cashfree] Payment URL: ${cashfreePayUrl}`);
 
-      const cfMode = orderData.env === 'production' ? 'production' : 'sandbox';
-      console.log(`[Cashfree] Opening checkout: mode=${cfMode}, hasSessionId=${!!orderData.paymentSessionId}, orderId=${orderData.orderId}`);
-      const cf = new CashfreeClass({ mode: cfMode });
+      // Save order ID to localStorage so we can verify payment when user returns
+      localStorage.setItem('pendingPaymentOrderId', orderData.orderId);
+      localStorage.setItem('pendingPaymentPlan', selectedPlan);
 
-      // Open checkout in POPUP/MODAL mode — avoids domain whitelisting issues
-      // When using _modal, Cashfree opens a popup overlay and doesn't need the return_url
-      // This prevents the "Broken Link" error from Cashfree
-      try {
-        const result = await cf.checkout({
-          paymentSessionId: orderData.paymentSessionId,
-          redirectTarget: '_modal',
-        });
-        console.log('[Cashfree] Checkout result:', result);
-
-        // If checkout returns a result, verify the payment
-        if (result) {
-          await verifyPayment(orderData.orderId);
-        } else {
-          // User closed the popup without completing payment
-          setActivating(false);
-          toast({
-            title: 'Payment cancelled',
-            description: 'You closed the payment window. Try again when ready.',
-          });
-        }
-      } catch (checkoutError) {
-        console.error('[Cashfree] Checkout error:', checkoutError);
-        setActivating(false);
-        setPaymentError('Payment window could not be opened. Please check your popup blocker and try again.');
-        toast({
-          title: 'Payment error',
-          description: 'Could not open payment window. Please allow popups and try again.',
-          variant: 'destructive',
-        });
-      }
+      // Redirect user to Cashfree's hosted payment page
+      window.location.href = cashfreePayUrl;
 
     } catch (error) {
       console.error('Payment error:', error);
@@ -373,7 +341,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       });
       setActivating(false);
     }
-  }, [currentUser, selectedPlan, couponApplied, couponCode, discountedPaise, updateUser, toast, verifyPayment]);
+  }, [currentUser, selectedPlan, couponApplied, couponCode, discountedPaise, toast]);
 
   return (
     <AnimatePresence>
@@ -634,7 +602,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                   ) : activating ? (
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Opening payment...</span>
+                      <span>Redirecting to payment...</span>
                     </div>
                   ) : (
                     <>
