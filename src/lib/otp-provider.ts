@@ -74,7 +74,9 @@ function getAvailableProviders(config: OTPProviderConfig): Array<'fast2sms' | 'm
     }
   }
 
-  const order: Array<'fast2sms' | 'msg91' | 'twilio'> = ['fast2sms', 'msg91', 'twilio'];
+  // Priority order by cost: MSG91 (~₹0.20/SMS) → Fast2SMS OTP (~₹0.30/SMS) → Fast2SMS Quick (~₹5/SMS)
+  // MSG91 is cheapest when SMS credits are purchased from wallet balance
+  const order: Array<'fast2sms' | 'msg91' | 'twilio'> = ['msg91', 'fast2sms', 'twilio'];
   for (const p of order) {
     if (!available.includes(p) && hasCredentials(config, p)) {
       available.push(p);
@@ -104,9 +106,9 @@ function sanitizePhone(phone: string): string {
 }
 
 // ─── Fast2SMS Provider ──────────────────────────────────────────
-// Fast2SMS routes:
-// - Quick route (q): Best option, NO website verification needed
-// - OTP route: Requires website verification in Fast2SMS dashboard
+// Fast2SMS routes (ORDERED BY COST - cheapest first):
+// - OTP route: ~₹0.30/SMS (requires website verification in Fast2SMS dashboard)
+// - Quick route (q): ~₹5/SMS (NO verification needed - EXPENSIVE, last resort only)
 // - DLT route: Requires DLT registration
 
 async function sendViaFast2SMS(
@@ -119,51 +121,7 @@ async function sendViaFast2SMS(
   const otpMessage = `${otp} is your Kabaddi Pro verification code. Do not share with anyone.`;
   const routeErrors: string[] = [];
 
-  // ── Method 1: Quick SMS Route (BEST - no website verification needed) ──
-  try {
-    const quickBody = new URLSearchParams({
-      route: 'q',
-      message: otpMessage,
-      language: 'english',
-      numbers: mobile10,
-      flash: '0',
-    });
-
-    console.log('[Fast2SMS] Method 1: Quick SMS to:', mobile10);
-
-    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
-      method: 'POST',
-      headers: {
-        'Authorization': apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-      },
-      body: quickBody.toString(),
-    });
-
-    const data = await response.json();
-    console.log('[Fast2SMS] Quick route full response:', JSON.stringify(data));
-
-    if (data.return === true) {
-      console.log('[Fast2SMS] ✅ Quick route SUCCESS');
-      return {
-        success: true,
-        message: 'OTP sent via Fast2SMS Quick route',
-        provider: 'fast2sms',
-        requestId: data.request_id,
-        method: 'quick-route',
-        apiResponse: data,
-      };
-    }
-
-    routeErrors.push(`Quick: "${data.message}" (code:${data.status_code})`);
-    console.warn('[Fast2SMS] Quick route FAILED:', data.message, 'code:', data.status_code);
-  } catch (error) {
-    routeErrors.push(`Quick: Network error`);
-    console.error('[Fast2SMS] Quick route error:', error);
-  }
-
-  // ── Method 2: OTP Route (requires website verification) ──
+  // ── Method 1: OTP Route (~₹0.30/SMS - CHEAPEST, needs website verification) ──
   try {
     const otpBody = new URLSearchParams({
       route: 'otp',
@@ -172,7 +130,7 @@ async function sendViaFast2SMS(
       flash: '0',
     });
 
-    console.log('[Fast2SMS] Method 2: OTP route to:', mobile10);
+    console.log('[Fast2SMS] Method 1: OTP route to:', mobile10, '(~₹0.30/SMS)');
 
     const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
       method: 'POST',
@@ -188,7 +146,7 @@ async function sendViaFast2SMS(
     console.log('[Fast2SMS] OTP route full response:', JSON.stringify(data));
 
     if (data.return === true && data.status_code !== 996) {
-      console.log('[Fast2SMS] ✅ OTP route SUCCESS');
+      console.log('[Fast2SMS] ✅ OTP route SUCCESS (~₹0.30/SMS)');
       return {
         success: true,
         message: 'OTP sent via Fast2SMS OTP route',
@@ -206,7 +164,7 @@ async function sendViaFast2SMS(
     console.error('[Fast2SMS] OTP route error:', error);
   }
 
-  // ── Method 3: DLT Route ──
+  // ── Method 2: DLT Route (variable cost, needs DLT registration) ──
   try {
     const dltBody = new URLSearchParams({
       route: 'dlt',
@@ -217,7 +175,7 @@ async function sendViaFast2SMS(
       sender_id: 'FSTSMS',
     });
 
-    console.log('[Fast2SMS] Method 3: DLT route to:', mobile10);
+    console.log('[Fast2SMS] Method 2: DLT route to:', mobile10);
 
     const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
       method: 'POST',
@@ -249,6 +207,50 @@ async function sendViaFast2SMS(
   } catch (error) {
     routeErrors.push(`DLT: Network error`);
     console.error('[Fast2SMS] DLT route error:', error);
+  }
+
+  // ── Method 3: Quick SMS Route (~₹5/SMS - EXPENSIVE, last resort only!) ──
+  try {
+    const quickBody = new URLSearchParams({
+      route: 'q',
+      message: otpMessage,
+      language: 'english',
+      numbers: mobile10,
+      flash: '0',
+    });
+
+    console.log('[Fast2SMS] Method 3: Quick SMS to:', mobile10, '(~₹5/SMS - EXPENSIVE!)');
+
+    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body: quickBody.toString(),
+    });
+
+    const data = await response.json();
+    console.log('[Fast2SMS] Quick route full response:', JSON.stringify(data));
+
+    if (data.return === true) {
+      console.log('[Fast2SMS] ✅ Quick route SUCCESS (~₹5/SMS - consider setting up OTP route to save money)');
+      return {
+        success: true,
+        message: 'OTP sent via Fast2SMS Quick route (~₹5/SMS)',
+        provider: 'fast2sms',
+        requestId: data.request_id,
+        method: 'quick-route',
+        apiResponse: data,
+      };
+    }
+
+    routeErrors.push(`Quick: "${data.message}" (code:${data.status_code})`);
+    console.warn('[Fast2SMS] Quick route FAILED:', data.message, 'code:', data.status_code);
+  } catch (error) {
+    routeErrors.push(`Quick: Network error`);
+    console.error('[Fast2SMS] Quick route error:', error);
   }
 
   return {
