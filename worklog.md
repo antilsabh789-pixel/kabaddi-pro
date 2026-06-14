@@ -180,3 +180,34 @@ Stage Summary:
 - ✅ No errors in browser console
 - User should receive SMS OTP on their phone now
 - Auto-fallback system ensures reliability: Fast2SMS → MSG91 → Twilio
+
+---
+Task ID: 7
+Agent: Main
+Task: Debug Fast2SMS OTP failure - SMS still not being received
+
+Work Log:
+- User reported OTP still not being received after adding Fast2SMS
+- Tested Vercel deployment test-otp endpoint with detailed error reporting
+- Found Fast2SMS was returning status_code 996 (website verification needed) but code was treating it as success
+- Fixed Fast2SMS success detection: now properly checks `data.return === true` AND `status_code`
+- Rewrote Fast2SMS to try Quick route FIRST (no website verification needed), then OTP, then DLT
+- Pushed fix, waited for Vercel deploy, tested again
+- **Fast2SMS errors revealed**:
+  1. Quick route: "You need to complete one transaction of 100 INR or more before using API route." (code:999)
+  2. OTP route: "Before using OTP Message API, complete website verification." (code:996)
+  3. DLT route: "Invalid Sender ID" (code:406)
+- **MSG91**: Still returns "success" but has 0 SMS credits → SMS never delivers
+- Added Fast2SMS wallet balance check to diagnostic endpoint
+- Pushed detailed error reporting fix (commit: 66e8878)
+
+Stage Summary:
+- **BOTH providers are blocked**:
+  - Fast2SMS: Requires ₹100 minimum transaction before API works
+  - MSG91: Has 0 SMS credits (wallet ₹50 ≠ SMS credits)
+- User MUST do ONE of these:
+  1. **Fast2SMS**: Recharge ₹100+ at https://fast2sms.com → Dashboard → Add Funds
+  2. **MSG91**: Purchase SMS credits at MSG91 Dashboard → SMS → Buy Credits (NOT wallet top-up)
+  3. **Alternative**: Try TextLocal (https://textlocal.in) - simpler setup, no minimum spend
+- Auto-fallback system is working correctly: tries Fast2SMS → MSG91, reports exact errors
+- Once either provider has credits, OTP will work immediately
