@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { createHash } from 'crypto';
-import { sendOTP, verifyOTPProvider, isConfigured } from '@/lib/otp-provider';
+import { sendOTP, verifyOTPProvider, isConfigured, getDiagnosticInfo } from '@/lib/otp-provider';
 
 // Simple password hashing (for production, use bcrypt)
 function hashPassword(password: string): string {
@@ -574,23 +574,29 @@ export async function POST(request: NextRequest) {
 
     // ── Check OTP Provider Status (for frontend) ────────────────
     if (action === 'otp-status') {
-      const config = {
-        provider: process.env.OTP_PROVIDER || 'msg91',
-        hasAuthKey: !!process.env.MSG91_AUTH_KEY,
-        hasTemplateId: !!process.env.MSG91_TEMPLATE_ID,
-        };
-      const missing = [];
-      if (config.provider === 'msg91') {
-        // Only AUTH_KEY is required. Template ID & Sender ID are optional.
-        // Without template, MSG91 uses its built-in OTP service (guaranteed delivery)
-        if (!config.hasAuthKey) missing.push('MSG91_AUTH_KEY');
-      }
+      const diag = getDiagnosticInfo();
       return NextResponse.json({
-        provider: config.provider,
-        isDemo: false, // NEVER demo mode
-        isConfigured: isConfigured(),
-        missingEnvVars: missing,
-        usingTemplate: config.hasTemplateId,
+        ...diag,
+        isDemo: false,
+      });
+    }
+
+    // ── Test OTP Send (for debugging only) ────────────────────────
+    if (action === 'test-otp') {
+      if (!phone) {
+        return NextResponse.json(
+          { error: 'Phone number required for test' },
+          { status: 400 }
+        );
+      }
+      const testOtp = String(100000 + Math.floor(Math.random() * 900000));
+      const result = await sendOTP(phone, testOtp);
+      return NextResponse.json({
+        phone: phone,
+        sanitizedPhone: phone.replace('+', '').replace(/^0/, '91'),
+        otp: testOtp,
+        result,
+        diagnostic: getDiagnosticInfo(),
       });
     }
 
