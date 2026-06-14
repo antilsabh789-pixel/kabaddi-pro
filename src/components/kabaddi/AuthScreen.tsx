@@ -311,8 +311,14 @@ export default function AuthScreen() {
     })
       .then(res => res.json())
       .then(data => {
-        // In tester mode, treat it like demo mode (show OTP on screen)
-        setIsOtpDemoMode(data.isDemo !== false || data.testerMode === true);
+        // Only show OTP on screen in genuine demo mode (no real provider configured)
+        // Tester mode is now disabled for production
+        const shouldShowOtp = data.isDemo === true;
+        setIsOtpDemoMode(shouldShowOtp);
+        // Log debug info if MSG91 is misconfigured
+        if (data.missingEnvVars?.length > 0) {
+          console.error('[OTP] Missing env vars:', data.missingEnvVars, '— falling back to demo mode');
+        }
       })
       .catch(() => {
         setIsOtpDemoMode(true);
@@ -373,7 +379,7 @@ export default function AuthScreen() {
       setSignupStep('otp');
       setOtpCountdownDone(false);
       setDemoOtp(data.demoOtp || '');
-      setIsOtpDemoMode(!!data.demoOtp || !!data.testerMode); // Show OTP on screen in demo or tester mode
+      setIsOtpDemoMode(!!data.demoOtp && data.isDemo !== false); // Only show OTP if backend says it's demo mode
       setResendCount(data.resendCount || 1);
     } catch {
       setError('Something went wrong. Please try again.');

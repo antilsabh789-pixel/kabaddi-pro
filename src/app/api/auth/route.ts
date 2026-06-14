@@ -77,6 +77,15 @@ export async function POST(request: NextRequest) {
 
     // ── Check OTP Provider Status ────────────────────────────────
     const demoMode = isDemoMode();
+    
+    // Debug: Log the OTP configuration status
+    console.log('[OTP Debug]', {
+      provider: process.env.OTP_PROVIDER,
+      hasAuthKey: !!process.env.MSG91_AUTH_KEY,
+      hasTemplateId: !!process.env.MSG91_TEMPLATE_ID,
+      testerMode: process.env.OTP_TESTER_MODE,
+      isDemoMode: demoMode,
+    });
 
     // ── Send Signup OTP ─────────────────────────────────────────
     if (action === 'send-signup-otp') {
@@ -132,20 +141,18 @@ export async function POST(request: NextRequest) {
         providerUsed: otpResult.provider,
       });
 
-      // Tester mode: show OTP on screen even with real provider (for QA testing)
-      const testerMode = process.env.OTP_TESTER_MODE === 'true';
+      // Only include demoOtp when explicitly in demo mode (OTP_PROVIDER=demo)
+      // NEVER show OTP on screen when MSG91 is configured — real SMS only
+      const isExplicitDemoMode = process.env.OTP_PROVIDER === 'demo';
 
       return NextResponse.json({
-        message: demoMode
+        message: isExplicitDemoMode
           ? 'OTP sent successfully (Demo Mode)'
-          : testerMode
-            ? 'OTP sent via SMS (Tester Mode - code shown below)'
-            : 'OTP sent successfully to your phone',
-        // Include demoOtp in demo mode OR tester mode
-        ...((demoMode || testerMode) ? { demoOtp: newOtp } : {}),
+          : 'OTP sent successfully to your phone',
+        // Only include demoOtp when OTP_PROVIDER is explicitly set to 'demo'
+        ...(isExplicitDemoMode && otpResult.demoOtp ? { demoOtp: otpResult.demoOtp } : {}),
         resendCount,
         provider: otpResult.provider,
-        ...(testerMode ? { testerMode: true } : {}),
       });
     }
 
@@ -443,12 +450,12 @@ export async function POST(request: NextRequest) {
       });
 
       // Don't reveal if OTP was actually sent or if user exists
-      // But in tester mode, always return the OTP so the flow is testable
-      const testerMode = process.env.OTP_TESTER_MODE === 'true';
+      // Only include OTP in response when explicitly in demo mode
+      const isExplicitDemoMode = process.env.OTP_PROVIDER === 'demo';
       return NextResponse.json({
         message: 'OTP sent if account exists',
-        // In demo mode or tester mode, always return the OTP so the flow is testable
-        ...((demoMode || testerMode) ? { demoOtp: newOtp } : {}),
+        // Only return OTP in demo mode
+        ...(isExplicitDemoMode ? { demoOtp: newOtp } : {}),
       });
     }
 
@@ -591,10 +598,22 @@ export async function POST(request: NextRequest) {
 
     // ── Check OTP Provider Status (for frontend) ────────────────
     if (action === 'otp-status') {
+      const isExplicitDemoMode = process.env.OTP_PROVIDER === 'demo';
+      const config = {
+        provider: process.env.OTP_PROVIDER || 'demo',
+        hasAuthKey: !!process.env.MSG91_AUTH_KEY,
+        hasTemplateId: !!process.env.MSG91_TEMPLATE_ID,
+      };
+      const missing = [];
+      if (config.provider === 'msg91') {
+        if (!config.hasAuthKey) missing.push('MSG91_AUTH_KEY');
+        if (!config.hasTemplateId) missing.push('MSG91_TEMPLATE_ID');
+      }
       return NextResponse.json({
-        provider: isDemoMode() ? 'demo' : (process.env.OTP_PROVIDER || 'demo'),
-        isDemo: demoMode,
-        testerMode: process.env.OTP_TESTER_MODE === 'true',
+        provider: isExplicitDemoMode ? 'demo' : (process.env.OTP_PROVIDER || 'demo'),
+        isDemo: isExplicitDemoMode,
+        missingEnvVars: missing,
+        debug: config,
       });
     }
 
