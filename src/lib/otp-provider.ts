@@ -111,15 +111,16 @@ async function sendViaMSG91(
     const requestBody: Record<string, string> = {
       mobile: sanitizedPhone, // Format: 91XXXXXXXXXX (no + sign, with country code)
       otp: otp,
-      OTP: otp, // Template variable
     };
 
-    // Add template_id if available (for custom DLT template)
+    // Add template_id ONLY if provided (for custom DLT template)
+    // Without template_id, MSG91 uses its built-in OTP service (guaranteed delivery)
     if (config.msg91TemplateId) {
       requestBody.template_id = config.msg91TemplateId;
+      requestBody.OTP = otp; // Template variable for custom templates
     }
 
-    console.log('[MSG91] Sending OTP to:', sanitizedPhone, '(original:', phone, ') template:', !!config.msg91TemplateId, 'sender: MSG91-default');
+    console.log('[MSG91] Sending OTP to:', sanitizedPhone, '(original:', phone, ') template:', config.msg91TemplateId || 'built-in', 'sender: MSG91-default');
 
     const response = await fetch('https://control.msg91.com/api/v5/otp', {
       method: 'POST',
