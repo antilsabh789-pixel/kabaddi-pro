@@ -467,3 +467,27 @@ Stage Summary:
 - Security: forgot-password doesn't reveal user existence in production mode
 - Rate limiting: 3 resends max, 3 wrong attempts max per OTP, 5-min expiry
 - Bug fixes: forgot password demo OTP, weight "kg" doubling, missing UI elements
+
+---
+Task ID: msg91-setup-and-tester-deployment
+Agent: Main Agent
+Task: Configure MSG91 OTP provider, fix bugs, and prepare app for tester deployment
+
+Work Log:
+- Guided user through MSG91 setup: created Auth Key (528840AMmrbUJi0U4b6a2e3858P1) and OTP Template (6a2e3af8cda93304790f2f32)
+- Configured .env: OTP_PROVIDER=msg91, MSG91_AUTH_KEY, MSG91_TEMPLATE_ID
+- Added OTP_TESTER_MODE feature: when true, OTP is sent via real SMS AND shown on screen for testers
+- Fixed BUG-1: Footer not sticking to bottom on Auth screen - changed layout from `items-center justify-center` to `flex-1` content area with footer pushed to bottom
+- Fixed BUG-2: Escape key to dismiss Forgot Password modal - added onKeyDown handler and auto-focus via useRef
+- Fixed VIS-2: Step indicator text size increased from 10px to 11px for better readability on mobile
+- Added version badge "v1.0-beta" and "Tester Mode" indicator on Auth screen
+- Added floating Bug Report / Feedback button for testers (orange FAB in bottom-right)
+- Updated backend API to include testerMode flag in otp-status response and demoOtp in signup/forgot-password responses when tester mode is active
+- Final QA passed: footer sticks, tester mode badge visible, OTP shown, Escape key works, mobile view OK
+
+Stage Summary:
+- MSG91 OTP integration is LIVE - real SMS delivery with tester mode overlay
+- App is ready for tester deployment with v1.0-beta
+- Key env vars: OTP_PROVIDER=msg91, OTP_TESTER_MODE=true
+- For production: set OTP_TESTER_MODE=false to hide OTP on screen
+- All bugs fixed, lint clean, no console errors

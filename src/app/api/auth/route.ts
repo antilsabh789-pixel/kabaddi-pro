@@ -132,14 +132,20 @@ export async function POST(request: NextRequest) {
         providerUsed: otpResult.provider,
       });
 
+      // Tester mode: show OTP on screen even with real provider (for QA testing)
+      const testerMode = process.env.OTP_TESTER_MODE === 'true';
+
       return NextResponse.json({
         message: demoMode
           ? 'OTP sent successfully (Demo Mode)'
-          : 'OTP sent successfully to your phone',
-        // Only include demoOtp in demo mode
-        ...(demoMode && otpResult.demoOtp ? { demoOtp: otpResult.demoOtp } : {}),
+          : testerMode
+            ? 'OTP sent via SMS (Tester Mode - code shown below)'
+            : 'OTP sent successfully to your phone',
+        // Include demoOtp in demo mode OR tester mode
+        ...((demoMode || testerMode) ? { demoOtp: newOtp } : {}),
         resendCount,
         provider: otpResult.provider,
+        ...(testerMode ? { testerMode: true } : {}),
       });
     }
 
@@ -437,10 +443,12 @@ export async function POST(request: NextRequest) {
       });
 
       // Don't reveal if OTP was actually sent or if user exists
+      // But in tester mode, always return the OTP so the flow is testable
+      const testerMode = process.env.OTP_TESTER_MODE === 'true';
       return NextResponse.json({
         message: 'OTP sent if account exists',
-        // In demo mode, always return the OTP so the flow is testable
-        ...(demoMode ? { demoOtp: newOtp } : {}),
+        // In demo mode or tester mode, always return the OTP so the flow is testable
+        ...((demoMode || testerMode) ? { demoOtp: newOtp } : {}),
       });
     }
 
@@ -586,6 +594,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         provider: isDemoMode() ? 'demo' : (process.env.OTP_PROVIDER || 'demo'),
         isDemo: demoMode,
+        testerMode: process.env.OTP_TESTER_MODE === 'true',
       });
     }
 

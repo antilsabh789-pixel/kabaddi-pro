@@ -276,6 +276,7 @@ export default function AuthScreen() {
 
   // Forgot password flow
   const [showForgot, setShowForgot] = useState(false);
+  const forgotOverlayRef = useRef<HTMLDivElement>(null);
   const [forgotStage, setForgotStage] = useState<ForgotStage>('phone');
   const [forgotPhone, setForgotPhone] = useState('');
   const [otpValue, setOtpValue] = useState('');
@@ -294,6 +295,13 @@ export default function AuthScreen() {
   const login = useKabaddiStore((s) => s.login);
   const setOnboarded = useKabaddiStore((s) => s.setOnboarded);
 
+  // Auto-focus forgot password overlay so Escape key works immediately
+  useEffect(() => {
+    if (showForgot && forgotOverlayRef.current) {
+      forgotOverlayRef.current.focus();
+    }
+  }, [showForgot]);
+
   // Check OTP provider status on mount
   useEffect(() => {
     fetch('/api/auth', {
@@ -303,7 +311,8 @@ export default function AuthScreen() {
     })
       .then(res => res.json())
       .then(data => {
-        setIsOtpDemoMode(data.isDemo !== false);
+        // In tester mode, treat it like demo mode (show OTP on screen)
+        setIsOtpDemoMode(data.isDemo !== false || data.testerMode === true);
       })
       .catch(() => {
         setIsOtpDemoMode(true);
@@ -364,7 +373,7 @@ export default function AuthScreen() {
       setSignupStep('otp');
       setOtpCountdownDone(false);
       setDemoOtp(data.demoOtp || '');
-      setIsOtpDemoMode(!!data.demoOtp); // If backend returns demoOtp, we're in demo mode
+      setIsOtpDemoMode(!!data.demoOtp || !!data.testerMode); // Show OTP on screen in demo or tester mode
       setResendCount(data.resendCount || 1);
     } catch {
       setError('Something went wrong. Please try again.');
@@ -728,7 +737,7 @@ export default function AuthScreen() {
   }, [isSignUp]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-warm-50 via-white to-warm-100 dark:from-brand-navy-dark dark:via-brand-navy-dark dark:to-brand-navy flex flex-col items-center justify-center px-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-warm-50 via-white to-warm-100 dark:from-brand-navy-dark dark:via-brand-navy-dark dark:to-brand-navy flex flex-col px-4 relative overflow-hidden">
       {/* ── Animated Background ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-brand-red/5 via-transparent to-brand-navy/10 dark:from-brand-red/8 dark:via-transparent dark:to-brand-navy/15" />
@@ -767,6 +776,7 @@ export default function AuthScreen() {
       <AnimatePresence>
         {showForgot && (
           <motion.div
+            ref={forgotOverlayRef}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -785,6 +795,21 @@ export default function AuthScreen() {
                 setForgotResendCount(0);
               }
             }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setShowForgot(false);
+                setForgotStage('phone');
+                setForgotPhone('');
+                setOtpValue('');
+                setNewPassword('');
+                setConfirmNewPassword('');
+                setForgotError('');
+                setForgotDemoOtp('');
+                setForgotOtpCountdownDone(false);
+                setForgotResendCount(0);
+              }
+            }}
+            tabIndex={-1}
           >
             <motion.div
               initial={{ scale: 0.9, y: 30 }}
@@ -1110,10 +1135,26 @@ export default function AuthScreen() {
         >
           Live Scoring &amp; Tournaments
         </motion.p>
+
+        {/* Version & Tester Badge */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          className="flex items-center gap-2 mt-2"
+        >
+          <span className="text-[9px] font-mono text-warm-400/60 dark:text-warm-500/60">v1.0-beta</span>
+          {isOtpDemoMode && (
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 border border-amber-300/50 dark:border-amber-500/30 text-[8px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+              Tester Mode
+            </span>
+          )}
+        </motion.div>
       </motion.div>
 
       {/* ── Stage content ── */}
-      <div className="w-full max-w-sm relative z-10">
+      <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10">
+        <div className="w-full max-w-sm">
         <AnimatePresence mode="wait" custom={direction}>
 
           {/* ═══════════════════════════════════════════
@@ -1375,17 +1416,17 @@ export default function AuthScreen() {
                   <div className="flex items-center justify-center gap-2 mb-5">
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-green/15 border border-brand-green/25">
                       <Check className="w-3 h-3 text-brand-green" />
-                      <span className="text-[10px] font-semibold text-brand-green">Phone</span>
+                      <span className="text-[11px] font-semibold text-brand-green">Phone</span>
                     </div>
                     <div className="w-4 h-px bg-warm-300 dark:bg-warm-600" />
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-gold/15 border border-brand-gold/25">
                       <Timer className="w-3 h-3 text-brand-gold" />
-                      <span className="text-[10px] font-semibold text-brand-gold">OTP</span>
+                      <span className="text-[11px] font-semibold text-brand-gold">OTP</span>
                     </div>
                     <div className="w-4 h-px bg-warm-300 dark:bg-warm-600" />
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warm-200/50 dark:bg-warm-700/50 border border-warm-300/30 dark:border-warm-600/30">
                       <Lock className="w-3 h-3 text-warm-400" />
-                      <span className="text-[10px] font-semibold text-warm-400">Password</span>
+                      <span className="text-[11px] font-semibold text-warm-400">Password</span>
                     </div>
                   </div>
 
@@ -1411,12 +1452,14 @@ export default function AuthScreen() {
                     </motion.div>
                   )}
 
-                  {/* Demo OTP Display (only in demo mode) */}
+                  {/* Tester/Demo OTP Display (shown in demo or tester mode) */}
                   {isOtpDemoMode && demoOtp && (
                     <div className="flex items-center justify-center gap-2 mb-4 px-3 py-2.5 rounded-xl bg-brand-gold/10 border border-brand-gold/20">
                       <MessageSquare className="w-4 h-4 text-brand-gold shrink-0" />
                       <div>
-                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Demo OTP (auto-filled for testing)</p>
+                        <p className="text-[10px] text-warm-400 dark:text-warm-500">
+                          {process.env.NODE_ENV === 'development' ? 'Tester OTP' : 'Demo OTP'} (auto-filled for testing)
+                        </p>
                         <p className="text-sm font-bold text-brand-gold-dark dark:text-brand-gold tracking-widest">{demoOtp}</p>
                       </div>
                       <button
@@ -2013,14 +2056,15 @@ export default function AuthScreen() {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer - sticks to bottom */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}
-        className="text-warm-400 dark:text-warm-500 text-[10px] mt-8 relative z-10"
+        className="text-warm-400 dark:text-warm-500 text-[10px] py-4 relative z-10 text-center"
       >
         By continuing, you agree to our Terms & Privacy Policy
       </motion.p>
