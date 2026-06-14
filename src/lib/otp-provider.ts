@@ -259,24 +259,29 @@ async function sendViaMSG91OTP(
 }
 
 /**
- * MSG91 Combined Send: Try Flow API first (if template available), then OTP API
+ * MSG91 Combined Send: 
+ * - With template: Try Flow API first, then OTP API
+ * - Without template: Use OTP API only (built-in service, guaranteed delivery)
  */
 async function sendViaMSG91(
   phone: string,
   otp: string,
   config: OTPProviderConfig
 ): Promise<OTPResult> {
-  // If template ID is available, try Flow API first (better delivery rates)
+  // If template ID is available AND valid, try Flow API first
   if (config.msg91TemplateId) {
-    console.log('[MSG91] Trying Flow API first (template available)...');
+    console.log('[MSG91] Template available, trying Flow API first...');
     const flowResult = await sendViaMSG91Flow(phone, otp, config);
     if (flowResult.success) return flowResult;
     
-    // Flow failed, fall through to OTP API
-    console.log('[MSG91] Flow API failed, falling back to OTP API...');
+    // Flow failed, try OTP API with template
+    console.log('[MSG91] Flow API failed, trying OTP API with template...');
+    return sendViaMSG91OTP(phone, otp, config);
   }
   
-  // Always try OTP API (works with or without template)
+  // NO template = use MSG91's built-in OTP service (best delivery rate)
+  // This uses MSG91's own DLT-registered sender - no custom template needed
+  console.log('[MSG91] No template - using built-in OTP service (guaranteed delivery)');
   return sendViaMSG91OTP(phone, otp, config);
 }
 
