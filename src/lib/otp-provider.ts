@@ -74,9 +74,9 @@ function getAvailableProviders(config: OTPProviderConfig): Array<'fast2sms' | 'm
     }
   }
 
-  // Priority order by cost: MSG91 (~₹0.20/SMS) → Fast2SMS OTP (~₹0.30/SMS) → Fast2SMS Quick (~₹5/SMS)
-  // MSG91 is cheapest when SMS credits are purchased from wallet balance
-  const order: Array<'fast2sms' | 'msg91' | 'twilio'> = ['msg91', 'fast2sms', 'twilio'];
+  // Priority order by RELIABILITY for India:
+  // Twilio Verify (GOLD STANDARD - no DLT, works with ALL carriers) → Fast2SMS (no DLT) → MSG91 (needs DLT)
+  const order: Array<'fast2sms' | 'msg91' | 'twilio'> = ['twilio', 'fast2sms', 'msg91'];
   for (const p of order) {
     if (!available.includes(p) && hasCredentials(config, p)) {
       available.push(p);
@@ -382,6 +382,19 @@ async function sendViaMSG91(
 }
 
 // ─── Twilio Provider ────────────────────────────────────────────
+// Twilio is the GOLD STANDARD for OTP delivery:
+// - Twilio Verify: Purpose-built for OTP, handles sending + verification server-side
+//   - No need for TWILIO_PHONE_NUMBER
+//   - Built-in rate limiting, fraud guard, and expiry
+//   - Supports SMS, WhatsApp, Voice, and Email channels
+//   - Works reliably in India with ALL carriers (no DLT needed!)
+// - Direct SMS: Fallback if Verify Service SID not configured
+//
+// Setup: https://www.twilio.com/en-us/verify
+// 1. Sign up at twilio.com (free trial available)
+// 2. Get Account SID + Auth Token from Dashboard
+// 3. Create a Verify Service: https://www.twilio.com/console/verify/services
+// 4. Set TWILIO_VERIFY_SERVICE_SID env var
 
 async function sendViaTwilio(
   phone: string,
@@ -390,58 +403,156 @@ async function sendViaTwilio(
 ): Promise<OTPResult> {
   const accountSid = config.twilioAccountSid!;
   const authToken = config.twilioAuthToken!;
-  const fullPhone = phone.startsWith('+') ? phone : '+91' + sanitizePhone(phone);
+  const mobile10 = sanitizePhone(phone);
+  const fullPhone = phone.startsWith('+') ? phone : '+91' + mobile10;
+  const authHeader = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
 
+  // ── Method 1: Twilio Verify (BEST - purpose-built for OTP) ──
   if (config.twilioVerifyServiceSid) {
     try {
+      console.log('[Twilio] Method 1: Verify Service to:', fullPhone);
+
       const response = await fetch(
         `https://verify.twilio.com/v2/Services/${config.twilioVerifyServiceSid}/Verifications`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+            'Authorization': authHeader,
           },
-          body: new URLSearchParams({ To: fullPhone, Channel: 'sms' }),
+          body: new URLSearchParams({
+            To: fullPhone,
+            Channel: 'sms',
+            CustomCode: otp,  // Use our own OTP for local verification compatibility
+          }),
         }
       );
       const data = await response.json();
-      if (!response.ok) {
-        return { success: false, message: data.message || 'Failed via Twilio Verify', provider: 'twilio', method: 'verify' };
+      console.log('[Twilio] Verify response:', JSON.stringify(data));
+
+      if (response.ok && data.status === 'pending') {
+        console.log('[Twilio] ✅ Verify OTP sent successfully');
+        return {
+          success: true,
+          message: 'OTP sent via Twilio Verify (most reliable)',
+          provider: 'twilio',
+          requestId: data.sid,
+          method: 'verify',
+          apiResponse: { status: data.status, sid: data.sid, to: data.to, valid: data.valid },
+        };
       }
-      return { success: true, message: 'OTP sent via Twilio Verify', provider: 'twilio', requestId: data.sid, method: 'verify' };
-    } catch {
-      // Fall through to direct SMS
+
+      // If CustomCode not supported (older Twilio), retry without it
+      if (data.code === 51007 || (data.message && data.message.includes('CustomCode'))) {
+        console.log('[Twilio] CustomCode not supported, retrying without it...');
+        const retryResponse = await fetch(
+          `https://verify.twilio.com/v2/Services/${config.twilioVerifyServiceSid}/Verifications`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': authHeader,
+            },
+            body: new URLSearchParams({ To: fullPhone, Channel: 'sms' }),
+          }
+        );
+        const retryData = await retryResponse.json();
+        console.log('[Twilio] Verify retry response:', JSON.stringify(retryData));
+
+        if (retryResponse.ok && retryData.status === 'pending') {
+          console.log('[Twilio] ✅ Verify OTP sent (without CustomCode)');
+          return {
+            success: true,
+            message: 'OTP sent via Twilio Verify',
+            provider: 'twilio',
+            requestId: retryData.sid,
+            method: 'verify-auto',  // 'auto' = Twilio generates the OTP
+            apiResponse: { status: retryData.status, sid: retryData.sid, to: retryData.to },
+          };
+        }
+
+        return {
+          success: false,
+          message: `Twilio Verify failed: ${retryData.message || 'Unknown error'}`,
+          provider: 'twilio',
+          method: 'verify',
+          apiResponse: retryData,
+        };
+      }
+
+      console.warn('[Twilio] Verify failed:', data.message || data.status);
+      // Don't fall through to direct SMS if Verify is configured - it's the preferred method
+      return {
+        success: false,
+        message: `Twilio Verify failed: ${data.message || 'Unknown error'} (code: ${data.code || 'N/A'})`,
+        provider: 'twilio',
+        method: 'verify',
+        apiResponse: data,
+      };
+    } catch (error) {
+      console.error('[Twilio] Verify error:', error);
+      // Fall through to direct SMS only on network error
     }
   }
 
+  // ── Method 2: Direct SMS via Twilio (fallback if Verify not configured) ──
   if (!config.twilioPhoneNumber) {
-    return { success: false, message: 'TWILIO_PHONE_NUMBER required for direct SMS', provider: 'twilio', method: 'direct-sms' };
+    return {
+      success: false,
+      message: 'Twilio requires either TWILIO_VERIFY_SERVICE_SID (recommended) or TWILIO_PHONE_NUMBER for direct SMS',
+      provider: 'twilio',
+      method: 'direct-sms',
+    };
   }
 
   try {
+    console.log('[Twilio] Method 2: Direct SMS to:', fullPhone, 'from:', config.twilioPhoneNumber);
+
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+          'Authorization': authHeader,
         },
         body: new URLSearchParams({
           To: fullPhone,
           From: config.twilioPhoneNumber,
-          Body: `Your Kabaddi Pro verification code is ${otp}. Do not share. Valid for 5 minutes.`,
+          Body: `${otp} is your Kabaddi Pro verification code. Do not share with anyone.`,
         }),
       }
     );
     const data = await response.json();
-    if (!response.ok) {
-      return { success: false, message: data.message || 'Failed via Twilio SMS', provider: 'twilio', method: 'direct-sms' };
+    console.log('[Twilio] Direct SMS response:', JSON.stringify(data));
+
+    if (response.ok && data.status) {
+      console.log('[Twilio] ✅ Direct SMS sent, status:', data.status);
+      return {
+        success: true,
+        message: 'OTP sent via Twilio SMS',
+        provider: 'twilio',
+        requestId: data.sid,
+        method: 'direct-sms',
+        apiResponse: { status: data.status, sid: data.sid, to: data.to },
+      };
     }
-    return { success: true, message: 'OTP sent via Twilio SMS', provider: 'twilio', requestId: data.sid, method: 'direct-sms' };
-  } catch {
-    return { success: false, message: 'Twilio unavailable', provider: 'twilio', method: 'direct-sms' };
+
+    return {
+      success: false,
+      message: `Twilio SMS failed: ${data.message || 'Unknown error'} (code: ${data.code || 'N/A'})`,
+      provider: 'twilio',
+      method: 'direct-sms',
+      apiResponse: data,
+    };
+  } catch (error) {
+    console.error('[Twilio] Direct SMS error:', error);
+    return {
+      success: false,
+      message: 'Twilio unavailable (network error)',
+      provider: 'twilio',
+      method: 'direct-sms',
+    };
   }
 }
 
@@ -536,11 +647,45 @@ export async function sendOTP(phone: string, otp: string): Promise<OTPResult> {
 export async function verifyOTPProvider(
   phone: string,
   otp: string,
-  providerUsed?: string
+  providerUsed?: string,
+  providerMethod?: string
 ): Promise<{ valid: boolean; message: string } | null> {
-  // Only use MSG91 server-side verification if the OTP was actually sent via MSG91
-  // When OTP is sent via Fast2SMS or Twilio, MSG91 has no record and will return "invalid"
   const config = getConfig();
+  const fullPhone = phone.startsWith('+') ? phone : '+91' + sanitizePhone(phone);
+
+  // ── Twilio Verify: Server-side verification (MOST RELIABLE) ──
+  if (config.twilioAccountSid && config.twilioAuthToken && config.twilioVerifyServiceSid && providerUsed === 'twilio') {
+    const authHeader = 'Basic ' + Buffer.from(`${config.twilioAccountSid}:${config.twilioAuthToken}`).toString('base64');
+    try {
+      console.log('[Twilio Verify] Checking OTP for:', fullPhone);
+      const response = await fetch(
+        `https://verify.twilio.com/v2/Services/${config.twilioVerifyServiceSid}/VerificationCheck`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': authHeader,
+          },
+          body: new URLSearchParams({ To: fullPhone, Code: otp }),
+        }
+      );
+      const data = await response.json();
+      console.log('[Twilio Verify] Check response:', JSON.stringify(data));
+
+      if (data.status === 'approved') {
+        return { valid: true, message: 'OTP verified via Twilio Verify' };
+      }
+      if (data.status === 'pending') {
+        return { valid: false, message: 'Invalid OTP. Please try again.' };
+      }
+      return { valid: false, message: data.message || 'OTP verification failed' };
+    } catch (error) {
+      console.error('[Twilio Verify] Check error:', error);
+      // Fall through to local verification
+    }
+  }
+
+  // ── MSG91: Server-side verification (only if OTP was sent via MSG91) ──
   if (config.msg91AuthKey && providerUsed === 'msg91') {
     const mobileWithCC = '91' + sanitizePhone(phone);
     try {
@@ -557,7 +702,8 @@ export async function verifyOTPProvider(
       return null;
     }
   }
-  // For all other providers (Fast2SMS, Twilio), use local verification
+
+  // For Fast2SMS, Twilio direct SMS, and others: use local verification
   return null;
 }
 
@@ -597,11 +743,17 @@ export async function getDiagnosticInfo() {
     msg91Balance: msg91Balance?.balance,
     hasMsg91TemplateId: !!config.msg91TemplateId,
     hasTwilioCreds: !!(config.twilioAccountSid && config.twilioAuthToken),
+    hasTwilioVerifyService: !!config.twilioVerifyServiceSid,
+    hasTwilioPhoneNumber: !!config.twilioPhoneNumber,
     isConfigured: providers.length > 0,
     recommendation: providers.length === 0
-      ? '⚠️ NO providers configured! Add FAST2SMS_API_KEY or MSG91_AUTH_KEY.'
-      : providers.includes('fast2sms')
-        ? '✅ Fast2SMS available - best for India (no DLT needed)'
-        : '⚠️ Only MSG91 available. Add FAST2SMS_API_KEY for reliable delivery.',
+      ? '⚠️ NO providers configured! Add TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_VERIFY_SERVICE_SID (recommended) or FAST2SMS_API_KEY.'
+      : providers.includes('twilio') && config.twilioVerifyServiceSid
+        ? '✅ Twilio Verify available - GOLD STANDARD for OTP (no DLT, works with ALL Indian carriers)'
+        : providers.includes('twilio')
+          ? '✅ Twilio available - add TWILIO_VERIFY_SERVICE_SID for best experience'
+          : providers.includes('fast2sms')
+            ? '✅ Fast2SMS available - good for India (no DLT needed)'
+            : '⚠️ Only MSG91 available. Add TWILIO or FAST2SMS_API_KEY for reliable delivery.',
   };
 }

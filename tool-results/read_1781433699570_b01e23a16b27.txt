@@ -1,0 +1,710 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Swords,
+     7→  Shield,
+     8→  Sparkles,
+     9→  ChevronRight,
+    10→  ChevronLeft,
+    11→  SkipForward,
+    12→  Trophy,
+    13→  Target,
+    14→  Flame,
+    15→  Zap,
+    16→  Users,
+    17→  CheckCircle2,
+    18→  PartyPopper,
+    19→  Weight,
+    20→  Dumbbell,
+    21→  CircleDot,
+    22→} from 'lucide-react';
+    23→import { Button } from '@/components/ui/button';
+    24→import { useKabaddiStore, type OnboardingPosition, type OnboardingExperience, type OnboardingWeightCategory } from '@/lib/store';
+    25→
+    26→// ─── Types ────────────────────────────────────────────────────────
+    27→
+    28→interface TeamOption {
+    29→  id: string;
+    30→  name: string;
+    31→  teamCode: string;
+    32→  memberCount?: number;
+    33→}
+    34→
+    35→// ─── Step Configuration ───────────────────────────────────────────
+    36→
+    37→const TOTAL_STEPS = 4;
+    38→
+    39→// ─── Position Options ─────────────────────────────────────────────
+    40→
+    41→const POSITION_OPTIONS: { value: OnboardingPosition; label: string; description: string; icon: typeof Swords }[] = [
+    42→  { value: 'raider', label: 'Raider', description: 'Attack & score points', icon: Swords },
+    43→  { value: 'defender', label: 'Defender', description: 'Tackle & stop raiders', icon: Shield },
+    44→  { value: 'all-rounder', label: 'All-Rounder', description: 'Master of both sides', icon: Sparkles },
+    45→];
+    46→
+    47→const EXPERIENCE_OPTIONS: { value: OnboardingExperience; label: string; description: string; icon: typeof Target }[] = [
+    48→  { value: 'beginner', label: 'Beginner', description: 'New to kabaddi', icon: CircleDot },
+    49→  { value: 'intermediate', label: 'Intermediate', description: '1-3 years of play', icon: Target },
+    50→  { value: 'advanced', label: 'Advanced', description: '3+ years competitive', icon: Flame },
+    51→];
+    52→
+    53→const WEIGHT_OPTIONS: { value: OnboardingWeightCategory; label: string; description: string; icon: typeof Weight }[] = [
+    54→  { value: 'below-60', label: 'Below 60 kg', description: 'Lightweight', icon: Weight },
+    55→  { value: '60-70', label: '60-70 kg', description: 'Welterweight', icon: Weight },
+    56→  { value: '70-80', label: '70-80 kg', description: 'Middleweight', icon: Dumbbell },
+    57→  { value: '80-90', label: '80-90 kg', description: 'Heavyweight', icon: Dumbbell },
+    58→  { value: 'above-90', label: 'Above 90 kg', description: 'Super heavyweight', icon: Zap },
+    59→];
+    60→
+    61→// ─── Confetti Particle ────────────────────────────────────────────
+    62→
+    63→function ConfettiParticle({ delay, x, color }: { delay: number; x: number; color: string }) {
+    64→  return (
+    65→    <motion.div
+    66→      className="absolute w-2 h-2 rounded-sm"
+    67→      style={{ left: `${x}%`, top: '-2%', backgroundColor: color }}
+    68→      initial={{ y: 0, rotate: 0, opacity: 1 }}
+    69→      animate={{ y: '110vh', rotate: 720, opacity: 0 }}
+    70→      transition={{ duration: 2.5 + Math.random(), delay, ease: 'easeOut' }}
+    71→    />
+    72→  );
+    73→}
+    74→
+    75→function ConfettiBurst() {
+    76→  const colors = ['#DC2626', '#F59E0B', '#10B981', '#8B5CF6', '#EF4444', '#F97316', '#06B6D4'];
+    77→  const particles = Array.from({ length: 50 }, (_, i) => ({
+    78→    id: i,
+    79→    delay: Math.random() * 0.8,
+    80→    x: Math.random() * 100,
+    81→    color: colors[Math.floor(Math.random() * colors.length)],
+    82→  }));
+    83→
+    84→  return (
+    85→    <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
+    86→      {particles.map((p) => (
+    87→        <ConfettiParticle key={p.id} delay={p.delay} x={p.x} color={p.color} />
+    88→      ))}
+    89→    </div>
+    90→  );
+    91→}
+    92→
+    93→// ─── Progress Dots ────────────────────────────────────────────────
+    94→
+    95→function ProgressDots({ currentStep }: { currentStep: number }) {
+    96→  return (
+    97→    <div className="flex items-center justify-center gap-2">
+    98→      {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+    99→        <motion.div
+   100→          key={i}
+   101→          className="rounded-full"
+   102→          animate={{
+   103→            width: i === currentStep ? 24 : 8,
+   104→            height: 8,
+   105→            backgroundColor: i === currentStep ? '#FFFFFF' : i < currentStep ? '#FFFFFF88' : '#FFFFFF33',
+   106→          }}
+   107→          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+   108→        />
+   109→      ))}
+   110→    </div>
+   111→  );
+   112→}
+   113→
+   114→// ─── Step 1: Welcome ──────────────────────────────────────────────
+   115→
+   116→function WelcomeStep() {
+   117→  return (
+   118→    <motion.div
+   119→      initial={{ opacity: 0, x: 60 }}
+   120→      animate={{ opacity: 1, x: 0 }}
+   121→      exit={{ opacity: 0, x: -60 }}
+   122→      transition={{ type: 'spring', damping: 24, stiffness: 200 }}
+   123→      className="flex flex-col items-center justify-center text-center px-6 py-8"
+   124→    >
+   125→      {/* Kabaddi Illustration */}
+   126→      <motion.div
+   127→        className="relative mb-8"
+   128→        initial={{ scale: 0.5, opacity: 0 }}
+   129→        animate={{ scale: 1, opacity: 1 }}
+   130→        transition={{ delay: 0.2, type: 'spring', damping: 15, stiffness: 200 }}
+   131→      >
+   132→        <div className="w-32 h-32 rounded-3xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-2xl">
+   133→          <div className="relative">
+   134→            <motion.div
+   135→              animate={{ rotate: [0, 10, -10, 0] }}
+   136→              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+   137→            >
+   138→              <Swords className="w-16 h-16 text-brand-gold" />
+   139→            </motion.div>
+   140→            <motion.div
+   141→              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-brand-red flex items-center justify-center"
+   142→              animate={{ scale: [1, 1.2, 1] }}
+   143→              transition={{ duration: 1.5, repeat: Infinity }}
+   144→            >
+   145→              <Flame className="w-3 h-3 text-white" />
+   146→            </motion.div>
+   147→          </div>
+   148→        </div>
+   149→        {/* Glow effect */}
+   150→        <div className="absolute inset-0 rounded-3xl bg-brand-gold/20 blur-2xl -z-10" />
+   151→      </motion.div>
+   152→
+   153→      <motion.h1
+   154→        className="text-3xl font-black text-white tracking-tight mb-3"
+   155→        initial={{ opacity: 0, y: 20 }}
+   156→        animate={{ opacity: 1, y: 0 }}
+   157→        transition={{ delay: 0.3 }}
+   158→      >
+   159→        Welcome to
+   160→        <span className="text-brand-gold"> Kabaddi Pro</span>
+   161→      </motion.h1>
+   162→
+   163→      <motion.p
+   164→        className="text-white/70 text-sm leading-relaxed max-w-[280px] mb-6"
+   165→        initial={{ opacity: 0, y: 20 }}
+   166→        animate={{ opacity: 1, y: 0 }}
+   167→        transition={{ delay: 0.4 }}
+   168→      >
+   169→        Your ultimate kabaddi companion. Track scores, join tournaments, and connect with players.
+   170→      </motion.p>
+   171→
+   172→      <motion.div
+   173→        className="flex flex-col gap-3 w-full max-w-[260px]"
+   174→        initial={{ opacity: 0, y: 20 }}
+   175→        animate={{ opacity: 1, y: 0 }}
+   176→        transition={{ delay: 0.5 }}
+   177→      >
+   178→        {[
+   179→          { icon: Trophy, text: 'Live scoring & match tracking' },
+   180→          { icon: Users, text: 'Join teams & tournaments' },
+   181→          { icon: Target, text: 'Track your performance stats' },
+   182→        ].map((item, i) => (
+   183→          <motion.div
+   184→            key={i}
+   185→            className="flex items-center gap-3 bg-white/5 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/10"
+   186→            initial={{ opacity: 0, x: -20 }}
+   187→            animate={{ opacity: 1, x: 0 }}
+   188→            transition={{ delay: 0.6 + i * 0.1 }}
+   189→          >
+   190→            <div className="w-8 h-8 rounded-lg bg-brand-gold/15 flex items-center justify-center shrink-0">
+   191→              <item.icon className="w-4 h-4 text-brand-gold" />
+   192→            </div>
+   193→            <span className="text-white/80 text-sm font-medium">{item.text}</span>
+   194→          </motion.div>
+   195→        ))}
+   196→      </motion.div>
+   197→    </motion.div>
+   198→  );
+   199→}
+   200→
+   201→// ─── Step 2: Profile Setup ────────────────────────────────────────
+   202→
+   203→function ProfileStep({
+   204→  profile,
+   205→  onProfileChange,
+   206→}: {
+   207→  profile: { position: OnboardingPosition | null; experience: OnboardingExperience | null; weightCategory: OnboardingWeightCategory | null };
+   208→  onProfileChange: (data: { position?: OnboardingPosition | null; experience?: OnboardingExperience | null; weightCategory?: OnboardingWeightCategory | null }) => void;
+   209→}) {
+   210→  return (
+   211→    <motion.div
+   212→      initial={{ opacity: 0, x: 60 }}
+   213→      animate={{ opacity: 1, x: 0 }}
+   214→      exit={{ opacity: 0, x: -60 }}
+   215→      transition={{ type: 'spring', damping: 24, stiffness: 200 }}
+   216→      className="flex flex-col px-6 py-6"
+   217→    >
+   218→      <motion.div className="text-center mb-6">
+   219→        <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center mx-auto mb-3">
+   220→          <Target className="w-7 h-7 text-brand-gold" />
+   221→        </div>
+   222→        <h2 className="text-xl font-black text-white mb-1">Your Profile</h2>
+   223→        <p className="text-white/60 text-xs">Tell us about your kabaddi style</p>
+   224→      </motion.div>
+   225→
+   226→      {/* Position Selection */}
+   227→      <div className="mb-5">
+   228→        <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-2.5">Position</p>
+   229→        <div className="grid grid-cols-3 gap-2">
+   230→          {POSITION_OPTIONS.map((opt) => (
+   231→            <motion.button
+   232→              key={opt.value}
+   233→              onClick={() => onProfileChange({ position: opt.value })}
+   234→              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 ${
+   235→                profile.position === opt.value
+   236→                  ? 'bg-brand-gold/20 border-brand-gold/50 shadow-lg shadow-brand-gold/10'
+   237→                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+   238→              }`}
+   239→              whileTap={{ scale: 0.95 }}
+   240→            >
+   241→              <opt.icon className={`w-6 h-6 ${profile.position === opt.value ? 'text-brand-gold' : 'text-white/50'}`} />
+   242→              <span className={`text-xs font-bold ${profile.position === opt.value ? 'text-brand-gold' : 'text-white/60'}`}>
+   243→                {opt.label}
+   244→              </span>
+   245→              <span className={`text-[10px] leading-tight text-center ${profile.position === opt.value ? 'text-brand-gold/70' : 'text-white/40'}`}>
+   246→                {opt.description}
+   247→              </span>
+   248→            </motion.button>
+   249→          ))}
+   250→        </div>
+   251→      </div>
+   252→
+   253→      {/* Experience Level */}
+   254→      <div className="mb-5">
+   255→        <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-2.5">Experience Level</p>
+   256→        <div className="grid grid-cols-3 gap-2">
+   257→          {EXPERIENCE_OPTIONS.map((opt) => (
+   258→            <motion.button
+   259→              key={opt.value}
+   260→              onClick={() => onProfileChange({ experience: opt.value })}
+   261→              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 ${
+   262→                profile.experience === opt.value
+   263→                  ? 'bg-brand-gold/20 border-brand-gold/50 shadow-lg shadow-brand-gold/10'
+   264→                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+   265→              }`}
+   266→              whileTap={{ scale: 0.95 }}
+   267→            >
+   268→              <opt.icon className={`w-6 h-6 ${profile.experience === opt.value ? 'text-brand-gold' : 'text-white/50'}`} />
+   269→              <span className={`text-xs font-bold ${profile.experience === opt.value ? 'text-brand-gold' : 'text-white/60'}`}>
+   270→                {opt.label}
+   271→              </span>
+   272→              <span className={`text-[10px] leading-tight text-center ${profile.experience === opt.value ? 'text-brand-gold/70' : 'text-white/40'}`}>
+   273→                {opt.description}
+   274→              </span>
+   275→            </motion.button>
+   276→          ))}
+   277→        </div>
+   278→      </div>
+   279→
+   280→      {/* Weight Category */}
+   281→      <div>
+   282→        <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-2.5">Weight Category</p>
+   283→        <div className="grid grid-cols-2 gap-2">
+   284→          {WEIGHT_OPTIONS.map((opt) => (
+   285→            <motion.button
+   286→              key={opt.value}
+   287→              onClick={() => onProfileChange({ weightCategory: opt.value })}
+   288→              className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all duration-200 ${
+   289→                profile.weightCategory === opt.value
+   290→                  ? 'bg-brand-gold/20 border-brand-gold/50 shadow-lg shadow-brand-gold/10'
+   291→                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+   292→              }`}
+   293→              whileTap={{ scale: 0.95 }}
+   294→            >
+   295→              <opt.icon className={`w-5 h-5 shrink-0 ${profile.weightCategory === opt.value ? 'text-brand-gold' : 'text-white/50'}`} />
+   296→              <div className="text-left min-w-0">
+   297→                <span className={`text-xs font-bold block ${profile.weightCategory === opt.value ? 'text-brand-gold' : 'text-white/60'}`}>
+   298→                  {opt.label}
+   299→                </span>
+   300→                <span className={`text-[10px] ${profile.weightCategory === opt.value ? 'text-brand-gold/70' : 'text-white/40'}`}>
+   301→                  {opt.description}
+   302→                </span>
+   303→              </div>
+   304→            </motion.button>
+   305→          ))}
+   306→        </div>
+   307→      </div>
+   308→    </motion.div>
+   309→  );
+   310→}
+   311→
+   312→// ─── Step 3: Pick Your Team ───────────────────────────────────────
+   313→
+   314→function TeamStep({
+   315→  selectedTeamId,
+   316→  onSelectTeam,
+   317→  teams,
+   318→  loading,
+   319→}: {
+   320→  selectedTeamId: string | null;
+   321→  onSelectTeam: (teamId: string | null) => void;
+   322→  teams: TeamOption[];
+   323→  loading: boolean;
+   324→}) {
+   325→  return (
+   326→    <motion.div
+   327→      initial={{ opacity: 0, x: 60 }}
+   328→      animate={{ opacity: 1, x: 0 }}
+   329→      exit={{ opacity: 0, x: -60 }}
+   330→      transition={{ type: 'spring', damping: 24, stiffness: 200 }}
+   331→      className="flex flex-col px-6 py-6"
+   332→    >
+   333→      <motion.div className="text-center mb-6">
+   334→        <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center mx-auto mb-3">
+   335→          <Users className="w-7 h-7 text-brand-gold" />
+   336→        </div>
+   337→        <h2 className="text-xl font-black text-white mb-1">Pick Your Team</h2>
+   338→        <p className="text-white/60 text-xs">Join an existing team or skip to create your own later</p>
+   339→      </motion.div>
+   340→
+   341→      {loading ? (
+   342→        <div className="space-y-3">
+   343→          {[1, 2, 3, 4].map((i) => (
+   344→            <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse border border-white/10" />
+   345→          ))}
+   346→        </div>
+   347→      ) : teams.length === 0 ? (
+   348→        <div className="flex flex-col items-center py-8">
+   349→          <Users className="w-10 h-10 text-white/30 mb-3" />
+   350→          <p className="text-white/50 text-sm">No teams available yet</p>
+   351→          <p className="text-white/40 text-xs mt-1">You can create one later</p>
+   352→        </div>
+   353→      ) : (
+   354→        <div className="space-y-2.5 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+   355→          {teams.map((team, index) => (
+   356→            <motion.button
+   357→              key={team.id}
+   358→              onClick={() => onSelectTeam(selectedTeamId === team.id ? null : team.id)}
+   359→              className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all duration-200 text-left ${
+   360→                selectedTeamId === team.id
+   361→                  ? 'bg-brand-gold/20 border-brand-gold/50 shadow-lg shadow-brand-gold/10'
+   362→                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+   363→              }`}
+   364→              initial={{ opacity: 0, y: 12 }}
+   365→              animate={{ opacity: 1, y: 0 }}
+   366→              transition={{ delay: index * 0.05 }}
+   367→              whileTap={{ scale: 0.98 }}
+   368→            >
+   369→              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+   370→                selectedTeamId === team.id ? 'bg-brand-gold/30' : 'bg-white/10'
+   371→              }`}>
+   372→                <Swords className={`w-5 h-5 ${selectedTeamId === team.id ? 'text-brand-gold' : 'text-white/50'}`} />
+   373→              </div>
+   374→              <div className="flex-1 min-w-0">
+   375→                <p className={`text-sm font-bold truncate ${selectedTeamId === team.id ? 'text-brand-gold' : 'text-white/80'}`}>
+   376→                  {team.name}
+   377→                </p>
+   378→                <p className="text-[11px] text-white/40">
+   379→                  {team.teamCode}
+   380→                  {team.memberCount != null ? ` · ${team.memberCount} members` : ''}
+   381→                </p>
+   382→              </div>
+   383→              {selectedTeamId === team.id && (
+   384→                <motion.div
+   385→                  initial={{ scale: 0 }}
+   386→                  animate={{ scale: 1 }}
+   387→                  transition={{ type: 'spring', damping: 15, stiffness: 300 }}
+   388→                >
+   389→                  <CheckCircle2 className="w-5 h-5 text-brand-gold" />
+   390→                </motion.div>
+   391→              )}
+   392→            </motion.button>
+   393→          ))}
+   394→        </div>
+   395→      )}
+   396→    </motion.div>
+   397→  );
+   398→}
+   399→
+   400→// ─── Step 4: All Set ──────────────────────────────────────────────
+   401→
+   402→function CompleteStep({ profile }: { profile: { position: OnboardingPosition | null; experience: OnboardingExperience | null } }) {
+   403→  const positionLabel = POSITION_OPTIONS.find((o) => o.value === profile.position)?.label || 'Player';
+   404→  const experienceLabel = EXPERIENCE_OPTIONS.find((o) => o.value === profile.experience)?.label || '';
+   405→
+   406→  return (
+   407→    <motion.div
+   408→      initial={{ opacity: 0, x: 60 }}
+   409→      animate={{ opacity: 1, x: 0 }}
+   410→      exit={{ opacity: 0, x: -60 }}
+   411→      transition={{ type: 'spring', damping: 24, stiffness: 200 }}
+   412→      className="flex flex-col items-center justify-center text-center px-6 py-8"
+   413→    >
+   414→      <ConfettiBurst />
+   415→
+   416→      <motion.div
+   417→        className="relative mb-6"
+   418→        initial={{ scale: 0, rotate: -180 }}
+   419→        animate={{ scale: 1, rotate: 0 }}
+   420→        transition={{ delay: 0.3, type: 'spring', damping: 12, stiffness: 200 }}
+   421→      >
+   422→        <div className="w-28 h-28 rounded-3xl bg-brand-gold/20 backdrop-blur-sm border border-brand-gold/40 flex items-center justify-center shadow-2xl shadow-brand-gold/20">
+   423→          <PartyPopper className="w-14 h-14 text-brand-gold" />
+   424→        </div>
+   425→        <div className="absolute inset-0 rounded-3xl bg-brand-gold/10 blur-3xl -z-10" />
+   426→      </motion.div>
+   427→
+   428→      <motion.h2
+   429→        className="text-2xl font-black text-white mb-2"
+   430→        initial={{ opacity: 0, y: 20 }}
+   431→        animate={{ opacity: 1, y: 0 }}
+   432→        transition={{ delay: 0.5 }}
+   433→      >
+   434→        You&apos;re All Set! 🎉
+   435→      </motion.h2>
+   436→
+   437→      <motion.p
+   438→        className="text-white/60 text-sm mb-6 max-w-[260px]"
+   439→        initial={{ opacity: 0, y: 20 }}
+   440→        animate={{ opacity: 1, y: 0 }}
+   441→        transition={{ delay: 0.6 }}
+   442→      >
+   443→        Your Kabaddi Pro profile is ready. Let the games begin!
+   444→      </motion.p>
+   445→
+   446→      <motion.div
+   447→        className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/10 w-full max-w-[280px]"
+   448→        initial={{ opacity: 0, y: 20 }}
+   449→        animate={{ opacity: 1, y: 0 }}
+   450→        transition={{ delay: 0.7 }}
+   451→      >
+   452→        <p className="text-white/50 text-[10px] font-bold uppercase tracking-wider mb-3">Your Profile Summary</p>
+   453→        <div className="space-y-2">
+   454→          <div className="flex items-center justify-between">
+   455→            <span className="text-white/50 text-xs">Position</span>
+   456→            <span className="text-brand-gold text-xs font-bold">{positionLabel}</span>
+   457→          </div>
+   458→          <div className="flex items-center justify-between">
+   459→            <span className="text-white/50 text-xs">Experience</span>
+   460→            <span className="text-brand-gold text-xs font-bold">{experienceLabel || 'Not set'}</span>
+   461→          </div>
+   462→          <div className="flex items-center justify-between">
+   463→            <span className="text-white/50 text-xs">Ready to play</span>
+   464→            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+   465→          </div>
+   466→        </div>
+   467→      </motion.div>
+   468→    </motion.div>
+   469→  );
+   470→}
+   471→
+   472→// ─── Main Component ───────────────────────────────────────────────
+   473→
+   474→export default function OnboardingWizard() {
+   475→  const { onboardingProfile, setOnboardingProfile, completeOnboarding } = useKabaddiStore();
+   476→
+   477→  const [currentStep, setCurrentStep] = useState(0);
+   478→  const [direction, setDirection] = useState(1);
+   479→  const [teams, setTeams] = useState<TeamOption[]>([]);
+   480→  const [teamsLoading, setTeamsLoading] = useState(false);
+   481→  const [localProfile, setLocalProfile] = useState(onboardingProfile);
+   482→
+   483→  // Fetch teams for step 3
+   484→  const fetchTeams = useCallback(async () => {
+   485→    setTeamsLoading(true);
+   486→    try {
+   487→      const res = await fetch('/api/teams?limit=20');
+   488→      const data = await res.json();
+   489→      const teamList: TeamOption[] = (data.teams || data || []).map((t: Record<string, unknown>) => ({
+   490→        id: t.id as string,
+   491→        name: (t.name as string) || 'Unnamed Team',
+   492→        teamCode: (t.teamCode as string) || '',
+   493→        memberCount: t.memberCount as number | undefined,
+   494→      }));
+   495→      setTeams(teamList);
+   496→    } catch {
+   497→      setTeams([]);
+   498→    } finally {
+   499→      setTeamsLoading(false);
+   500→    }
+   501→  }, []);
+   502→
+   503→  useEffect(() => {
+   504→    if (currentStep === 2) {
+   505→      void fetchTeams();
+   506→    }
+   507→  }, [currentStep, fetchTeams]);
+   508→
+   509→  const goToStep = useCallback((step: number) => {
+   510→    setDirection(step > currentStep ? 1 : -1);
+   511→    setCurrentStep(step);
+   512→  }, [currentStep]);
+   513→
+   514→  const handleNext = useCallback(() => {
+   515→    if (currentStep < TOTAL_STEPS - 1) {
+   516→      // Save profile to store on each step transition
+   517→      setOnboardingProfile(localProfile);
+   518→      goToStep(currentStep + 1);
+   519→    }
+   520→  }, [currentStep, goToStep, localProfile, setOnboardingProfile]);
+   521→
+   522→  const handleBack = useCallback(() => {
+   523→    if (currentStep > 0) {
+   524→      goToStep(currentStep - 1);
+   525→    }
+   526→  }, [currentStep, goToStep]);
+   527→
+   528→  const handleSkip = useCallback(() => {
+   529→    setOnboardingProfile(localProfile);
+   530→    if (currentStep < TOTAL_STEPS - 1) {
+   531→      goToStep(currentStep + 1);
+   532→    }
+   533→  }, [currentStep, goToStep, localProfile, setOnboardingProfile]);
+   534→
+   535→  const handleComplete = useCallback(() => {
+   536→    setOnboardingProfile(localProfile);
+   537→    completeOnboarding();
+   538→  }, [completeOnboarding, localProfile, setOnboardingProfile]);
+   539→
+   540→  const handleLocalProfileChange = useCallback((data: { position?: OnboardingPosition | null; experience?: OnboardingExperience | null; weightCategory?: OnboardingWeightCategory | null }) => {
+   541→    setLocalProfile((prev) => ({ ...prev, ...data }));
+   542→  }, []);
+   543→
+   544→  const handleTeamSelect = useCallback((teamId: string | null) => {
+   545→    setLocalProfile((prev) => ({ ...prev, selectedTeamId: teamId }));
+   546→  }, []);
+   547→
+   548→  // Step titles for accessibility
+   549→  const stepTitles = ['Welcome', 'Your Profile', 'Pick Your Team', 'All Set'];
+   550→
+   551→  return (
+   552→    <motion.div
+   553→      initial={{ opacity: 0 }}
+   554→      animate={{ opacity: 1 }}
+   555→      exit={{ opacity: 0 }}
+   556→      className="fixed inset-0 z-50 flex flex-col bg-gradient-to-br from-red-800 via-red-900 to-red-950"
+   557→    >
+   558→      {/* Background pattern */}
+   559→      <div
+   560→        className="absolute inset-0 opacity-[0.04]"
+   561→        style={{
+   562→          backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,0.1) 35px, rgba(255,255,255,0.1) 36px)`,
+   563→        }}
+   564→      />
+   565→
+   566→      {/* Skip button (steps 1-2) */}
+   567→      {currentStep > 0 && currentStep < 3 && (
+   568→        <motion.button
+   569→          onClick={handleSkip}
+   570→          className="absolute top-4 right-4 z-20 flex items-center gap-1 text-white/50 hover:text-white/80 text-xs font-medium transition-colors"
+   571→          initial={{ opacity: 0 }}
+   572→          animate={{ opacity: 1 }}
+   573→          exit={{ opacity: 0 }}
+   574→        >
+   575→          <span>Skip</span>
+   576→          <SkipForward className="w-3.5 h-3.5" />
+   577→        </motion.button>
+   578→      )}
+   579→
+   580→      {/* Back button (steps 1-3) */}
+   581→      {currentStep > 0 && (
+   582→        <motion.button
+   583→          onClick={handleBack}
+   584→          className="absolute top-4 left-4 z-20 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:bg-white/20 hover:text-white transition-colors"
+   585→          initial={{ opacity: 0, x: -10 }}
+   586→          animate={{ opacity: 1, x: 0 }}
+   587→          exit={{ opacity: 0, x: -10 }}
+   588→        >
+   589→          <ChevronLeft className="w-4 h-4" />
+   590→        </motion.button>
+   591→      )}
+   592→
+   593→      {/* Main Content Area */}
+   594→      <div className="flex-1 relative overflow-hidden flex items-start justify-center pt-16">
+   595→        <AnimatePresence mode="wait" custom={direction}>
+   596→          <motion.div
+   597→            key={currentStep}
+   598→            custom={direction}
+   599→            initial={{ opacity: 0, x: direction * 60 }}
+   600→            animate={{ opacity: 1, x: 0 }}
+   601→            exit={{ opacity: 0, x: direction * -60 }}
+   602→            transition={{ type: 'spring', damping: 24, stiffness: 200 }}
+   603→            className="w-full max-w-md mx-auto"
+   604→            role="region"
+   605→            aria-label={stepTitles[currentStep]}
+   606→          >
+   607→            {currentStep === 0 && <WelcomeStep />}
+   608→            {currentStep === 1 && (
+   609→              <ProfileStep
+   610→                profile={localProfile}
+   611→                onProfileChange={handleLocalProfileChange}
+   612→              />
+   613→            )}
+   614→            {currentStep === 2 && (
+   615→              <TeamStep
+   616→                selectedTeamId={localProfile.selectedTeamId}
+   617→                onSelectTeam={handleTeamSelect}
+   618→                teams={teams}
+   619→                loading={teamsLoading}
+   620→              />
+   621→            )}
+   622→            {currentStep === 3 && (
+   623→              <CompleteStep profile={localProfile} />
+   624→            )}
+   625→          </motion.div>
+   626→        </AnimatePresence>
+   627→      </div>
+   628→
+   629→      {/* Bottom Navigation */}
+   630→      <div className="relative z-10 px-6 pb-8 pt-4">
+   631→        {/* Progress Dots */}
+   632→        <div className="mb-5">
+   633→          <ProgressDots currentStep={currentStep} />
+   634→        </div>
+   635→
+   636→        {/* Action Buttons */}
+   637→        <AnimatePresence mode="wait">
+   638→          {currentStep === 0 && (
+   639→            <motion.div
+   640→              key="welcome-btn"
+   641→              initial={{ opacity: 0, y: 20 }}
+   642→              animate={{ opacity: 1, y: 0 }}
+   643→              exit={{ opacity: 0, y: -20 }}
+   644→            >
+   645→              <Button
+   646→                onClick={handleNext}
+   647→                className="w-full h-12 rounded-xl bg-brand-gold hover:bg-brand-gold/90 text-red-950 font-black text-sm tracking-wide shadow-lg shadow-brand-gold/20"
+   648→              >
+   649→                Let&apos;s Get Started
+   650→                <ChevronRight className="w-4 h-4 ml-1" />
+   651→              </Button>
+   652→            </motion.div>
+   653→          )}
+   654→
+   655→          {currentStep === 1 && (
+   656→            <motion.div
+   657→              key="profile-btn"
+   658→              initial={{ opacity: 0, y: 20 }}
+   659→              animate={{ opacity: 1, y: 0 }}
+   660→              exit={{ opacity: 0, y: -20 }}
+   661→            >
+   662→              <Button
+   663→                onClick={handleNext}
+   664→                className="w-full h-12 rounded-xl bg-brand-gold hover:bg-brand-gold/90 text-red-950 font-black text-sm tracking-wide shadow-lg shadow-brand-gold/20"
+   665→              >
+   666→                Continue
+   667→                <ChevronRight className="w-4 h-4 ml-1" />
+   668→              </Button>
+   669→            </motion.div>
+   670→          )}
+   671→
+   672→          {currentStep === 2 && (
+   673→            <motion.div
+   674→              key="team-btn"
+   675→              initial={{ opacity: 0, y: 20 }}
+   676→              animate={{ opacity: 1, y: 0 }}
+   677→              exit={{ opacity: 0, y: -20 }}
+   678→            >
+   679→              <Button
+   680→                onClick={handleNext}
+   681→                className="w-full h-12 rounded-xl bg-brand-gold hover:bg-brand-gold/90 text-red-950 font-black text-sm tracking-wide shadow-lg shadow-brand-gold/20"
+   682→              >
+   683→                {localProfile.selectedTeamId ? 'Join & Continue' : 'Continue Without Team'}
+   684→                <ChevronRight className="w-4 h-4 ml-1" />
+   685→              </Button>
+   686→            </motion.div>
+   687→          )}
+   688→
+   689→          {currentStep === 3 && (
+   690→            <motion.div
+   691→              key="complete-btn"
+   692→              initial={{ opacity: 0, y: 20 }}
+   693→              animate={{ opacity: 1, y: 0 }}
+   694→              exit={{ opacity: 0, y: -20 }}
+   695→            >
+   696→              <Button
+   697→                onClick={handleComplete}
+   698→                className="w-full h-12 rounded-xl bg-brand-gold hover:bg-brand-gold/90 text-red-950 font-black text-sm tracking-wide shadow-lg shadow-brand-gold/20"
+   699→              >
+   700→                Go to Home
+   701→                <Sparkles className="w-4 h-4 ml-1" />
+   702→              </Button>
+   703→            </motion.div>
+   704→          )}
+   705→        </AnimatePresence>
+   706→      </div>
+   707→    </motion.div>
+   708→  );
+   709→}
+   710→

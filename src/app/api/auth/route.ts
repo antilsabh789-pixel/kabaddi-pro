@@ -170,10 +170,11 @@ export async function POST(request: NextRequest) {
       // Check local OTP store first to know which provider was used
       const storedForProvider = otpStore.get(phone);
       const providerUsed = storedForProvider?.providerUsed;
+      const providerMethod = storedForProvider?.providerUsed ? 'verify' : undefined;
 
-      // Try provider-side verification ONLY if OTP was sent via MSG91
-      // (Fast2SMS/Twilio don't have server-side verify - use local verification)
-      const providerResult = await verifyOTPProvider(phone, otp, providerUsed);
+      // Try provider-side verification (Twilio Verify, MSG91, etc.)
+      // For Fast2SMS and Twilio direct SMS, use local verification
+      const providerResult = await verifyOTPProvider(phone, otp, providerUsed, providerMethod);
       if (providerResult !== null) {
         if (providerResult.valid) {
           const stored = otpStore.get(phone);
