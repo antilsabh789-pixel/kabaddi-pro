@@ -24,7 +24,6 @@ export interface OTPProviderConfig {
   // MSG91
   msg91AuthKey?: string;
   msg91TemplateId?: string;
-  msg91SenderId?: string;
   // Twilio
   twilioAccountSid?: string;
   twilioAuthToken?: string;
@@ -40,7 +39,7 @@ function getConfig(): OTPProviderConfig {
     provider,
     msg91AuthKey: process.env.MSG91_AUTH_KEY,
     msg91TemplateId: process.env.MSG91_TEMPLATE_ID,
-    msg91SenderId: process.env.MSG91_SENDER_ID,
+
     twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
     twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER,
@@ -56,6 +55,7 @@ function validateConfig(config: OTPProviderConfig): string | null {
   if (config.provider === 'msg91') {
     if (!config.msg91AuthKey) return 'MSG91_AUTH_KEY is required when OTP_PROVIDER=msg91';
     // Template ID is optional - we can use MSG91's built-in OTP service without it
+    // Sender ID is not used - MSG91's built-in OTP service uses its own DLT-registered sender
   }
   if (config.provider === 'twilio') {
     if (!config.twilioAccountSid) return 'TWILIO_ACCOUNT_SID is required when OTP_PROVIDER=twilio';
@@ -92,12 +92,7 @@ async function sendViaMSG91(
       requestBody.template_id = config.msg91TemplateId;
     }
 
-    // Add sender ID if available (required for custom templates)
-    if (config.msg91SenderId) {
-      requestBody.sender = config.msg91SenderId;
-    }
-
-    console.log('[MSG91] Sending OTP to:', phone, 'with template:', !!config.msg91TemplateId, 'sender:', config.msg91SenderId || 'default');
+    console.log('[MSG91] Sending OTP to:', phone, 'with template:', !!config.msg91TemplateId, 'sender: MSG91-default');
 
     const response = await fetch('https://control.msg91.com/api/v5/otp', {
       method: 'POST',
