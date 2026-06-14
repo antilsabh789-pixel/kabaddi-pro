@@ -1112,17 +1112,18 @@ export default function LiveScoringScreen() {
         setSuperRaidCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor, playerName: raider.name });
       }
 
-      // All out check
-      const { onCourt } = splitLineup(fullDefendingLineup, defendingOutIds);
-      const defendingOnCourtOut = onCourt.filter(p => defendingOutIds.includes(p.id)).length;
-      const newDefendingOutCount = defendingOnCourtOut + touchCount;
-      if (newDefendingOutCount >= onCourt.length) {
+      // All out check: if ALL defenders on court will be out after this raid
+      const { onCourtActive } = splitLineup(fullDefendingLineup, defendingOutIds);
+      // Count how many active defenders will remain after touch points
+      const remainingDefenders = onCourtActive.length - touchCount;
+      if (remainingDefenders <= 0) {
         events.push({
           matchId: match.id, eventType: 'all_out', teamId: raidingTeamId,
           half: match.currentHalf, value: 2,
         });
         // Trigger all-out celebration
         setAllOutCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor });
+        triggerFeedback(SoundType.ALL_OUT);
       }
     } else if (result === 'caught') {
       const caughtByIds = Array.from(touchedDefenders);
@@ -1139,6 +1140,7 @@ export default function LiveScoringScreen() {
       });
 
       const { onCourtActive } = splitLineup(fullDefendingLineup, defendingOutIds);
+      // Super Tackle: when defending team has 3 or fewer active players on court
       if (onCourtActive.length <= 3) {
         events.push({
           matchId: match.id, eventType: 'super_tackle', teamId: defendingTeamId,
@@ -1147,6 +1149,18 @@ export default function LiveScoringScreen() {
           value: 1,
           details: JSON.stringify({ caughtByIds, raiderId: raider.id }),
         });
+      }
+
+      // All-Out check: if the raiding team's raider was their last active player
+      const raidingOnCourtActive = splitLineup(fullRaidingLineup, raidingOutIds).onCourtActive;
+      if (raidingOnCourtActive.length <= 1) {
+        // This was the last raider → All Out for the raiding team
+        events.push({
+          matchId: match.id, eventType: 'all_out', teamId: defendingTeamId,
+          half: match.currentHalf, value: 2,
+        });
+        setAllOutCelebration({ teamName: defendingTeamName, teamColor: defendingTeamColor });
+        triggerFeedback(SoundType.ALL_OUT);
       }
     } else if (result === 'empty') {
       // Do-or-Die: if this team has a pending do-or-die and raider has empty raid, raider is OUT
@@ -1161,6 +1175,17 @@ export default function LiveScoringScreen() {
         });
         // Reset empty raid counter for the raiding team since they scored 0
         consecutiveEmptyRaidsRef.current[raidingTeamId] = 0;
+
+        // All-Out check: if the raiding team's raider was their last active player
+        const raidingOnCourtActive = splitLineup(fullRaidingLineup, raidingOutIds).onCourtActive;
+        if (raidingOnCourtActive.length <= 1) {
+          events.push({
+            matchId: match.id, eventType: 'all_out', teamId: defendingTeamId,
+            half: match.currentHalf, value: 2,
+          });
+          setAllOutCelebration({ teamName: defendingTeamName, teamColor: defendingTeamColor });
+          triggerFeedback(SoundType.ALL_OUT);
+        }
       } else {
         events.push({
           matchId: match.id, eventType: 'empty_raid', teamId: raidingTeamId,
@@ -2227,12 +2252,12 @@ export default function LiveScoringScreen() {
         )}
       </AnimatePresence>
 
-      {/* ═══ SCORE HEADER — Home | Timer | Away ═══ */}
+      {/* ═══ COMPACT TOP INFO BAR ═══ */}
       <div className="relative overflow-hidden shrink-0" style={{
-        background: `linear-gradient(135deg, ${match.homeTeamColor}25, #111827, ${match.awayTeamColor}25)`,
+        background: `linear-gradient(135deg, ${match.homeTeamColor}15, #111827, ${match.awayTeamColor}15)`,
       }}>
         {/* Top info row */}
-        <div className="relative px-2 pt-1.5 pb-0.5 flex items-center justify-between">
+        <div className="relative px-2 pt-1 pb-0.5 flex items-center justify-between">
           <div className="flex items-center gap-1">
             <span className="text-[8px] bg-gray-700/80 px-1.5 py-0.5 rounded font-medium text-gray-300">
               7v7
@@ -2258,80 +2283,6 @@ export default function LiveScoringScreen() {
           </motion.div>
           <div className="text-[8px] text-gray-400 font-medium">
             {match.gender === 'male' ? '♂' : '♀'}
-          </div>
-        </div>
-
-        {/* Score center — Home | Timer | Away */}
-        <div className="relative px-2 pb-1.5 flex items-center">
-          {/* Home team score */}
-          <div className="flex-1 flex flex-col items-center gap-0.5">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-lg" style={{ backgroundColor: match.homeTeamColor, boxShadow: `0 0 10px ${match.homeTeamColor}40` }}>
-              {match.homeTeam.charAt(0)}
-            </div>
-            <span className="text-[9px] font-bold text-gray-300 truncate max-w-[60px]">{match.homeTeam}</span>
-            <AnimatedScore value={match.homeScore} color={match.homeTeamColor} />
-            <div className="flex items-center gap-1">
-              <span className="text-[7px] font-bold text-red-400/80">⚔{homeRaidPoints}</span>
-              <span className="text-[7px] text-gray-600">·</span>
-              <span className="text-[7px] font-bold text-teal-400/80">🛡{homeTacklePoints}</span>
-            </div>
-          </div>
-
-          {/* Center: Timer + VS */}
-          <div className="flex flex-col items-center gap-0.5 px-3">
-            {/* Prominent turn indicator badge */}
-            {hasStartedRaiding && raidPhase === 'idle' && (
-              <motion.div
-                key={raidingTeam}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full mb-0.5"
-                style={{ backgroundColor: `${raidingTeamColor}25` }}
-              >
-                <motion.div
-                  animate={{ x: raidingTeam === 'home' ? [-2, 2, -2] : [2, -2, 2] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                >
-                  <Swords className="w-3 h-3" style={{ color: raidingTeamColor }} />
-                </motion.div>
-                <span className="text-[7px] font-black tracking-wider" style={{ color: raidingTeamColor }}>
-                  {raidingTeamName}
-                </span>
-              </motion.div>
-            )}
-            {/* Do-or-Die flame — only show when the current raiding team has do-or-die */}
-            {match.isDoOrDie && match.doOrDieTeamId === (raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId) && raidPhase === 'idle' && (
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 0.5, repeat: Infinity }}
-                className="text-base"
-              >
-                🔥
-              </motion.div>
-            )}
-            <div className={cn(
-              'text-xl font-mono font-black tracking-wider',
-              isTimerPulsing && 'animate-pulse'
-            )} style={{ color: isTimerPulsing ? '#ef4444' : '#e5e7eb' }}>
-              {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
-            </div>
-            <span className="text-[7px] text-gray-500 font-medium">
-              H{match.currentHalf} · {match.halfDuration}min
-            </span>
-          </div>
-
-          {/* Away team score */}
-          <div className="flex-1 flex flex-col items-center gap-0.5">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-lg" style={{ backgroundColor: match.awayTeamColor, boxShadow: `0 0 10px ${match.awayTeamColor}40` }}>
-              {match.awayTeam.charAt(0)}
-            </div>
-            <span className="text-[9px] font-bold text-gray-300 truncate max-w-[60px]">{match.awayTeam}</span>
-            <AnimatedScore value={match.awayScore} color={match.awayTeamColor} />
-            <div className="flex items-center gap-1">
-              <span className="text-[7px] font-bold text-red-400/80">⚔{awayRaidPoints}</span>
-              <span className="text-[7px] text-gray-600">·</span>
-              <span className="text-[7px] font-bold text-teal-400/80">🛡{awayTacklePoints}</span>
-            </div>
           </div>
         </div>
 
@@ -2444,29 +2395,10 @@ export default function LiveScoringScreen() {
         </AnimatePresence>
       )}
 
-      {/* ═══ VERTICAL SPLIT: Team Sections Side by Side ═══ */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Home Team - Left Half */}
-        <div className="flex-1 overflow-y-auto min-w-0">
-          <TeamHalf
-            side="home"
-            teamName={match.homeTeam}
-            teamColor={match.homeTeamColor}
-            score={match.homeScore}
-            raidPts={homeRaidPoints}
-            tacklePts={homeTacklePoints}
-            fullLineup={match.homeLineup}
-            outIds={match.homeOutPlayerIds}
-            isRaidingSide={raidingTeam === 'home'}
-            timeoutsUsed={match.homeTimeouts}
-          />
-        </div>
-
-        {/* Center Divider - thin line */}
-        <div className="w-px shrink-0 bg-gray-700/60" />
-
-        {/* Away Team - Right Half */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+      {/* ═══ VERTICAL KABADDI MAT: Away (inverted) | Score | Home (normal) ═══ */}
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        {/* Away Team - TOP (inverted/rotated 180° — like viewing from the other side of the court) */}
+        <div className="flex-1 overflow-y-auto min-h-0 [transform:rotate(180deg)]">
           <TeamHalf
             side="away"
             teamName={match.awayTeam}
@@ -2478,6 +2410,102 @@ export default function LiveScoringScreen() {
             outIds={match.awayOutPlayerIds}
             isRaidingSide={raidingTeam === 'away'}
             timeoutsUsed={match.awayTimeouts}
+          />
+        </div>
+
+        {/* ═══ Compact center divider with scores + court pattern ═══ */}
+        <div className="shrink-0 relative overflow-hidden" style={{
+          background: `linear-gradient(180deg, ${match.awayTeamColor}10, #1f2937, ${match.homeTeamColor}10)`,
+        }}>
+          {/* Subtle kabaddi court lines pattern */}
+          <div className="absolute inset-0 opacity-20 pointer-events-none">
+            {/* Center line */}
+            <div className="absolute left-4 right-4 top-1/2 h-px bg-gray-400" />
+            {/* Baulk lines */}
+            <div className="absolute left-4 right-4 top-[25%] h-px bg-gray-500/50" />
+            <div className="absolute left-4 right-4 top-[75%] h-px bg-gray-500/50" />
+            {/* Bonus lines */}
+            <div className="absolute left-4 right-4 top-[15%] h-px bg-gray-600/30 border-dashed" />
+            <div className="absolute left-4 right-4 top-[85%] h-px bg-gray-600/30 border-dashed" />
+            {/* Center circle */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border border-gray-400/40" />
+          </div>
+
+          <div className="relative flex items-center justify-around py-1.5 px-3 border-y border-gray-700/40">
+            {/* Away score */}
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[8px] shadow-md" style={{ backgroundColor: match.awayTeamColor, boxShadow: `0 0 6px ${match.awayTeamColor}40` }}>
+                {match.awayTeam.charAt(0)}
+              </div>
+              <span className="text-xl font-black" style={{ color: match.awayTeamColor }}>{match.awayScore}</span>
+            </div>
+
+            {/* Center info */}
+            <div className="flex flex-col items-center gap-0">
+              {/* Turn indicator */}
+              {hasStartedRaiding && raidPhase === 'idle' && (
+                <motion.div
+                  key={raidingTeam}
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="flex items-center gap-0.5 px-1.5 py-px rounded-full mb-0.5"
+                  style={{ backgroundColor: `${raidingTeamColor}20` }}
+                >
+                  <motion.div
+                    animate={{ x: raidingTeam === 'home' ? [-1, 1, -1] : [1, -1, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    <Swords className="w-2.5 h-2.5" style={{ color: raidingTeamColor }} />
+                  </motion.div>
+                  <span className="text-[6px] font-black tracking-wider" style={{ color: raidingTeamColor }}>
+                    {raidingTeamName}
+                  </span>
+                </motion.div>
+              )}
+              {/* Do-or-Die flame */}
+              {match.isDoOrDie && match.doOrDieTeamId === (raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId) && raidPhase === 'idle' && (
+                <motion.span
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.5, repeat: Infinity }}
+                  className="text-xs"
+                >
+                  🔥
+                </motion.span>
+              )}
+              <span className={cn(
+                'text-sm font-mono font-black tracking-wider',
+                isTimerPulsing && 'animate-pulse'
+              )} style={{ color: isTimerPulsing ? '#ef4444' : '#e5e7eb' }}>
+                {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
+              </span>
+              <span className="text-[7px] text-gray-500 font-medium">
+                {match.currentHalf === 1 ? '1ST HALF' : '2ND HALF'} · {match.halfDuration}min
+              </span>
+            </div>
+
+            {/* Home score */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xl font-black" style={{ color: match.homeTeamColor }}>{match.homeScore}</span>
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[8px] shadow-md" style={{ backgroundColor: match.homeTeamColor, boxShadow: `0 0 6px ${match.homeTeamColor}40` }}>
+                {match.homeTeam.charAt(0)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Home Team - BOTTOM (normal orientation) */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <TeamHalf
+            side="home"
+            teamName={match.homeTeam}
+            teamColor={match.homeTeamColor}
+            score={match.homeScore}
+            raidPts={homeRaidPoints}
+            tacklePts={homeTacklePoints}
+            fullLineup={match.homeLineup}
+            outIds={match.homeOutPlayerIds}
+            isRaidingSide={raidingTeam === 'home'}
+            timeoutsUsed={match.homeTimeouts}
           />
         </div>
       </div>
@@ -2759,60 +2787,7 @@ export default function LiveScoringScreen() {
         )}
       </AnimatePresence>
 
-      {/* ═══ REVIVAL / COURT-ENTRY PANEL ═══ */}
-      {(() => {
-        const homeOut = match.homeLineup.filter(p => match.homeOutPlayerIds.includes(p.id));
-        const awayOut = match.awayLineup.filter(p => match.awayOutPlayerIds.includes(p.id));
-        const hasOut = homeOut.length > 0 || awayOut.length > 0;
-        if (!hasOut) return null;
-        return (
-          <div className="bg-gray-900/80 dark:bg-warm-900/80 border-t border-gray-700/50 dark:border-warm-700/50 shrink-0 px-2 py-1">
-            <div className="flex items-center gap-2">
-              {homeOut.length > 0 && (
-                <div className="flex-1 flex items-center gap-1 overflow-x-auto custom-scrollbar">
-                  <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider shrink-0">OUT</span>
-                  {homeOut.map(p => (
-                    <motion.div
-                      key={p.id}
-                      initial={{ scale: 0.8, opacity: 0.5 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full"
-                      style={{ backgroundColor: `${match.homeTeamColor}20`, border: `1px solid ${match.homeTeamColor}40` }}
-                    >
-                      <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[6px] font-bold text-white" style={{ backgroundColor: match.homeTeamColor }}>
-                        {p.jerseyNumber || '#'}
-                      </span>
-                      <span className="text-[8px] font-medium text-gray-300 truncate max-w-[40px]">{p.name.split(' ')[0]}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-              {homeOut.length > 0 && awayOut.length > 0 && (
-                <div className="w-px h-4 bg-gray-700 shrink-0" />
-              )}
-              {awayOut.length > 0 && (
-                <div className="flex-1 flex items-center gap-1 overflow-x-auto custom-scrollbar">
-                  {awayOut.map(p => (
-                    <motion.div
-                      key={p.id}
-                      initial={{ scale: 0.8, opacity: 0.5 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full"
-                      style={{ backgroundColor: `${match.awayTeamColor}20`, border: `1px solid ${match.awayTeamColor}40` }}
-                    >
-                      <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[6px] font-bold text-white" style={{ backgroundColor: match.awayTeamColor }}>
-                        {p.jerseyNumber || '#'}
-                      </span>
-                      <span className="text-[8px] font-medium text-gray-300 truncate max-w-[40px]">{p.name.split(' ')[0]}</span>
-                    </motion.div>
-                  ))}
-                  <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider shrink-0 ml-auto">OUT</span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+
 
       {/* ═══ BOTTOM CONTROL BAR ═══ */}
       <div className="border-t border-gray-700 dark:border-warm-700 bg-gray-900 dark:bg-warm-800 px-2 py-1.5 shrink-0">

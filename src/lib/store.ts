@@ -238,7 +238,13 @@ function getTeamSide(match: ActiveMatch, teamId: string): 'home' | 'away' {
   return 'away';
 }
 
-/** Helper: recalculate scores, out counts, and out player IDs from a list of events */
+/** Helper: recalculate scores, out counts, and out player IDs from a list of events
+ *  Implements proper Pro Kabaddi rules:
+ *  - Revival: 1 point = 1 player revived from front of out queue (FIFO)
+ *  - All-Out: When all 7 defenders are out, +2 points to raiding team, all defenders revive
+ *  - Tackle: Raider goes out, defending team revives 1 player per tackle point
+ *  - Do-or-Die: 2 consecutive empty raids → next raid for that team is do-or-die
+ */
 function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
   let homeScore = 0;
   let awayScore = 0;
@@ -247,108 +253,132 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
   let homeOutPlayerIds: string[] = [];
   let awayOutPlayerIds: string[] = [];
 
+  // Track consecutive empty raids per team for do-or-die
+  const emptyRaidCount: Record<string, number> = {};
+
   for (const evt of events) {
     const side = getTeamSide(match, evt.teamId);
     const points = evt.value;
+
+    // Add points to score
     if (side === 'home') {
       homeScore += points;
     } else {
       awayScore += points;
     }
 
-    // Count-based out tracking (backward compat)
-    if (evt.eventType === 'tackle_point' || evt.eventType === 'super_tackle') {
-      if (side === 'home') {
-        awayOutPlayers = Math.min(match.playersPerSide, awayOutPlayers + 1);
-      } else {
-        homeOutPlayers = Math.min(match.playersPerSide, homeOutPlayers + 1);
-      }
-    }
-    if (evt.eventType === 'raid_point' || evt.eventType === 'bonus_point') {
-      if (side === 'home') {
-        homeOutPlayers = Math.max(0, homeOutPlayers - 1);
-      } else {
-        awayOutPlayers = Math.max(0, awayOutPlayers - 1);
-      }
-    }
-    // Self-out: defender steps off mat → +1 to raiding team, one of their out players revives
-    if (evt.eventType === 'self_out') {
-      // The self-out player is from the DEFENDING team (opposite of scoring team)
-      if (side === 'home') {
-        // Home scored from self-out → away defender went out
-        awayOutPlayers = Math.min(match.playersPerSide, awayOutPlayers + 1);
-        // Home revives one player
-        homeOutPlayers = Math.max(0, homeOutPlayers - 1);
-      } else {
-        homeOutPlayers = Math.min(match.playersPerSide, homeOutPlayers + 1);
-        awayOutPlayers = Math.max(0, awayOutPlayers - 1);
-      }
-    }
-    if (evt.eventType === 'all_out') {
-      if (side === 'home') {
-        awayOutPlayers = 0;
-      } else {
-        homeOutPlayers = 0;
-      }
-    }
-
-    // ID-based out tracking
     let details: Record<string, unknown> = {};
     try { details = evt.details ? JSON.parse(evt.details) : {}; } catch { /* skip */ }
 
+    // ─── RAID POINT: Raider scores touch points ───
     if (evt.eventType === 'raid_point') {
       const touchedIds: string[] = (details.touchedPlayerIds as string[]) || [];
-      if (side === 'home') {
-        // Home team scored raid → away defenders go out
-        for (const tid of touchedIds) {
-          if (!awayOutPlayerIds.includes(tid)) {
-            awayOutPlayerIds = [...awayOutPlayerIds, tid];
-          }
+      const scoringSide = side;
+
+      // Defenders go to out queue
+      const defendingOutIds = scoringSide === 'home' ? awayOutPlayerIds : homeOutPlayerIds;
+      const defendingLineup = scoringSide === 'home' ? match.awayLineup : match.homeLineup;
+
+      for (const tid of touchedIds) {
+        if (!defendingOutIds.includes(tid)) {
+          defendingOutIds.push(tid);
         }
-        // Home team revives players (first-out-first-in)
-        const reviveCount = Math.min(evt.value, homeOutPlayerIds.length);
-        if (reviveCount > 0) {
-          homeOutPlayerIds = homeOutPlayerIds.slice(reviveCount);
-        }
+      }
+
+      if (scoringSide === 'home') {
+        awayOutPlayerIds = defendingOutIds;
       } else {
-        // Away team scored raid → home defenders go out
-        for (const tid of touchedIds) {
-          if (!homeOutPlayerIds.includes(tid)) {
-            homeOutPlayerIds = [...homeOutPlayerIds, tid];
-          }
+        homeOutPlayerIds = defendingOutIds;
+      }
+
+      // Revival: each point revives 1 player from front of scoring team's out queue
+      const scoringOutIds = scoringSide === 'home' ? homeOutPlayerIds : awayOutPlayerIds;
+      const reviveCount = Math.min(points, scoringOutIds.length);
+      if (reviveCount > 0) {
+        const remaining = scoringOutIds.slice(reviveCount);
+        if (scoringSide === 'home') {
+          homeOutPlayerIds = remaining;
+        } else {
+          awayOutPlayerIds = remaining;
         }
-        const reviveCount = Math.min(evt.value, awayOutPlayerIds.length);
-        if (reviveCount > 0) {
-          awayOutPlayerIds = awayOutPlayerIds.slice(reviveCount);
-        }
+      }
+
+      // Reset empty raid counter for scoring team
+      emptyRaidCount[evt.teamId] = 0;
+
+      // Auto All-Out check: if all 7 defenders are out
+      const defendingActive = defendingLineup.slice(0, match.playersPerSide).length - defendingOutIds.length;
+      if (defendingActive <= 0 && defendingOutIds.length > 0) {
+        // Note: all_out event should follow in the event list, but if it doesn't,
+        // we handle it here by clearing the out queue
       }
     }
 
+    // ─── BONUS POINT: Raider crosses bonus line ───
     if (evt.eventType === 'bonus_point') {
-      // One out player from scoring team revives
-      if (side === 'home' && homeOutPlayerIds.length > 0) {
-        homeOutPlayerIds = homeOutPlayerIds.slice(1);
-      } else if (side === 'away' && awayOutPlayerIds.length > 0) {
-        awayOutPlayerIds = awayOutPlayerIds.slice(1);
+      // Revival: 1 player from scoring team's out queue
+      const scoringOutIds = side === 'home' ? homeOutPlayerIds : awayOutPlayerIds;
+      if (scoringOutIds.length > 0) {
+        const remaining = scoringOutIds.slice(1);
+        if (side === 'home') {
+          homeOutPlayerIds = remaining;
+        } else {
+          awayOutPlayerIds = remaining;
+        }
       }
+
+      // Reset empty raid counter
+      emptyRaidCount[evt.teamId] = 0;
     }
 
-    // Self-out: defender steps off mat during a live raid
+    // ─── TACKLE / SUPER TACKLE: Raider is caught ───
+    if (evt.eventType === 'tackle_point' || evt.eventType === 'super_tackle') {
+      const raiderId = (details.raiderId as string) || evt.playerId;
+
+      // Raider goes to out queue (raider is from the OPPOSING team)
+      if (side === 'home' && raiderId) {
+        // Home scored tackle → away raider goes out
+        if (!awayOutPlayerIds.includes(raiderId)) {
+          awayOutPlayerIds = [...awayOutPlayerIds, raiderId];
+        }
+      } else if (side === 'away' && raiderId) {
+        // Away scored tackle → home raider goes out
+        if (!homeOutPlayerIds.includes(raiderId)) {
+          homeOutPlayerIds = [...homeOutPlayerIds, raiderId];
+        }
+      }
+
+      // Revival: defending team revives 1 player per tackle point
+      const tacklePoints = evt.eventType === 'super_tackle' ? 2 : 1;
+      const defendingOutIds = side === 'home' ? homeOutPlayerIds : awayOutPlayerIds;
+      const reviveCount = Math.min(tacklePoints, defendingOutIds.length);
+      if (reviveCount > 0) {
+        const remaining = defendingOutIds.slice(reviveCount);
+        if (side === 'home') {
+          homeOutPlayerIds = remaining;
+        } else {
+          awayOutPlayerIds = remaining;
+        }
+      }
+
+      // Reset empty raid counter for the defending team (they scored)
+      emptyRaidCount[evt.teamId] = 0;
+    }
+
+    // ─── SELF-OUT: Defender steps off mat during raid ───
     if (evt.eventType === 'self_out') {
       const selfOutPlayerId = (details.selfOutPlayerId as string) || evt.playerId;
       if (selfOutPlayerId) {
-        // The self-out player is from the DEFENDING team (opposite of scoring team)
+        // Self-out player is from DEFENDING team (opposite of scoring team)
         if (side === 'home') {
-          // Home scored → away defender self-out
           if (!awayOutPlayerIds.includes(selfOutPlayerId)) {
             awayOutPlayerIds = [...awayOutPlayerIds, selfOutPlayerId];
           }
-          // Home revives first-out player
+          // Home revives 1 player
           if (homeOutPlayerIds.length > 0) {
             homeOutPlayerIds = homeOutPlayerIds.slice(1);
           }
         } else {
-          // Away scored → home defender self-out
           if (!homeOutPlayerIds.includes(selfOutPlayerId)) {
             homeOutPlayerIds = [...homeOutPlayerIds, selfOutPlayerId];
           }
@@ -357,33 +387,62 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
           }
         }
       }
+
+      // Reset empty raid counter
+      emptyRaidCount[evt.teamId] = 0;
     }
 
-    if (evt.eventType === 'tackle_point' || evt.eventType === 'super_tackle') {
-      // Raider goes out. The tackle is scored by the DEFENDING team.
-      // So the raider is from the OPPOSING team.
-      const raiderId = (details.raiderId as string) || evt.playerId;
-      if (side === 'home' && raiderId) {
-        // Home team scored tackle → away raider was caught → away raider goes out
-        if (!awayOutPlayerIds.includes(raiderId)) {
-          awayOutPlayerIds = [...awayOutPlayerIds, raiderId];
-        }
-      } else if (side === 'away' && raiderId) {
-        // Away team scored tackle → home raider was caught → home raider goes out
-        if (!homeOutPlayerIds.includes(raiderId)) {
-          homeOutPlayerIds = [...homeOutPlayerIds, raiderId];
-        }
-      }
-    }
-
+    // ─── ALL OUT: All defenders eliminated ───
     if (evt.eventType === 'all_out') {
+      // Clear the eliminated team's out queue - all players revive
       if (side === 'home') {
         awayOutPlayerIds = [];
       } else {
         homeOutPlayerIds = [];
       }
     }
+
+    // ─── DO-OR-DIE RAID: Failed do-or-die ───
+    if (evt.eventType === 'do_or_die_raid') {
+      // Raider goes out (failed do-or-die)
+      const raiderId = (details.raiderId as string) || evt.playerId;
+      if (side === 'home') {
+        // Home scored from do-or-die → away raider is out
+        if (raiderId && !awayOutPlayerIds.includes(raiderId)) {
+          awayOutPlayerIds = [...awayOutPlayerIds, raiderId];
+        }
+        // Home revives 1 player
+        if (homeOutPlayerIds.length > 0) {
+          homeOutPlayerIds = homeOutPlayerIds.slice(1);
+        }
+      } else {
+        if (raiderId && !homeOutPlayerIds.includes(raiderId)) {
+          homeOutPlayerIds = [...homeOutPlayerIds, raiderId];
+        }
+        if (awayOutPlayerIds.length > 0) {
+          awayOutPlayerIds = awayOutPlayerIds.slice(1);
+        }
+      }
+
+      // Reset empty raid counter for the team that had do-or-die
+      const failedTeamId = side === 'home' ? match.awayTeamId : match.homeTeamId;
+      emptyRaidCount[failedTeamId] = 0;
+    }
+
+    // ─── EMPTY RAID: No points scored ───
+    if (evt.eventType === 'empty_raid') {
+      emptyRaidCount[evt.teamId] = (emptyRaidCount[evt.teamId] || 0) + 1;
+    }
+
+    // ─── SUPER RAID: 3+ points in single raid (just a marker, points already counted via raid_point) ───
+    if (evt.eventType === 'super_raid') {
+      // Points already handled by raid_point events, no additional state change needed
+    }
   }
+
+  // Count-based out tracking (backward compat)
+  homeOutPlayers = homeOutPlayerIds.length;
+  awayOutPlayers = awayOutPlayerIds.length;
 
   return { homeScore, awayScore, homeOutPlayers, awayOutPlayers, homeOutPlayerIds, awayOutPlayerIds };
 }

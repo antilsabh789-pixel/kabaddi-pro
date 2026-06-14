@@ -1,0 +1,1111 @@
+     1→'use client';
+     2→
+     3→import { useState, useCallback, useEffect, useRef } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import { useKabaddiStore } from '@/lib/store';
+     6→import { Swords, Shield, X, Volume2, Sparkles, CircleDot, ArrowLeft, Zap, MapPin } from 'lucide-react';
+     7→import { cn } from '@/lib/utils';
+     8→
+     9→// ─── Toss Phases ────────────────────────────────────────────────────
+    10→type TossPhase = 'choose-caller' | 'choose-side' | 'ready' | 'flipping' | 'result' | 'choose-advantage' | 'countdown';
+    11→
+    12→// ─── Confetti Particle ──────────────────────────────────────────────
+    13→
+    14→function TossConfetti({ color, index }: { color: string; index: number }) {
+    15→  const leftPos = (index * 23 + 7) % 100;
+    16→  const rotateEnd = (index * 53 + 17) % 720 - 360;
+    17→  const xDrift = ((index * 37) % 100) - 50;
+    18→  const sizeClass = index % 3 === 0 ? 'w-3 h-3' : index % 3 === 1 ? 'w-2 h-2' : 'w-1.5 h-1.5';
+    19→  const shapeClass = index % 4 === 0 ? 'rounded-full' : index % 4 === 1 ? 'rounded-sm' : index % 4 === 2 ? 'rounded-l-full' : 'rounded-t-full';
+    20→
+    21→  return (
+    22→    <motion.div
+    23→      initial={{ y: -20, x: 0, rotate: 0, opacity: 1, scale: 1 }}
+    24→      animate={{ y: '100vh', x: xDrift, rotate: rotateEnd, opacity: 0, scale: 0.5 }}
+    25→      transition={{ duration: 2.5 + (index % 4) * 0.5, delay: index * 0.04, ease: 'easeIn' }}
+    26→      className={cn('absolute top-0', sizeClass, shapeClass)}
+    27→      style={{ left: `${leftPos}%`, backgroundColor: color }}
+    28→    />
+    29→  );
+    30→}
+    31→
+    32→// ─── Floating Particle ──────────────────────────────────────────────
+    33→
+    34→function FloatingParticle({ color, delay, x, size }: { color: string; delay: number; x: number; size: number }) {
+    35→  return (
+    36→    <motion.div
+    37→      className="absolute rounded-full pointer-events-none"
+    38→      style={{
+    39→        width: size,
+    40→        height: size,
+    41→        backgroundColor: color,
+    42→        left: `${x}%`,
+    43→        top: '50%',
+    44→        filter: `blur(${size > 4 ? 2 : 1}px)`,
+    45→      }}
+    46→      animate={{
+    47→        y: [-30, 30, -30],
+    48→        x: [-10, 10, -10],
+    49→        opacity: [0.15, 0.5, 0.15],
+    50→        scale: [0.8, 1.2, 0.8],
+    51→      }}
+    52→      transition={{
+    53→        duration: 4 + delay,
+    54→        repeat: Infinity,
+    55→        ease: 'easeInOut',
+    56→        delay,
+    57→      }}
+    58→    />
+    59→  );
+    60→}
+    61→
+    62→// ─── Team Avatar ────────────────────────────────────────────────────
+    63→
+    64→function TeamAvatar({ name, color, size = 'md', glow = false }: { name: string; color: string; size?: 'sm' | 'md' | 'lg'; glow?: boolean }) {
+    65→  const sizeClasses = {
+    66→    sm: 'w-10 h-10 text-sm',
+    67→    md: 'w-14 h-14 text-lg',
+    68→    lg: 'w-20 h-20 text-2xl',
+    69→  };
+    70→
+    71→  return (
+    72→    <motion.div
+    73→      className={cn('rounded-full flex items-center justify-center font-black text-white', sizeClasses[size])}
+    74→      style={{
+    75→        backgroundColor: color,
+    76→        boxShadow: glow ? `0 0 24px ${color}60, 0 0 48px ${color}30` : `0 0 12px ${color}30`,
+    77→        border: '2px solid rgba(255,255,255,0.2)',
+    78→      }}
+    79→      whileHover={{ scale: 1.05 }}
+    80→    >
+    81→      {name.charAt(0)}
+    82→    </motion.div>
+    83→  );
+    84→}
+    85→
+    86→// ─── Coin Face: Heads (KABADDI PRO side) ────────────────────────────
+    87→
+    88→function CoinHeadsFace() {
+    89→  return (
+    90→    <div
+    91→      className="absolute inset-0 rounded-full flex flex-col items-center justify-center shadow-2xl border-[3px] overflow-hidden"
+    92→      style={{
+    93→        backfaceVisibility: 'hidden',
+    94→        background: 'linear-gradient(145deg, #FFD700 0%, #DAA520 25%, #B8860B 50%, #DAA520 75%, #FFD700 100%)',
+    95→        borderColor: '#FFD700',
+    96→        boxShadow: `
+    97→          0 0 40px rgba(255,215,0,0.2),
+    98→          0 0 80px rgba(255,215,0,0.1),
+    99→          inset 0 2px 4px rgba(255,255,255,0.3),
+   100→          inset 0 -2px 4px rgba(0,0,0,0.2)
+   101→        `,
+   102→      }}
+   103→    >
+   104→      {/* Ornamental outer ring */}
+   105→      <div className="absolute inset-[6px] rounded-full border-2 border-dashed" style={{ borderColor: 'rgba(139,101,8,0.5)' }} />
+   106→      {/* Inner decorative ring */}
+   107→      <div className="absolute inset-[14px] rounded-full border" style={{ borderColor: 'rgba(139,101,8,0.4)' }} />
+   108→
+   109→      {/* Content */}
+   110→      <div className="relative z-10 flex flex-col items-center justify-center">
+   111→        <span
+   112→          className="text-[8px] font-black tracking-[0.4em] opacity-70 mb-1"
+   113→          style={{ color: '#8B6508', textShadow: '0 1px 0 rgba(255,255,255,0.3)' }}
+   114→        >
+   115→          ★ KABADDI ★
+   116→        </span>
+   117→        <span
+   118→          className="text-3xl font-black tracking-[0.2em] leading-none"
+   119→          style={{ color: '#8B6508', textShadow: '0 2px 0 rgba(255,255,255,0.2), 0 -1px 0 rgba(0,0,0,0.3)' }}
+   120→        >
+   121→          PRO
+   122→        </span>
+   123→        {/* Decorative divider with raider icon */}
+   124→        <div className="flex items-center gap-1 my-1.5">
+   125→          <div className="w-8 h-[1px] bg-amber-800/50" />
+   126→          <svg width="18" height="18" viewBox="0 0 32 32" fill="none" className="opacity-50">
+   127→            <path d="M16 4 C14 4 13 5.5 13 7 C13 8.5 14 10 16 10 C18 10 19 8.5 19 7 C19 5.5 18 4 16 4Z" fill="#8B6508" />
+   128→            <path d="M14 10.5 C12 11 11 12.5 11 14 L11 20 C11 20.5 11.5 21 12 21 C12.5 21 13 20.5 13 20 L13 15 L14 15 L14 22 C14 22.5 14.5 23 15 23 L15 28 C15 28.5 15.5 29 16 29 C16.5 29 17 28.5 17 28 L17 23 L18 23 L18 28 C18 28.5 18.5 29 19 29 C19.5 29 20 28.5 20 28 L20 23 C20.5 23 21 22.5 21 22 L21 15 L22 15 L22 20 C22 20.5 22.5 21 23 21 C23.5 21 24 20.5 24 20 L24 14 C24 12.5 23 11 21 10.5 Z" fill="#8B6508" />
+   129→            <path d="M22 12 L28 9 C28.5 8.8 29 9 29 9.5 C29 10 28.8 10.5 28.3 10.6 L22 13.5 Z" fill="#8B6508" />
+   130→          </svg>
+   131→          <div className="w-8 h-[1px] bg-amber-800/50" />
+   132→        </div>
+   133→        <span className="text-[9px] font-black tracking-[0.3em] opacity-60" style={{ color: '#8B6508' }}>HEADS</span>
+   134→      </div>
+   135→
+   136→      {/* Corner decorative dots */}
+   137→      {[0, 90, 180, 270].map((angle) => (
+   138→        <div
+   139→          key={angle}
+   140→          className="absolute w-2 h-2 rounded-full"
+   141→          style={{
+   142→            background: 'rgba(139,101,8,0.4)',
+   143→            top: angle === 0 || angle === 90 ? '8px' : undefined,
+   144→            bottom: angle === 180 || angle === 270 ? '8px' : undefined,
+   145→            left: angle === 0 || angle === 270 ? '8px' : undefined,
+   146→            right: angle === 90 || angle === 180 ? '8px' : undefined,
+   147→          }}
+   148→        />
+   149→      ))}
+   150→
+   151→      {/* Emboss overlay */}
+   152→      <div className="absolute inset-0 rounded-full" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)' }} />
+   153→    </div>
+   154→  );
+   155→}
+   156→
+   157→// ─── Coin Face: Tails (KP side) ─────────────────────────────────────
+   158→
+   159→function CoinTailsFace() {
+   160→  return (
+   161→    <div
+   162→      className="absolute inset-0 rounded-full flex flex-col items-center justify-center shadow-2xl border-[3px] overflow-hidden"
+   163→      style={{
+   164→        backfaceVisibility: 'hidden',
+   165→        transform: 'rotateX(180deg)',
+   166→        background: 'linear-gradient(145deg, #E8E8E8 0%, #B0B0B0 25%, #808080 50%, #B0B0B0 75%, #E8E8E8 100%)',
+   167→        borderColor: '#C0C0C0',
+   168→        boxShadow: `
+   169→          0 0 40px rgba(192,192,192,0.2),
+   170→          0 0 80px rgba(192,192,192,0.1),
+   171→          inset 0 2px 4px rgba(255,255,255,0.4),
+   172→          inset 0 -2px 4px rgba(0,0,0,0.2)
+   173→        `,
+   174→      }}
+   175→    >
+   176→      {/* Ornamental outer ring */}
+   177→      <div className="absolute inset-[6px] rounded-full border-2 border-dashed" style={{ borderColor: 'rgba(80,80,80,0.4)' }} />
+   178→      {/* Inner decorative ring */}
+   179→      <div className="absolute inset-[14px] rounded-full border" style={{ borderColor: 'rgba(80,80,80,0.3)' }} />
+   180→
+   181→      {/* Content */}
+   182→      <div className="relative z-10 flex flex-col items-center justify-center">
+   183→        <span
+   184→          className="text-[8px] font-black tracking-[0.4em] opacity-60 mb-1"
+   185→          style={{ color: '#404040', textShadow: '0 1px 0 rgba(255,255,255,0.3)' }}
+   186→        >
+   187→          ★ KABADDI ★
+   188→        </span>
+   189→        <span
+   190→          className="text-4xl font-black tracking-[0.25em] leading-none"
+   191→          style={{ color: '#404040', textShadow: '0 2px 0 rgba(255,255,255,0.2), 0 -1px 0 rgba(0,0,0,0.3)' }}
+   192→        >
+   193→          KP
+   194→        </span>
+   195→        {/* Decorative divider */}
+   196→        <div className="flex items-center gap-1 my-1.5">
+   197→          <div className="w-8 h-[1px] bg-gray-600/50" />
+   198→          <svg width="18" height="18" viewBox="0 0 32 32" fill="none" className="opacity-40">
+   199→            <path d="M16 4 C14 4 13 5.5 13 7 C13 8.5 14 10 16 10 C18 10 19 8.5 19 7 C19 5.5 18 4 16 4Z" fill="#404040" />
+   200→            <path d="M14 10.5 C12 11 11 12.5 11 14 L11 20 C11 20.5 11.5 21 12 21 C12.5 21 13 20.5 13 20 L13 15 L14 15 L14 22 C14 22.5 14.5 23 15 23 L15 28 C15 28.5 15.5 29 16 29 C16.5 29 17 28.5 17 28 L17 23 L18 23 L18 28 C18 28.5 18.5 29 19 29 C19.5 29 20 28.5 20 28 L20 23 C20.5 23 21 22.5 21 22 L21 15 L22 15 L22 20 C22 20.5 22.5 21 23 21 C23.5 21 24 20.5 24 20 L24 14 C24 12.5 23 11 21 10.5 Z" fill="#404040" />
+   201→            <path d="M22 12 L28 9 C28.5 8.8 29 9 29 9.5 C29 10 28.8 10.5 28.3 10.6 L22 13.5 Z" fill="#404040" />
+   202→          </svg>
+   203→          <div className="w-8 h-[1px] bg-gray-600/50" />
+   204→        </div>
+   205→        <span className="text-[9px] font-black tracking-[0.3em] opacity-60" style={{ color: '#404040' }}>TAILS</span>
+   206→      </div>
+   207→
+   208→      {/* Corner decorative dots */}
+   209→      {[0, 90, 180, 270].map((angle) => (
+   210→        <div
+   211→          key={angle}
+   212→          className="absolute w-2 h-2 rounded-full"
+   213→          style={{
+   214→            background: 'rgba(80,80,80,0.4)',
+   215→            top: angle === 0 || angle === 90 ? '8px' : undefined,
+   216→            bottom: angle === 180 || angle === 270 ? '8px' : undefined,
+   217→            left: angle === 0 || angle === 270 ? '8px' : undefined,
+   218→            right: angle === 90 || angle === 180 ? '8px' : undefined,
+   219→          }}
+   220→        />
+   221→      ))}
+   222→
+   223→      {/* Emboss overlay */}
+   224→      <div className="absolute inset-0 rounded-full" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%, rgba(0,0,0,0.15) 100%)' }} />
+   225→    </div>
+   226→  );
+   227→}
+   228→
+   229→// ─── Advantage Card ─────────────────────────────────────────────────
+   230→
+   231→function AdvantageCard({
+   232→  icon,
+   233→  title,
+   234→  subtitle,
+   235→  color,
+   236→  onClick,
+   237→  delay,
+   238→}: {
+   239→  icon: React.ReactNode;
+   240→  title: string;
+   241→  subtitle: string;
+   242→  color: string;
+   243→  onClick: () => void;
+   244→  delay: number;
+   245→}) {
+   246→  return (
+   247→    <motion.button
+   248→      initial={{ opacity: 0, y: 30 }}
+   249→      animate={{ opacity: 1, y: 0 }}
+   250→      transition={{ delay, type: 'spring', damping: 20, stiffness: 200 }}
+   251→      whileTap={{ scale: 0.93 }}
+   252→      whileHover={{ scale: 1.03 }}
+   253→      onClick={onClick}
+   254→      className="flex-1 py-6 px-4 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all relative overflow-hidden group"
+   255→      style={{
+   256→        borderColor: `${color}50`,
+   257→        backgroundColor: `${color}10`,
+   258→      }}
+   259→    >
+   260→      {/* Shimmer effect on hover */}
+   261→      <motion.div
+   262→        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+   263→        style={{ background: `linear-gradient(135deg, transparent, ${color}15, transparent)` }}
+   264→      />
+   265→
+   266→      {/* Icon container with glow */}
+   267→      <div
+   268→        className="w-14 h-14 rounded-xl flex items-center justify-center relative z-10"
+   269→        style={{
+   270→          backgroundColor: `${color}20`,
+   271→          boxShadow: `0 0 20px ${color}20`,
+   272→        }}
+   273→      >
+   274→        {icon}
+   275→      </div>
+   276→
+   277→      <div className="font-black text-base relative z-10" style={{ color }}>{title}</div>
+   278→      <div className="text-[11px] text-gray-400 relative z-10 leading-tight text-center max-w-[140px]">{subtitle}</div>
+   279→    </motion.button>
+   280→  );
+   281→}
+   282→
+   283→// ─── Phase Indicator ────────────────────────────────────────────────
+   284→
+   285→function PhaseIndicator({ current, total }: { current: number; total: number }) {
+   286→  return (
+   287→    <div className="flex items-center gap-2">
+   288→      {Array.from({ length: total }).map((_, i) => (
+   289→        <div key={i} className="flex items-center gap-2">
+   290→          <motion.div
+   291→            className="w-2.5 h-2.5 rounded-full"
+   292→            animate={{
+   293→              backgroundColor: i < current ? '#FFD700' : i === current ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
+   294→              scale: i === current ? 1.3 : 1,
+   295→            }}
+   296→            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+   297→          />
+   298→          {i < total - 1 && (
+   299→            <div className="w-6 h-[1px]" style={{ backgroundColor: i < current ? '#FFD700' : 'rgba(255,255,255,0.15)' }} />
+   300→          )}
+   301→        </div>
+   302→      ))}
+   303→    </div>
+   304→  );
+   305→}
+   306→
+   307→// ─── Main TossScreen ────────────────────────────────────────────────
+   308→
+   309→interface TossScreenProps {
+   310→  homeTeam: string;
+   311→  awayTeam: string;
+   312→  homeTeamColor: string;
+   313→  awayTeamColor: string;
+   314→  onTossComplete: (firstRaidTeam: 'home' | 'away') => void;
+   315→  onBack: () => void;
+   316→}
+   317→
+   318→export default function TossScreen({
+   319→  homeTeam,
+   320→  awayTeam,
+   321→  homeTeamColor,
+   322→  awayTeamColor,
+   323→  onTossComplete,
+   324→  onBack,
+   325→}: TossScreenProps) {
+   326→  // Phase state
+   327→  const [phase, setPhase] = useState<TossPhase>('choose-caller');
+   328→
+   329→  // Toss data
+   330→  const [callingTeam, setCallingTeam] = useState<'home' | 'away' | null>(null);
+   331→  const [chosenSide, setChosenSide] = useState<'heads' | 'tails' | null>(null);
+   332→  const [coinResult, setCoinResult] = useState<'heads' | 'tails'>('heads');
+   333→  const [tossWinner, setTossWinner] = useState<'home' | 'away' | null>(null);
+   334→  const [showConfetti, setShowConfetti] = useState(false);
+   335→  const [flipKey, setFlipKey] = useState(0);
+   336→
+   337→  // Countdown
+   338→  const [countdown, setCountdown] = useState<number | null>(null);
+   339→  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   340→
+   341→  // Derived
+   342→  const callingTeamName = callingTeam === 'home' ? homeTeam : callingTeam === 'away' ? awayTeam : '';
+   343→  const callingTeamColor = callingTeam === 'home' ? homeTeamColor : callingTeam === 'away' ? awayTeamColor : '';
+   344→  const winnerName = tossWinner === 'home' ? homeTeam : tossWinner === 'away' ? awayTeam : '';
+   345→  const winnerColor = tossWinner === 'home' ? homeTeamColor : tossWinner === 'away' ? awayTeamColor : '';
+   346→  const loserName = tossWinner === 'home' ? awayTeam : tossWinner === 'away' ? homeTeam : '';
+   347→  const loserColor = tossWinner === 'home' ? awayTeamColor : tossWinner === 'away' ? homeTeamColor : '';
+   348→
+   349→  // Phase step number for indicator
+   350→  const phaseStep: number = phase === 'choose-caller' ? 0 : phase === 'choose-side' ? 1 : phase === 'ready' ? 1 : phase === 'flipping' ? 1 : phase === 'result' ? 2 : phase === 'choose-advantage' ? 2 : 2;
+   351→
+   352→  // Clean up countdown on unmount
+   353→  useEffect(() => {
+   354→    return () => {
+   355→      if (countdownRef.current) clearInterval(countdownRef.current);
+   356→    };
+   357→  }, []);
+   358→
+   359→  // ─── Handlers ────────────────────────────────────────────────────
+   360→
+   361→  const handleSelectCaller = (team: 'home' | 'away') => {
+   362→    setCallingTeam(team);
+   363→    setPhase('choose-side');
+   364→  };
+   365→
+   366→  const handleChooseSide = (side: 'heads' | 'tails') => {
+   367→    setChosenSide(side);
+   368→    setPhase('ready');
+   369→  };
+   370→
+   371→  const doToss = useCallback(() => {
+   372→    setPhase('flipping');
+   373→    setFlipKey((k) => k + 1);
+   374→
+   375→    // Determine coin result randomly
+   376→    const result: 'heads' | 'tails' = Math.random() < 0.5 ? 'heads' : 'tails';
+   377→    setCoinResult(result);
+   378→
+   379→    // The calling team wins if the coin result matches their choice
+   380→    const winner: 'home' | 'away' = result === chosenSide ? callingTeam! : (callingTeam === 'home' ? 'away' : 'home');
+   381→    setTossWinner(winner);
+   382→
+   383→    // Show confetti and move to result after animation
+   384→    setTimeout(() => {
+   385→      setShowConfetti(true);
+   386→      setPhase('result');
+   387→    }, 2200);
+   388→  }, [chosenSide, callingTeam]);
+   389→
+   390→  const handleChooseAdvantage = (firstRaidTeam: 'home' | 'away') => {
+   391→    setPhase('countdown');
+   392→    setCountdown(3);
+   393→
+   394→    let count = 3;
+   395→    countdownRef.current = setInterval(() => {
+   396→      count--;
+   397→      setCountdown(count);
+   398→      if (count <= 0) {
+   399→        if (countdownRef.current) clearInterval(countdownRef.current);
+   400→        onTossComplete(firstRaidTeam);
+   401→      }
+   402→    }, 800);
+   403→  };
+   404→
+   405→  // ─── Strategy text ───────────────────────────────────────────────
+   406→
+   407→  const raidStrategy = `${winnerName} raids first — put early pressure on ${loserName}'s defense`;
+   408→  const defendStrategy = `${winnerName} defends first — choose your court side and force ${loserName} into empty raids`;
+   409→
+   410→  // ─── Render ──────────────────────────────────────────────────────
+   411→
+   412→  return (
+   413→    <div className="fixed inset-0 z-50 bg-gray-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden">
+   414→      {/* ═══ Background — Team color spotlights ═══ */}
+   415→      <div className="absolute inset-0 overflow-hidden">
+   416→        {/* Home spotlight */}
+   417→        <motion.div
+   418→          className="absolute top-0 left-0 w-1/2 h-full"
+   419→          style={{ background: `radial-gradient(ellipse at 30% 50%, ${homeTeamColor}15, transparent 70%)` }}
+   420→          animate={phase === 'flipping' ? { opacity: [0.5, 0.9, 0.5] } : { opacity: 0.5 }}
+   421→          transition={{ duration: 1, repeat: phase === 'flipping' ? Infinity : 0 }}
+   422→        />
+   423→        {/* Away spotlight */}
+   424→        <motion.div
+   425→          className="absolute top-0 right-0 w-1/2 h-full"
+   426→          style={{ background: `radial-gradient(ellipse at 70% 50%, ${awayTeamColor}15, transparent 70%)` }}
+   427→          animate={phase === 'flipping' ? { opacity: [0.5, 0.9, 0.5] } : { opacity: 0.5 }}
+   428→          transition={{ duration: 1, repeat: phase === 'flipping' ? Infinity : 0, delay: 0.5 }}
+   429→        />
+   430→        {/* Center glow */}
+   431→        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 opacity-5 bg-yellow-400 rounded-full" />
+   432→
+   433→        {/* Floating particles */}
+   434→        {Array.from({ length: 16 }).map((_, i) => (
+   435→          <FloatingParticle
+   436→            key={i}
+   437→            color={i < 8 ? homeTeamColor : awayTeamColor}
+   438→            delay={i * 0.35}
+   439→            x={(i * 6 + 5) % 100}
+   440→            size={2 + (i % 4) * 2}
+   441→          />
+   442→        ))}
+   443→
+   444→        {/* Grid pattern overlay */}
+   445→        <div
+   446→          className="absolute inset-0 opacity-[0.03]"
+   447→          style={{
+   448→            backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+   449→            backgroundSize: '40px 40px',
+   450→          }}
+   451→        />
+   452→      </div>
+   453→
+   454→      {/* ═══ Confetti ═══ */}
+   455→      <AnimatePresence>
+   456→        {showConfetti && (
+   457→          <div className="fixed inset-0 pointer-events-none overflow-hidden z-50">
+   458→            {Array.from({ length: 50 }).map((_, i) => {
+   459→              const colors = [homeTeamColor, awayTeamColor, '#FFD700', '#FF6B35', '#FFFFFF', '#E040FB', '#00E5FF'];
+   460→              return <TossConfetti key={`confetti-${i}`} color={colors[i % colors.length]} index={i} />;
+   461→            })}
+   462→          </div>
+   463→        )}
+   464→      </AnimatePresence>
+   465→
+   466→      {/* ═══ Close / Back button ═══ */}
+   467→      <motion.button
+   468→        initial={{ opacity: 0, scale: 0.8 }}
+   469→        animate={{ opacity: 1, scale: 1 }}
+   470→        transition={{ delay: 0.3 }}
+   471→        onClick={onBack}
+   472→        className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/10 hover:bg-white/20 transition-colors"
+   473→        aria-label="Close toss"
+   474→      >
+   475→        <X className="w-5 h-5 text-white/70" />
+   476→      </motion.button>
+   477→
+   478→      {/* ═══ Phase Indicator ═══ */}
+   479→      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
+   480→        <PhaseIndicator current={phaseStep} total={3} />
+   481→      </div>
+   482→
+   483→      {/* ═══ Phase Labels ═══ */}
+   484→      <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 text-center">
+   485→        <AnimatePresence mode="wait">
+   486→          {phase === 'choose-caller' && (
+   487→            <motion.div key="label-caller" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}>
+   488→              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.3em]">Step 1 — Choose Caller</span>
+   489→            </motion.div>
+   490→          )}
+   491→          {(phase === 'choose-side' || phase === 'ready' || phase === 'flipping') && (
+   492→            <motion.div key="label-side" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}>
+   493→              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.3em]">Step 2 — Call the Toss</span>
+   494→            </motion.div>
+   495→          )}
+   496→          {(phase === 'result' || phase === 'choose-advantage' || phase === 'countdown') && (
+   497→            <motion.div key="label-adv" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}>
+   498→              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.3em]">Step 3 — Choose Advantage</span>
+   499→            </motion.div>
+   500→          )}
+   501→        </AnimatePresence>
+   502→      </div>
+   503→
+   504→      {/* ═══ Header with VS ═══ */}
+   505→      <div className="relative z-10 text-center mb-4 mt-8">
+   506→        <motion.div
+   507→          initial={{ y: -20, opacity: 0 }}
+   508→          animate={{ y: 0, opacity: 1 }}
+   509→          className="flex items-center gap-3 sm:gap-5 justify-center"
+   510→        >
+   511→          {/* Home team */}
+   512→          <div className="flex items-center gap-2">
+   513→            <TeamAvatar name={homeTeam} color={homeTeamColor} size="sm" glow={tossWinner === 'home'} />
+   514→            <span className="text-sm font-bold text-white max-w-[80px] sm:max-w-[120px] truncate">{homeTeam}</span>
+   515→          </div>
+   516→
+   517→          {/* VS */}
+   518→          <motion.div
+   519→            className="flex flex-col items-center"
+   520→            animate={phase === 'flipping' ? { scale: [1, 1.2, 1] } : {}}
+   521→            transition={{ duration: 0.5, repeat: phase === 'flipping' ? Infinity : 0 }}
+   522→          >
+   523→            <span className="text-xs font-black text-gray-600">VS</span>
+   524→          </motion.div>
+   525→
+   526→          {/* Away team */}
+   527→          <div className="flex items-center gap-2">
+   528→            <span className="text-sm font-bold text-white max-w-[80px] sm:max-w-[120px] truncate">{awayTeam}</span>
+   529→            <TeamAvatar name={awayTeam} color={awayTeamColor} size="sm" glow={tossWinner === 'away'} />
+   530→          </div>
+   531→        </motion.div>
+   532→      </div>
+   533→
+   534→      {/* ═══ Coin ═══ */}
+   535→      <div className="relative z-10 mb-4">
+   536→        <div className="perspective-[800px]">
+   537→          <motion.div
+   538→            key={flipKey}
+   539→            animate={
+   540→              phase === 'flipping'
+   541→                ? {
+   542→                    rotateX: [0, 720, 1440, 2160, 2880, 3240, 3600],
+   543→                    scale: [1, 1.3, 1.4, 1.3, 1.2, 1.05, 1],
+   544→                  }
+   545→                : phase === 'result' || phase === 'choose-advantage'
+   546→                  ? {
+   547→                      rotateX: coinResult === 'heads' ? 0 : 180,
+   548→                      scale: [1, 1.08, 1],
+   549→                    }
+   550→                  : phase === 'choose-caller' || phase === 'choose-side' || phase === 'ready'
+   551→                    ? { rotateY: [0, 5, -5, 0], rotateX: 0 }
+   552→                    : { rotateX: coinResult === 'heads' ? 0 : 180 }
+   553→            }
+   554→            transition={
+   555→              phase === 'flipping'
+   556→                ? { duration: 2, ease: [0.25, 0.1, 0.25, 1] }
+   557→                : phase === 'result' || phase === 'choose-advantage'
+   558→                  ? { duration: 0.4, ease: 'easeOut' }
+   559→                  : { duration: 4, repeat: Infinity, ease: 'easeInOut' }
+   560→            }
+   561→            className="w-36 h-36 sm:w-44 sm:h-44 relative"
+   562→            style={{ transformStyle: 'preserve-3d' }}
+   563→          >
+   564→            <CoinHeadsFace />
+   565→            <CoinTailsFace />
+   566→          </motion.div>
+   567→        </div>
+   568→
+   569→        {/* Coin label beneath */}
+   570→        <AnimatePresence mode="wait">
+   571→          {phase === 'flipping' && (
+   572→            <motion.div
+   573→              key="flip-label"
+   574→              initial={{ opacity: 0, y: 5 }}
+   575→              animate={{ opacity: 1, y: 0 }}
+   576→              exit={{ opacity: 0, y: -5 }}
+   577→              className="text-center mt-3"
+   578→            >
+   579→              <div className="flex items-center justify-center gap-1">
+   580→                {[0, 1, 2, 3, 4].map((i) => (
+   581→                  <motion.div
+   582→                    key={i}
+   583→                    className="w-1 h-4 rounded-full bg-yellow-500/60"
+   584→                    animate={{ height: [4, 16, 4], opacity: [0.3, 0.9, 0.3] }}
+   585→                    transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.1, ease: 'easeInOut' }}
+   586→                  />
+   587→                ))}
+   588→              </div>
+   589→              <span className="text-xs text-gray-400 font-mono mt-1 block">FLIPPING...</span>
+   590→            </motion.div>
+   591→          )}
+   592→          {(phase === 'result' || phase === 'choose-advantage') && (
+   593→            <motion.div
+   594→              key="result-label"
+   595→              initial={{ opacity: 0, scale: 0.8 }}
+   596→              animate={{ opacity: 1, scale: 1 }}
+   597→              className="text-center mt-3"
+   598→            >
+   599→              <span
+   600→                className="text-sm font-black tracking-wider"
+   601→                style={{
+   602→                  color: coinResult === 'heads' ? '#FFD700' : '#C0C0C0',
+   603→                  textShadow: `0 0 10px ${coinResult === 'heads' ? 'rgba(255,215,0,0.4)' : 'rgba(192,192,192,0.4)'}`,
+   604→                }}
+   605→              >
+   606→                It&apos;s {coinResult === 'heads' ? 'HEADS' : 'TAILS'}!
+   607→              </span>
+   608→            </motion.div>
+   609→          )}
+   610→          {(phase === 'choose-caller' || phase === 'choose-side' || phase === 'ready') && (
+   611→            <motion.div
+   612→              key="idle-label"
+   613→              initial={{ opacity: 0 }}
+   614→              animate={{ opacity: 1 }}
+   615→              exit={{ opacity: 0 }}
+   616→              className="text-center mt-3"
+   617→            >
+   618→              <span className="text-[10px] text-gray-600 font-mono block tracking-wider">KABADDI PRO CHAMPIONSHIP COIN</span>
+   619→            </motion.div>
+   620→          )}
+   621→        </AnimatePresence>
+   622→      </div>
+   623→
+   624→      {/* ═══ Phase 1: Choose Caller ═══ */}
+   625→      <AnimatePresence>
+   626→        {phase === 'choose-caller' && (
+   627→          <motion.div
+   628→            initial={{ opacity: 0, y: 30 }}
+   629→            animate={{ opacity: 1, y: 0 }}
+   630→            exit={{ opacity: 0, y: -20 }}
+   631→            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+   632→            className="relative z-10 text-center w-full max-w-sm"
+   633→          >
+   634→            <motion.h2
+   635→              initial={{ opacity: 0, y: 10 }}
+   636→              animate={{ opacity: 1, y: 0 }}
+   637→              transition={{ delay: 0.1 }}
+   638→              className="text-xl font-black text-white mb-2"
+   639→            >
+   640→              Who Calls the Toss?
+   641→            </motion.h2>
+   642→            <motion.p
+   643→              initial={{ opacity: 0, y: 10 }}
+   644→              animate={{ opacity: 1, y: 0 }}
+   645→              transition={{ delay: 0.2 }}
+   646→              className="text-xs text-gray-400 mb-6"
+   647→            >
+   648→              Select which team will call Heads or Tails before the flip
+   649→            </motion.p>
+   650→
+   651→            <div className="flex gap-4 justify-center">
+   652→              {/* Home team button */}
+   653→              <motion.button
+   654→                initial={{ opacity: 0, x: -20 }}
+   655→                animate={{ opacity: 1, x: 0 }}
+   656→                transition={{ delay: 0.3, type: 'spring', damping: 20 }}
+   657→                whileTap={{ scale: 0.95 }}
+   658→                whileHover={{ scale: 1.03 }}
+   659→                onClick={() => handleSelectCaller('home')}
+   660→                className="flex-1 py-6 px-4 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all group relative overflow-hidden"
+   661→                style={{
+   662→                  borderColor: `${homeTeamColor}40`,
+   663→                  backgroundColor: `${homeTeamColor}08`,
+   664→                }}
+   665→              >
+   666→                <motion.div
+   667→                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+   668→                  style={{ background: `linear-gradient(135deg, transparent, ${homeTeamColor}10, transparent)` }}
+   669→                />
+   670→                <TeamAvatar name={homeTeam} color={homeTeamColor} size="md" />
+   671→                <span className="font-black text-sm relative z-10" style={{ color: homeTeamColor }}>{homeTeam}</span>
+   672→                <span className="text-[10px] text-gray-500 relative z-10">Call the toss</span>
+   673→              </motion.button>
+   674→
+   675→              {/* Away team button */}
+   676→              <motion.button
+   677→                initial={{ opacity: 0, x: 20 }}
+   678→                animate={{ opacity: 1, x: 0 }}
+   679→                transition={{ delay: 0.4, type: 'spring', damping: 20 }}
+   680→                whileTap={{ scale: 0.95 }}
+   681→                whileHover={{ scale: 1.03 }}
+   682→                onClick={() => handleSelectCaller('away')}
+   683→                className="flex-1 py-6 px-4 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all group relative overflow-hidden"
+   684→                style={{
+   685→                  borderColor: `${awayTeamColor}40`,
+   686→                  backgroundColor: `${awayTeamColor}08`,
+   687→                }}
+   688→              >
+   689→                <motion.div
+   690→                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+   691→                  style={{ background: `linear-gradient(135deg, transparent, ${awayTeamColor}10, transparent)` }}
+   692→                />
+   693→                <TeamAvatar name={awayTeam} color={awayTeamColor} size="md" />
+   694→                <span className="font-black text-sm relative z-10" style={{ color: awayTeamColor }}>{awayTeam}</span>
+   695→                <span className="text-[10px] text-gray-500 relative z-10">Call the toss</span>
+   696→              </motion.button>
+   697→            </div>
+   698→          </motion.div>
+   699→        )}
+   700→      </AnimatePresence>
+   701→
+   702→      {/* ═══ Phase 2a: Choose Side (Heads or Tails) ═══ */}
+   703→      <AnimatePresence>
+   704→        {phase === 'choose-side' && callingTeam && (
+   705→          <motion.div
+   706→            initial={{ opacity: 0, y: 30 }}
+   707→            animate={{ opacity: 1, y: 0 }}
+   708→            exit={{ opacity: 0, y: -20 }}
+   709→            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+   710→            className="relative z-10 text-center w-full max-w-sm"
+   711→          >
+   712→            {/* Calling team badge */}
+   713→            <motion.div
+   714→              initial={{ opacity: 0, scale: 0.9 }}
+   715→              animate={{ opacity: 1, scale: 1 }}
+   716→              transition={{ delay: 0.1 }}
+   717→              className="mb-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl"
+   718→              style={{
+   719→                backgroundColor: `${callingTeamColor}12`,
+   720→                border: `1px solid ${callingTeamColor}30`,
+   721→              }}
+   722→            >
+   723→              <TeamAvatar name={callingTeamName} color={callingTeamColor} size="sm" />
+   724→              <span className="font-bold text-sm" style={{ color: callingTeamColor }}>{callingTeamName} calls...</span>
+   725→            </motion.div>
+   726→
+   727→            <motion.h2
+   728→              initial={{ opacity: 0, y: 10 }}
+   729→              animate={{ opacity: 1, y: 0 }}
+   730→              transition={{ delay: 0.15 }}
+   731→              className="text-xl font-black text-white mb-2"
+   732→            >
+   733→              Heads or Tails?
+   734→            </motion.h2>
+   735→            <motion.p
+   736→              initial={{ opacity: 0, y: 10 }}
+   737→              animate={{ opacity: 1, y: 0 }}
+   738→              transition={{ delay: 0.2 }}
+   739→              className="text-xs text-gray-400 mb-6"
+   740→            >
+   741→              Choose the side {callingTeamName} is calling for this toss
+   742→            </motion.p>
+   743→
+   744→            <div className="flex items-center gap-5 sm:gap-8 justify-center">
+   745→              {/* HEADS button */}
+   746→              <motion.button
+   747→                initial={{ opacity: 0, x: -20, scale: 0.8 }}
+   748→                animate={{ opacity: 1, x: 0, scale: 1 }}
+   749→                transition={{ delay: 0.3, type: 'spring', damping: 20, stiffness: 200 }}
+   750→                whileTap={{ scale: 0.88 }}
+   751→                whileHover={{ scale: 1.08 }}
+   752→                onClick={() => handleChooseSide('heads')}
+   753→                className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full flex flex-col items-center justify-center transition-all group"
+   754→                style={{
+   755→                  background: 'linear-gradient(145deg, #FFD700, #DAA520, #B8860B)',
+   756→                  boxShadow: `
+   757→                    0 0 30px rgba(255,215,0,0.3),
+   758→                    0 6px 20px rgba(0,0,0,0.3),
+   759→                    inset 0 2px 4px rgba(255,255,255,0.3),
+   760→                    inset 0 -2px 4px rgba(0,0,0,0.2)
+   761→                  `,
+   762→                  border: '3px solid #FFD700',
+   763→                }}
+   764→              >
+   765→                <span className="text-4xl font-black text-amber-900 drop-shadow-sm">H</span>
+   766→                <span className="text-[8px] font-bold text-amber-800/70 tracking-widest mt-1">HEADS</span>
+   767→                {/* Shimmer */}
+   768→                <motion.div
+   769→                  className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+   770→                  style={{ background: 'linear-gradient(135deg, transparent, rgba(255,255,255,0.25), transparent)' }}
+   771→                />
+   772→              </motion.button>
+   773→
+   774→              {/* OR divider */}
+   775→              <div className="flex flex-col items-center gap-1">
+   776→                <div className="w-[1px] h-6 bg-gray-700" />
+   777→                <span className="text-gray-600 font-black text-xs">OR</span>
+   778→                <div className="w-[1px] h-6 bg-gray-700" />
+   779→              </div>
+   780→
+   781→              {/* TAILS button */}
+   782→              <motion.button
+   783→                initial={{ opacity: 0, x: 20, scale: 0.8 }}
+   784→                animate={{ opacity: 1, x: 0, scale: 1 }}
+   785→                transition={{ delay: 0.4, type: 'spring', damping: 20, stiffness: 200 }}
+   786→                whileTap={{ scale: 0.88 }}
+   787→                whileHover={{ scale: 1.08 }}
+   788→                onClick={() => handleChooseSide('tails')}
+   789→                className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full flex flex-col items-center justify-center transition-all group"
+   790→                style={{
+   791→                  background: 'linear-gradient(145deg, #E8E8E8, #B0B0B0, #808080)',
+   792→                  boxShadow: `
+   793→                    0 0 30px rgba(192,192,192,0.3),
+   794→                    0 6px 20px rgba(0,0,0,0.3),
+   795→                    inset 0 2px 4px rgba(255,255,255,0.4),
+   796→                    inset 0 -2px 4px rgba(0,0,0,0.2)
+   797→                  `,
+   798→                  border: '3px solid #C0C0C0',
+   799→                }}
+   800→              >
+   801→                <span className="text-4xl font-black text-gray-700 drop-shadow-sm">T</span>
+   802→                <span className="text-[8px] font-bold text-gray-600/70 tracking-widest mt-1">TAILS</span>
+   803→                {/* Shimmer */}
+   804→                <motion.div
+   805→                  className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+   806→                  style={{ background: 'linear-gradient(135deg, transparent, rgba(255,255,255,0.3), transparent)' }}
+   807→                />
+   808→              </motion.button>
+   809→            </div>
+   810→
+   811→            {/* Back to caller selection */}
+   812→            <motion.button
+   813→              initial={{ opacity: 0 }}
+   814→              animate={{ opacity: 1 }}
+   815→              transition={{ delay: 0.5 }}
+   816→              onClick={() => { setPhase('choose-caller'); setCallingTeam(null); }}
+   817→              className="mt-6 text-gray-500 text-xs underline underline-offset-2 hover:text-gray-300 transition-colors"
+   818→            >
+   819→              Change caller
+   820→            </motion.button>
+   821→          </motion.div>
+   822→        )}
+   823→      </AnimatePresence>
+   824→
+   825→      {/* ═══ Phase 2b: Ready — Flip Button ═══ */}
+   826→      <AnimatePresence>
+   827→        {phase === 'ready' && chosenSide && callingTeam && (
+   828→          <motion.div
+   829→            initial={{ opacity: 0, y: 30 }}
+   830→            animate={{ opacity: 1, y: 0 }}
+   831→            exit={{ opacity: 0, y: -20 }}
+   832→            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+   833→            className="relative z-10 text-center w-full max-w-sm"
+   834→          >
+   835→            {/* Show what was chosen */}
+   836→            <motion.div
+   837→              initial={{ opacity: 0, scale: 0.9 }}
+   838→              animate={{ opacity: 1, scale: 1 }}
+   839→              className="mb-5 flex flex-col items-center gap-3"
+   840→            >
+   841→              <div
+   842→                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold"
+   843→                style={{
+   844→                  color: chosenSide === 'heads' ? '#DAA520' : '#A0A0A0',
+   845→                  backgroundColor: chosenSide === 'heads' ? 'rgba(255,215,0,0.1)' : 'rgba(192,192,192,0.1)',
+   846→                  border: `1px solid ${chosenSide === 'heads' ? 'rgba(255,215,0,0.3)' : 'rgba(192,192,192,0.3)'}`,
+   847→                }}
+   848→              >
+   849→                <CircleDot className="w-4 h-4" />
+   850→                <span>{callingTeamName} calls {chosenSide === 'heads' ? 'HEADS' : 'TAILS'}</span>
+   851→              </div>
+   852→
+   853→              {/* The other team's side */}
+   854→              <div className="text-[11px] text-gray-500">
+   855→                The other team automatically gets {chosenSide === 'heads' ? 'TAILS' : 'HEADS'}
+   856→              </div>
+   857→            </motion.div>
+   858→
+   859→            <motion.button
+   860→              whileTap={{ scale: 0.95 }}
+   861→              whileHover={{ scale: 1.02 }}
+   862→              onClick={doToss}
+   863→              className="relative px-12 py-4 bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 text-white font-black text-lg rounded-2xl shadow-xl shadow-yellow-500/30 active:shadow-none transition-shadow overflow-hidden"
+   864→            >
+   865→              {/* Shimmer effect */}
+   866→              <motion.div
+   867→                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+   868→                animate={{ x: ['-100%', '200%'] }}
+   869→                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+   870→              />
+   871→              <span className="relative z-10 flex items-center gap-2">
+   872→                <Volume2 className="w-5 h-5" />
+   873→                FLIP COIN
+   874→              </span>
+   875→            </motion.button>
+   876→
+   877→            <div className="mt-4 flex flex-col items-center gap-2">
+   878→              <p className="text-gray-500 text-xs">
+   879→                {callingTeamName} called {chosenSide === 'heads' ? 'HEADS' : 'TAILS'} — flip to reveal!
+   880→              </p>
+   881→              <button
+   882→                onClick={() => { setPhase('choose-side'); setChosenSide(null); }}
+   883→                className="text-gray-500 text-xs underline underline-offset-2 hover:text-gray-300 transition-colors"
+   884→              >
+   885→                Change choice
+   886→              </button>
+   887→            </div>
+   888→          </motion.div>
+   889→        )}
+   890→      </AnimatePresence>
+   891→
+   892→      {/* ═══ Flipping Phase — Progress ═══ */}
+   893→      <AnimatePresence>
+   894→        {phase === 'flipping' && (
+   895→          <motion.div
+   896→            initial={{ opacity: 0 }}
+   897→            animate={{ opacity: 1 }}
+   898→            exit={{ opacity: 0 }}
+   899→            className="relative z-10 text-center"
+   900→          >
+   901→            <div className="w-48 h-1.5 bg-gray-800 rounded-full overflow-hidden mx-auto">
+   902→              <motion.div
+   903→                className="h-full rounded-full bg-gradient-to-r from-yellow-500 to-amber-500"
+   904→                initial={{ width: '0%' }}
+   905→                animate={{ width: '100%' }}
+   906→                transition={{ duration: 2, ease: 'easeInOut' }}
+   907→              />
+   908→            </div>
+   909→            <p className="text-gray-400 text-xs mt-3">
+   910→              {callingTeamName} called {chosenSide === 'heads' ? 'HEADS' : 'TAILS'}...
+   911→            </p>
+   912→          </motion.div>
+   913→        )}
+   914→      </AnimatePresence>
+   915→
+   916→      {/* ═══ Phase 3a: Result ─══ */}
+   917→      <AnimatePresence>
+   918→        {phase === 'result' && tossWinner && (
+   919→          <motion.div
+   920→            initial={{ opacity: 0, y: 30 }}
+   921→            animate={{ opacity: 1, y: 0 }}
+   922→            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+   923→            className="relative z-10 text-center w-full max-w-sm"
+   924→          >
+   925→            {/* Toss detail */}
+   926→            <motion.div
+   927→              initial={{ opacity: 0 }}
+   928→              animate={{ opacity: 1 }}
+   929→              transition={{ delay: 0.1 }}
+   930→              className="mb-2 text-xs text-gray-500"
+   931→            >
+   932→              {callingTeamName} called {chosenSide === 'heads' ? 'HEADS' : 'TAILS'} — It&apos;s {coinResult === 'heads' ? 'HEADS' : 'TAILS'}!
+   933→            </motion.div>
+   934→
+   935→            {/* Winner announcement */}
+   936→            <motion.div
+   937→              initial={{ scale: 0.5, opacity: 0 }}
+   938→              animate={{ scale: 1, opacity: 1 }}
+   939→              transition={{ type: 'spring', damping: 12, stiffness: 150, delay: 0.2 }}
+   940→              className="mb-6"
+   941→            >
+   942→              <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider font-bold">Toss Won By</div>
+   943→              <motion.div
+   944→                animate={{
+   945→                  boxShadow: [
+   946→                    `0 0 0px ${winnerColor}`,
+   947→                    `0 0 40px ${winnerColor}60`,
+   948→                    `0 0 80px ${winnerColor}30`,
+   949→                    `0 0 0px ${winnerColor}`,
+   950→                  ],
+   951→                }}
+   952→                transition={{ duration: 2, repeat: 2 }}
+   953→                className="inline-flex items-center gap-3 text-2xl font-black py-3 px-6 rounded-2xl"
+   954→                style={{
+   955→                  color: winnerColor,
+   956→                  backgroundColor: `${winnerColor}12`,
+   957→                  border: `2px solid ${winnerColor}40`,
+   958→                }}
+   959→              >
+   960→                <TeamAvatar name={winnerName} color={winnerColor} size="sm" />
+   961→                {winnerName}
+   962→                <motion.span
+   963→                  animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
+   964→                  transition={{ duration: 0.6, delay: 0.5 }}
+   965→                >
+   966→                  🏆
+   967→                </motion.span>
+   968→              </motion.div>
+   969→            </motion.div>
+   970→
+   971→            {/* Transition to advantage selection */}
+   972→            <motion.button
+   973→              initial={{ opacity: 0, y: 10 }}
+   974→              animate={{ opacity: 1, y: 0 }}
+   975→              transition={{ delay: 0.8 }}
+   976→              whileTap={{ scale: 0.95 }}
+   977→              onClick={() => setPhase('choose-advantage')}
+   978→              className="px-8 py-3 rounded-xl font-bold text-sm text-white flex items-center gap-2 mx-auto"
+   979→              style={{
+   980→                backgroundColor: `${winnerColor}25`,
+   981→                border: `1px solid ${winnerColor}40`,
+   982→              }}
+   983→            >
+   984→              Choose Advantage
+   985→              <Zap className="w-4 h-4" style={{ color: winnerColor }} />
+   986→            </motion.button>
+   987→          </motion.div>
+   988→        )}
+   989→      </AnimatePresence>
+   990→
+   991→      {/* ═══ Phase 3b: Choose Advantage ═══ */}
+   992→      <AnimatePresence>
+   993→        {phase === 'choose-advantage' && tossWinner && (
+   994→          <motion.div
+   995→            initial={{ opacity: 0, y: 30 }}
+   996→            animate={{ opacity: 1, y: 0 }}
+   997→            exit={{ opacity: 0, y: -20 }}
+   998→            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+   999→            className="relative z-10 text-center w-full max-w-sm"
+  1000→          >
+  1001→            {/* Winner banner */}
+  1002→            <motion.div
+  1003→              initial={{ opacity: 0, scale: 0.9 }}
+  1004→              animate={{ opacity: 1, scale: 1 }}
+  1005→              className="mb-4"
+  1006→            >
+  1007→              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl"
+  1008→                style={{
+  1009→                  backgroundColor: `${winnerColor}12`,
+  1010→                  border: `1px solid ${winnerColor}30`,
+  1011→                }}
+  1012→              >
+  1013→                <TeamAvatar name={winnerName} color={winnerColor} size="sm" />
+  1014→                <span className="font-bold text-sm" style={{ color: winnerColor }}>{winnerName} won the toss!</span>
+  1015→              </div>
+  1016→            </motion.div>
+  1017→
+  1018→            <motion.h2
+  1019→              initial={{ opacity: 0, y: 10 }}
+  1020→              animate={{ opacity: 1, y: 0 }}
+  1021→              transition={{ delay: 0.1 }}
+  1022→              className="text-lg font-black text-white mb-2"
+  1023→            >
+  1024→              Choose Your Advantage
+  1025→            </motion.h2>
+  1026→            <motion.p
+  1027→              initial={{ opacity: 0, y: 10 }}
+  1028→              animate={{ opacity: 1, y: 0 }}
+  1029→              transition={{ delay: 0.15 }}
+  1030→              className="text-xs text-gray-400 mb-5"
+  1031→            >
+  1032→              {winnerName} must choose between raiding first or choosing court side
+  1033→            </motion.p>
+  1034→
+  1035→            <div className="flex gap-3">
+  1036→              {/* RAID FIRST */}
+  1037→              <AdvantageCard
+  1038→                icon={<Swords className="w-7 h-7" style={{ color: winnerColor }} />}
+  1039→                title="RAID FIRST"
+  1040→                subtitle={raidStrategy}
+  1041→                color={winnerColor}
+  1042→                onClick={() => handleChooseAdvantage(tossWinner)}
+  1043→                delay={0.2}
+  1044→              />
+  1045→
+  1046→              {/* CHOOSE COURT */}
+  1047→              <AdvantageCard
+  1048→                icon={<Shield className="w-7 h-7" style={{ color: loserColor }} />}
+  1049→                title="CHOOSE COURT"
+  1050→                subtitle={defendStrategy}
+  1051→                color={loserColor}
+  1052→                onClick={() => handleChooseAdvantage(tossWinner === 'home' ? 'away' : 'home')}
+  1053→                delay={0.35}
+  1054→              />
+  1055→            </div>
+  1056→
+  1057→            {/* Info line */}
+  1058→            <motion.div
+  1059→              initial={{ opacity: 0 }}
+  1060→              animate={{ opacity: 1 }}
+  1061→              transition={{ delay: 0.5 }}
+  1062→              className="mt-4 flex items-center justify-center gap-1.5 text-[10px] text-gray-500"
+  1063→            >
+  1064→              <Sparkles className="w-3 h-3" />
+  1065→              <span>Raid First: {winnerName} attacks first</span>
+  1066→              <span className="mx-1">·</span>
+  1067→              <span>Choose Court: {loserName} raids first</span>
+  1068→            </motion.div>
+  1069→          </motion.div>
+  1070→        )}
+  1071→      </AnimatePresence>
+  1072→
+  1073→      {/* ═══ Countdown Phase ═══ */}
+  1074→      <AnimatePresence>
+  1075→        {phase === 'countdown' && countdown !== null && (
+  1076→          <motion.div
+  1077→            initial={{ opacity: 0 }}
+  1078→            animate={{ opacity: 1 }}
+  1079→            exit={{ opacity: 0 }}
+  1080→            className="relative z-10 text-center"
+  1081→          >
+  1082→            <motion.div
+  1083→              key={countdown}
+  1084→              initial={{ scale: 2.5, opacity: 0 }}
+  1085→              animate={{ scale: 1, opacity: 1 }}
+  1086→              exit={{ scale: 0.5, opacity: 0 }}
+  1087→              transition={{ type: 'spring', damping: 15, stiffness: 200 }}
+  1088→              className="text-8xl font-black text-white mb-3"
+  1089→              style={{ textShadow: `0 0 40px ${winnerColor}40` }}
+  1090→            >
+  1091→              {countdown}
+  1092→            </motion.div>
+  1093→            <motion.p
+  1094→              initial={{ opacity: 0, y: 10 }}
+  1095→              animate={{ opacity: 1, y: 0 }}
+  1096→              transition={{ delay: 0.2 }}
+  1097→              className="text-base font-bold mb-1"
+  1098→              style={{ color: winnerColor }}
+  1099→            >
+  1100→              Match Starting!
+  1101→            </motion.p>
+  1102→            <p className="text-xs text-gray-500">
+  1103→              {winnerName} chose to {tossWinner === tossWinner ? 'raid' : 'defend'} first
+  1104→            </p>
+  1105→          </motion.div>
+  1106→        )}
+  1107→      </AnimatePresence>
+  1108→    </div>
+  1109→  );
+  1110→}
+  1111→
