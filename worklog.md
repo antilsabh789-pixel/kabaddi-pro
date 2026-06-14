@@ -577,3 +577,45 @@ Stage Summary:
   - Without this, the app tries sandbox API which rejects the production credentials
 - ✅ Payment diagnostic endpoint available at /api/payments?diagnostic=true
 - ✅ Cashfree redirect URL fallback added if SDK checkout fails
+
+---
+Task ID: 18
+Agent: Main
+Task: Fix Cashfree "Broken Link" error when purchasing Premium
+
+Work Log:
+- User reported Cashfree payment showing "Broken Link!" error with screenshot
+- Analyzed the screenshot using VLM: Cashfree shows domain not whitelisted error
+- Root cause: Cashfree requires domain whitelisting in merchant dashboard for redirect-based checkout
+- Fix 1: Changed Cashfree checkout mode from `_self` (full page redirect) to `_modal` (popup overlay)
+  - Modal mode opens payment in an iframe popup within the app
+  - Still requires domain whitelisting but provides better UX
+- Fix 2: Added payment verification flow after checkout completes
+  - New `verifyPayment()` function that calls POST /api/payments/verify
+  - Verifying state with "Verifying payment..." loading indicator
+  - Handles payment success: updates user to premium, shows success UI
+  - Handles payment failure: shows error message
+- Fix 3: Updated return_url in create-order to point to main app page with `?payment=redirect&order_id=xxx`
+  - Added handling for `payment=redirect` param in PremiumUpgradeScreen
+  - Also handles `payment=success` and `payment=failed` params from verify route redirect
+  - Cleans URL params after processing
+- Fix 4: Added notify_url only for non-localhost environments (webhook won't work locally)
+- Fix 5: Better error handling for popup blocker and checkout failures
+- Tested on Vercel: Cashfree checkout opens in modal/iframe mode (not redirect)
+- BUT: Cashfree still shows "Broken Link!" because domain whitelisting is required regardless of mode
+
+Stage Summary:
+- ✅ Changed checkout mode to _modal (popup) for better UX
+- ✅ Added payment verification after checkout completes
+- ✅ Better error handling and user feedback
+- ✅ Pushed to Vercel (commit: c382d87)
+- ❌ **DOMAIN WHITELISTING STILL REQUIRED** — Cashfree checks the domain regardless of checkout mode
+
+**ACTION REQUIRED — User must whitelist domain in Cashfree merchant dashboard:**
+1. Go to https://merchant.cashfree.com → Login with your Cashfree credentials
+2. Navigate to **Developers** → **Whitelisting**
+3. Add domain: `kabaddi-app-cyan.vercel.app`
+4. Submit and wait for approval (usually instant for production accounts)
+5. After whitelisting, the payment checkout will work properly
+
+Alternative: If you have a custom domain, add that instead and update the Vercel deployment URL.
