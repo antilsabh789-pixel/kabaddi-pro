@@ -575,6 +575,6 @@ export function getDiagnosticInfo() {
     authKeyPrefix: config.msg91AuthKey ? config.msg91AuthKey.substring(0, 6) + '...' : '(missing)',
     isConfigured: validateConfig(config) === null,
     validationError: validateConfig(config),
-    note: 'MSG91 KYC must be completed for SMS delivery in India. Go to https://control.msg91.com → Profile → KYC',
+    note: 'MSG91 requires: (1) KYC completed, (2) Valid template or built-in OTP service, (3) Wallet balance for delivery',
   };
 }
