@@ -6,7 +6,7 @@ function getCashfreeConfig() {
   const isProduction = env === 'production';
   const defaultBaseUrl = isProduction
     ? 'https://api.cashfree.com/pg'
-    : 'https://sandbox-api.cashfree.com/pg';
+    : 'https://sandbox.cashfree.com/pg';
 
   return {
     appId: process.env.CASHFREE_APP_ID || '',

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       const isProduction = env === 'production';
       const defaultBaseUrl = isProduction
         ? 'https://api.cashfree.com/pg'
-        : 'https://sandbox-api.cashfree.com/pg';
+        : 'https://sandbox.cashfree.com/pg';
 
       return NextResponse.json({
         configured: !!(process.env.CASHFREE_APP_ID && process.env.CASHFREE_SECRET_KEY),
