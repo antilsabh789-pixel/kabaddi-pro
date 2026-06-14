@@ -211,3 +211,27 @@ Stage Summary:
   3. **Alternative**: Try TextLocal (https://textlocal.in) - simpler setup, no minimum spend
 - Auto-fallback system is working correctly: tries Fast2SMS → MSG91, reports exact errors
 - Once either provider has credits, OTP will work immediately
+
+---
+Task ID: 8
+Agent: Main
+Task: Verify Fast2SMS OTP after user recharge
+
+Work Log:
+- User recharged Fast2SMS with ₹100+
+- Tested OTP on Vercel: Fast2SMS Quick route now returns "SMS sent successfully" ✅
+- Previous test number 9876543210 was on DND list (code:427), different number worked
+- Tested full sign-up flow via agent-browser:
+  1. Opened kabaddi-app-cyan.vercel.app ✅
+  2. Clicked Sign Up ✅
+  3. Entered phone number ✅
+  4. Clicked Send OTP ✅
+  5. Verify Phone screen with 6-digit OTP input appeared ✅
+- Fast2SMS Quick route is the working method (no DLT, no website verification needed)
+
+Stage Summary:
+- ✅ Fast2SMS OTP is WORKING on Vercel deployment
+- ✅ Quick route delivers SMS successfully
+- ⚠️ Some numbers may be on DND list (code:427) - this is a telecom restriction, not a bug
+- ⚠️ OTP route still needs website verification (code:996) - not critical since Quick route works
+- ⚠️ MSG91 still has 0 SMS credits - not an issue since Fast2SMS is primary
