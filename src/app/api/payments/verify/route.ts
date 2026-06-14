@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 function getCashfreeConfig() {
+  const env = process.env.CASHFREE_ENV || 'sandbox';
+  const isProduction = env === 'production';
+  const defaultBaseUrl = isProduction
+    ? 'https://api.cashfree.com/pg'
+    : 'https://sandbox-api.cashfree.com/pg';
+
   return {
     appId: process.env.CASHFREE_APP_ID || '',
     secretKey: process.env.CASHFREE_SECRET_KEY || '',
-    apiVersion: process.env.CASHFREE_API_VERSION || '2025-01-01',
-    baseUrl: process.env.CASHFREE_BASE_URL || 'https://api.cashfree.com/pg',
+    apiVersion: process.env.CASHFREE_API_VERSION || '2023-08-01',
+    baseUrl: process.env.CASHFREE_BASE_URL || defaultBaseUrl,
+    env,
+    isProduction,
   };
 }
 

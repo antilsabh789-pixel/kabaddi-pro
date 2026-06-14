@@ -26,11 +26,19 @@ const VALID_COUPONS: Record<string, { discount: number; type: 'percent' | 'flat'
 };
 
 function getCashfreeConfig() {
+  const env = process.env.CASHFREE_ENV || 'sandbox';
+  const isProduction = env === 'production';
+  const defaultBaseUrl = isProduction
+    ? 'https://api.cashfree.com/pg'
+    : 'https://sandbox-api.cashfree.com/pg';
+
   return {
     appId: process.env.CASHFREE_APP_ID || '',
     secretKey: process.env.CASHFREE_SECRET_KEY || '',
-    apiVersion: process.env.CASHFREE_API_VERSION || '2025-01-01',
-    baseUrl: process.env.CASHFREE_BASE_URL || 'https://api.cashfree.com/pg',
+    apiVersion: process.env.CASHFREE_API_VERSION || '2023-08-01',
+    baseUrl: process.env.CASHFREE_BASE_URL || defaultBaseUrl,
+    env,
+    isProduction,
   };
 }
 
@@ -122,6 +130,8 @@ export async function POST(request: NextRequest) {
       order_note: `Kabaddi Pro ${plan} plan${couponCode ? ` (coupon: ${couponCode})` : ''}`,
     };
 
+    console.log(`[Cashfree] Creating order: baseUrl=${config.baseUrl}, env=${config.env}, apiVersion=${config.apiVersion}, orderId=${cashfreeOrderId}`);
+
     const cashfreeResponse = await fetch(`${config.baseUrl}/orders`, {
       method: 'POST',
       headers: {
@@ -135,7 +145,7 @@ export async function POST(request: NextRequest) {
 
     if (!cashfreeResponse.ok) {
       const errorData = await cashfreeResponse.json().catch(() => ({}));
-      console.error('Cashfree create order error:', errorData);
+      console.error('[Cashfree] Create order error:', JSON.stringify(errorData));
       return NextResponse.json(
         { error: 'Failed to create payment order with Cashfree', details: errorData },
         { status: 500 }
@@ -143,6 +153,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cashfreeData = await cashfreeResponse.json();
+    console.log(`[Cashfree] Order created: orderId=${cashfreeData.order_id}, hasPaymentSessionId=${!!cashfreeData.payment_session_id}, orderStatus=${cashfreeData.order_status}`);
 
     // Save payment record to database
     const payment = await db.payment.create({

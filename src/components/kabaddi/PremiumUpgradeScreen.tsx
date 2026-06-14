@@ -4,7 +4,7 @@
 declare global {
   interface Window {
     Cashfree?: new (config: { mode: 'production' | 'sandbox' }) => {
-      checkout: (options: { paymentSessionId: string; redirectTarget?: string }) => void;
+      checkout: (options: { paymentSessionId: string; redirectTarget?: string }) => Promise<string | void>;
     };
   }
 }
@@ -254,8 +254,11 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
           const script = document.createElement('script');
           script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
           script.async = true;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('Failed to load payment gateway'));
+          script.onload = () => {
+            console.log('[Cashfree] SDK loaded successfully');
+            resolve();
+          };
+          script.onerror = () => reject(new Error('Failed to load payment gateway. Please check your internet connection.'));
           document.body.appendChild(script);
         });
       }
@@ -267,13 +270,25 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       }
 
       const cfMode = orderData.env === 'production' ? 'production' : 'sandbox';
+      console.log(`[Cashfree] Opening checkout: mode=${cfMode}, hasSessionId=${!!orderData.paymentSessionId}, orderId=${orderData.orderId}`);
       const cf = new CashfreeClass({ mode: cfMode });
 
       // Open checkout — Cashfree will handle the payment UI
-      cf.checkout({
-        paymentSessionId: orderData.paymentSessionId,
-        redirectTarget: '_self',
-      });
+      try {
+        const result = await cf.checkout({
+          paymentSessionId: orderData.paymentSessionId,
+          redirectTarget: '_self',
+        });
+        console.log('[Cashfree] Checkout result:', result);
+      } catch (checkoutError) {
+        console.error('[Cashfree] Checkout error:', checkoutError);
+        // If the SDK checkout fails, try the redirect approach as fallback
+        const cashfreePayUrl = cfMode === 'sandbox'
+          ? `https://sandbox.cashfree.com/pg/orders/pay/${orderData.paymentSessionId}`
+          : `https://payments.cashfree.com/pg/orders/pay/${orderData.paymentSessionId}`;
+        console.log('[Cashfree] Falling back to redirect URL:', cashfreePayUrl);
+        window.location.href = cashfreePayUrl;
+      }
 
     } catch (error) {
       console.error('Payment error:', error);

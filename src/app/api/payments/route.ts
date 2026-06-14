@@ -6,6 +6,34 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const status = searchParams.get('status') || 'paid';
+    const diagnostic = searchParams.get('diagnostic');
+
+    // Payment gateway diagnostic endpoint
+    if (diagnostic === 'true') {
+      const env = process.env.CASHFREE_ENV || 'sandbox';
+      const isProduction = env === 'production';
+      const defaultBaseUrl = isProduction
+        ? 'https://api.cashfree.com/pg'
+        : 'https://sandbox-api.cashfree.com/pg';
+
+      return NextResponse.json({
+        configured: !!(process.env.CASHFREE_APP_ID && process.env.CASHFREE_SECRET_KEY),
+        env,
+        isProduction,
+        baseUrl: process.env.CASHFREE_BASE_URL || defaultBaseUrl,
+        apiVersion: process.env.CASHFREE_API_VERSION || '2023-08-01',
+        hasAppId: !!process.env.CASHFREE_APP_ID,
+        hasSecretKey: !!process.env.CASHFREE_SECRET_KEY,
+        appIdPrefix: process.env.CASHFREE_APP_ID?.substring(0, 6) || 'NOT_SET',
+        recommendation: !process.env.CASHFREE_APP_ID
+          ? 'CASHFREE_APP_ID not set. Add it in Vercel Environment Variables.'
+          : !process.env.CASHFREE_SECRET_KEY
+            ? 'CASHFREE_SECRET_KEY not set. Add it in Vercel Environment Variables.'
+            : env === 'sandbox' && process.env.CASHFREE_BASE_URL === 'https://api.cashfree.com/pg'
+              ? 'MISMATCH: env=sandbox but BASE_URL=production! Remove CASHFREE_BASE_URL from env vars or set it to sandbox URL.'
+              : 'Configuration looks correct.',
+      });
+    }
 
     if (userId) {
       // Get payments for a specific user
