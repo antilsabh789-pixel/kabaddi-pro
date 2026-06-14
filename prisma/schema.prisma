@@ -18,7 +18,8 @@ model User {
   avatar         String?
   isPremium      Boolean  @default(false) // premium subscription status
   isAdmin        Boolean  @default(false) // admin can see earnings dashboard
-  phoneVerified  Boolean  @default(false) // phone verified via OTP during signup
+  dateOfBirth    String?  // Format: "YYYY-MM-DD" - used for password reset verification
+  phoneVerified  Boolean  @default(true) // No OTP needed anymore
   gender         String?  // boy, girl
   weight         String?  // e.g., "65kg", "70kg"
   practiceGround String?  // practice ground / academy name
