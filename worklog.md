@@ -164,3 +164,27 @@ Stage Summary:
 - After selecting category, user picks their team and opponent first, then configures time/players
 - All navigation (next/prev) works correctly with new step order
 - Lint passes with no errors
+
+---
+Task ID: 2
+Agent: Main
+Task: Redesign team setup: Team A & Team B equal treatment with team code search + member suggestions
+
+Work Log:
+- Replaced "My Team" / "Opponent" phase-based flow with equal Team A / Team B layout
+- Removed teamSetupPhase state variable (no more 'my-team' / 'opponent' phases)
+- Added per-team state: homeTeamCode, awayTeamCode, homeTeamSearchResults, awayTeamSearchResults, isSearchingHomeTeam, isSearchingAwayTeam, showCreateTeamFor
+- Both teams now have identical options: team code search, "Your Teams" suggestions, "Create New Team", manual name entry, color picker
+- Created unified selectTeam() function that works for both home/away sides
+- Updated handleCreateTeam() to accept side parameter
+- Both teams show on the same page with VS divider (Swords icon) between them
+- Team A uses brand-red accent, Team B uses brand-teal accent for visual differentiation
+- Selected teams show "Change" button and player count confirmation
+- Filters prevent selecting same team for both sides
+- Agent-browser verified: Team A/B labels, equal options, Next button works correctly
+
+Stage Summary:
+- Team setup is now symmetric - Team A and Team B are treated equally
+- Both teams support: team code search, user's team suggestions, create team, manual entry
+- No more "opponent" concept - both teams are just teams in the match
+- Lint passes, dev server running without errors
