@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
       discount: discountPaise,
       currency: 'INR',
       orderStatus: cashfreeData.order_status || 'ACTIVE',
-      env: process.env.CASHFREE_ENV || 'sandbox',
+      env: config.env,
     });
   } catch (error: unknown) {
     console.error('Create order error:', error);
