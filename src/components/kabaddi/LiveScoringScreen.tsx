@@ -28,25 +28,9 @@ const RAID_GAP_TIMEOUT = 5; // seconds after raid ends before auto-pause
 const MAX_TIMEOUTS = 2; // max timeouts per team (practice matches)
 const TIMEOUT_DURATION = 120; // 2 minutes timeout duration
 
-// ─── Confetti Particle ──────────────────────────────────────────────
+// Animations (Confetti, All Out, Super Raid) removed from scorer screen — these run on viewer's phone only
 
-function ConfettiParticle({ delay, color, index }: { delay: number; color: string; index: number }) {
-  const leftPos = (index * 17 + 13) % 100;
-  const rotateEnd = (index * 47 + 23) % 720 - 360;
-  const xDrift = ((index * 31) % 80) - 40;
-
-  return (
-    <motion.div
-      initial={{ y: -20, x: 0, rotate: 0, opacity: 1 }}
-      animate={{ y: '100vh', x: xDrift, rotate: rotateEnd, opacity: 0 }}
-      transition={{ duration: 3 + (index % 3), delay, ease: 'easeIn' }}
-      className="absolute top-0 w-2 h-2 rounded-sm"
-      style={{ left: `${leftPos}%`, backgroundColor: color }}
-    />
-  );
-}
-
-function MatchEndCelebration({
+function MatchEndScreen({
   homeTeam,
   awayTeam,
   homeScore,
@@ -69,83 +53,31 @@ function MatchEndCelebration({
 }) {
   const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
   const winnerName = winner === 'home' ? homeTeam : winner === 'away' ? awayTeam : 'Draw';
-  const colors = [homeColor, awayColor, '#FFD700', '#FF6B35', '#00C853', '#E040FB'];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-    >
-      {/* Confetti */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        {Array.from({ length: 50 }).map((_, i) => (
-          <ConfettiParticle key={i} index={i} delay={i * 0.06} color={colors[i % colors.length]} />
-        ))}
-      </div>
-
-      <motion.div
-        initial={{ scale: 0.5, opacity: 0, y: 30 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.5, opacity: 0, y: 30 }}
-        transition={{ type: 'spring', damping: 15, stiffness: 200 }}
-        className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl"
-        style={{
-          background: `linear-gradient(135deg, ${homeColor}15, ${awayColor}15)`,
-        }}
-      >
-        {/* Winner header */}
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl" style={{ background: `linear-gradient(135deg, ${homeColor}15, ${awayColor}15)` }}>
         <div className="px-6 pt-8 pb-4 text-center">
-          <motion.div
-            animate={{ scale: [1, 1.2, 1], rotate: [0, -5, 5, -5, 0] }}
-            transition={{ duration: 1.5, repeat: 2 }}
-            className="text-5xl mb-3"
-          >
-            🏆
-          </motion.div>
-          <motion.h2
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-2xl font-black text-gray-800 dark:text-warm-100"
-          >
-            {winner === 'draw' ? 'It\'s a Draw!' : `${winnerName} Wins!`}
-          </motion.h2>
-
-          {/* Score display */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="flex items-center justify-center gap-4 mt-4"
-          >
+          <div className="text-5xl mb-3">🏆</div>
+          <h2 className="text-2xl font-black text-gray-800 dark:text-warm-100">
+            {winner === 'draw' ? "It's a Draw!" : `${winnerName} Wins!`}
+          </h2>
+          <div className="flex items-center justify-center gap-4 mt-4">
             <div className="text-center">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md" style={{ backgroundColor: homeColor }}>
-                {homeTeam.charAt(0)}
-              </div>
+              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md" style={{ backgroundColor: homeColor }}>{homeTeam.charAt(0)}</div>
               <p className="text-xs font-bold mt-1" style={{ color: homeColor }}>{homeTeam}</p>
               <p className="text-3xl font-black mt-1" style={{ color: homeColor }}>{homeScore}</p>
             </div>
             <span className="text-xl text-gray-300 font-bold">-</span>
             <div className="text-center">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md" style={{ backgroundColor: awayColor }}>
-                {awayTeam.charAt(0)}
-              </div>
+              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md" style={{ backgroundColor: awayColor }}>{awayTeam.charAt(0)}</div>
               <p className="text-xs font-bold mt-1" style={{ color: awayColor }}>{awayTeam}</p>
               <p className="text-3xl font-black mt-1" style={{ color: awayColor }}>{awayScore}</p>
             </div>
-          </motion.div>
+          </div>
         </div>
-
-        {/* MOTM */}
         {motm && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="mx-6 mb-4 p-3 rounded-xl bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50"
-          >
+          <div className="mx-6 mb-4 p-3 rounded-xl bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50">
             <div className="flex items-center gap-2">
               <Crown className="w-5 h-5 text-yellow-500" />
               <div>
@@ -154,34 +86,24 @@ function MatchEndCelebration({
                 <p className="text-xs text-yellow-600 dark:text-yellow-400 font-bold">{motm.points} points</p>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
-
-        {/* Actions */}
         <div className="px-6 pb-6 flex gap-3">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={onShare}
-            className="flex-1 py-3 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg"
-          >
+          <button onClick={onShare} className="flex-1 py-3 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg">
             <Share2 className="w-4 h-4" /> Share
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={onDone}
-            className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-warm-700 hover:bg-gray-200 text-gray-700 dark:text-warm-200 font-bold text-sm"
-          >
+          </button>
+          <button onClick={onDone} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-warm-700 hover:bg-gray-200 text-gray-700 dark:text-warm-200 font-bold text-sm">
             Done
-          </motion.button>
+          </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
 // ─── Half Time Transition Screen ────────────────────────────────────
 
-function HalfTimeTransition({
+function HalfTimeScreen({
   half,
   homeTeam,
   awayTeam,
@@ -201,36 +123,11 @@ function HalfTimeTransition({
   onContinue: () => void;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-    >
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.8, opacity: 0 }}
-        className="w-full max-w-sm rounded-3xl p-6 text-center"
-        style={{
-          background: `linear-gradient(135deg, ${homeColor}10, ${awayColor}10)`,
-        }}
-      >
-        <motion.div
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="text-4xl mb-3"
-        >
-          ⏱️
-        </motion.div>
-        <h2 className="text-2xl font-black text-gray-800 dark:text-warm-100 mb-1">
-          Half Time!
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-warm-400 mb-4">
-          {half === 1 ? '1st Half Complete' : '2nd Half Starting'}
-        </p>
-
-        {/* Score summary */}
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="w-full max-w-sm rounded-3xl p-6 text-center" style={{ background: `linear-gradient(135deg, ${homeColor}10, ${awayColor}10)` }}>
+        <div className="text-4xl mb-3">⏱️</div>
+        <h2 className="text-2xl font-black text-gray-800 dark:text-warm-100 mb-1">Half Time!</h2>
+        <p className="text-sm text-gray-500 dark:text-warm-400 mb-4">{half === 1 ? '1st Half Complete' : '2nd Half Starting'}</p>
         <div className="flex items-center justify-center gap-6 mb-6">
           <div className="text-center">
             <p className="text-xs font-bold" style={{ color: homeColor }}>{homeTeam}</p>
@@ -242,180 +139,15 @@ function HalfTimeTransition({
             <p className="text-3xl font-black" style={{ color: awayColor }}>{awayScore}</p>
           </div>
         </div>
-
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={onContinue}
-          className="w-full py-3 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-sm shadow-lg"
-        >
+        <button onClick={onContinue} className="w-full py-3 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-sm shadow-lg">
           Continue to {half === 1 ? '2nd Half' : 'Match'}
-        </motion.button>
-      </motion.div>
-    </motion.div>
+        </button>
+      </div>
+    </div>
   );
 }
 
-// ─── All Out Celebration Overlay ────────────────────────────────────
-
-function AllOutCelebration({
-  teamName,
-  teamColor,
-  onDismiss,
-}: {
-  teamName: string;
-  teamColor: string;
-  onDismiss: () => void;
-}) {
-  useEffect(() => {
-    const timer = setTimeout(onDismiss, 2000);
-    return () => clearTimeout(timer);
-  }, [onDismiss]);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.8 }}
-      transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
-    >
-      {/* Full screen team color flash */}
-      <motion.div
-        initial={{ opacity: 0.6 }}
-        animate={{ opacity: 0 }}
-        transition={{ duration: 0.8 }}
-        className="absolute inset-0"
-        style={{ backgroundColor: teamColor }}
-      />
-
-      <motion.div
-        initial={{ scale: 0.3, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', damping: 10, stiffness: 200 }}
-        className="relative px-8 py-6 rounded-2xl text-center"
-        style={{
-          background: `linear-gradient(135deg, ${teamColor}50, ${teamColor}25)`,
-          boxShadow: `0 0 60px ${teamColor}60`,
-        }}
-      >
-        <motion.div
-          animate={{ scale: [1, 1.3, 1], rotate: [0, 10, -10, 0] }}
-          transition={{ duration: 0.5, repeat: 2 }}
-          className="text-5xl mb-1"
-        >
-          💥
-        </motion.div>
-        <motion.h3
-          animate={{ scale: [1, 1.08, 1] }}
-          transition={{ duration: 0.3, repeat: 2 }}
-          className="text-2xl font-black"
-          style={{ color: teamColor }}
-        >
-          ALL OUT!
-        </motion.h3>
-        <p className="text-xs font-bold text-white/90 mt-0.5 drop-shadow-lg">
-          {teamName} • +2 pts • All revive
-        </p>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ─── Super Raid Celebration Overlay ─────────────────────────────────
-
-function SuperRaidCelebration({
-  teamName,
-  teamColor,
-  playerName,
-  onDismiss,
-}: {
-  teamName: string;
-  teamColor: string;
-  playerName: string;
-  onDismiss: () => void;
-}) {
-  useEffect(() => {
-    const timer = setTimeout(onDismiss, 2000);
-    return () => clearTimeout(timer);
-  }, [onDismiss]);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.8 }}
-      transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
-    >
-      {/* Fire-themed background flash */}
-      <motion.div
-        initial={{ opacity: 0.6 }}
-        animate={{ opacity: 0 }}
-        transition={{ duration: 0.8 }}
-        className="absolute inset-0"
-        style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.3), rgba(234,179,8,0.2))' }}
-      />
-
-      {/* Fire particles - reduced count */}
-      {Array.from({ length: 10 }).map((_, i) => (
-        <motion.div
-          key={i}
-          initial={{
-            y: 0,
-            x: ((i * 37) % 200) - 100,
-            opacity: 1,
-            scale: 1,
-          }}
-          animate={{
-            y: -150 - (i % 3) * 40,
-            x: ((i * 37) % 200) - 100 + ((i % 2 === 0 ? 1 : -1) * (i % 5) * 8),
-            opacity: 0,
-            scale: 0.3,
-          }}
-          transition={{
-            duration: 1 + (i % 3) * 0.3,
-            delay: i * 0.04,
-            ease: 'easeOut',
-          }}
-          className="absolute text-xl"
-          style={{ left: `${40 + (i * 3) % 20}%`, bottom: '35%' }}
-        >
-          {i % 3 === 0 ? '🔥' : i % 3 === 1 ? '✨' : '💥'}
-        </motion.div>
-      ))}
-
-      <motion.div
-        initial={{ scale: 0.3, opacity: 0, rotate: -10 }}
-        animate={{ scale: 1, opacity: 1, rotate: 0 }}
-        transition={{ type: 'spring', damping: 15, stiffness: 250 }}
-        className="relative px-6 py-4 rounded-2xl text-center"
-        style={{
-          background: `linear-gradient(135deg, #ea580c50, #eab30830)`,
-          boxShadow: `0 0 40px rgba(234,88,12,0.4), 0 0 80px rgba(234,179,8,0.2)`,
-        }}
-      >
-        <motion.div
-          animate={{ scale: [1, 1.3, 1], rotate: [0, 8, -8, 0] }}
-          transition={{ duration: 0.4, repeat: 2 }}
-          className="text-5xl mb-1"
-        >
-          🔥
-        </motion.div>
-        <motion.h3
-          animate={{ scale: [1, 1.08, 1] }}
-          transition={{ duration: 0.3, repeat: 2 }}
-          className="text-2xl font-black"
-          style={{ color: '#ea580c' }}
-        >
-          SUPER RAID!
-        </motion.h3>
-        <p className="text-xs font-bold text-white/90 mt-0.5 drop-shadow-lg">
-          {playerName} • 3+ pts • {teamName}
-        </p>
-      </motion.div>
-    </motion.div>
-  );
-}
+// All Out & Super Raid celebration overlays removed from scorer screen — these run on viewer's phone only
 
 // ─── Do or Die Indicator ────────────────────────────────────────────
 
@@ -630,13 +362,15 @@ export default function LiveScoringScreen() {
 
   // Substitute mode
   const [showSubMode, setShowSubMode] = useState<'home' | 'away' | null>(null);
-  const [subOutPlayer, setSubOutPlayer] = useState<MatchPlayer | null>(null);
+  const [subInPlayer, setSubInPlayer] = useState<MatchPlayer | null>(null);
 
   // Add player mid-match
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [addPlayerTeam, setAddPlayerTeam] = useState<'home' | 'away' | null>(null);
   const [addPlayerName, setAddPlayerName] = useState('');
   const [addPlayerJersey, setAddPlayerJersey] = useState('');
+  const [addPlayerId, setAddPlayerId] = useState('');
+  const [addPlayerSearchResults, setAddPlayerSearchResults] = useState<Array<{ id: string; name: string; jerseyNumber?: number; playerCode?: string }>>([]);
 
   // Match end state
   const [showEndMatchConfirm, setShowEndMatchConfirm] = useState(false);
@@ -658,8 +392,9 @@ export default function LiveScoringScreen() {
   const [allOutCelebration, setAllOutCelebration] = useState<{ teamName: string; teamColor: string } | null>(null);
   const [eventConfirm, setEventConfirm] = useState<{ message: string; teamColor: string } | null>(null);
   const [showTimeoutOverlay, setShowTimeoutOverlay] = useState(false);
+  const [showTimeoutTypeSelector, setShowTimeoutTypeSelector] = useState(false);
   const [timeoutCountdown, setTimeoutCountdown] = useState(TIMEOUT_DURATION);
-  const [timeoutTeam, setTimeoutTeam] = useState<'home' | 'away'>('home');
+  const [timeoutTeam, setTimeoutTeam] = useState<'home' | 'away' | 'official'>('home');
   const timeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Player profiles (avatars)
@@ -854,7 +589,7 @@ export default function LiveScoringScreen() {
     return () => {
       if (raidGapRef.current) clearInterval(raidGapRef.current);
     };
-  }, [raidGapTimer !== null, raidPhase, hasStartedRaiding, isPaused]);
+  }, [raidGapTimer, raidPhase, hasStartedRaiding, isPaused]);
 
   // ═══ TIMEOUT COUNTDOWN (2 minutes) ═══
   useEffect(() => {
@@ -955,6 +690,34 @@ export default function LiveScoringScreen() {
     }
     return { raid, tackle };
   }, [match?.events]);
+
+  // Search for existing players when adding mid-match (must be before early return for hooks rules)
+  useEffect(() => {
+    if (!showAddPlayer || !addPlayerTeam || !activeMatch) {
+      setAddPlayerSearchResults([]);
+      return;
+    }
+    const query = addPlayerName.trim() || addPlayerId.trim() || addPlayerJersey.trim();
+    if (!query || query.length < 2) {
+      setAddPlayerSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const searchBy = addPlayerId.trim() ? 'phone_code' : 'name';
+        const searchQuery = addPlayerId.trim() || addPlayerName.trim();
+        const res = await fetch(`/api/players?search=${encodeURIComponent(searchQuery)}&searchBy=${searchBy}&limit=5`);
+        if (res.ok) {
+          const data = await res.json();
+          const teamId = addPlayerTeam === 'home' ? activeMatch.homeTeamId : activeMatch.awayTeamId;
+          // Filter to players on this team only
+          const results = (data.players || []).filter((p: { teamId?: string }) => p.teamId === teamId || !p.teamId);
+          setAddPlayerSearchResults(results.slice(0, 5));
+        }
+      } catch { /* ignore */ }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [addPlayerName, addPlayerId, addPlayerJersey, addPlayerTeam, showAddPlayer, activeMatch?.homeTeamId, activeMatch?.awayTeamId]);
 
   if (!match) return null;
 
@@ -1373,22 +1136,42 @@ export default function LiveScoringScreen() {
     toast({ title: 'Last raid undone', duration: 1500 });
   };
 
-  const handleTimeout = (team?: 'home' | 'away') => {
-    const timeoutFor = team || raidingTeam;
-    const currentTimeouts = timeoutFor === 'home' ? match.homeTimeouts : match.awayTimeouts;
+  const handleTimeout = (team?: 'home' | 'away' | 'official') => {
+    // If no team specified, show the selector dialog
+    if (!team) {
+      setShowTimeoutTypeSelector(true);
+      return;
+    }
+
+    // Official timeout doesn't count against team totals
+    if (team === 'official') {
+      setIsPaused(true);
+      if (raidTimerRef.current) clearInterval(raidTimerRef.current);
+      clearRaidGap();
+      addEvent({
+        matchId: match.id, eventType: 'timeout', teamId: 'official',
+        half: match.currentHalf, value: 0,
+      });
+      setTimeoutTeam('official');
+      setShowTimeoutOverlay(true);
+      setShowTimeoutTypeSelector(false);
+      return;
+    }
+
+    const currentTimeouts = team === 'home' ? match.homeTimeouts : match.awayTimeouts;
 
     if (currentTimeouts >= MAX_TIMEOUTS) {
       toast({
         title: 'No timeouts left!',
-        description: `${timeoutFor === 'home' ? match.homeTeam : match.awayTeam} has used all ${MAX_TIMEOUTS} timeouts`,
+        description: `${team === 'home' ? match.homeTeam : match.awayTeam} has used all ${MAX_TIMEOUTS} timeouts`,
         duration: 2000,
       });
       return;
     }
 
     if (!hasStartedRaiding) setHasStartedRaiding(true);
-    const teamId = timeoutFor === 'home' ? match.homeTeamId : match.awayTeamId;
-    callTimeout(timeoutFor);
+    const teamId = team === 'home' ? match.homeTeamId : match.awayTeamId;
+    callTimeout(team);
     setIsPaused(true);
     if (raidTimerRef.current) clearInterval(raidTimerRef.current);
     clearRaidGap();
@@ -1396,8 +1179,9 @@ export default function LiveScoringScreen() {
       matchId: match.id, eventType: 'timeout', teamId,
       half: match.currentHalf, value: 0,
     });
-    setTimeoutTeam(timeoutFor);
+    setTimeoutTeam(team);
     setShowTimeoutOverlay(true);
+    setShowTimeoutTypeSelector(false);
   };
 
   // Quick action handlers for special events
@@ -1536,7 +1320,7 @@ export default function LiveScoringScreen() {
     }
 
     setShowSubMode(null);
-    setSubOutPlayer(null);
+    setSubInPlayer(null);
     toast({ title: `${inPlayer.name} subs in for ${outPlayer.name}`, duration: 2000 });
   };
 
@@ -1550,10 +1334,11 @@ export default function LiveScoringScreen() {
       return;
     }
     const newPlayer: MatchPlayer = {
-      id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      id: addPlayerId.trim() || `p_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
       name: addPlayerName.trim(),
       jerseyNumber: addPlayerJersey ? parseInt(addPlayerJersey) || lineup.length + 1 : lineup.length + 1,
       team: addPlayerTeam,
+      playerCode: addPlayerId.trim() || undefined,
     };
     addPlayerToMatch(addPlayerTeam, newPlayer);
     const teamName = addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam;
@@ -1561,6 +1346,8 @@ export default function LiveScoringScreen() {
     triggerFeedback(SoundType.WHISTLE);
     setAddPlayerName('');
     setAddPlayerJersey('');
+    setAddPlayerId('');
+    setAddPlayerSearchResults([]);
     setShowAddPlayer(false);
     setAddPlayerTeam(null);
   };
@@ -1938,61 +1725,36 @@ export default function LiveScoringScreen() {
         />
       )}
 
-      {/* Match End Celebration */}
-      <AnimatePresence>
-        {showMatchEndCelebration && savedMatchData && (
-          <MatchEndCelebration
-            homeTeam={savedMatchData.homeTeam}
-            awayTeam={savedMatchData.awayTeam}
-            homeScore={savedMatchData.homeScore}
-            awayScore={savedMatchData.awayScore}
-            homeColor={savedMatchData.homeTeamColor}
-            awayColor={savedMatchData.awayTeamColor}
-            motm={motmPlayer}
-            onShare={() => setShowShareScorecard(true)}
-            onDone={() => setShowMatchEndCelebration(false)}
-          />
-        )}
-      </AnimatePresence>
+      {/* Match End Screen (no animations for scorer) */}
+      {showMatchEndCelebration && savedMatchData && (
+        <MatchEndScreen
+          homeTeam={savedMatchData.homeTeam}
+          awayTeam={savedMatchData.awayTeam}
+          homeScore={savedMatchData.homeScore}
+          awayScore={savedMatchData.awayScore}
+          homeColor={savedMatchData.homeTeamColor}
+          awayColor={savedMatchData.awayTeamColor}
+          motm={motmPlayer}
+          onShare={() => setShowShareScorecard(true)}
+          onDone={() => setShowMatchEndCelebration(false)}
+        />
+      )}
 
-      {/* Half Time Transition */}
-      <AnimatePresence>
-        {showHalfTimeTransition && (
-          <HalfTimeTransition
-            half={match.currentHalf}
-            homeTeam={match.homeTeam}
-            awayTeam={match.awayTeam}
-            homeScore={match.homeScore}
-            awayScore={match.awayScore}
-            homeColor={match.homeTeamColor}
-            awayColor={match.awayTeamColor}
-            onContinue={() => setShowHalfTimeTransition(false)}
-          />
-        )}
-      </AnimatePresence>
+      {/* Half Time Screen (no animations for scorer) */}
+      {showHalfTimeTransition && (
+        <HalfTimeScreen
+          half={match.currentHalf}
+          homeTeam={match.homeTeam}
+          awayTeam={match.awayTeam}
+          homeScore={match.homeScore}
+          awayScore={match.awayScore}
+          homeColor={match.homeTeamColor}
+          awayColor={match.awayTeamColor}
+          onContinue={() => setShowHalfTimeTransition(false)}
+        />
+      )}
 
-      {/* All Out Celebration */}
-      <AnimatePresence>
-        {allOutCelebration && (
-          <AllOutCelebration
-            teamName={allOutCelebration.teamName}
-            teamColor={allOutCelebration.teamColor}
-            onDismiss={() => setAllOutCelebration(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Super Raid Celebration */}
-      <AnimatePresence>
-        {superRaidCelebration && (
-          <SuperRaidCelebration
-            teamName={superRaidCelebration.teamName}
-            teamColor={superRaidCelebration.teamColor}
-            playerName={superRaidCelebration.playerName}
-            onDismiss={() => setSuperRaidCelebration(null)}
-          />
-        )}
-      </AnimatePresence>
+      {/* All Out / Super Raid celebrations removed from scorer screen */}
 
       {/* Self-Out Confirmation Popup */}
       <AnimatePresence>
@@ -2038,119 +1800,210 @@ export default function LiveScoringScreen() {
         )}
       </AnimatePresence>
 
-      {/* Timeout Overlay (2 minutes) */}
-      <AnimatePresence>
-        {showTimeoutOverlay && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="w-full max-w-xs rounded-2xl p-6 text-center bg-gray-900 dark:bg-warm-800 border border-gray-700 dark:border-warm-700"
-              style={{ borderTopColor: timeoutTeam === 'home' ? match.homeTeamColor : match.awayTeamColor, borderTopWidth: '4px' }}
-            >
-              <Hand className="w-10 h-10 text-orange-500 mx-auto mb-3" />
-              <h3 className="text-lg font-black text-gray-100 dark:text-warm-100">Timeout</h3>
-              <p className="text-sm text-gray-400 dark:text-warm-400 mb-3">
-                {timeoutTeam === 'home' ? match.homeTeam : match.awayTeam} called a timeout
-              </p>
-              <div className="relative w-24 h-24 mx-auto mb-3">
-                <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
-                  <circle cx="48" cy="48" r="42" fill="none" stroke="#374151" strokeWidth="4" />
-                  <circle cx="48" cy="48" r="42" fill="none" stroke="#f97316" strokeWidth="4"
-                    strokeDasharray={`${2 * Math.PI * 42}`}
-                    strokeDashoffset={`${2 * Math.PI * 42 * (1 - timeoutCountdown / TIMEOUT_DURATION)}`}
-                    strokeLinecap="round" className="transition-all duration-1000" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-black text-orange-500 font-mono">{formatTime(timeoutCountdown)}</span>
+      {/* Timeout Type Selector */}
+      {showTimeoutTypeSelector && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-xs rounded-2xl p-5 text-center bg-gray-900 dark:bg-warm-800 border border-gray-700 dark:border-warm-700">
+            <Hand className="w-8 h-8 text-orange-500 mx-auto mb-3" />
+            <h3 className="text-lg font-black text-gray-100 dark:text-warm-100 mb-1">Timeout</h3>
+            <p className="text-xs text-gray-400 mb-4">Who called this timeout?</p>
+
+            <div className="space-y-2">
+              {/* Home Team */}
+              <button
+                onClick={() => handleTimeout('home')}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                style={{ backgroundColor: `${match.homeTeamColor}15` }}
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.homeTeamColor }}>
+                  {match.homeTeam.charAt(0)}
                 </div>
+                <div className="text-left flex-1">
+                  <p className="text-sm font-bold text-white">{match.homeTeam}</p>
+                  <p className="text-[10px] text-gray-400">{match.homeTimeouts}/{MAX_TIMEOUTS} used</p>
+                </div>
+                {match.homeTimeouts >= MAX_TIMEOUTS && (
+                  <span className="text-[9px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded-full">MAX</span>
+                )}
+              </button>
+
+              {/* Away Team */}
+              <button
+                onClick={() => handleTimeout('away')}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                style={{ backgroundColor: `${match.awayTeamColor}15` }}
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.awayTeamColor }}>
+                  {match.awayTeam.charAt(0)}
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-sm font-bold text-white">{match.awayTeam}</p>
+                  <p className="text-[10px] text-gray-400">{match.awayTimeouts}/{MAX_TIMEOUTS} used</p>
+                </div>
+                {match.awayTimeouts >= MAX_TIMEOUTS && (
+                  <span className="text-[9px] font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded-full">MAX</span>
+                )}
+              </button>
+
+              {/* Official Timeout */}
+              <button
+                onClick={() => handleTimeout('official')}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors bg-gray-800/50"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-600 text-white">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-sm font-bold text-white">Official Timeout</p>
+                  <p className="text-[10px] text-gray-400">No team limit</p>
+                </div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowTimeoutTypeSelector(false)}
+              className="w-full mt-3 py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Timeout Overlay (2 minutes) */}
+      {showTimeoutOverlay && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            className="w-full max-w-xs rounded-2xl p-6 text-center bg-gray-900 dark:bg-warm-800 border border-gray-700 dark:border-warm-700"
+            style={{ borderTopColor: timeoutTeam === 'home' ? match.homeTeamColor : timeoutTeam === 'away' ? match.awayTeamColor : '#f97316', borderTopWidth: '4px' }}
+          >
+            <Hand className="w-10 h-10 text-orange-500 mx-auto mb-3" />
+            <h3 className="text-lg font-black text-gray-100 dark:text-warm-100">
+              {timeoutTeam === 'official' ? 'Official Timeout' : 'Timeout'}
+            </h3>
+            <p className="text-sm text-gray-400 dark:text-warm-400 mb-3">
+              {timeoutTeam === 'official'
+                ? 'Officials called a timeout'
+                : timeoutTeam === 'home'
+                  ? `${match.homeTeam} called a timeout (${match.homeTimeouts}/${MAX_TIMEOUTS})`
+                  : `${match.awayTeam} called a timeout (${match.awayTimeouts}/${MAX_TIMEOUTS})`
+              }
+            </p>
+            <div className="relative w-24 h-24 mx-auto mb-3">
+              <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
+                <circle cx="48" cy="48" r="42" fill="none" stroke="#374151" strokeWidth="4" />
+                <circle cx="48" cy="48" r="42" fill="none" stroke="#f97316" strokeWidth="4"
+                  strokeDasharray={`${2 * Math.PI * 42}`}
+                  strokeDashoffset={`${2 * Math.PI * 42 * (1 - timeoutCountdown / TIMEOUT_DURATION)}`}
+                  strokeLinecap="round" className="transition-all duration-1000" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-2xl font-black text-orange-500 font-mono">{formatTime(timeoutCountdown)}</span>
               </div>
-              <div className="flex items-center justify-center gap-1 mb-3 text-[10px] text-gray-400">
-                <Clock className="w-3 h-3" />
-                <span>{Math.floor(timeoutCountdown / 60)}:{(timeoutCountdown % 60).toString().padStart(2, '0')} remaining</span>
+            </div>
+            <div className="flex items-center justify-center gap-1 mb-3 text-[10px] text-gray-400">
+              <Clock className="w-3 h-3" />
+              <span>{Math.floor(timeoutCountdown / 60)}:{(timeoutCountdown % 60).toString().padStart(2, '0')} remaining</span>
+            </div>
+            <button
+              onClick={() => {
+                setShowTimeoutOverlay(false);
+                setIsPaused(false);
+              }}
+              className="w-full py-2.5 rounded-xl bg-brand-red text-white font-bold text-sm"
+            >
+              Resume Play
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Substitute Mode Overlay — Tap sub IN first, then pick who goes OUT */}
+      {showSubMode && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center">
+          <div className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-4 max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-sm font-black text-gray-100 dark:text-warm-100">Substitution</div>
+                <div className="text-[10px] text-gray-400 dark:text-warm-500">
+                  {subInPlayer
+                    ? `Now tap an on-court player to sub OUT for ${subInPlayer.name}`
+                    : 'Tap a substitute player to bring IN'}
+                </div>
               </div>
               <button
-                onClick={() => {
-                  setShowTimeoutOverlay(false);
-                  setIsPaused(false);
-                }}
-                className="w-full py-2.5 rounded-xl bg-brand-red text-white font-bold text-sm"
+                onClick={() => { setShowSubMode(null); setSubInPlayer(null); }}
+                className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"
               >
-                Resume Play
+                <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
               </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
 
-      {/* Substitute Mode Overlay */}
-      <AnimatePresence>
-        {showSubMode && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center"
-          >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-4 max-h-[70vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-4">
+            {(() => {
+              const lineup = showSubMode === 'home' ? match.homeLineup : match.awayLineup;
+              const teamColor = showSubMode === 'home' ? match.homeTeamColor : match.awayTeamColor;
+              const outIds = showSubMode === 'home' ? match.homeOutPlayerIds : match.awayOutPlayerIds;
+              const { onCourt, substitutes: subs } = splitLineup(lineup, outIds);
+
+              return (
                 <div>
-                  <div className="text-sm font-black text-gray-100 dark:text-warm-100">Substitution</div>
-                  <div className="text-[10px] text-gray-400 dark:text-warm-500">
-                    Tap an on-court player OUT, then tap a substitute IN
-                  </div>
-                </div>
-                <button
-                  onClick={() => { setShowSubMode(null); setSubOutPlayer(null); }}
-                  className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"
-                >
-                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
-                </button>
-              </div>
+                  {/* If no sub selected yet, show substitutes to pick from */}
+                  {!subInPlayer ? (
+                    <div>
+                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                        Substitutes — Tap who comes IN
+                      </div>
+                      {subs.length === 0 ? (
+                        <p className="text-xs text-gray-500 text-center py-4">No substitutes available</p>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          {subs.map(player => (
+                            <button
+                              key={player.id}
+                              onClick={() => setSubInPlayer(player)}
+                              className="flex items-center gap-2 p-2 rounded-xl hover:bg-gray-800 transition-colors text-left"
+                            >
+                              <PlayerCard
+                                player={player}
+                                isOut={false}
+                                isSelectable={false}
+                                teamColor={teamColor}
+                              />
+                              <ChevronUp className="w-4 h-4 text-green-400 ml-auto" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Sub selected — show on-court players to pick who goes OUT */
+                    <div>
+                      {/* Selected sub indicator */}
+                      <div className="flex items-center gap-2 p-2 rounded-xl mb-3 border border-green-700/40" style={{ backgroundColor: `${teamColor}15` }}>
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: teamColor }}>
+                          {subInPlayer.name.charAt(0)}
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-[10px] font-bold text-green-400">COMING IN:</span>
+                          <span className="text-[11px] font-bold text-gray-200 ml-1">{subInPlayer.name}</span>
+                          {subInPlayer.jerseyNumber && <span className="text-[10px] text-gray-400 ml-1">#{subInPlayer.jerseyNumber}</span>}
+                        </div>
+                        <button onClick={() => setSubInPlayer(null)} className="text-[9px] text-gray-400 hover:text-white">Change</button>
+                      </div>
 
-              {(() => {
-                const lineup = showSubMode === 'home' ? match.homeLineup : match.awayLineup;
-                const teamColor = showSubMode === 'home' ? match.homeTeamColor : match.awayTeamColor;
-                const outIds = showSubMode === 'home' ? match.homeOutPlayerIds : match.awayOutPlayerIds;
-                const { onCourt, substitutes: subs } = splitLineup(lineup, outIds);
-
-                return (
-                  <div>
-                    {/* On court players */}
-                    <div className="mb-3">
-                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">On Court — Tap to sub OUT</div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                        On Court — Tap who goes OUT
+                      </div>
+                      <div className="flex flex-col gap-1.5">
                         {onCourt.map(player => {
                           const isOut = outIds.includes(player.id);
-                          const isSelected = subOutPlayer?.id === player.id;
                           return (
                             <button
                               key={player.id}
-                              onClick={() => {
-                                if (subOutPlayer?.id === player.id) {
-                                  setSubOutPlayer(null);
-                                } else {
-                                  setSubOutPlayer(player);
-                                }
-                              }}
-                              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all ${
-                                isSelected
-                                  ? 'bg-red-900/30 ring-2 ring-red-500'
-                                  : isOut
-                                    ? 'opacity-40'
-                                    : 'hover:bg-gray-800'
+                              onClick={() => !isOut && handleSub(player, subInPlayer)}
+                              disabled={isOut}
+                              className={`flex items-center gap-2 p-2 rounded-xl transition-colors text-left ${
+                                isOut ? 'opacity-40 cursor-not-allowed' : 'hover:bg-red-900/20 cursor-pointer'
                               }`}
                             >
                               <PlayerCard
@@ -2159,55 +2012,23 @@ export default function LiveScoringScreen() {
                                 isSelectable={!isOut}
                                 teamColor={teamColor}
                               />
-                              {isSelected && (
-                                <span className="text-[8px] font-bold text-red-400">OUT →</span>
+                              {!isOut && (
+                                <span className="ml-auto text-[9px] font-bold text-red-400 flex items-center gap-0.5">
+                                  <ArrowLeftRight className="w-3 h-3" /> OUT
+                                </span>
                               )}
                             </button>
                           );
                         })}
                       </div>
                     </div>
-
-                    {/* Substitutes */}
-                    <div className="border-t border-dashed border-gray-700 pt-3">
-                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Substitutes — Tap to sub IN</div>
-                      <div className="flex flex-wrap gap-2">
-                        {subs.map(player => {
-                          const canSubIn = !!subOutPlayer;
-                          const isSelected = false;
-                          return (
-                            <button
-                              key={player.id}
-                              onClick={() => {
-                                if (subOutPlayer) {
-                                  handleSub(subOutPlayer, player);
-                                }
-                              }}
-                              disabled={!canSubIn}
-                              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all ${
-                                canSubIn
-                                  ? 'hover:bg-green-900/20 cursor-pointer'
-                                  : 'opacity-50 cursor-not-allowed'
-                              } ${canSubIn && subOutPlayer ? 'ring-1 ring-green-800' : ''}`}
-                            >
-                              <PlayerCard
-                                player={player}
-                                isOut={false}
-                                teamColor={teamColor}
-                                size="small"
-                              />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* MOTM Celebration Overlay (legacy path) */}
       <AnimatePresence>
@@ -2863,119 +2684,154 @@ export default function LiveScoringScreen() {
       </div>
 
       {/* ═══ ADD PLAYER MODAL ═══ */}
-      <AnimatePresence>
-        {showAddPlayer && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center"
-            onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerJersey(''); }}
+      {showAddPlayer && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center"
+          onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerJersey(''); setAddPlayerId(''); setAddPlayerSearchResults([]); }}
+        >
+          <div
+            className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
+            onClick={(e) => e.stopPropagation()}
           >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Handle bar */}
-              <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-4" />
+            {/* Handle bar */}
+            <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-4" />
 
-              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-emerald-400" />
-                Add Player
-              </h3>
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-emerald-400" />
+              Add Player
+            </h3>
 
-              {/* Team Selection */}
-              {!addPlayerTeam ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-400">Which team is the player joining?</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setAddPlayerTeam('home')}
-                      className="flex items-center gap-2 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
-                      style={{ backgroundColor: `${match.homeTeamColor}15` }}
-                    >
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.homeTeamColor }}>
-                        {match.homeTeam.charAt(0)}
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-bold text-white">{match.homeTeam}</p>
-                        <p className="text-[10px] text-gray-400">{match.homeLineup.length} players</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setAddPlayerTeam('away')}
-                      className="flex items-center gap-2 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
-                      style={{ backgroundColor: `${match.awayTeamColor}15` }}
-                    >
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.awayTeamColor }}>
-                        {match.awayTeam.charAt(0)}
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-bold text-white">{match.awayTeam}</p>
-                        <p className="text-[10px] text-gray-400">{match.awayLineup.length} players</p>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Player Details Form */
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: addPlayerTeam === 'home' ? match.homeTeamColor : match.awayTeamColor }}>
-                      {(addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam).charAt(0)}
+            {/* Team Selection */}
+            {!addPlayerTeam ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-400">Which team is the player joining?</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setAddPlayerTeam('home')}
+                    className="flex items-center gap-2 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                    style={{ backgroundColor: `${match.homeTeamColor}15` }}
+                  >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.homeTeamColor }}>
+                      {match.homeTeam.charAt(0)}
                     </div>
-                    <span className="text-sm font-semibold text-white">{addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam}</span>
-                    <button onClick={() => setAddPlayerTeam(null)} className="ml-auto text-[10px] text-gray-400 hover:text-white">Change</button>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Player Name *</label>
-                    <input
-                      type="text"
-                      value={addPlayerName}
-                      onChange={(e) => setAddPlayerName(e.target.value)}
-                      placeholder="Enter player name"
-                      className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
-                      autoFocus
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jersey Number</label>
-                    <input
-                      type="number"
-                      value={addPlayerJersey}
-                      onChange={(e) => setAddPlayerJersey(e.target.value)}
-                      placeholder="Auto-assign"
-                      className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
-                    />
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerJersey(''); }}
-                      className="flex-1 py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleAddPlayer}
-                      disabled={!addPlayerName.trim()}
-                      className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Add Player
-                    </button>
-                  </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-white">{match.homeTeam}</p>
+                      <p className="text-[10px] text-gray-400">{match.homeLineup.length} players</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setAddPlayerTeam('away')}
+                    className="flex items-center gap-2 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                    style={{ backgroundColor: `${match.awayTeamColor}15` }}
+                  >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.awayTeamColor }}>
+                      {match.awayTeam.charAt(0)}
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-white">{match.awayTeam}</p>
+                      <p className="text-[10px] text-gray-400">{match.awayLineup.length} players</p>
+                    </div>
+                  </button>
                 </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </div>
+            ) : (
+              /* Player Details Form */
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: addPlayerTeam === 'home' ? match.homeTeamColor : match.awayTeamColor }}>
+                    {(addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam).charAt(0)}
+                  </div>
+                  <span className="text-sm font-semibold text-white">{addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam}</span>
+                  <button onClick={() => setAddPlayerTeam(null)} className="ml-auto text-[10px] text-gray-400 hover:text-white">Change</button>
+                </div>
+
+                {/* ID Number / Player Code */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ID / Player Code</label>
+                  <input
+                    type="text"
+                    value={addPlayerId}
+                    onChange={(e) => setAddPlayerId(e.target.value)}
+                    placeholder="Enter player ID or code to auto-detect"
+                    className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Player Name *</label>
+                  <input
+                    type="text"
+                    value={addPlayerName}
+                    onChange={(e) => setAddPlayerName(e.target.value)}
+                    placeholder="Enter player name"
+                    className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jersey Number</label>
+                  <input
+                    type="number"
+                    value={addPlayerJersey}
+                    onChange={(e) => setAddPlayerJersey(e.target.value)}
+                    placeholder="Auto-assign"
+                    className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                  />
+                </div>
+
+                {/* Search results - auto-detected players */}
+                {addPlayerSearchResults.length > 0 && (
+                  <div>
+                    <label className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">🔍 Found existing players — Tap to auto-fill</label>
+                    <div className="mt-1 space-y-1">
+                      {addPlayerSearchResults.map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            setAddPlayerName(p.name);
+                            setAddPlayerJersey(p.jerseyNumber?.toString() || '');
+                            setAddPlayerId(p.playerCode || p.id);
+                            setAddPlayerSearchResults([]);
+                          }}
+                          className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-emerald-900/20 transition-colors text-left border border-emerald-800/30"
+                        >
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: addPlayerTeam === 'home' ? match.homeTeamColor : match.awayTeamColor }}>
+                            {p.name.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{p.name}</p>
+                            <p className="text-[9px] text-gray-400">
+                              {p.jerseyNumber ? `#${p.jerseyNumber}` : ''} {p.playerCode ? `• ${p.playerCode}` : ''}
+                            </p>
+                          </div>
+                          <span className="text-[9px] text-emerald-400 font-bold">USE</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerJersey(''); setAddPlayerId(''); setAddPlayerSearchResults([]); }}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddPlayer}
+                    disabled={!addPlayerName.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Add Player
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

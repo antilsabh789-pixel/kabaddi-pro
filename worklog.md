@@ -64,3 +64,24 @@ Stage Summary:
 - Teams now sit side-by-side with only a 2px gradient divider line
 - More horizontal space for each team panel (gained ~50px)
 - Timer still available in the top info bar above the team panels
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Five major LiveScoringScreen improvements - substitute section, remove animations, timeout selector, add player ID/search, fix auto-pause timer
+
+Work Log:
+- Fixed auto-pause timer bug: raid gap timer useEffect had `raidGapTimer !== null` (boolean) as dependency instead of `raidGapTimer` (number), so when timer reached 0 the effect never re-ran to trigger setIsPaused(true)
+- Removed all celebration animations from scorer screen: ConfettiParticle, AllOutCelebration, SuperRaidCelebration functions deleted; MatchEndCelebration→MatchEndScreen (no animations), HalfTimeTransition→HalfTimeScreen (no animations); overlay renders removed; state setters kept for viewer phone compatibility
+- Added timeout type selector: pressing TIMEOUT button now shows dialog with Home Team, Away Team, and Official Timeout options; each shows used/total count; official timeout doesn't count against team totals; timeoutTeam type extended to include 'official'
+- Redesigned substitute flow: changed from "tap on-court OUT first, then tap sub IN" to "tap sub IN first, then auto-ask which on-court player to take OUT"; renamed subOutPlayer→subInPlayer; new two-step overlay with clear instructions
+- Enhanced add player: added ID/Player Code input field; added debounced auto-search (300ms) that queries /api/players by phone_code or name; search results filtered to current team; tap-to-auto-fill functionality; newPlayer uses playerCode and ID from search
+- Moved search useEffect before early return to fix React hooks rules violation
+- Verified all 5 features via agent-browser: no animations, timeout selector works, substitute flow works, add player has ID+search, auto-pause timer triggers after 5s
+
+Stage Summary:
+- Auto-pause timer now correctly pauses after 5 seconds of inactivity
+- Scorer screen has NO celebration animations (all-out, super raid, confetti) — these will run on viewer's phone only
+- Timeout now asks which team or if official timeout, with used/total counts displayed
+- Substitute flow reversed: tap sub player first → then select who goes out
+- Add player now has ID/Player Code field with auto-detect search from database
