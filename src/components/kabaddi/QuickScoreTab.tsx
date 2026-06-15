@@ -284,6 +284,21 @@ export default function QuickScoreTab() {
   const [homeCaptain, setHomeCaptain] = useState<string | null>(null);
   const [awayCaptain, setAwayCaptain] = useState<string | null>(null);
 
+  // New team setup flow state
+  const [teamSetupPhase, setTeamSetupPhase] = useState<'my-team' | 'opponent'>('my-team');
+  const [opponentTeamCode, setOpponentTeamCode] = useState('');
+  const [opponentSearchResults, setOpponentSearchResults] = useState<Array<{
+    id: string; name: string; shortName: string | null; teamCode: string | null; color: string | null; memberCount: number;
+  }>>([]);
+  const [isSearchingTeam, setIsSearchingTeam] = useState(false);
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamColor, setNewTeamColor] = useState('#DC2626');
+  const [isCreatingTeam, setIsCreatingTeam] = useState(false);
+  // Team roster for auto-populating lineup
+  const [homeTeamRoster, setHomeTeamRoster] = useState<DbPlayer[]>([]);
+  const [awayTeamRoster, setAwayTeamRoster] = useState<DbPlayer[]>([]);
+
   // Close team/player suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -419,6 +434,133 @@ export default function QuickScoreTab() {
     fetchTeamMembers();
   }, [homeTeamId, awayTeamId]);
 
+  // Search opponent team by team code (debounced)
+  useEffect(() => {
+    if (!opponentTeamCode.trim() || opponentTeamCode.trim().length < 2) {
+      setOpponentSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearchingTeam(true);
+      try {
+        const res = await fetch(`/api/teams/search?teamCode=${encodeURIComponent(opponentTeamCode.trim())}&limit=5`);
+        if (res.ok) {
+          const data = await res.json();
+          setOpponentSearchResults((data.teams || []).map((t: Record<string, unknown>) => ({
+            id: t.id as string,
+            name: t.name as string,
+            shortName: t.shortName as string | null,
+            teamCode: t.teamCode as string | null,
+            color: t.color as string | null,
+            memberCount: t.memberCount as number,
+          })));
+        }
+      } catch { /* ignore */ }
+      finally { setIsSearchingTeam(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [opponentTeamCode]);
+
+  // Select user's own team as home team — fetches roster and auto-populates lineup
+  const selectMyTeam = async (team: UserTeam) => {
+    setConfig({ ...config, homeTeam: team.name, homeTeamColor: team.color || config.homeTeamColor });
+    setHomeTeamId(team.id);
+    setShowHomeSuggestions(false);
+    // Fetch team roster using team ID
+    try {
+      const res = await fetch(`/api/teams/${team.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const roster: DbPlayer[] = (data.team?.members || []).map((m: { user: DbPlayer; isCaptain: boolean }) => m.user).filter(Boolean);
+        setHomeTeamRoster(roster);
+        // Auto-populate home lineup from roster
+        const autoLineup: MatchPlayer[] = roster.slice(0, config.playersPerSide + 5).map((p, idx) => ({
+          id: p.id,
+          name: p.name || 'Unknown',
+          phone: p.phone || undefined,
+          jerseyNumber: p.profile?.jerseyNumber || idx + 1,
+          playerCode: p.playerCode || undefined,
+          team: 'home' as const,
+          isCaptain: (data.team?.members || []).some((m: { isCaptain: boolean; userId: string }) => m.isCaptain && m.userId === p.id),
+        }));
+        setConfig(prev => ({ ...prev, homeLineup: autoLineup }));
+        // Auto-select playing 7
+        const playing = new Set(autoLineup.slice(0, config.playersPerSide).map(p => p.id));
+        setHomePlaying7(playing);
+        const captain = autoLineup.find(p => p.isCaptain);
+        if (captain) setHomeCaptain(captain.id);
+      }
+    } catch { /* ignore */ }
+    // Move to opponent phase
+    setTeamSetupPhase('opponent');
+  };
+
+  // Select opponent team by team code search
+  const selectOpponentTeam = async (team: { id: string; name: string; shortName: string | null; teamCode: string | null; color: string | null; memberCount: number }) => {
+    setConfig(prev => ({ ...prev, awayTeam: team.name, awayTeamColor: team.color || prev.awayTeamColor }));
+    setAwayTeamId(team.id);
+    setOpponentTeamCode(team.teamCode || '');
+    setOpponentSearchResults([]);
+    // Fetch full team roster with members
+    try {
+      const res = await fetch(`/api/teams/${team.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const roster: DbPlayer[] = (data.team?.members || []).map((m: { user: DbPlayer; isCaptain: boolean }) => m.user).filter(Boolean);
+        setAwayTeamRoster(roster);
+        // Auto-populate away lineup from roster
+        const autoLineup: MatchPlayer[] = roster.slice(0, config.playersPerSide + 5).map((p, idx) => ({
+          id: p.id,
+          name: p.name || 'Unknown',
+          phone: p.phone || undefined,
+          jerseyNumber: p.profile?.jerseyNumber || idx + 1,
+          playerCode: p.playerCode || undefined,
+          team: 'away' as const,
+          isCaptain: (data.team?.members || []).some((m: { isCaptain: boolean; userId: string }) => m.isCaptain && m.userId === p.id),
+        }));
+        setConfig(prev => ({ ...prev, awayLineup: autoLineup }));
+        const playing = new Set(autoLineup.slice(0, config.playersPerSide).map(p => p.id));
+        setAwayPlaying7(playing);
+        const captain = autoLineup.find(p => p.isCaptain);
+        if (captain) setAwayCaptain(captain.id);
+      }
+    } catch { /* ignore */ }
+  };
+
+  // Create a new team and select as home
+  const handleCreateTeam = async () => {
+    if (!newTeamName.trim() || newTeamName.trim().length < 3) return;
+    setIsCreatingTeam(true);
+    try {
+      const res = await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newTeamName.trim(),
+          color: newTeamColor,
+          captainId: currentUser?.id,
+          memberIds: currentUser?.id ? [currentUser.id] : [],
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const newTeam: UserTeam = {
+          id: data.team.id,
+          name: data.team.name,
+          shortName: data.team.shortName,
+          color: data.team.color,
+          members: [],
+        };
+        setUserTeams(prev => [...prev, newTeam]);
+        await selectMyTeam(newTeam);
+        setShowCreateTeam(false);
+        setNewTeamName('');
+        setNewTeamColor('#DC2626');
+      }
+    } catch { /* ignore */ }
+    setIsCreatingTeam(false);
+  };
+
   const canNext = () => {
     switch (step) {
       case 0: return config.gender !== '';
@@ -440,7 +582,11 @@ export default function QuickScoreTab() {
   };
 
   const handlePrev = () => {
-    if (step > 0) setStep(step - 1);
+    if (step > 0) {
+      setStep(step - 1);
+      // Reset team setup phase when going back to teams step
+      if (step === 3) setTeamSetupPhase(config.homeTeam ? 'opponent' : 'my-team');
+    }
   };
 
   const handleStart = () => {
@@ -452,8 +598,8 @@ export default function QuickScoreTab() {
       }));
     initiateToss({
       id: `match_${Date.now()}`,
-      homeTeamId: `home_${Date.now()}`,
-      awayTeamId: `away_${Date.now()}`,
+      homeTeamId: homeTeamId || `home_${Date.now()}`,
+      awayTeamId: awayTeamId || `away_${Date.now()}`,
       homeTeam: config.homeTeam,
       awayTeam: config.awayTeam,
       homeTeamColor: config.homeTeamColor,
@@ -1328,235 +1474,309 @@ export default function QuickScoreTab() {
             <div className="space-y-5" ref={teamInputRef}>
               <div className="text-center">
                 <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Team Setup</h2>
-                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Name and customize both teams</p>
+                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">
+                  {teamSetupPhase === 'my-team' ? 'Select your team or create a new one' : 'Find your opponent by team code'}
+                </p>
               </div>
 
-              {/* Enhanced VS Section with gradient backgrounds */}
-              <div className="relative">
-                {/* Home Team */}
-                <div className="space-y-3">
-                  <label className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: config.homeTeamColor }} />
-                    Team A
-                  </label>
-                  <div className="relative">
-                    <div
-                      className="rounded-xl overflow-hidden"
-                      style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}15, transparent)` }}
-                    >
-                      <Input
-                        placeholder="Enter team name"
-                        value={config.homeTeam}
-                        onChange={(e) => {
-                          setConfig({ ...config, homeTeam: e.target.value });
-                          setShowHomeSuggestions(true);
-                        }}
-                        onFocus={() => setShowHomeSuggestions(true)}
-                        className="h-12 bg-white/80 dark:bg-warm-800/80 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-medium pl-4"
-                        style={{ borderColor: config.homeTeamColor, borderWidth: '2px' }}
-                      />
-                    </div>
-                    {/* Team initial avatar with gradient */}
-                    {config.homeTeam && (
-                      <motion.div
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg"
-                        style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}, ${config.homeTeamColor}dd)` }}
-                      >
-                        {config.homeTeam.charAt(0).toUpperCase()}
-                      </motion.div>
-                    )}
-                    {/* Team Suggestions Dropdown */}
-                    {showHomeSuggestions && homeTeamSuggestions.length > 0 && (
-                      <div className="absolute z-20 top-14 left-0 right-0 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
-                        <div className="px-3 py-1.5 text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider border-b border-warm-100 dark:border-warm-700">
-                          Your Teams
-                        </div>
-                        {homeTeamSuggestions.map((team) => (
-                          <button
+              {/* ─── PHASE 1: Select MY TEAM ─── */}
+              {teamSetupPhase === 'my-team' && (
+                <div className="space-y-4">
+                  {/* Your Teams */}
+                  {userTeams.length > 0 && (
+                    <div>
+                      <label className="text-xs font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider mb-2 block">Your Teams</label>
+                      <div className="space-y-2">
+                        {userTeams.map((team) => (
+                          <motion.button
                             key={team.id}
-                            onClick={() => selectHomeTeamSuggestion(team)}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors"
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => selectMyTeam(team)}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                              homeTeamId === team.id
+                                ? 'border-brand-red bg-brand-red/5 shadow-md'
+                                : 'border-warm-200 dark:border-warm-700 hover:border-warm-300 dark:hover:border-warm-600 bg-white dark:bg-warm-800/50'
+                            }`}
                           >
                             <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm"
+                              className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0"
                               style={{ background: `linear-gradient(135deg, ${team.color || '#DC2626'}, ${team.color || '#DC2626'}cc)` }}
                             >
                               {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-sm text-warm-800 dark:text-warm-200 font-medium">{team.name}</span>
-                            {team.shortName && (
-                              <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono ml-auto">{team.shortName}</span>
-                            )}
-                          </button>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{team.name}</p>
+                              <p className="text-[10px] text-warm-400 dark:text-warm-500">
+                                {team.shortName && <span className="font-mono">{team.shortName} · </span>}
+                                Select as your team
+                              </p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 shrink-0" />
+                          </motion.button>
                         ))}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {teamColors.map((color) => (
-                      <motion.button
-                        key={color}
-                        whileTap={{ scale: 0.85 }}
-                        onClick={() => setConfig({ ...config, homeTeamColor: color })}
-                        className={`w-9 h-9 rounded-xl transition-all duration-200 relative ${
-                          config.homeTeamColor === color ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-900 scale-110 shadow-md' : 'hover:scale-110'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      >
-                        {config.homeTeamColor === color && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute inset-0 flex items-center justify-center"
-                          >
-                            <Check className="w-3.5 h-3.5 text-white drop-shadow-sm" />
-                          </motion.div>
-                        )}
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  )}
 
-                {/* VS Indicator - Enhanced with lightning bolt animation */}
-                <div className="flex items-center justify-center py-3">
-                  <div className="flex items-center gap-3 w-full">
-                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+                  {/* No teams message */}
+                  {userTeams.length === 0 && !showCreateTeam && (
+                    <div className="text-center py-6 bg-warm-50 dark:bg-warm-800/30 rounded-xl border border-warm-200 dark:border-warm-700">
+                      <Users className="w-10 h-10 text-warm-300 dark:text-warm-600 mx-auto mb-2" />
+                      <p className="text-sm text-warm-500 dark:text-warm-400 font-medium">You're not part of any team yet</p>
+                      <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">Create a team to start playing matches</p>
+                    </div>
+                  )}
+
+                  {/* Create Team Button / Form */}
+                  {!showCreateTeam ? (
+                    <button
+                      onClick={() => setShowCreateTeam(true)}
+                      className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-warm-300 dark:border-warm-600 hover:border-brand-red dark:hover:border-brand-red transition-colors text-warm-500 dark:text-warm-400 hover:text-brand-red dark:hover:text-brand-red"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="text-sm font-bold">Create New Team</span>
+                    </button>
+                  ) : (
                     <motion.div
-                      className="relative"
-                      animate={{ rotate: [0, 5, -5, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-white dark:bg-warm-800 rounded-xl border-2 border-brand-red/30 shadow-lg space-y-3"
                     >
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-warm-100 to-warm-200 dark:from-warm-700 dark:to-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-lg relative overflow-hidden">
-                        <Swords className="w-6 h-6 text-warm-500 dark:text-warm-400 relative z-10" />
-                        {/* Lightning bolt flash effect */}
-                        <motion.div
-                          className="absolute inset-0 bg-gradient-to-br from-brand-gold/20 via-transparent to-brand-red/10"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: [0, 0.5, 0, 0.3, 0] }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                        />
-                      </div>
-                      {/* Animated glow effect with pulse */}
-                      <motion.div
-                        className="absolute inset-0 rounded-full"
-                        animate={{
-                          boxShadow: [
-                            '0 0 0 0 rgba(220, 38, 38, 0.3)',
-                            '0 0 0 8px rgba(220, 38, 38, 0)',
-                          ],
-                        }}
-                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                      <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-brand-red" /> Create Team
+                      </h3>
+                      <Input
+                        placeholder="Enter team name (min 3 chars)"
+                        value={newTeamName}
+                        onChange={(e) => setNewTeamName(e.target.value)}
+                        className="h-11 bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 rounded-xl"
+                        autoFocus
                       />
-                      {/* Mini lightning bolt icons */}
-                      <motion.div
-                        className="absolute -top-2 -right-2"
-                        animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.4, 0.8, 0.4] }}
-                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                      >
-                        <Zap className="w-3 h-3 text-brand-gold" />
-                      </motion.div>
-                      <motion.div
-                        className="absolute -bottom-2 -left-2"
-                        animate={{ scale: [1.2, 0.8, 1.2], opacity: [0.4, 0.8, 0.4] }}
-                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 0.75 }}
-                      >
-                        <Zap className="w-3 h-3 text-brand-red" />
-                      </motion.div>
+                      <div>
+                        <label className="text-[10px] font-bold text-warm-400 uppercase tracking-wider">Team Color</label>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                          {teamColors.slice(0, 10).map((color) => (
+                            <button
+                              key={color}
+                              onClick={() => setNewTeamColor(color)}
+                              className={`w-8 h-8 rounded-lg transition-all ${
+                                newTeamColor === color ? 'ring-2 ring-offset-2 ring-brand-red scale-110' : 'hover:scale-110'
+                              }`}
+                              style={{ backgroundColor: color }}
+                            >
+                              {newTeamColor === color && <Check className="w-3 h-3 text-white mx-auto" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setShowCreateTeam(false); setNewTeamName(''); }}
+                          className="flex-1 py-2.5 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-500 font-semibold text-sm"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleCreateTeam}
+                          disabled={newTeamName.trim().length < 3 || isCreatingTeam}
+                          className="flex-1 py-2.5 rounded-xl bg-brand-red text-white font-bold text-sm disabled:opacity-40 flex items-center justify-center gap-1"
+                        >
+                          {isCreatingTeam ? (
+                            <><motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> Creating...</>
+                          ) : 'Create & Select'}
+                        </button>
+                      </div>
                     </motion.div>
-                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+                  )}
+
+                  {/* Manual entry fallback */}
+                  <div className="pt-2 border-t border-warm-200 dark:border-warm-700">
+                    <button
+                      onClick={() => {
+                        setConfig({ ...config, homeTeam: 'My Team', homeTeamColor: '#DC2626' });
+                        setHomeTeamId(null);
+                        setTeamSetupPhase('opponent');
+                      }}
+                      className="w-full text-center text-[10px] text-warm-400 dark:text-warm-500 hover:text-warm-600 dark:hover:text-warm-400 py-1"
+                    >
+                      Skip — Enter team manually
+                    </button>
                   </div>
                 </div>
+              )}
 
-                {/* Away Team */}
-                <div className="space-y-3">
-                  <label className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: config.awayTeamColor }} />
-                    Team B
-                  </label>
-                  <div className="relative">
+              {/* ─── PHASE 2: Select OPPONENT ─── */}
+              {teamSetupPhase === 'opponent' && (
+                <div className="space-y-4">
+                  {/* My team selected indicator */}
+                  <div
+                    className="flex items-center gap-3 p-3 rounded-xl border border-warm-200 dark:border-warm-700"
+                    style={{ background: `linear-gradient(135deg, ${config.homeTeamColor}10, transparent)` }}
+                  >
                     <div
-                      className="rounded-xl overflow-hidden"
-                      style={{ background: `linear-gradient(135deg, ${config.awayTeamColor}15, transparent)` }}
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm"
+                      style={{ backgroundColor: config.homeTeamColor }}
                     >
+                      {config.homeTeam.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{config.homeTeam}</p>
+                      <p className="text-[10px] text-warm-400">Your team · {config.homeLineup.length} players loaded</p>
+                    </div>
+                    <button
+                      onClick={() => { setTeamSetupPhase('my-team'); setConfig(prev => ({ ...prev, homeTeam: '', homeLineup: [] })); setHomeTeamId(null); }}
+                      className="text-[9px] text-warm-400 hover:text-brand-red font-semibold"
+                    >
+                      Change
+                    </button>
+                  </div>
+
+                  {/* VS Divider */}
+                  <div className="flex items-center justify-center py-2">
+                    <div className="flex items-center gap-3 w-full">
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+                      <div className="w-10 h-10 rounded-full bg-warm-100 dark:bg-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-md">
+                        <span className="text-warm-500 dark:text-warm-400 font-black text-xs">VS</span>
+                      </div>
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+                    </div>
+                  </div>
+
+                  {/* Opponent search by Team Code */}
+                  <div>
+                    <label className="text-xs font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider mb-2 block">
+                      🔍 Find Opponent by Team Code
+                    </label>
+                    <Input
+                      placeholder="Enter team code (e.g. KT2001)"
+                      value={opponentTeamCode}
+                      onChange={(e) => setOpponentTeamCode(e.target.value.toUpperCase())}
+                      className="h-12 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-mono font-bold tracking-wider text-center uppercase"
+                      style={{ borderWidth: '2px' }}
+                      autoFocus
+                    />
+                    <p className="text-[9px] text-warm-400 mt-1 text-center">Team code is shown on the team profile (e.g. KT2001)</p>
+                  </div>
+
+                  {/* Opponent search results */}
+                  {isSearchingTeam && (
+                    <div className="flex items-center justify-center gap-2 py-3">
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-brand-teal border-t-transparent rounded-full" />
+                      <span className="text-xs text-warm-400">Searching teams...</span>
+                    </div>
+                  )}
+
+                  {opponentSearchResults.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Found Teams — Tap to select opponent</label>
+                      {opponentSearchResults.map((team) => (
+                        <motion.button
+                          key={team.id}
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => selectOpponentTeam(team)}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                            awayTeamId === team.id
+                              ? 'border-emerald-500 bg-emerald-500/5 shadow-md'
+                              : 'border-warm-200 dark:border-warm-700 hover:border-emerald-400 dark:hover:border-emerald-500 bg-white dark:bg-warm-800/50'
+                          }`}
+                        >
+                          <div
+                            className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0"
+                            style={{ background: `linear-gradient(135deg, ${team.color || '#1E293B'}, ${team.color || '#1E293B'}cc)` }}
+                          >
+                            {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{team.name}</p>
+                            <p className="text-[10px] text-warm-400 dark:text-warm-500">
+                              <span className="font-mono font-bold text-emerald-600">{team.teamCode}</span> · {team.memberCount} players
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">VS</span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Opponent selected confirmation */}
+                  {config.awayTeam && awayTeamId && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 rounded-xl border-2 border-emerald-400/30 bg-emerald-500/5"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm"
+                          style={{ backgroundColor: config.awayTeamColor }}
+                        >
+                          {config.awayTeam.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{config.awayTeam}</p>
+                          <p className="text-[10px] text-emerald-600 font-medium">{config.awayLineup.length} players loaded · Ready to play!</p>
+                        </div>
+                        <Check className="w-5 h-5 text-emerald-500" />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Manual opponent entry fallback */}
+                  <div className="pt-2 border-t border-warm-200 dark:border-warm-700 space-y-3">
+                    <p className="text-[10px] text-warm-400 text-center">Or enter opponent manually</p>
+                    <div className="flex gap-2">
                       <Input
-                        placeholder="Enter team name"
+                        placeholder="Opponent team name"
                         value={config.awayTeam}
                         onChange={(e) => {
                           setConfig({ ...config, awayTeam: e.target.value });
                           setShowAwaySuggestions(true);
                         }}
                         onFocus={() => setShowAwaySuggestions(true)}
-                        className="h-12 bg-white/80 dark:bg-warm-800/80 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-medium pl-4"
-                        style={{ borderColor: config.awayTeamColor, borderWidth: '2px' }}
+                        className="h-10 bg-white/80 dark:bg-warm-800/80 border-warm-200 dark:border-warm-700 rounded-xl text-sm"
+                        style={config.awayTeamColor ? { borderColor: config.awayTeamColor, borderWidth: '2px' } : {}}
                       />
                     </div>
-                    {/* Team initial avatar with gradient */}
-                    {config.awayTeam && (
-                      <motion.div
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg"
-                        style={{ background: `linear-gradient(135deg, ${config.awayTeamColor}, ${config.awayTeamColor}dd)` }}
-                      >
-                        {config.awayTeam.charAt(0).toUpperCase()}
-                      </motion.div>
-                    )}
-                    {/* Team Suggestions Dropdown */}
+                    {/* Away team suggestions */}
                     {showAwaySuggestions && awayTeamSuggestions.length > 0 && (
-                      <div className="absolute z-20 top-14 left-0 right-0 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
+                      <div className="bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-36 overflow-y-auto">
                         <div className="px-3 py-1.5 text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider border-b border-warm-100 dark:border-warm-700">
                           Your Teams
                         </div>
-                        {awayTeamSuggestions.map((team) => (
+                        {awayTeamSuggestions.filter(t => t.id !== homeTeamId).map((team) => (
                           <button
                             key={team.id}
                             onClick={() => selectAwayTeamSuggestion(team)}
                             className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors"
                           >
-                            <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm"
-                              style={{ background: `linear-gradient(135deg, ${team.color || '#1E293B'}, ${team.color || '#1E293B'}cc)` }}
-                            >
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ backgroundColor: team.color || '#1E293B' }}>
                               {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
                             </div>
                             <span className="text-sm text-warm-800 dark:text-warm-200 font-medium">{team.name}</span>
-                            {team.shortName && (
-                              <span className="text-[10px] text-warm-400 dark:text-warm-500 font-mono ml-auto">{team.shortName}</span>
-                            )}
                           </button>
                         ))}
                       </div>
                     )}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {teamColors.map((color) => (
-                      <motion.button
-                        key={`away-${color}`}
-                        whileTap={{ scale: 0.85 }}
-                        onClick={() => setConfig({ ...config, awayTeamColor: color })}
-                        className={`w-9 h-9 rounded-xl transition-all duration-200 relative ${
-                          config.awayTeamColor === color ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-900 scale-110 shadow-md' : 'hover:scale-110'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      >
-                        {config.awayTeamColor === color && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute inset-0 flex items-center justify-center"
-                          >
-                            <Check className="w-3.5 h-3.5 text-white drop-shadow-sm" />
-                          </motion.div>
-                        )}
-                      </motion.button>
-                    ))}
+                    <div className="flex gap-2 flex-wrap">
+                      {teamColors.map((color) => (
+                        <motion.button
+                          key={`away-${color}`}
+                          whileTap={{ scale: 0.85 }}
+                          onClick={() => setConfig({ ...config, awayTeamColor: color })}
+                          className={`w-8 h-8 rounded-lg transition-all duration-200 relative ${
+                            config.awayTeamColor === color ? 'ring-2 ring-offset-1 ring-warm-400 dark:ring-offset-warm-900 scale-110 shadow-md' : 'hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        >
+                          {config.awayTeamColor === color && <Check className="w-3 h-3 text-white mx-auto" />}
+                        </motion.button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 

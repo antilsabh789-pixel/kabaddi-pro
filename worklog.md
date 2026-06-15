@@ -115,3 +115,31 @@ Stage Summary:
 - When a player signs up with that phone number later, they can see their match records
 - API endpoint /api/players/search supports both phone and name searches
 - All player data flows now include phone numbers
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Redesign team setup flow — select your team from teams you're a member of, create team option, find opponent by team code with auto-fetch roster
+
+Work Log:
+- Created /api/teams/search API endpoint — searches teams by teamCode or name, returns full roster with members (phone, jersey, position, playerCode)
+- Added new state variables: teamSetupPhase ('my-team'|'opponent'), opponentTeamCode, opponentSearchResults, isSearchingTeam, showCreateTeam, newTeamName/Color, isCreatingTeam, homeTeamRoster, awayTeamRoster
+- Added debounced opponent search useEffect — searches /api/teams/search as user types team code
+- Added selectMyTeam() — fetches team roster via /api/teams/{id}, auto-populates home lineup and playing 7
+- Added selectOpponentTeam() — fetches opponent roster, auto-populates away lineup and playing 7
+- Added handleCreateTeam() — creates new team via POST /api/teams, auto-selects as home team, moves to opponent phase
+- Redesigned step 2 (Team Setup) with two phases:
+  - Phase 1 ('my-team'): Shows user's teams as selectable cards, "Create New Team" button/form, "Skip" fallback
+  - Phase 2 ('opponent'): Shows selected team indicator, VS divider, team code search input with results, opponent selected confirmation, manual entry fallback
+- Updated handleStart to use real team IDs (homeTeamId/awayTeamId) instead of generated IDs
+- Updated handlePrev to reset teamSetupPhase when going back
+- Verified via agent-browser: create team → opponent search by team code (KT2005 found Jaipur Kings) → auto-populated 5 players → lineup step shows both teams
+
+Stage Summary:
+- Team setup now has a proper 2-phase flow: select YOUR team → find opponent by team code
+- Teams the user is a member of are shown as selectable cards
+- "Create New Team" form with name + color picker creates and auto-selects the team
+- Opponent team code search auto-fetches full team roster from database
+- Team roster auto-populates lineup and selects playing 7
+- Real team IDs are used when starting a match (for linking to DB records)
+- Manual entry fallback still available for both teams
