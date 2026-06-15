@@ -2,47 +2,40 @@
 
 ## Project Status
 - Kabaddi Pro app deployed at `kabaddi-app-cyan.vercel.app`
-- Payment integration with Cashfree (production mode) was working on web/desktop but failing on mobile with "invalid session id" error
-- Previous attempts using Cashfree JS SDK v3 and POST form redirect both failed on mobile devices
+- Payment integration with Cashfree (production mode) - currently fixing checkout flow
 
-## Session: 2026-06-15 - Fix Mobile Payment "Invalid Session ID" Error
+## Session: 2026-06-15 - Fix Payment + Full App QA
 
 ### Task ID: 1
-### Agent: Main Agent
-### Task: Fix Cashfree payment gateway "invalid session id" error on mobile devices
+### Task: Fix Cashfree payment "404 Not Found" error + full app QA
 
 ### Work Log:
-- Analyzed the root cause: Cashfree JS SDK v3 fails to load/execute on mobile devices (PWA/WebView)
-- The POST form redirect fallback also failed because mobile browsers/WebView strip form data during cross-origin navigation
-- Designed a **server-rendered checkout redirect** approach that eliminates ALL client-side JavaScript dependencies
-- Created new API route `/api/payments/checkout/route.ts` that returns a complete HTML page with:
-  - Auto-submitting POST form (primary method) that fires after 800ms
-  - Manual "Open Payment Page" button as fallback (appears after 5 seconds)
-  - `<noscript>` fallback for JavaScript-disabled browsers
-  - Beautiful loading spinner and "Redirecting to Payment" UI
-  - Order reference display
-  - Cache-Control headers to prevent stale checkout pages
-- Updated `PremiumUpgradeScreen.tsx`:
-  - Replaced JS SDK checkout logic with simple `window.location.href` redirect to `/api/payments/checkout`
-  - Removed `redirectToCashfreeCheckout` function (no longer needed)
-  - Added `redirectToServerCheckout` function that builds the redirect URL with session_id, env, order_id, plan
-- Removed Cashfree SDK script tag from `layout.tsx` (no longer needed)
-- Tested checkout route with curl - confirmed:
-  - Production env → form POSTs to `https://api.cashfree.com/pg/view/sessions/checkout`
-  - Sandbox env → form POSTs to `https://sandbox.cashfree.com/pg/view/sessions/checkout`
-  - Missing session_id → shows error page with "Go Back to App" button
-  - Lint passes cleanly
+- **Payment Fix Round 1**: Created server-rendered checkout page with auto-submitting form → form.submit() didn't work, page got stuck on "Redirecting to Payment"
+- **Payment Fix Round 2**: Changed to 302 redirect to Cashfree hosted checkout URL → 404 error because `payments.cashfree.com/pg/orders/pay/{session_id}` is deprecated
+- **Payment Fix Round 3 (CURRENT)**: Multi-method approach:
+  - Method 1: Cashfree JS SDK v3 (primary, best UX on web)
+  - Method 2: Direct form POST to `/pg/view/sessions/checkout` (fallback)
+  - Method 3: Server-rendered page with visible "Pay Securely Now" button (last resort for mobile)
+  - Added `order_token` capture from Cashfree API for hosted checkout URL
+  - Restored Cashfree SDK script in layout.tsx
+  - Updated checkout route to show visible form + direct link + auto-submit
+
+- **Full App QA**: Found and fixed 5 critical bugs:
+  1. QuickScoreTab.tsx: null-guard p.profile access
+  2. MatchHistoryTimeline.tsx: add result field to TimelineMatch interface
+  3. MatchDayExperience.tsx: fix playerName undefined type error
+  4. HomeTab.tsx: guard new Date() against null targetDate
+  5. Grounds API: remove broken Math.pow wrapper in distance calculation
 
 ### Stage Summary:
-- **Key Result**: Mobile payment fix implemented using server-rendered checkout redirect
-- **Architecture Change**: Moved from client-side Cashfree JS SDK to server-side HTML form submission
-- **Files Changed**:
-  - NEW: `src/app/api/payments/checkout/route.ts`
-  - MODIFIED: `src/components/kabaddi/PremiumUpgradeScreen.tsx`
-  - MODIFIED: `src/app/layout.tsx` (removed Cashfree SDK script tag)
-- **Why This Works**: The server-rendered HTML page is returned directly by Next.js — no external JS SDK loading, no dynamic DOM manipulation. The form POST is handled natively by the browser, which works on ALL devices including mobile browsers, PWAs, and WebViews.
-- **Next Step**: Deploy to Vercel so the tester's phone gets the new code
+- **Payment**: Multi-method checkout deployed (3 fallback levels)
+- **Bug Fixes**: 5 critical runtime bugs fixed
+- **Commits**: 3 pushes to Vercel (73f36b0, 4f643f0)
+- **Testing**: App loads correctly on both desktop and mobile viewports in agent-browser
+- **Note**: The Vercel deployment needs to rebuild before the latest code is live
 
 ### Unresolved Issues:
-- The fix needs to be deployed to Vercel (`kabaddi-app-cyan.vercel.app`) for the tester to verify
-- Need to confirm the phone app type (PWA vs WebView vs regular mobile browser) to further optimize if needed
+- Payment flow needs to be tested on the ACTUAL phone app after Vercel rebuilds
+- The form POST auto-submit may still not work on some mobile browsers
+- If Method 1 (JS SDK) and Method 2 (form POST) both fail on mobile, Method 3 shows visible buttons
+- Need to verify with real tester after deployment
