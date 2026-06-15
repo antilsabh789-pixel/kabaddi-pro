@@ -970,3 +970,38 @@ Stage Summary:
   for JS SDK to work on production: Dashboard > Settings > Website Domains
   Add: kabaddiarena.com, www.kabaddiarena.com, kabaddi-app-cyan.vercel.app
 - The POST form redirect remains as a fallback if SDK fails to load
+
+---
+Task ID: 18
+Agent: Main
+Task: Fix mobile "Invalid Session ID" error on Cashfree checkout
+
+Work Log:
+- User reported: Payment works on web but shows "Invalid Session ID" on phone
+- Analyzed screenshots:
+  - Desktop: Cashfree checkout page loads correctly ✅
+  - Mobile: Shows "Invalid Session ID" with "OH NO!" on api.cashfree.com/checkout ❌
+- Root cause: Cashfree JS SDK was loaded DYNAMICALLY (document.createElement('script'))
+  - On mobile with slow connections, the SDK wasn't ready when checkout() was called
+  - The SDK loading failed silently, falling back to POST form redirect
+  - POST form redirect also unreliable on mobile browsers
+  - Result: payment_session_id not properly passed → "Invalid Session ID"
+- Fix applied:
+  1. Preload Cashfree SDK in layout.tsx <head> tag (loads before app renders)
+  2. Wait up to 5 seconds for SDK to be available (250ms × 20 checks)
+  3. Extract redirectToCashfreeCheckout() as reusable fallback function
+  4. Keep form in DOM for 5s during mobile redirect (browsers need it during navigation)
+  5. Better logging: log session ID prefix for debugging
+- Verified with agent-browser at 375×812 (iPhone X) mobile viewport:
+  - Cashfree checkout loads correctly at https://api.cashfree.com/checkout/ ✅
+  - Console: "[Cashfree] SDK initialized, calling checkout..." ✅
+  - Payment options visible: Card, UPI, Net Banking, QR Code ✅
+  - Zero errors ✅
+  - NO "Invalid Session ID" error ✅
+- Deployed to Vercel (commit: bce86f2)
+
+Stage Summary:
+- ✅ Mobile payment now works with preloaded Cashfree SDK
+- ✅ SDK wait loop ensures initialization before checkout
+- ✅ Fallback POST form redirect improved for mobile browsers
+- ✅ Verified on mobile viewport with agent-browser
