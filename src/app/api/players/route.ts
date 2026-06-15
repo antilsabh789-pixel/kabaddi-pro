@@ -28,17 +28,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const limit = parseInt(searchParams.get('limit') || '20');
+    const searchBy = searchParams.get('searchBy') || 'all';
 
-    const users = await db.user.findMany({
-      where: search
+    const searchConditions = search ? (
+      searchBy === 'phone_code'
         ? {
+            OR: [
+              { phone: { contains: search } },
+              { playerCode: { contains: search } },
+            ],
+          }
+        : {
             OR: [
               { name: { contains: search } },
               { phone: { contains: search } },
               { playerCode: { contains: search } },
             ],
           }
-        : undefined,
+    ) : undefined;
+
+    const users = await db.user.findMany({
+      where: searchConditions,
       take: limit,
       include: { profile: true },
       orderBy: { createdAt: 'desc' },

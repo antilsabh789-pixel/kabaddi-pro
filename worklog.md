@@ -95,3 +95,50 @@
 - Dev server running without issues
 - MatchPlayer interface extended with `isCaptain` and `isStarting` optional fields
 - All changes follow existing styling patterns (warm colors, brand colors, motion animations)
+
+---
+
+## Session: 2026-06-15 - Mobile View Fix + Player Search Restriction
+
+### Task ID: 3
+### Agent: main
+### Task: Fix mobile view for player selection + restrict player search to phone/ID only
+
+### Work Log:
+- **Issue 1 - Mobile View Not Fully Available**:
+  - Step 3 (Lineup) search dropdown changed from `max-h-56` to `sm:max-h-56 max-h-[60vh]` for larger overlay on mobile
+  - Step 4 (Match Preview) team layout changed from `flex items-center justify-between` to `flex flex-col sm:flex-row items-center justify-between gap-4` so teams stack vertically on mobile
+  - Step 4 padding changed from `p-6` to `p-4 sm:p-6` for better mobile spacing
+  - Playing 7 scroll areas changed from `max-h-48` to `max-h-64 sm:max-h-48` for more scroll space on mobile
+  - Added `pb-6` to step 3 and step 4 containers so content isn't hidden behind navigation buttons
+  - "Playing 7" hardcoded labels changed to use `config.playersPerSide` dynamically
+
+- **Issue 2 - Player Search by Phone/ID Only (Not Name)**:
+  - `getLocalFiltered()` in QuickScoreTab.tsx: Removed `p.name` from filter criteria, now only filters by `playerCode` and `phone`
+  - Server search URL changed from `/api/players?search=...` to `/api/players?search=...&searchBy=phone_code`
+  - API route `/api/players/route.ts`: Added `searchBy` query parameter support - when `searchBy=phone_code`, only searches `phone` and `playerCode` fields (not `name`)
+  - Placeholder text changed from "Search team members by name or code..." to "Search by phone or Player ID..."
+  - Empty state messages updated from "Search by name or code..." to "Search by phone or Player ID..."
+  - Step 3 description changed from "Search or quick-add players to each team" to "Search by phone/ID or quick-add players to each team"
+
+### API Testing Results:
+- `GET /api/players?search=Ankit&searchBy=phone_code` → `{"players":[]}` ✅ (name search blocked)
+- `GET /api/players?search=Ankit` → Returns 2 results ✅ (backward compatible)
+- `GET /api/players?search=KP1007&searchBy=phone_code` → Returns 1 result ✅ (player code search works)
+- `GET /api/players?search=9876&searchBy=phone_code` → Returns 1 result ✅ (phone search works)
+
+### Browser Testing (agent-browser with iPhone 16 emulation):
+- ✅ Quick Score tab loads correctly on mobile viewport
+- ✅ Step 4 (Lineup) shows "Search by phone or Player ID..." placeholder
+- ✅ Searching "KP" returns players by player code
+- ✅ Players can be added to teams
+- ✅ Step 5 (Match Preview) shows all players with Playing 7 selection
+- ✅ Playing 7 toggle works (SUB badge changes to "Set as Captain" option)
+- ✅ Captain selection crown button visible for starting players
+- ✅ Lint passes clean, no errors
+
+### Stage Summary:
+- Mobile view significantly improved with responsive breakpoints
+- Player search restricted to phone/ID only (no name-based suggestions)
+- API backward compatible - default search still includes name
+- All changes tested via agent-browser and curl API tests

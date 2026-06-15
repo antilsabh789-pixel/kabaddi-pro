@@ -510,15 +510,15 @@ export default function QuickScoreTab() {
     });
   };
 
-  // Local filter for instant results - only shows team members by default, others on search
+  // Local filter for instant results - only shows team members by default, others by phone/ID only
   const getLocalFiltered = useCallback((query: string): DbPlayer[] => {
     if (!query.trim()) {
       // When no search query, ONLY show team members (don't suggest random players)
       return teamMembers.slice(0, 20);
     }
     const q = query.toLowerCase().trim();
+    // Only search by phone number or player ID (not by name)
     const teamResults = teamMembers.filter(p =>
-      (p.name && p.name.toLowerCase().includes(q)) ||
       (p.playerCode && p.playerCode.toLowerCase().includes(q)) ||
       (p.phone && p.phone.includes(q))
     );
@@ -526,9 +526,9 @@ export default function QuickScoreTab() {
     if (query.trim().length < 2) {
       return teamResults.slice(0, 20);
     }
+    // Only find other players by phone/ID (not by name)
     const otherResults = allPlayers.filter(p =>
       !teamMembers.some(tm => tm.id === p.id) && (
-        (p.name && p.name.toLowerCase().includes(q)) ||
         (p.playerCode && p.playerCode.toLowerCase().includes(q)) ||
         (p.phone && p.phone.includes(q))
       )
@@ -550,7 +550,7 @@ export default function QuickScoreTab() {
     if (query.length >= 2) {
       setIsSearching(true);
       try {
-        const res = await fetch(`/api/players?search=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/players?search=${encodeURIComponent(query)}&searchBy=phone_code`);
         if (res.ok) {
           const data = await res.json();
           const serverPlayers: DbPlayer[] = data.players || [];
@@ -1549,10 +1549,10 @@ export default function QuickScoreTab() {
           )}
 
           {step === 3 && (
-            <div className="space-y-4">
+            <div className="space-y-4 pb-6">
               <div className="text-center">
                 <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Add Players</h2>
-                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Search or quick-add players to each team</p>
+                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Search by phone/ID or quick-add players to each team</p>
               </div>
 
               {/* Team Toggle */}
@@ -1647,7 +1647,7 @@ export default function QuickScoreTab() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
                   <Input
-                    placeholder="Search team members by name or code..."
+                    placeholder="Search by phone or Player ID..."
                     value={playerSearch}
                     onChange={(e) => {
                       setPlayerSearch(e.target.value);
@@ -1684,7 +1684,7 @@ export default function QuickScoreTab() {
 
                 {/* Suggestions Dropdown with Player Quick Stats */}
                 {showSuggestions && (
-                  <div className="bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-warm-100 dark:divide-warm-700">
+                  <div className="bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 rounded-xl shadow-xl sm:max-h-56 max-h-[60vh] overflow-y-auto divide-y divide-warm-100 dark:divide-warm-700">
                     {/* Searching indicator */}
                     {isSearching && (
                       <div className="px-3 py-2 flex items-center gap-2">
@@ -1800,13 +1800,13 @@ export default function QuickScoreTab() {
                       <div className="px-3 py-4 text-center">
                         <Database className="w-6 h-6 text-warm-300 dark:text-warm-600 mx-auto mb-1" />
                         <p className="text-xs text-warm-400 dark:text-warm-500">No players found</p>
-                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Search by name or code to add players</p>
+                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Search by phone or Player ID to find players</p>
                       </div>
                     ) : !playerSearch.trim() && teamMembers.length === 0 ? (
                       <div className="px-3 py-4 text-center">
                         <Users className="w-6 h-6 text-warm-300 dark:text-warm-600 mx-auto mb-1" />
                         <p className="text-xs text-warm-400 dark:text-warm-500">No team members found for selected teams</p>
-                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Search by name or code to find and add players</p>
+                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Search by phone or Player ID to find and add players</p>
                       </div>
                     ) : null}
 
@@ -1986,7 +1986,7 @@ export default function QuickScoreTab() {
           )}
 
           {step === 4 && (
-            <div className="space-y-5">
+            <div className="space-y-5 pb-6">
               <div className="text-center">
                 <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Match Preview</h2>
                 <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Review your match setup before starting</p>
@@ -2013,8 +2013,8 @@ export default function QuickScoreTab() {
                 </div>
 
                 {/* Teams Face Off - Enhanced with gradient backgrounds */}
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
+                <div className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-center flex-1">
                       {/* Team gradient background */}
                       <div
@@ -2040,12 +2040,12 @@ export default function QuickScoreTab() {
                         </motion.div>
                         <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 flex items-center justify-center gap-1">
                           <Users className="w-3 h-3" />
-                          {config.homeLineup.length} players · {homePlaying7.size}/7 starting
+                          {config.homeLineup.length} players · {homePlaying7.size}/{config.playersPerSide} starting
                         </div>
                         {/* Select Playing 7 & Captain */}
-                        <div className="mt-2 space-y-1.5 text-left max-h-48 overflow-y-auto">
-                          {homePlaying7.size < 7 && (
-                            <div className="text-[9px] font-bold text-brand-red text-center animate-pulse">Tap players to mark as Playing 7</div>
+                        <div className="mt-2 space-y-1.5 text-left max-h-64 sm:max-h-48 overflow-y-auto">
+                          {homePlaying7.size < config.playersPerSide && (
+                            <div className="text-[9px] font-bold text-brand-red text-center animate-pulse">Tap players to mark as Playing {config.playersPerSide}</div>
                           )}
                           {config.homeLineup.map((p) => {
                             const dbP = allPlayers.find(ap => ap.id === p.id);
@@ -2060,7 +2060,7 @@ export default function QuickScoreTab() {
                                   if (next.has(p.id)) {
                                     next.delete(p.id);
                                     if (homeCaptain === p.id) setHomeCaptain(null);
-                                  } else if (next.size < 7) {
+                                  } else if (next.size < config.playersPerSide) {
                                     next.add(p.id);
                                   }
                                   setHomePlaying7(next);
@@ -2159,12 +2159,12 @@ export default function QuickScoreTab() {
                         </motion.div>
                         <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 flex items-center justify-center gap-1">
                           <Users className="w-3 h-3" />
-                          {config.awayLineup.length} players · {awayPlaying7.size}/7 starting
+                          {config.awayLineup.length} players · {awayPlaying7.size}/{config.playersPerSide} starting
                         </div>
                         {/* Select Playing 7 & Captain */}
-                        <div className="mt-2 space-y-1.5 text-left max-h-48 overflow-y-auto">
-                          {awayPlaying7.size < 7 && (
-                            <div className="text-[9px] font-bold text-brand-red text-center animate-pulse">Tap players to mark as Playing 7</div>
+                        <div className="mt-2 space-y-1.5 text-left max-h-64 sm:max-h-48 overflow-y-auto">
+                          {awayPlaying7.size < config.playersPerSide && (
+                            <div className="text-[9px] font-bold text-brand-red text-center animate-pulse">Tap players to mark as Playing {config.playersPerSide}</div>
                           )}
                           {config.awayLineup.map((p) => {
                             const dbP = allPlayers.find(ap => ap.id === p.id);
@@ -2179,7 +2179,7 @@ export default function QuickScoreTab() {
                                   if (next.has(p.id)) {
                                     next.delete(p.id);
                                     if (awayCaptain === p.id) setAwayCaptain(null);
-                                  } else if (next.size < 7) {
+                                  } else if (next.size < config.playersPerSide) {
                                     next.add(p.id);
                                   }
                                   setAwayPlaying7(next);
