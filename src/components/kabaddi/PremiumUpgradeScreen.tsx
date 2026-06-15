@@ -159,6 +159,33 @@ const VALID_COUPONS: Record<string, { discount: number; label: string }> = {
   'LAUNCH20': { discount: 20, label: '20% OFF' },
 };
 
+// Fallback: Redirect to Cashfree checkout without JS SDK
+// Uses the new Cashfree checkout URL (POST to /pg/view/sessions/checkout)
+function redirectToCashfreeCheckout(paymentSessionId: string, isProduction: boolean) {
+  const checkoutUrl = isProduction
+    ? 'https://api.cashfree.com/pg/view/sessions/checkout'
+    : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
+
+  console.log(`[Cashfree] Fallback: POST redirect to ${checkoutUrl}`);
+
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = checkoutUrl;
+  form.target = '_self';
+  form.style.display = 'none';
+
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'payment_session_id';
+  input.value = paymentSessionId;
+  form.appendChild(input);
+
+  document.body.appendChild(form);
+  form.submit();
+  // Don't remove form immediately — mobile browsers need it during submission
+  setTimeout(() => form.remove(), 5000);
+}
+
 export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgradeScreenProps) {
   const { currentUser, updateUser } = useKabaddiStore();
   const { toast } = useToast();
@@ -330,62 +357,54 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
         throw new Error('No payment session ID received. Please try again.');
       }
 
-      // Step 2: Open Cashfree checkout using the official JS SDK v3
-      // This is the most reliable method across all devices (desktop + mobile)
+      // Step 2: Open Cashfree checkout
       const isProduction = orderData.env === 'production';
+      const paymentSessionId = orderData.paymentSessionId;
 
-      console.log(`[Cashfree] Opening checkout: env=${orderData.env}, orderId=${orderData.orderId}`);
+      console.log(`[Cashfree] Opening checkout: env=${orderData.env}, orderId=${orderData.orderId}, sessionId=${paymentSessionId.substring(0, 10)}...`);
 
       // Save order ID to localStorage so we can verify payment when user returns
       localStorage.setItem('pendingPaymentOrderId', orderData.orderId);
       localStorage.setItem('pendingPaymentPlan', selectedPlan);
 
-      // Load Cashfree JS SDK dynamically
-      try {
-        await new Promise<void>((resolve, reject) => {
-          // Check if already loaded
-          if ((window as Record<string, unknown>).Cashfree) {
-            resolve();
-            return;
-          }
-          const script = document.createElement('script');
-          script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-          script.async = true;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('Failed to load payment SDK. Please check your internet connection and try again.'));
-          document.head.appendChild(script);
-        });
+      // Wait for Cashfree SDK to be available (loaded from layout.tsx head)
+      let sdkReady = false;
+      for (let i = 0; i < 20; i++) {
+        if ((window as Record<string, unknown>).Cashfree) {
+          sdkReady = true;
+          break;
+        }
+        // Wait 250ms and check again (up to 5 seconds total)
+        await new Promise(r => setTimeout(r, 250));
+      }
 
-        const cashfreeWin = (window as Record<string, unknown>).Cashfree as unknown as (config: { mode: string }) => { checkout: (options: { paymentSessionId: string; redirectTarget: string }) => void };
-        const cashfree = cashfreeWin({
-          mode: isProduction ? 'production' : 'sandbox',
-        });
+      if (sdkReady) {
+        try {
+          const CF = ((window as Record<string, unknown>).Cashfree) as (config: { mode: string }) => { checkout: (options: Record<string, string>) => void };
+          const cashfree = CF({
+            mode: isProduction ? 'production' : 'sandbox',
+          });
 
-        cashfree.checkout({
-          paymentSessionId: orderData.paymentSessionId,
-          redirectTarget: '_self',
-        });
-      } catch (sdkError) {
-        console.error('[Cashfree] SDK error, falling back to redirect:', sdkError);
-        // Fallback: Try the direct redirect approach if SDK fails
-        const checkoutUrl = isProduction
-          ? 'https://api.cashfree.com/pg/view/sessions/checkout'
-          : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
+          console.log('[Cashfree] SDK initialized, calling checkout...');
 
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = checkoutUrl;
-        form.target = '_self';
+          // Use _self redirect — this is the most reliable method
+          // The SDK will redirect the entire page to Cashfree's checkout
+          cashfree.checkout({
+            paymentSessionId: paymentSessionId,
+            redirectTarget: '_self',
+          });
 
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'payment_session_id';
-        input.value = orderData.paymentSessionId;
-        form.appendChild(input);
-
-        document.body.appendChild(form);
-        form.submit();
-        form.remove();
+          // Note: After checkout(), the page will redirect to Cashfree
+          // so code below won't execute in most cases
+        } catch (sdkErr) {
+          console.error('[Cashfree] SDK checkout() failed:', sdkErr);
+          // SDK loaded but checkout failed — try fallback
+          redirectToCashfreeCheckout(paymentSessionId, isProduction);
+        }
+      } else {
+        console.warn('[Cashfree] SDK not loaded after 5s, using direct redirect');
+        // SDK didn't load — use direct redirect fallback
+        redirectToCashfreeCheckout(paymentSessionId, isProduction);
       }
 
     } catch (error) {
