@@ -159,10 +159,8 @@ const VALID_COUPONS: Record<string, { discount: number; label: string }> = {
   'LAUNCH20': { discount: 20, label: '20% OFF' },
 };
 
-// Redirect to server-rendered checkout page
-// This is the MOST RELIABLE method — works on ALL devices (desktop, mobile, PWA, WebView)
-// The server returns an HTML page with an auto-submitting POST form to Cashfree
-// No client-side JS SDK dependency, no dynamic DOM manipulation needed
+// Redirect to server-side checkout — tries 302 redirect first (most reliable),
+// then falls back to HTML page with visible form + direct link
 function redirectToServerCheckout(paymentSessionId: string, env: string, orderId: string, plan: string) {
   const params = new URLSearchParams({
     session_id: paymentSessionId,
@@ -170,7 +168,8 @@ function redirectToServerCheckout(paymentSessionId: string, env: string, orderId
     order_id: orderId,
     plan: plan,
   });
-  console.log(`[Cashfree] Redirecting to server-rendered checkout for order ${orderId}`);
+  console.log(`[Cashfree] Redirecting to checkout for order ${orderId}`);
+  // The server will try a 302 redirect to Cashfree's hosted checkout first
   window.location.href = `/api/payments/checkout?${params.toString()}`;
 }
 

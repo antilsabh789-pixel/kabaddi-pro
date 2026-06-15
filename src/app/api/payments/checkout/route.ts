@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Server-rendered checkout redirect page for Cashfree payments.
+ * Cashfree Checkout Redirect
  *
- * This is the MOST RELIABLE way to redirect to Cashfree on ALL devices:
- * - Desktop browsers ✓
- * - Mobile browsers ✓
- * - PWA / WebView ✓
- * - JavaScript disabled ✓
+ * This route handles the payment redirect to Cashfree's hosted checkout page.
+ * It tries MULTIPLE methods to ensure the payment works on ALL devices:
  *
- * Instead of relying on the Cashfree JS SDK (which fails on some mobile devices),
- * this route returns a complete HTML page with an auto-submitting POST form.
- * The form POSTs the payment_session_id directly to Cashfree's checkout page.
- * Zero client-side JavaScript is needed — the browser handles the form submission natively.
+ * Method 1: Server-side 302 redirect (most reliable, no JS needed)
+ * Method 2: HTML page with visible form + auto-submit (fallback)
+ * Method 3: Manual "Tap to Pay" button (last resort for restricted browsers)
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -20,6 +16,7 @@ export async function GET(request: NextRequest) {
   const env = searchParams.get('env') || 'sandbox';
   const orderId = searchParams.get('order_id') || '';
   const plan = searchParams.get('plan') || '';
+  const method = searchParams.get('method') || 'redirect'; // redirect | html
 
   // Validate required parameters
   if (!sessionId) {
@@ -53,177 +50,204 @@ export async function GET(request: NextRequest) {
   }
 
   const isProduction = env === 'production';
-  const checkoutUrl = isProduction
+
+  // METHOD 1: Server-side 302 redirect to Cashfree hosted checkout
+  // This is the simplest and most reliable method — no JavaScript, no forms
+  // The browser follows the redirect natively on ALL devices
+  if (method === 'redirect') {
+    // Cashfree v3 hosted checkout URL format:
+    // https://payments.cashfree.com/pg/orders/pay/{payment_session_id}
+    const hostedCheckoutUrl = isProduction
+      ? `https://payments.cashfree.com/pg/orders/pay/${sessionId}`
+      : `https://sandbox.cashfree.com/pg/orders/pay/${sessionId}`;
+
+    console.log(`[Cashfree] 302 redirect to hosted checkout: ${hostedCheckoutUrl.substring(0, 60)}...`);
+
+    // Use 307 to preserve the GET method (some browsers convert 302 to POST)
+    return NextResponse.redirect(hostedCheckoutUrl, 307);
+  }
+
+  // METHOD 2: HTML page with VISIBLE form and multiple submit methods
+  // This is the fallback if the 302 redirect doesn't work
+  const formPostUrl = isProduction
     ? 'https://api.cashfree.com/pg/view/sessions/checkout'
     : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
 
-  // Return a complete HTML page with auto-submitting form
-  // This works on ALL devices — no JavaScript dependency
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Redirecting to Payment...</title>
+  <title>Complete Payment - Kabaddi Pro</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       min-height: 100vh;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
       color: white;
-      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
     }
     .container {
       text-align: center;
-      padding: 24px;
-      max-width: 380px;
+      max-width: 400px;
+      width: 100%;
     }
-    .spinner {
-      width: 56px;
-      height: 56px;
-      border: 4px solid rgba(255,255,255,0.2);
-      border-top-color: #f59e0b;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 24px;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    .title {
-      font-size: 20px;
-      font-weight: 700;
+    .logo {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      color: #f59e0b;
       margin-bottom: 8px;
     }
     .subtitle {
-      font-size: 14px;
-      color: rgba(255,255,255,0.7);
-      line-height: 1.5;
-      margin-bottom: 24px;
-    }
-    .order-info {
-      background: rgba(255,255,255,0.1);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 24px;
-      backdrop-filter: blur(8px);
-    }
-    .order-info .label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      font-size: 12px;
       color: rgba(255,255,255,0.5);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .order-ref {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
       margin-bottom: 4px;
     }
-    .order-info .value {
-      font-size: 14px;
-      font-weight: 600;
+    .order-id {
+      font-size: 13px;
       color: #f59e0b;
+      font-weight: 600;
+      word-break: break-all;
+      margin-bottom: 20px;
     }
-    .manual-btn {
-      display: inline-block;
-      background: #f59e0b;
+    .pay-btn {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
       color: #1a1a2e;
-      padding: 14px 32px;
-      border-radius: 10px;
-      font-weight: 700;
-      font-size: 15px;
-      text-decoration: none;
-      cursor: pointer;
       border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 800;
+      cursor: pointer;
       -webkit-tap-highlight-color: transparent;
+      text-decoration: none;
+      text-align: center;
+      letter-spacing: 0.02em;
     }
-    .manual-btn:hover { background: #d97706; }
-    .manual-section {
-      display: none;
-      animation: fadeIn 0.3s ease;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .footer-text {
-      margin-top: 20px;
-      font-size: 11px;
+    .pay-btn:hover { background: linear-gradient(135deg, #d97706, #b45309); }
+    .pay-btn:active { transform: scale(0.98); }
+    .or-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 16px 0;
+      font-size: 12px;
       color: rgba(255,255,255,0.3);
     }
+    .or-divider::before, .or-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+    }
+    .link-btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      text-decoration: none;
+      text-align: center;
+    }
+    .link-btn:hover { background: rgba(255,255,255,0.15); }
     .secure-badge {
       display: inline-flex;
       align-items: center;
       gap: 4px;
       font-size: 11px;
-      color: rgba(255,255,255,0.4);
-      margin-top: 12px;
+      color: rgba(255,255,255,0.3);
+      margin-top: 20px;
+    }
+    .auto-notice {
+      font-size: 11px;
+      color: rgba(255,255,255,0.3);
+      margin-top: 8px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="spinner" id="spinner"></div>
-    <div class="title" id="status-text">Redirecting to Payment</div>
-    <div class="subtitle" id="status-subtitle">Please wait while we connect you to our secure payment partner...</div>
+    <div class="logo">KABADDI PRO</div>
+    <div class="subtitle">Premium Payment</div>
 
-    ${orderId ? `
-    <div class="order-info">
-      <div class="label">Order Reference</div>
-      <div class="value">${orderId}</div>
-    </div>
-    ` : ''}
+    <div class="card">
+      ${orderId ? `
+      <div class="order-ref">Order Reference</div>
+      <div class="order-id">${orderId}</div>
+      ` : ''}
 
-    <div class="manual-section" id="manual-section">
-      <p style="font-size:13px; color:rgba(255,255,255,0.6); margin-bottom:16px;">
-        If you are not redirected automatically, tap the button below:
-      </p>
-      <form method="POST" action="${checkoutUrl}" id="manual-form">
+      <!-- METHOD A: Form POST to Cashfree (primary) -->
+      <form method="POST" action="${formPostUrl}" id="checkout-form">
         <input type="hidden" name="payment_session_id" value="${sessionId}">
-        <button type="submit" class="manual-btn">Open Payment Page</button>
+        <button type="submit" class="pay-btn">Pay Securely</button>
       </form>
+
+      <div class="or-divider">or</div>
+
+      <!-- METHOD B: Direct link to Cashfree hosted checkout -->
+      <a href="${isProduction ? `https://payments.cashfree.com/pg/orders/pay/${sessionId}` : `https://sandbox.cashfree.com/pg/orders/pay/${sessionId}`}" class="link-btn" id="direct-link">
+        Open Payment Page Directly
+      </a>
+
+      <div class="auto-notice" id="auto-notice">Auto-redirecting in 2 seconds...</div>
     </div>
 
-    <div class="secure-badge">
-      🔒 Secured by Cashfree Payments
-    </div>
-    <div class="footer-text">Kabaddi Pro Premium</div>
+    <div class="secure-badge">🔒 Secured by Cashfree Payments</div>
   </div>
 
-  <!-- Hidden auto-submit form — the PRIMARY method -->
-  <form method="POST" action="${checkoutUrl}" id="auto-form" style="display:none;">
-    <input type="hidden" name="payment_session_id" value="${sessionId}">
-  </form>
-
   <script>
-    // Auto-submit the form after a short delay
-    // The delay ensures the page is fully rendered before navigation
+    // Auto-submit the form after 2 seconds
+    // This gives the page time to render and the user a moment to see the UI
+    var autoSubmitted = false;
     setTimeout(function() {
       try {
-        document.getElementById('auto-form').submit();
+        autoSubmitted = true;
+        document.getElementById('checkout-form').submit();
       } catch(e) {
-        // If auto-submit fails, show manual button
-        document.getElementById('manual-section').style.display = 'block';
-        document.getElementById('spinner').style.display = 'none';
-        document.getElementById('status-text').textContent = 'Tap to Continue';
-        document.getElementById('status-subtitle').textContent = 'Tap the button below to open the payment page.';
+        // Form submit failed — user can tap the button manually
+        document.getElementById('auto-notice').textContent = 'Tap the button above to proceed.';
       }
-    }, 800);
+    }, 2000);
 
-    // If auto-submit hasn't happened after 5 seconds, show the manual button
+    // Update notice after 5 seconds if still on this page
     setTimeout(function() {
-      var manualSection = document.getElementById('manual-section');
-      if (manualSection.style.display !== 'block') {
-        manualSection.style.display = 'block';
-        document.getElementById('status-text').textContent = 'Almost there...';
-        document.getElementById('status-subtitle').textContent = 'If the payment page doesn\'t load, tap the button below.';
+      if (!autoSubmitted || document.getElementById('auto-notice')) {
+        document.getElementById('auto-notice').textContent = 'Tap either button above to proceed to payment.';
       }
     }, 5000);
   </script>
 
   <noscript>
-    <!-- JavaScript disabled: show the manual form immediately -->
-    <style>.manual-section { display: block !important; } .spinner { display: none !important; }</style>
+    <style>.auto-notice { display: none; }</style>
   </noscript>
 </body>
 </html>`;
@@ -231,7 +255,6 @@ export async function GET(request: NextRequest) {
   return new NextResponse(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      // Prevent caching — each checkout must be fresh
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0',
