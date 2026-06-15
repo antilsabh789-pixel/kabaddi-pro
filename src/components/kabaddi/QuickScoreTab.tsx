@@ -32,8 +32,8 @@ interface MatchConfig {
   awayLineup: MatchPlayer[];
 }
 
-const STEPS = ['Category', 'Settings', 'Teams', 'Lineup', 'Start'];
-const STEP_ICONS = [Users, Clock, Swords, Shield, Play];
+const STEPS = ['Category', 'Teams', 'Settings', 'Lineup', 'Start'];
+const STEP_ICONS = [Users, Swords, Clock, Shield, Play];
 
 const MAX_SQUAD_SIZE = 12; // 7 starting + 5 substitutes
 
@@ -564,8 +564,8 @@ export default function QuickScoreTab() {
   const canNext = () => {
     switch (step) {
       case 0: return config.gender !== '';
-      case 1: return config.halfDuration >= 1 && config.playersPerSide >= 1;
-      case 2: return config.homeTeam !== '' && config.awayTeam !== '';
+      case 1: return config.homeTeam !== '' && config.awayTeam !== '';
+      case 2: return config.halfDuration >= 1 && config.playersPerSide >= 1;
       case 3: return config.homeLineup.length >= config.playersPerSide && config.awayLineup.length >= config.playersPerSide;
       case 4: return true;
       default: return false;
@@ -585,7 +585,7 @@ export default function QuickScoreTab() {
     if (step > 0) {
       setStep(step - 1);
       // Reset team setup phase when going back to teams step
-      if (step === 3) setTeamSetupPhase(config.homeTeam ? 'opponent' : 'my-team');
+      if (step === 2) setTeamSetupPhase(config.homeTeam ? 'opponent' : 'my-team');
     }
   };
 
@@ -1233,7 +1233,7 @@ export default function QuickScoreTab() {
             </div>
           )}
 
-          {step === 1 && (
+          {step === 2 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Match Settings</h2>
@@ -1470,7 +1470,7 @@ export default function QuickScoreTab() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 1 && (
             <div className="space-y-5" ref={teamInputRef}>
               <div className="text-center">
                 <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Team Setup</h2>

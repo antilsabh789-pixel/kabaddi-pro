@@ -143,3 +143,24 @@ Stage Summary:
 - Team roster auto-populates lineup and selects playing 7
 - Real team IDs are used when starting a match (for linking to DB records)
 - Manual entry fallback still available for both teams
+
+---
+Task ID: 1
+Agent: Main
+Task: Change match setup step order - Teams first, then Settings
+
+Work Log:
+- Read QuickScoreTab.tsx to understand current step structure (Category → Settings → Teams → Lineup → Start)
+- Read Prisma schema to confirm Team model has teamCode field
+- Updated STEPS array from ['Category', 'Settings', 'Teams', 'Lineup', 'Start'] to ['Category', 'Teams', 'Settings', 'Lineup', 'Start']
+- Updated STEP_ICONS to match new order
+- Updated canNext() logic to swap case 1 (now Teams check) and case 2 (now Settings check)
+- Updated handlePrev() step condition from step === 3 to step === 2 for team setup phase reset
+- Swapped step rendering conditionals: step === 1 renders Teams, step === 2 renders Settings
+- Verified with agent-browser that the new flow works: Category → Teams → Settings → Lineup → Start
+
+Stage Summary:
+- Match setup wizard now shows Teams step before Settings step
+- After selecting category, user picks their team and opponent first, then configures time/players
+- All navigation (next/prev) works correctly with new step order
+- Lint passes with no errors
