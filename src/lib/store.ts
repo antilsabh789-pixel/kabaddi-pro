@@ -25,6 +25,7 @@ export interface CurrentUser {
 export interface MatchPlayer {
   id: string;
   name: string;
+  phone?: string; // Phone number is the primary identifier for linking players to their accounts
   jerseyNumber?: number;
   playerCode?: string;
   team: 'home' | 'away';

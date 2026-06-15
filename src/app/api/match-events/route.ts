@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
                   select: {
                     id: true,
                     name: true,
+                    phone: true,
                     avatar: true,
                     playerCode: true,
                     profile: {
@@ -53,6 +54,7 @@ export async function GET(request: NextRequest) {
                   select: {
                     id: true,
                     name: true,
+                    phone: true,
                     avatar: true,
                     playerCode: true,
                     profile: {
@@ -87,6 +89,7 @@ export async function GET(request: NextRequest) {
       members.map((m) => ({
         id: m.user.id,
         name: m.user.name || 'Player',
+        phone: m.user.phone,
         avatar: m.user.avatar ?? undefined,
         jerseyNumber: m.user.profile?.jerseyNumber ?? undefined,
         position: m.user.profile?.position ?? undefined,

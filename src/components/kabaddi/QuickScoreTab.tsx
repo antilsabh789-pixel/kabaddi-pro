@@ -468,14 +468,25 @@ export default function QuickScoreTab() {
   };
 
   const addQuickPlayer = (team: 'home' | 'away') => {
-    const name = playerSearch.trim();
-    if (!name) return;
+    const input = playerSearch.trim();
+    if (!input) return;
     const lineup = team === 'home' ? config.homeLineup : config.awayLineup;
     const maxSquad = config.playersPerSide + 5;
     if (lineup.length >= maxSquad) return; // Squad limit reached
+
+    // Determine if input is a phone number (mostly digits)
+    const isPhoneInput = /^[\d+\-() ]+$/.test(input) && input.replace(/[^\d]/g, '').length >= 6;
+
+    // Check if phone number already exists in squad
+    if (isPhoneInput) {
+      const phoneExists = [...config.homeLineup, ...config.awayLineup].some(p => p.phone === input);
+      if (phoneExists) return; // Already added with this phone
+    }
+
     const newPlayer: MatchPlayer = {
-      id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-      name,
+      id: `phone_${isPhoneInput ? input.replace(/[^\d+]/g, '') : Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      name: isPhoneInput ? `Player ${input.slice(-4)}` : input, // Use last 4 digits if phone input
+      phone: isPhoneInput ? input : undefined,
       jerseyNumber: lineup.length + 1,
       team,
     };
@@ -587,14 +598,15 @@ export default function QuickScoreTab() {
   const addDbPlayer = (dbPlayer: DbPlayer) => {
     const lineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
     const maxSquad = config.playersPerSide + 5;
-    // Check if already added
-    const alreadyAdded = [...config.homeLineup, ...config.awayLineup].some(p => p.id === dbPlayer.id);
+    // Check if already added (by ID or phone number — one phone per player)
+    const alreadyAdded = [...config.homeLineup, ...config.awayLineup].some(p => p.id === dbPlayer.id || (dbPlayer.phone && p.phone === dbPlayer.phone));
     if (alreadyAdded) return;
     // Check squad limit
     if (lineup.length >= maxSquad) return;
     const newPlayer: MatchPlayer = {
       id: dbPlayer.id,
       name: dbPlayer.name || 'Unknown',
+      phone: dbPlayer.phone || undefined,
       jerseyNumber: dbPlayer.profile?.jerseyNumber || lineup.length + 1,
       playerCode: dbPlayer.playerCode || undefined,
       team: activeLineupTeam,
@@ -1647,7 +1659,7 @@ export default function QuickScoreTab() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
                   <Input
-                    placeholder="Search by phone or Player ID..."
+                    placeholder="Search by phone number or name..."
                     value={playerSearch}
                     onChange={(e) => {
                       setPlayerSearch(e.target.value);
@@ -1793,20 +1805,21 @@ export default function QuickScoreTab() {
                           className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-brand-red hover:text-brand-red-dark"
                         >
                           <UserPlus className="w-3.5 h-3.5" />
-                          Quick add &quot;{playerSearch.trim()}&quot;
+                          Add with phone &quot;{playerSearch.trim()}&quot;
                         </button>
+                        <p className="text-[9px] text-warm-400 mt-1">📱 Phone number links player to their account</p>
                       </div>
                     ) : !playerSearch.trim() && teamMembers.length === 0 && allPlayers.length === 0 ? (
                       <div className="px-3 py-4 text-center">
                         <Database className="w-6 h-6 text-warm-300 dark:text-warm-600 mx-auto mb-1" />
                         <p className="text-xs text-warm-400 dark:text-warm-500">No players found</p>
-                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Search by phone or Player ID to find players</p>
+                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Search by phone number to find &amp; add players</p>
                       </div>
                     ) : !playerSearch.trim() && teamMembers.length === 0 ? (
                       <div className="px-3 py-4 text-center">
                         <Users className="w-6 h-6 text-warm-300 dark:text-warm-600 mx-auto mb-1" />
                         <p className="text-xs text-warm-400 dark:text-warm-500">No team members found for selected teams</p>
-                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Search by phone or Player ID to find and add players</p>
+                        <p className="text-[10px] text-warm-400 dark:text-warm-500">Search by phone number to find &amp; add players</p>
                       </div>
                     ) : null}
 
@@ -1823,9 +1836,9 @@ export default function QuickScoreTab() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-brand-red">
-                            Quick add &quot;{playerSearch.trim()}&quot;
+                            Add &quot;{playerSearch.trim()}&quot;
                           </p>
-                          <p className="text-[10px] text-warm-400 dark:text-warm-500">Add as new player (not in database)</p>
+                          <p className="text-[10px] text-warm-400 dark:text-warm-500">📱 Phone links player to their account for match records</p>
                         </div>
                       </button>
                     )}

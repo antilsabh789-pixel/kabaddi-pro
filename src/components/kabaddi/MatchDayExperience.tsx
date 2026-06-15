@@ -51,6 +51,7 @@ interface MatchEventAPI {
 interface MatchPlayerAPI {
   id: string;
   name: string;
+  phone?: string;
   avatar?: string;
   jerseyNumber?: number;
   position?: string;

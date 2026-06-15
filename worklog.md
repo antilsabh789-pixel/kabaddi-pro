@@ -85,3 +85,33 @@ Stage Summary:
 - Timeout now asks which team or if official timeout, with used/total counts displayed
 - Substitute flow reversed: tap sub player first → then select who goes out
 - Add player now has ID/Player Code field with auto-detect search from database
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Change player addition to phone-number-based system — phone + name required, one phone per player, links to account for match records
+
+Work Log:
+- Added `phone?: string` field to MatchPlayer interface in store.ts — phone is the primary identifier linking players to their accounts
+- Replaced `addPlayerId` and `addPlayerJersey` state variables with `addPlayerPhone` in LiveScoringScreen.tsx
+- Updated search useEffect to search by phone number first (via /api/players/search) instead of ID/player code
+- Updated handleAddPlayer to require phone + name, check for duplicate phone numbers in squad, use existing user ID if found
+- Redesigned Add Player modal: phone number input first (with tel type), name input second, help text explaining phone links player to account
+- Created /api/players/search API endpoint: searches users by phone or name, returns player info with phone, jersey number, team membership
+- Fixed SQLite compatibility issue (removed mode: 'insensitive' from Prisma query)
+- Updated /api/match-events to include phone in user select and formatPlayers output
+- Updated MatchPlayerAPI interface in MatchDayExperience.tsx to include phone field
+- Updated QuickScoreTab: addDbPlayer now includes phone number and checks for duplicate phone numbers in squad
+- Updated QuickScoreTab: addQuickPlayer now detects phone number input, stores phone, uses phone-based ID format
+- Updated search placeholder from "Search by phone or Player ID" to "Search by phone number or name"
+- Updated "Quick add" button text and help text to emphasize phone number linking
+- Verified all changes with agent-browser: phone search works, Add Player modal shows phone + name, no runtime errors
+
+Stage Summary:
+- Adding a player (both mid-match and pre-match) now requires phone number + name
+- Phone number is the primary unique identifier — one phone number per player
+- When phone matches existing user, auto-fills name and uses existing user ID
+- When phone doesn't match, creates new player with phone-based ID (phone_<number>)
+- When a player signs up with that phone number later, they can see their match records
+- API endpoint /api/players/search supports both phone and name searches
+- All player data flows now include phone numbers
