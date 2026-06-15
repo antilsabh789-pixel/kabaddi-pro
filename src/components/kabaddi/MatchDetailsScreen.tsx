@@ -65,6 +65,7 @@ interface MatchData {
   isPractice: boolean;
   venue?: string | null;
   ground?: string | null;
+  weightCategory?: string | null;
 }
 
 interface MatchDetailsScreenProps {
@@ -306,6 +307,7 @@ export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScr
       date: match.startedAt,
       venue: match.venue || null,
       gender: match.gender || null,
+      weightCategory: match.weightCategory || null,
       topRaider: tr,
       topDefender: td,
       motm,
@@ -1100,6 +1102,21 @@ export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScr
                         </Badge>
                       </div>
                     </div>
+
+                    {/* Weight Category */}
+                    {match.weightCategory && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                          <span className="text-sm">⚖️</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">WEIGHT</p>
+                          <Badge className="text-[10px] font-semibold border-0 px-2 py-0.5 mt-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                            {match.weightCategory === 'open' ? '♾️ Open' : `⚖️ ${match.weightCategory}`}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Ground */}
                     {match.ground && (

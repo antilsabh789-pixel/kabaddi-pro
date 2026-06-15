@@ -75,6 +75,7 @@ interface MatchItem {
   status: string;
   isPractice: boolean;
   gender: string | null;
+  weightCategory: string | null;
   venue: string | null;
   halfDuration: number;
   startedAt: string | null;
@@ -722,6 +723,11 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                       ? '♂'
                       : '♀'}
                   </span>
+                )}
+                {match.weightCategory && (
+                  <Badge className="text-[9px] font-semibold border-0 px-1.5 py-0 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                    {match.weightCategory === 'open' ? '♾️ Open' : `⚖️ ${match.weightCategory}`}
+                  </Badge>
                 )}
               </div>
               <div className="flex items-center gap-1 text-[10px] text-warm-400 dark:text-warm-500">

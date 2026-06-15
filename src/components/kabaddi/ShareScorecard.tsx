@@ -37,6 +37,7 @@ interface ShareScorecardProps {
     date?: string | null;
     venue?: string | null;
     gender?: string | null;
+    weightCategory?: string | null;
     topRaider?: { name: string; points: number } | null;
     topDefender?: { name: string; points: number } | null;
     motm?: { name: string; points: number } | null;
@@ -352,6 +353,14 @@ export default function ShareScorecard({ onClose, matchData }: ShareScorecardPro
                       {matchData.gender === 'male' ? 'Boys' : 'Girls'} Match
                     </span>
                   )}
+                  {matchData.weightCategory && (
+                    <span
+                      className="text-[9px] mt-0.5 block font-semibold"
+                      style={{ color: isDark ? '#F59E0B' : '#D97706' }}
+                    >
+                      {matchData.weightCategory === 'open' ? '♾️ Open' : `⚖️ ${matchData.weightCategory}`}
+                    </span>
+                  )}
                 </div>
 
                 {/* Away Team */}
@@ -502,6 +511,11 @@ export default function ShareScorecard({ onClose, matchData }: ShareScorecardPro
                 {matchData.tournament && (
                   <div className="flex items-center gap-1 font-semibold" style={{ color: isDark ? '#94A3B8' : '#64748B' }}>
                     {matchData.tournament}
+                  </div>
+                )}
+                {matchData.weightCategory && (
+                  <div className="flex items-center gap-1 font-semibold" style={{ color: isDark ? '#F59E0B' : '#D97706' }}>
+                    {matchData.weightCategory === 'open' ? '♾️ Open' : `⚖️ ${matchData.weightCategory}`}
                   </div>
                 )}
               </div>

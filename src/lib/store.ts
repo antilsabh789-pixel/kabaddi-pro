@@ -115,7 +115,7 @@ export type HomeData = Record<string, unknown> | null;
 
 export type OnboardingPosition = 'raider' | 'defender' | 'all-rounder';
 export type OnboardingExperience = 'beginner' | 'intermediate' | 'advanced';
-export type OnboardingWeightCategory = 'below-60' | '60-70' | '70-80' | '80-90' | 'above-90';
+export type OnboardingWeightCategory = string; // 'open' or any manually entered weight like '65kg'
 
 export interface OnboardingProfile {
   position: OnboardingPosition | null;

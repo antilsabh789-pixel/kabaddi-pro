@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
       half: m.half,
       status: m.status,
       gender: m.gender,
+      weightCategory: m.weightCategory,
       homeTeam: {
         id: m.homeTeam.id,
         name: m.homeTeam.name,
@@ -111,6 +112,7 @@ export async function GET(request: NextRequest) {
       half: m.half,
       status: m.status,
       gender: m.gender,
+      weightCategory: m.weightCategory,
       homeTeam: {
         id: m.homeTeam.id,
         name: m.homeTeam.name,
@@ -147,6 +149,7 @@ export async function GET(request: NextRequest) {
       half: m.half,
       status: m.status,
       gender: m.gender,
+      weightCategory: m.weightCategory,
       homeTeam: {
         id: m.homeTeam.id,
         name: m.homeTeam.name,

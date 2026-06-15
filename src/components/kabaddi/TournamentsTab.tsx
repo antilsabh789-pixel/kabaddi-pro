@@ -630,6 +630,9 @@ export default function TournamentsTab() {
     weightCategory: 'open',
     type: 'knockout',
   });
+  // Weight category type for tournament: 'open' | 'weight'
+  const [tournamentWeightType, setTournamentWeightType] = useState<'open' | 'weight'>('open');
+  const [tournamentWeightInput, setTournamentWeightInput] = useState('');
 
   // Add teams to tournament
   const [addTeamDialogOpen, setAddTeamDialogOpen] = useState<string | null>(null);
@@ -815,6 +818,7 @@ export default function TournamentsTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newTournament,
+          weightCategory: tournamentWeightType === 'open' ? 'open' : tournamentWeightInput.trim(),
           organizerId: currentUser?.id,
         }),
       });
@@ -835,6 +839,8 @@ export default function TournamentsTab() {
       toast({ title: 'Error', description: 'Failed to create tournament', variant: 'destructive' });
     }
     setNewTournament({ name: '', venue: '', gender: 'male', weightCategory: 'open', type: 'knockout' });
+    setTournamentWeightType('open');
+    setTournamentWeightInput('');
   };
 
   const handleGenerateBracket = async (tournamentId: string, teamIds: string[]) => {
@@ -1302,29 +1308,45 @@ export default function TournamentsTab() {
                   <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block flex items-center gap-1.5">
                     <span>⚖️</span> Weight Category
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {([
-                      { key: 'below-60', emoji: '🪶', label: '< 60 kg' },
-                      { key: '60-70', emoji: '⚖️', label: '60-70 kg' },
-                      { key: '70-80', emoji: '💪', label: '70-80 kg' },
-                      { key: '80-90', emoji: '🏋️', label: '80-90 kg' },
-                      { key: 'above-90', emoji: '🦏', label: '> 90 kg' },
-                      { key: 'open', emoji: '♾️', label: 'Open' },
-                    ] as const).map((wc) => (
-                      <button
-                        key={wc.key}
-                        onClick={() => setNewTournament({ ...newTournament, weightCategory: wc.key })}
-                        className={`p-2 rounded-xl border-2 text-[10px] font-bold transition-all flex flex-col items-center gap-0.5 ${
-                          newTournament.weightCategory === wc.key
-                            ? 'border-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-300 shadow-sm shadow-amber-500/10'
-                            : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
-                        }`}
-                      >
-                        <span className="text-sm leading-none">{wc.emoji}</span>
-                        {wc.label}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { setTournamentWeightType('open'); setTournamentWeightInput(''); }}
+                      className={`p-3 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center gap-1 ${
+                        tournamentWeightType === 'open'
+                          ? 'border-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-300 shadow-sm shadow-amber-500/10'
+                          : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+                      }`}
+                    >
+                      <span className="text-lg leading-none">♾️</span>
+                      Open
+                      <span className="text-[9px] font-normal opacity-60">No restriction</span>
+                    </button>
+                    <button
+                      onClick={() => setTournamentWeightType('weight')}
+                      className={`p-3 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center gap-1 ${
+                        tournamentWeightType === 'weight'
+                          ? 'border-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-300 shadow-sm shadow-amber-500/10'
+                          : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+                      }`}
+                    >
+                      <span className="text-lg leading-none">⚖️</span>
+                      Weight
+                      <span className="text-[9px] font-normal opacity-60">Enter manually</span>
+                    </button>
                   </div>
+                  {tournamentWeightType === 'weight' && (
+                    <div className="mt-2 relative">
+                      <input
+                        type="text"
+                        placeholder="e.g. 65kg, 70kg, Below 80kg..."
+                        value={tournamentWeightInput}
+                        onChange={(e) => setTournamentWeightInput(e.target.value)}
+                        className="w-full h-10 text-sm font-semibold bg-white dark:bg-warm-800/50 border-2 border-amber-200 dark:border-amber-800/40 focus:border-amber-500 rounded-xl pl-4 pr-10 outline-none"
+                        maxLength={30}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 text-sm">⚖️</span>
+                    </div>
+                  )}
                 </div>
                 <Button
                   onClick={() => setHostStep(1)}
@@ -1438,7 +1460,7 @@ export default function TournamentsTab() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
                         <span className="text-sm">⚖️</span>
-                        <span>{newTournament.weightCategory === 'open' ? 'Open (No restriction)' : newTournament.weightCategory ? `${({['below-60']: 'Below 60 kg', '60-70': '60-70 kg', '70-80': '70-80 kg', '80-90': '80-90 kg', 'above-90': 'Above 90 kg'} as Record<string,string>)[newTournament.weightCategory] || newTournament.weightCategory}` : 'Not set'}</span>
+                        <span>{tournamentWeightType === 'open' ? '♾️ Open (No restriction)' : tournamentWeightInput.trim() || 'Not set'}</span>
                       </div>
                     </div>
                   </div>

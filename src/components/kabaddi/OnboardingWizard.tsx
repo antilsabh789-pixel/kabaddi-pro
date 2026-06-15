@@ -51,11 +51,7 @@ const EXPERIENCE_OPTIONS: { value: OnboardingExperience; label: string; descript
 ];
 
 const WEIGHT_OPTIONS: { value: OnboardingWeightCategory; label: string; description: string; icon: typeof Weight }[] = [
-  { value: 'below-60', label: 'Below 60 kg', description: 'Lightweight', icon: Weight },
-  { value: '60-70', label: '60-70 kg', description: 'Welterweight', icon: Weight },
-  { value: '70-80', label: '70-80 kg', description: 'Middleweight', icon: Dumbbell },
-  { value: '80-90', label: '80-90 kg', description: 'Heavyweight', icon: Dumbbell },
-  { value: 'above-90', label: 'Above 90 kg', description: 'Super heavyweight', icon: Zap },
+  { value: 'open', label: 'Open', description: 'No weight restriction', icon: Weight },
 ];
 
 // ─── Confetti Particle ────────────────────────────────────────────
@@ -281,29 +277,64 @@ function ProfileStep({
       <div>
         <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-2.5">Weight Category</p>
         <div className="grid grid-cols-2 gap-2">
-          {WEIGHT_OPTIONS.map((opt) => (
-            <motion.button
-              key={opt.value}
-              onClick={() => onProfileChange({ weightCategory: opt.value })}
-              className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all duration-200 ${
-                profile.weightCategory === opt.value
-                  ? 'bg-brand-gold/20 border-brand-gold/50 shadow-lg shadow-brand-gold/10'
-                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-              }`}
-              whileTap={{ scale: 0.95 }}
-            >
-              <opt.icon className={`w-5 h-5 shrink-0 ${profile.weightCategory === opt.value ? 'text-brand-gold' : 'text-white/50'}`} />
-              <div className="text-left min-w-0">
-                <span className={`text-xs font-bold block ${profile.weightCategory === opt.value ? 'text-brand-gold' : 'text-white/60'}`}>
-                  {opt.label}
-                </span>
-                <span className={`text-[10px] ${profile.weightCategory === opt.value ? 'text-brand-gold/70' : 'text-white/40'}`}>
-                  {opt.description}
-                </span>
-              </div>
-            </motion.button>
-          ))}
+          {/* Open Option */}
+          <motion.button
+            onClick={() => onProfileChange({ weightCategory: 'open' })}
+            className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all duration-200 ${
+              profile.weightCategory === 'open'
+                ? 'bg-brand-gold/20 border-brand-gold/50 shadow-lg shadow-brand-gold/10'
+                : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+            }`}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span className="text-lg">♾️</span>
+            <div className="text-left min-w-0">
+              <span className={`text-xs font-bold block ${profile.weightCategory === 'open' ? 'text-brand-gold' : 'text-white/60'}`}>
+                Open
+              </span>
+              <span className={`text-[10px] ${profile.weightCategory === 'open' ? 'text-brand-gold/70' : 'text-white/40'}`}>
+                No restriction
+              </span>
+            </div>
+          </motion.button>
+          {/* Weight Option */}
+          <motion.button
+            onClick={() => onProfileChange({ weightCategory: profile.weightCategory && profile.weightCategory !== 'open' ? profile.weightCategory : '' })}
+            className={`flex items-center gap-2.5 p-3 rounded-xl border transition-all duration-200 ${
+              profile.weightCategory && profile.weightCategory !== 'open'
+                ? 'bg-brand-gold/20 border-brand-gold/50 shadow-lg shadow-brand-gold/10'
+                : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+            }`}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span className="text-lg">⚖️</span>
+            <div className="text-left min-w-0">
+              <span className={`text-xs font-bold block ${profile.weightCategory && profile.weightCategory !== 'open' ? 'text-brand-gold' : 'text-white/60'}`}>
+                Weight
+              </span>
+              <span className={`text-[10px] ${profile.weightCategory && profile.weightCategory !== 'open' ? 'text-brand-gold/70' : 'text-white/40'}`}>
+                Enter manually
+              </span>
+            </div>
+          </motion.button>
         </div>
+        {/* Weight Input when "Weight" is selected */}
+        {profile.weightCategory !== null && profile.weightCategory !== 'open' && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mt-2"
+          >
+            <input
+              type="text"
+              placeholder="e.g. 65kg, 70kg..."
+              value={profile.weightCategory}
+              onChange={(e) => onProfileChange({ weightCategory: e.target.value })}
+              className="w-full h-9 text-sm bg-white/10 border border-white/20 focus:border-brand-gold rounded-lg px-3 outline-none text-white placeholder:text-white/30"
+              maxLength={30}
+            />
+          </motion.div>
+        )}
       </div>
     </motion.div>
   );

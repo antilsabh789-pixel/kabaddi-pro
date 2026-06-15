@@ -56,11 +56,7 @@ const POSITIONS = [
 ];
 
 const WEIGHT_CATEGORIES = [
-  { label: 'Under 60kg', value: '60kg' },
-  { label: '60-70kg', value: '65kg' },
-  { label: '70-80kg', value: '75kg' },
-  { label: '80-90kg', value: '85kg' },
-  { label: '90kg+', value: '95kg' },
+  { label: 'Open', value: 'open' },
 ];
 
 const PRACTICE_GROUNDS = [
@@ -208,7 +204,7 @@ export default function ProfileTab() {
   const darkMode = theme === 'dark';
   const [editForm, setEditForm] = useState({
     gender: currentUser?.gender || '',
-    weight: currentUser?.weight?.replace('kg', '') || '',
+    weight: currentUser?.weight || '',
     practiceGround: currentUser?.practiceGround || '',
     position: '',
     jerseyNumber: '',
@@ -448,7 +444,7 @@ export default function ProfileTab() {
   useEffect(() => {
     setEditForm({
       gender: currentUser?.gender || '',
-      weight: currentUser?.weight?.replace('kg', '') || '',
+      weight: currentUser?.weight || '',
       practiceGround: currentUser?.practiceGround || '',
       position: currentUser?.position || profileData.position || '',
       jerseyNumber: (currentUser?.jerseyNumber || profileData.jerseyNumber)?.toString() || '',
@@ -523,7 +519,7 @@ export default function ProfileTab() {
     // Optimistically update local state immediately for responsive UI
     const updatedPosition = editForm.position || undefined;
     const updatedJerseyNumber = editForm.jerseyNumber ? parseInt(editForm.jerseyNumber) : undefined;
-    const updatedWeight = editForm.weight ? `${editForm.weight}kg` : undefined;
+    const updatedWeight = editForm.weight ? (editForm.weight === 'open' ? 'open' : editForm.weight) : undefined;
     const updatedGender = editForm.gender || undefined;
     const updatedPracticeGround = editForm.practiceGround || undefined;
 
@@ -547,7 +543,7 @@ export default function ProfileTab() {
     try {
       const updateBody: Record<string, unknown> = {
         gender: editForm.gender,
-        weight: editForm.weight ? `${editForm.weight}kg` : undefined,
+        weight: editForm.weight ? (editForm.weight === 'open' ? 'open' : editForm.weight) : undefined,
         practiceGround: editForm.practiceGround || undefined,
         position: editForm.position || undefined,
         jerseyNumber: editForm.jerseyNumber ? parseInt(editForm.jerseyNumber) : undefined,
@@ -1101,31 +1097,47 @@ export default function ProfileTab() {
                   {/* Weight Category Selector */}
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Weight Category</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {WEIGHT_CATEGORIES.map((cat) => (
-                        <button
-                          key={cat.value}
-                          onClick={() => setEditForm({ ...editForm, weight: cat.value.replace('kg', '') })}
-                          className={`p-2 rounded-lg border-2 text-xs font-medium transition-all ${
-                            editForm.weight === cat.value.replace('kg', '')
-                              ? 'border-brand-teal bg-brand-teal/10 text-brand-teal'
-                              : 'border-warm-300 bg-white dark:bg-warm-50 text-warm-600 dark:text-warm-500 hover:border-warm-200'
-                          }`}
-                        >
-                          {cat.label}
-                        </button>
-                      ))}
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Open Option */}
+                      <button
+                        onClick={() => setEditForm({ ...editForm, weight: 'open' })}
+                        className={`p-2.5 rounded-lg border-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${
+                          editForm.weight === 'open'
+                            ? 'border-brand-teal bg-brand-teal/10 text-brand-teal'
+                            : 'border-warm-300 bg-white dark:bg-warm-50 text-warm-600 dark:text-warm-500 hover:border-warm-200'
+                        }`}
+                      >
+                        <span className="text-base">♾️</span>
+                        Open
+                        <span className="text-[9px] opacity-60">No restriction</span>
+                      </button>
+                      {/* Weight Option */}
+                      <button
+                        onClick={() => setEditForm({ ...editForm, weight: editForm.weight && editForm.weight !== 'open' ? editForm.weight : '' })}
+                        className={`p-2.5 rounded-lg border-2 text-xs font-medium transition-all flex flex-col items-center gap-1 ${
+                          editForm.weight && editForm.weight !== 'open'
+                            ? 'border-brand-teal bg-brand-teal/10 text-brand-teal'
+                            : 'border-warm-300 bg-white dark:bg-warm-50 text-warm-600 dark:text-warm-500 hover:border-warm-200'
+                        }`}
+                      >
+                        <span className="text-base">⚖️</span>
+                        Weight
+                        <span className="text-[9px] opacity-60">Enter manually</span>
+                      </button>
                     </div>
-                    <div className="relative mt-2">
-                      <Input
-                        type="number"
-                        placeholder="Or enter custom weight"
-                        value={editForm.weight}
-                        onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
-                        className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl pr-12"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">kg</span>
-                    </div>
+                    {editForm.weight && editForm.weight !== 'open' && (
+                      <div className="relative mt-2">
+                        <Input
+                          type="text"
+                          placeholder="e.g. 65kg, 70kg, Below 80kg..."
+                          value={editForm.weight}
+                          onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+                          className="bg-white dark:bg-warm-50 border-2 border-amber-200 dark:border-amber-800/40 focus:border-brand-teal rounded-xl pr-10"
+                          maxLength={30}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 text-sm pointer-events-none">⚖️</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Practice Ground with Autocomplete */}
@@ -1268,7 +1280,7 @@ export default function ProfileTab() {
               {currentUser?.weight && (
                 <span className="flex items-center gap-1">
                   <Activity className="w-3 h-3" />
-                  {currentUser.weight}
+                  {currentUser.weight === 'open' ? '♾️ Open' : `⚖️ ${currentUser.weight}`}
                 </span>
               )}
               {currentUser?.practiceGround && (
@@ -2482,7 +2494,7 @@ export default function ProfileTab() {
                   <p className="text-[10px] text-warm-400 dark:text-warm-300">Your weight category</p>
                 </div>
               </div>
-              <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">{currentUser.weight}</span>
+              <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">{currentUser.weight === 'open' ? '♾️ Open' : currentUser.weight}</span>
             </div>
           )}
 

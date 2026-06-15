@@ -1057,6 +1057,7 @@ export default function LiveScoringScreen() {
             homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
             homeScore: match.homeScore, awayScore: match.awayScore,
             gender: match.gender, isPractice: match.isPractice,
+            weightCategory: match.weightCategory,
             halfDuration: match.halfDuration, playersPerSide: match.playersPerSide,
             events: match.events.map(e => ({
               eventType: e.eventType, teamId: e.teamId, half: e.half,
@@ -2143,8 +2144,8 @@ export default function LiveScoringScreen() {
           </div>
           <div className="text-[8px] text-gray-400 font-medium flex items-center gap-1">
             <span>{match.gender === 'male' ? '♂' : '♀'}</span>
-            {match.weightCategory && match.weightCategory !== 'open' && (
-              <span className="text-amber-400/80">⚖️{match.weightCategory}</span>
+            {match.weightCategory && (
+              <span className="text-amber-400/80">⚖️{match.weightCategory === 'open' ? 'Open' : match.weightCategory}</span>
             )}
           </div>
         </div>

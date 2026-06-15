@@ -34,14 +34,8 @@ interface MatchConfig {
 }
 
 // ─── Weight Category Config ─────────────────────────────────────
-const WEIGHT_CATEGORIES = [
-  { key: 'below-60', label: 'Below 60 kg', labelHi: '60 किग्रा से कम', emoji: '🪶', color: 'from-emerald-500 to-teal-500' },
-  { key: '60-70', label: '60 - 70 kg', labelHi: '60 - 70 किग्रा', emoji: '⚖️', color: 'from-blue-500 to-cyan-500' },
-  { key: '70-80', label: '70 - 80 kg', labelHi: '70 - 80 किग्रा', emoji: '💪', color: 'from-amber-500 to-orange-500' },
-  { key: '80-90', label: '80 - 90 kg', labelHi: '80 - 90 किग्रा', emoji: '🏋️', color: 'from-red-500 to-rose-500' },
-  { key: 'above-90', label: 'Above 90 kg', labelHi: '90 किग्रा से अधिक', emoji: '🦏', color: 'from-purple-500 to-violet-500' },
-  { key: 'open', label: 'Open', labelHi: 'ओपन', emoji: '♾️', color: 'from-gray-500 to-slate-500' },
-] as const;
+// Only 2 options: "Open" (no restriction) or "Weight" (enter manually)
+// Weight values are stored as-is (e.g. "65kg", "70kg")
 
 const STEPS = ['Category', 'Teams', 'Settings', 'Lineup', 'Start'];
 const STEP_ICONS = [Users, Swords, Clock, Shield, Play];
@@ -272,6 +266,9 @@ export default function QuickScoreTab() {
     homeLineup: [],
     awayLineup: [],
   });
+  // Weight category type: 'open' | 'weight' — if 'weight', user enters manually
+  const [weightType, setWeightType] = useState<'open' | 'weight'>('open');
+  const [weightInput, setWeightInput] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
   const [activeLineupTeam, setActiveLineupTeam] = useState<'home' | 'away'>('home');
   const [searchResults, setSearchResults] = useState<DbPlayer[]>([]);
@@ -573,7 +570,7 @@ export default function QuickScoreTab() {
 
   const canNext = () => {
     switch (step) {
-      case 0: return config.gender !== '' && config.weightCategory !== '';
+      case 0: return config.gender !== '' && (weightType === 'open' || (weightType === 'weight' && weightInput.trim() !== ''));
       case 1: return config.homeTeam !== '' && config.awayTeam !== '';
       case 2: return config.halfDuration >= 1 && config.playersPerSide >= 1;
       case 3: return config.homeLineup.length >= config.playersPerSide && config.awayLineup.length >= config.playersPerSide;
@@ -614,7 +611,7 @@ export default function QuickScoreTab() {
       awayTeamColor: config.awayTeamColor,
       isPractice: true,
       gender: config.gender,
-      weightCategory: config.weightCategory,
+      weightCategory: weightType === 'open' ? 'open' : weightInput.trim(),
       halfDuration: config.halfDuration,
       playersPerSide: config.playersPerSide,
       homeLineup: markLineup(config.homeLineup, homePlaying7, homeCaptain),
@@ -1252,57 +1249,123 @@ export default function QuickScoreTab() {
                     <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-sm">⚖️</span>
                     Weight Category
                   </h3>
-                  <p className="text-xs text-warm-500 dark:text-warm-400 mt-1">Select the weight category for this match</p>
+                  <p className="text-xs text-warm-500 dark:text-warm-400 mt-1">Choose Open or enter a specific weight</p>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {WEIGHT_CATEGORIES.map((wc) => (
-                    <motion.button
-                      key={wc.key}
-                      onClick={() => setConfig({ ...config, weightCategory: wc.key })}
-                      whileTap={{ scale: 0.95 }}
-                      className={`relative p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 overflow-hidden group ${
-                        config.weightCategory === wc.key
-                          ? 'border-amber-500 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/5 shadow-lg shadow-amber-500/20'
-                          : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-amber-300 hover:shadow-sm'
-                      }`}
-                    >
-                      {config.weightCategory === wc.key && (
-                        <motion.div
-                          className="absolute top-1.5 right-1.5 z-10"
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                        >
-                          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                            <Check className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        </motion.div>
-                      )}
-                      <span className="text-lg leading-none">{wc.emoji}</span>
-                      <span className={`text-[10px] font-bold leading-tight text-center ${
-                        config.weightCategory === wc.key
-                          ? 'text-amber-700 dark:text-amber-300'
-                          : 'text-warm-600 dark:text-warm-300'
-                      }`}>
-                        {wc.label}
-                      </span>
-                    </motion.button>
-                  ))}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Open Option */}
+                  <motion.button
+                    onClick={() => { setWeightType('open'); setWeightInput(''); }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 overflow-hidden group ${
+                      weightType === 'open'
+                        ? 'border-amber-500 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/5 shadow-lg shadow-amber-500/20'
+                        : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-amber-300 hover:shadow-sm'
+                    }`}
+                  >
+                    {weightType === 'open' && (
+                      <motion.div
+                        className="absolute top-1.5 right-1.5 z-10"
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                      >
+                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      </motion.div>
+                    )}
+                    <span className="text-2xl leading-none">♾️</span>
+                    <span className={`text-xs font-bold leading-tight text-center ${
+                      weightType === 'open'
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-warm-600 dark:text-warm-300'
+                    }`}>
+                      Open
+                    </span>
+                    <span className={`text-[9px] leading-tight text-center ${
+                      weightType === 'open'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-warm-400 dark:text-warm-500'
+                    }`}>
+                      No weight restriction
+                    </span>
+                  </motion.button>
+
+                  {/* Weight Option */}
+                  <motion.button
+                    onClick={() => setWeightType('weight')}
+                    whileTap={{ scale: 0.95 }}
+                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 overflow-hidden group ${
+                      weightType === 'weight'
+                        ? 'border-amber-500 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/5 shadow-lg shadow-amber-500/20'
+                        : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-amber-300 hover:shadow-sm'
+                    }`}
+                  >
+                    {weightType === 'weight' && (
+                      <motion.div
+                        className="absolute top-1.5 right-1.5 z-10"
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                      >
+                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      </motion.div>
+                    )}
+                    <span className="text-2xl leading-none">⚖️</span>
+                    <span className={`text-xs font-bold leading-tight text-center ${
+                      weightType === 'weight'
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-warm-600 dark:text-warm-300'
+                    }`}>
+                      Weight
+                    </span>
+                    <span className={`text-[9px] leading-tight text-center ${
+                      weightType === 'weight'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-warm-400 dark:text-warm-500'
+                    }`}>
+                      Enter specific weight
+                    </span>
+                  </motion.button>
                 </div>
-                {config.weightCategory && config.weightCategory !== 'open' && (
+
+                {/* Weight Input — shown when "Weight" is selected */}
+                {weightType === 'weight' && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-2.5 flex items-center gap-2"
+                    className="space-y-2"
                   >
-                    <span className="text-sm">⚖️</span>
-                    <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">
-                      Only players within this weight range can participate in this match
-                    </span>
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="e.g. 65kg, 70kg, Below 80kg..."
+                        value={weightInput}
+                        onChange={(e) => setWeightInput(e.target.value)}
+                        className="h-11 text-sm font-semibold bg-white dark:bg-warm-800/50 border-2 border-amber-200 dark:border-amber-800/40 focus:border-amber-500 rounded-xl pl-4 pr-12"
+                        maxLength={30}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 text-sm">⚖️</span>
+                    </div>
+                    {weightInput.trim() && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-2.5 flex items-center gap-2"
+                      >
+                        <span className="text-sm">⚖️</span>
+                        <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">
+                          Weight category: <strong>{weightInput.trim()}</strong>
+                        </span>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
-                {config.weightCategory === 'open' && (
+
+                {weightType === 'open' && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -2466,9 +2529,14 @@ export default function QuickScoreTab() {
                     }`}>
                       {config.gender === 'male' ? '♂ Boys Match' : '♀ Girls Match'}
                     </span>
-                    {config.weightCategory && (
+                    {weightType === 'open' && (
                       <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
-                        ⚖️ {WEIGHT_CATEGORIES.find(w => w.key === config.weightCategory)?.label || config.weightCategory}
+                        ♾️ Open
+                      </span>
+                    )}
+                    {weightType === 'weight' && weightInput.trim() && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                        ⚖️ {weightInput.trim()}
                       </span>
                     )}
                   </div>

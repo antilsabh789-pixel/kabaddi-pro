@@ -104,6 +104,7 @@ interface LiveMatch {
   half: number;
   status: string;
   gender?: string | null;
+  weightCategory?: string | null;
   homeTeam: TeamBasic;
   awayTeam: TeamBasic;
   tournament: { id: string; name: string } | null;
@@ -116,6 +117,7 @@ interface CompletedMatch {
   half: number;
   status: string;
   gender?: string | null;
+  weightCategory?: string | null;
   homeTeam: {
     id: string;
     name: string;
@@ -140,6 +142,7 @@ interface UpcomingMatch {
   half: number;
   status: string;
   gender?: string | null;
+  weightCategory?: string | null;
   homeTeam: {
     id: string;
     name: string;
@@ -885,6 +888,13 @@ export default function HomeTab() {
       .join('')
       .toUpperCase()
       .slice(0, 3);
+  };
+
+  // Format weight category for display
+  const formatWeightCategory = (wc?: string | null): string | null => {
+    if (!wc) return null;
+    if (wc === 'open') return '♾️ Open';
+    return `⚖️ ${wc}`;
   };
 
   const halfLabel = (half: number): string => {
@@ -1725,6 +1735,14 @@ export default function HomeTab() {
                                   : '♂ Boys Match'}
                               </Badge>
                             )}
+                            {match.weightCategory && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] font-semibold border-0 px-2 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                              >
+                                {formatWeightCategory(match.weightCategory)}
+                              </Badge>
+                            )}
                           </div>
                           <span className="text-xs text-warm-500 dark:text-warm-400 font-medium bg-warm-200/50 dark:bg-warm-700/50 px-2 py-0.5 rounded-md">
                             {halfLabel(match.half)}
@@ -2072,6 +2090,16 @@ export default function HomeTab() {
                           {match.tournament.name}
                         </p>
                       )}
+                      {match.weightCategory && (
+                        <div className="flex justify-center mt-1">
+                          <Badge
+                            variant="secondary"
+                            className="text-[9px] font-semibold border-0 px-1.5 py-0 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                          >
+                            {formatWeightCategory(match.weightCategory)}
+                          </Badge>
+                        </div>
+                      )}
                       {/* Share button */}
                       <div className="flex justify-end mt-2">
                         <button
@@ -2147,6 +2175,13 @@ export default function HomeTab() {
                               }`}
                             >
                               {isFemale ? '♀' : '♂'}
+                            </Badge>
+                          )}
+                          {match.weightCategory && (
+                            <Badge
+                              className="text-[9px] font-semibold border-0 px-1.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                            >
+                              {formatWeightCategory(match.weightCategory)}
                             </Badge>
                           )}
                         </div>
