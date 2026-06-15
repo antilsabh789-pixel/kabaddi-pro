@@ -44,3 +44,23 @@ Stage Summary:
 - Cards have team-colored left border and team-tinted background
 - Court line "tie" pattern removed from center divider
 - Layout is cleaner with vertical card lists per team side
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Remove center timer display and close gap between teams during live scoring
+
+Work Log:
+- Identified the center divider section in LiveScoringScreen.tsx (lines 2448-2492)
+- The center divider was a w-[52px] column containing: turn arrow indicator, do-or-die flame, timer display, and half indicator
+- Replaced the entire 52px center divider with a thin 2px gradient line between the two team panels
+- The thin divider uses a gradient from home team color to away team color for visual continuity
+- Timer was already displayed in the compact top info bar, so no information is lost
+- Verified lint passes cleanly
+- Verified via agent-browser: center timer removed, teams joined with thin line, no time in center
+
+Stage Summary:
+- Center timer/divider completely removed from between team panels during scoring
+- Teams now sit side-by-side with only a 2px gradient divider line
+- More horizontal space for each team panel (gained ~50px)
+- Timer still available in the top info bar above the team panels

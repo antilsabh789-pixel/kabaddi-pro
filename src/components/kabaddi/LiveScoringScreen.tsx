@@ -2445,51 +2445,10 @@ export default function LiveScoringScreen() {
           />
         </div>
 
-        {/* ═══ Compact center divider with timer + match info ═══ */}
-        <div className="shrink-0 w-[52px] relative overflow-hidden flex flex-col items-center justify-center border-x border-gray-700/40" style={{
-          background: `linear-gradient(180deg, ${match.homeTeamColor}10, #111827, ${match.awayTeamColor}10)`,
-        }}>
-          {/* Turn arrow indicator */}
-          {hasStartedRaiding && raidPhase === 'idle' && (
-            <motion.div
-              key={raidingTeam + '-center'}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="relative mb-1"
-            >
-              <motion.div
-                animate={{ x: raidingTeam === 'home' ? [-2, 2, -2] : [2, -2, 2] }}
-                transition={{ duration: 1, repeat: Infinity }}
-              >
-                <Swords className="w-3.5 h-3.5" style={{ color: raidingTeamColor }} />
-              </motion.div>
-            </motion.div>
-          )}
-
-          {/* Do-or-Die flame */}
-          {match.isDoOrDie && match.doOrDieTeamId === (raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId) && raidPhase === 'idle' && (
-            <motion.span
-              animate={{ scale: [1, 1.3, 1] }}
-              transition={{ duration: 0.5, repeat: Infinity }}
-              className="text-xs mb-0.5"
-            >
-              🔥
-            </motion.span>
-          )}
-
-          {/* Timer display */}
-          <span className={cn(
-            'text-[11px] font-mono font-black tracking-wider relative',
-            isTimerPulsing && 'animate-pulse'
-          )} style={{ color: isTimerPulsing ? '#ef4444' : '#e5e7eb' }}>
-            {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
-          </span>
-
-          {/* Half indicator */}
-          <span className="text-[6px] text-gray-500 font-bold mt-0.5 relative">
-            {match.currentHalf === 1 ? 'H1' : 'H2'}
-          </span>
-        </div>
+        {/* ═══ Thin divider line between teams ═══ */}
+        <div className="shrink-0 w-[2px] border-x border-gray-700/30" style={{
+          background: `linear-gradient(180deg, ${match.homeTeamColor}40, ${match.awayTeamColor}40)`,
+        }} />
 
         {/* Away Team - RIGHT */}
         <div className="flex-1 overflow-y-auto min-h-0">
