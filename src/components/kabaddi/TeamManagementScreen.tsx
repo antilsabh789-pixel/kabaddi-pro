@@ -285,6 +285,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
             fileName: file.name,
             fileType: file.type,
             userId: currentUser.id,
+            folder: 'teams',
           }),
         });
         if (!res.ok) throw new Error('Upload failed');
