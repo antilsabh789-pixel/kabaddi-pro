@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import Portal from '@/components/portal';
 import { useTheme } from 'next-themes';
@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line } from 'recharts';
@@ -251,6 +252,10 @@ export default function ProfileTab() {
   });
   const [profileNotFound, setProfileNotFound] = useState(false); // kept for data loading logic but UI card removed
   const [showPhone, setShowPhone] = useState(false);
+  const [showPhoneEdit, setShowPhoneEdit] = useState(false);
+  const [newPhone, setNewPhone] = useState('');
+  const [phoneEditLoading, setPhoneEditLoading] = useState(false);
+  const [phoneEditError, setPhoneEditError] = useState('');
   const [codeCopied, setCodeCopied] = useState(false);
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -583,6 +588,59 @@ export default function ProfileTab() {
     }
     setEditOpen(false);
     toast({ title: 'Profile updated!' });
+  };
+
+  // ─── Change Phone Number ───
+  const handleChangePhone = async () => {
+    setPhoneEditError('');
+
+    // Validate phone (10 digits)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(newPhone)) {
+      setPhoneEditError(t('profile.phoneInvalid', language));
+      return;
+    }
+
+    const fullPhone = `+91${newPhone}`;
+
+    // Check if same as current
+    if (fullPhone === currentUser?.phone) {
+      setPhoneEditError('New phone number is same as current');
+      return;
+    }
+
+    setPhoneEditLoading(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update-details',
+          userId: currentUser?.id,
+          phone: fullPhone,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Update local state
+        updateUser({ phone: fullPhone });
+        setShowPhoneEdit(false);
+        setNewPhone('');
+        toast({ title: t('profile.phoneUpdated', language) });
+      } else {
+        if (res.status === 409) {
+          setPhoneEditError(t('profile.phoneAlreadyRegistered', language));
+        } else {
+          setPhoneEditError(data.error || 'Failed to update phone number');
+        }
+      }
+    } catch {
+      setPhoneEditError('Failed to update phone number. Please try again.');
+    } finally {
+      setPhoneEditLoading(false);
+    }
   };
 
   // ─── Tournament Stats (used for main profile, leaderboard, awards) ───
@@ -2346,7 +2404,7 @@ export default function ProfileTab() {
           <div className="flex justify-between text-sm items-center py-1">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
-                <Eye className="w-3.5 h-3.5 text-warm-400" />
+                <Phone className="w-3.5 h-3.5 text-warm-400" />
               </div>
               <div>
                 <span className="text-warm-800 dark:text-warm-100 font-medium text-xs">Phone</span>
@@ -2363,6 +2421,14 @@ export default function ProfileTab() {
                 className="w-5 h-5 rounded-full bg-warm-100 dark:bg-warm-200 flex items-center justify-center text-warm-400 hover:text-warm-600 transition-colors"
               >
                 {showPhone ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+              </motion.button>
+              <motion.button
+                onClick={() => { setShowPhoneEdit(true); setNewPhone(''); setPhoneEditError(''); }}
+                whileTap={{ scale: 0.9 }}
+                className="w-5 h-5 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal hover:bg-brand-teal/20 transition-colors"
+                title={t('profile.changePhone', language)}
+              >
+                <Pencil className="w-3 h-3" />
               </motion.button>
             </div>
           </div>
@@ -2713,6 +2779,110 @@ export default function ProfileTab() {
           </motion.div>
         )}
       </motion.div>
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* 11. CHANGE PHONE NUMBER DIALOG */}
+      {/* ═══════════════════════════════════════════ */}
+      <Dialog open={showPhoneEdit} onOpenChange={(open) => { setShowPhoneEdit(open); if (!open) { setNewPhone(''); setPhoneEditError(''); } }}>
+        <DialogContent className="bg-warm-50 dark:bg-warm-100 border-warm-300 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-warm-800 dark:text-warm-800 flex items-center gap-2">
+              <Phone className="w-4 h-4 text-brand-teal" />
+              {t('profile.changePhone', language)}
+            </DialogTitle>
+            <DialogDescription className="text-warm-500 dark:text-warm-400 text-xs">
+              Update your registered phone number used for login
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {/* Current Phone */}
+            <div className="bg-warm-100 dark:bg-warm-200/50 rounded-xl p-3">
+              <p className="text-[10px] text-warm-400 dark:text-warm-300 uppercase tracking-wider font-semibold mb-1">
+                {t('profile.currentPhone', language)}
+              </p>
+              <p className="text-warm-800 dark:text-warm-100 font-mono text-sm font-medium">
+                {currentUser?.phone || '—'}
+              </p>
+            </div>
+
+            {/* New Phone Input */}
+            <div>
+              <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">
+                {t('profile.newPhone', language)}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm font-medium pointer-events-none">
+                  +91
+                </span>
+                <Input
+                  type="tel"
+                  placeholder="Enter 10-digit number"
+                  value={newPhone}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setNewPhone(val);
+                    if (phoneEditError) setPhoneEditError('');
+                  }}
+                  className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl pl-12 font-mono"
+                  maxLength={10}
+                  autoFocus
+                />
+              </div>
+              {newPhone && newPhone.length < 10 && (
+                <p className="text-[10px] text-warm-400 mt-1">{10 - newPhone.length} more digit{10 - newPhone.length !== 1 ? 's' : ''} needed</p>
+              )}
+              {newPhone && newPhone.length === 10 && (
+                <p className="text-[10px] text-brand-teal mt-1 flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Valid number
+                </p>
+              )}
+            </div>
+
+            {/* Error Message */}
+            {phoneEditError && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 text-xs text-red-500 bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                {phoneEditError}
+              </motion.div>
+            )}
+
+            {/* Warning Note */}
+            <div className="flex items-start gap-2 text-[10px] text-warm-400 dark:text-warm-300 bg-amber-50 dark:bg-amber-900/10 p-2.5 rounded-lg">
+              <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5 text-amber-500" />
+              <span>You will use the new phone number for login. Make sure you have access to this number.</span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => { setShowPhoneEdit(false); setNewPhone(''); setPhoneEditError(''); }}
+                className="flex-1 rounded-xl border-warm-300 dark:border-warm-200 h-10 text-xs"
+              >
+                {t('common.cancel', language)}
+              </Button>
+              <Button
+                onClick={handleChangePhone}
+                disabled={phoneEditLoading || newPhone.length !== 10}
+                className="flex-1 rounded-xl bg-brand-teal hover:bg-brand-teal-dark text-white h-10 text-xs disabled:opacity-50"
+              >
+                {phoneEditLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Phone className="w-3.5 h-3.5 mr-1.5" />
+                    {t('profile.updatePhone', language)}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

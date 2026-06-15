@@ -235,3 +235,33 @@ Stage Summary:
 - Fix: Created the upload API route with proper file handling, validation, and DB updates
 - Both profile avatar and team logo uploads now work
 - Deployed to Vercel via GitHub push
+
+---
+Task ID: 5
+Agent: Main
+Task: Add phone number editing feature in account/profile
+
+Work Log:
+- Explored current ProfileTab.tsx phone display — phone was shown masked with eye toggle, but NO edit functionality existed
+- Auth API `update-details` action explicitly excluded `phone` from allowedFields
+- Added `phone` to allowedFields in `/api/auth/route.ts` update-details action
+- Added phone number validation (must be +91XXXXXXXXXX format) and uniqueness check (can't use another user's phone) to the API
+- Added i18n translations for phone editing (changePhone, phoneUpdated, phoneAlreadyRegistered, phoneInvalid, newPhone, currentPhone, updatePhone) in both English and Hindi
+- Added state variables to ProfileTab.tsx: showPhoneEdit, newPhone, phoneEditLoading, phoneEditError
+- Added handleChangePhone() function that validates phone, calls API, updates store on success, shows error on failure
+- Updated phone display row: changed icon from Eye to Phone, added Pencil edit button next to eye toggle
+- Created "Change Phone" dialog with: current phone display, new phone input with +91 prefix, digit counter, validation feedback, error display, warning note, Cancel/Update buttons
+- Added DialogDescription for accessibility compliance
+- Added Phone and Pencil icon imports from lucide-react
+- Verified API works correctly via direct curl test — phone updated from +919876543210 to +915551234567 and back
+- Verified dialog opens and shows proper UI via agent-browser
+- Lint passes with no errors
+
+Stage Summary:
+- Users can now edit their phone number from the Profile tab
+- Phone icon with pencil edit button appears next to the phone display
+- Dialog shows current phone, new phone input with +91 prefix and 10-digit validation
+- Error handling: duplicate phone, invalid format, same-as-current, network errors
+- Warning note reminds users that the new phone will be used for login
+- API validates format (+91XXXXXXXXXX) and uniqueness before updating
+- Both English and Hindi translations included

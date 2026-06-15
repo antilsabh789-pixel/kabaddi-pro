@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Build update data from allowed fields only
-      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'role', 'avatar', 'dateOfBirth'];
+      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'role', 'avatar', 'dateOfBirth', 'phone'];
       const updateData: Record<string, unknown> = {};
 
       for (const field of allowedFields) {
@@ -237,6 +237,29 @@ export async function POST(request: NextRequest) {
       // Handle password update separately
       if (body.password) {
         updateData.password = hashPassword(body.password);
+      }
+
+      // If phone is being updated, validate and check uniqueness
+      if (updateData.phone) {
+        // Validate phone format (should be +91XXXXXXXXXX)
+        const phoneRegex = /^\+91\d{10}$/;
+        if (!phoneRegex.test(updateData.phone as string)) {
+          return NextResponse.json(
+            { error: 'Invalid phone number format. Must be +91 followed by 10 digits.' },
+            { status: 400 }
+          );
+        }
+
+        // Check if the new phone number is already taken by another user
+        const existingUser = await db.user.findUnique({
+          where: { phone: updateData.phone as string },
+        });
+        if (existingUser && existingUser.id !== userId) {
+          return NextResponse.json(
+            { error: 'This phone number is already registered with another account.' },
+            { status: 409 }
+          );
+        }
       }
 
       if (Object.keys(updateData).length === 0) {
