@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 /**
  * GET /api/match-events?matchId=xxx
  * Returns events for a specific match, formatted for the commentary ticker.
+ * Also returns player roster for each team.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -17,8 +18,56 @@ export async function GET(request: NextRequest) {
     const match = await db.match.findUnique({
       where: { id: matchId },
       include: {
-        homeTeam: { select: { id: true, name: true, color: true } },
-        awayTeam: { select: { id: true, name: true, color: true } },
+        homeTeam: {
+          select: {
+            id: true, name: true, color: true,
+            members: {
+              select: {
+                isCaptain: true,
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    avatar: true,
+                    playerCode: true,
+                    profile: {
+                      select: {
+                        jerseyNumber: true,
+                        position: true,
+                        overallRating: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        awayTeam: {
+          select: {
+            id: true, name: true, color: true,
+            members: {
+              select: {
+                isCaptain: true,
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    avatar: true,
+                    playerCode: true,
+                    profile: {
+                      select: {
+                        jerseyNumber: true,
+                        position: true,
+                        overallRating: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         events: {
           orderBy: { timestamp: 'asc' },
           take: 50,
@@ -29,6 +78,25 @@ export async function GET(request: NextRequest) {
     if (!match) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
+
+    // Format players for each team
+    const formatPlayers = (
+      members: typeof match.homeTeam.members,
+      teamId: string,
+    ) =>
+      members.map((m) => ({
+        id: m.user.id,
+        name: m.user.name || 'Player',
+        avatar: m.user.avatar ?? undefined,
+        jerseyNumber: m.user.profile?.jerseyNumber ?? undefined,
+        position: m.user.profile?.position ?? undefined,
+        playerCode: m.user.playerCode ?? undefined,
+        isCaptain: m.isCaptain,
+        teamId,
+      }));
+
+    const homePlayers = formatPlayers(match.homeTeam.members, match.homeTeamId);
+    const awayPlayers = formatPlayers(match.awayTeam.members, match.awayTeamId);
 
     // Format events for the ticker
     const events = match.events.map((evt) => ({
@@ -56,6 +124,9 @@ export async function GET(request: NextRequest) {
         halfDuration: match.halfDuration,
         homeScore: match.homeScore,
         awayScore: match.awayScore,
+        playersPerSide: match.playersPerSide,
+        homePlayers,
+        awayPlayers,
       },
       events,
     });

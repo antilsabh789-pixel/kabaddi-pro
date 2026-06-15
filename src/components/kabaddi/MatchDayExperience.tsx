@@ -48,6 +48,17 @@ interface MatchEventAPI {
   timestamp: number;
 }
 
+interface MatchPlayerAPI {
+  id: string;
+  name: string;
+  avatar?: string;
+  jerseyNumber?: number;
+  position?: string;
+  playerCode?: string;
+  isCaptain: boolean;
+  teamId: string;
+}
+
 interface MatchDataAPI {
   id: string;
   homeTeamId: string;
@@ -60,6 +71,9 @@ interface MatchDataAPI {
   halfDuration: number;
   homeScore: number;
   awayScore: number;
+  playersPerSide: number;
+  homePlayers: MatchPlayerAPI[];
+  awayPlayers: MatchPlayerAPI[];
   status?: string;
   venue?: string;
   scheduledAt?: string;
@@ -1176,6 +1190,70 @@ function ShareResultsCard({
   );
 }
 
+// ─── Player Box Component (Rectangular) ──────────────────────────────
+
+function PlayerBox({
+  player,
+  teamColor,
+  index,
+}: {
+  player: MatchPlayerAPI;
+  teamColor: string;
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.05 }}
+      className="flex-shrink-0 w-[68px] rounded-lg overflow-hidden border"
+      style={{
+        backgroundColor: teamColor + '10',
+        borderColor: teamColor + '30',
+      }}
+    >
+      {/* Player Image / Avatar */}
+      <div className="relative w-full h-[52px] flex items-center justify-center" style={{ backgroundColor: teamColor + '18' }}>
+        {player.avatar ? (
+          <img
+            src={player.avatar}
+            alt={player.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+            style={{ backgroundColor: teamColor + '80' }}
+          >
+            {player.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+        {/* Jersey Number Badge */}
+        {player.jerseyNumber && (
+          <div
+            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-sm flex items-center justify-center text-[9px] font-black text-white shadow-sm"
+            style={{ backgroundColor: teamColor }}
+          >
+            {player.jerseyNumber}
+          </div>
+        )}
+        {/* Captain Badge */}
+        {player.isCaptain && (
+          <div className="absolute -top-0.5 -left-0.5 w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center shadow-sm">
+            <Crown className="w-2.5 h-2.5 text-yellow-900" />
+          </div>
+        )}
+      </div>
+      {/* Player Name */}
+      <div className="px-1 py-1 text-center">
+        <p className="text-[9px] font-bold text-gray-700 dark:text-warm-200 truncate leading-tight">
+          {player.name}
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────
 
 export default function MatchDayExperience({ matchId, onClose }: MatchDayExperienceProps) {
@@ -1552,27 +1630,41 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
           </div>
         </div>
 
-        {/* Score Section */}
-        <div className="flex items-center justify-between px-6 py-4">
-          {/* Home Team */}
-          <div className="flex-1 flex flex-col items-center gap-1.5">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
-              style={{
-                backgroundColor: matchData.homeTeamColor + '20',
-                border: `2px solid ${matchData.homeTeamColor}40`,
-              }}
-            >
-              <Swords className="w-6 h-6" style={{ color: matchData.homeTeamColor }} />
+        {/* Score Section with Player Lineup */}
+        <div className="px-3 py-3">
+          {/* Home Team Name + Score Row */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-3 h-3 rounded-sm"
+                style={{ backgroundColor: matchData.homeTeamColor }}
+              />
+              <span className="text-xs font-bold text-gray-800 dark:text-warm-100 truncate max-w-[100px]">
+                {matchData.homeTeam}
+              </span>
             </div>
-            <p className="text-sm font-bold text-gray-800 dark:text-warm-100 text-center truncate max-w-[100px]">
-              {matchData.homeTeam}
-            </p>
+            <AnimatedScore value={matchData.homeScore} color={matchData.homeTeamColor} size="medium" />
           </div>
 
-          {/* Score & Timer Center */}
-          <div className="flex flex-col items-center gap-2 px-4">
-            {/* Half indicator */}
+          {/* Home Players Row */}
+          <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin" style={{ scrollbarWidth: 'thin' }}>
+            {matchData.homePlayers.slice(0, matchData.playersPerSide || 7).map((player, idx) => (
+              <PlayerBox
+                key={player.id}
+                player={player}
+                teamColor={matchData.homeTeamColor}
+                index={idx}
+              />
+            ))}
+            {matchData.homePlayers.length === 0 && (
+              <div className="flex items-center justify-center w-full py-3">
+                <span className="text-[10px] text-gray-400 dark:text-warm-500">No players added</span>
+              </div>
+            )}
+          </div>
+
+          {/* Score Divider */}
+          <div className="flex items-center justify-center gap-3 py-2">
             <motion.div
               key={matchData.currentHalf}
               initial={{ opacity: 0, y: -10 }}
@@ -1584,57 +1676,44 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
                 {halfLabel}
               </span>
             </motion.div>
-
-            {/* Score Display with Animated Numbers */}
-            <div className="flex items-center gap-4">
-              <motion.div
-                animate={homeScoreAnim ? { scale: [1, 1.3, 1] } : { scale: 1 }}
-                transition={{ duration: 0.4 }}
-              >
-                <AnimatedScore value={matchData.homeScore} color={matchData.homeTeamColor} />
-              </motion.div>
-
-              {/* VS Divider */}
-              <div className="flex flex-col items-center gap-0.5">
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="text-lg font-black text-gray-400 dark:text-warm-500"
-                >
-                  VS
-                </motion.div>
-              </div>
-
-              <motion.div
-                animate={awayScoreAnim ? { scale: [1, 1.3, 1] } : { scale: 1 }}
-                transition={{ duration: 0.4 }}
-              >
-                <AnimatedScore value={matchData.awayScore} color={matchData.awayTeamColor} />
-              </motion.div>
-            </div>
-
-            {/* Circular Timer */}
-            <CircularTimer
-              seconds={timerSeconds}
-              totalSeconds={halfDurationSeconds}
-              teamColor={matchData.currentHalf === 1 ? matchData.homeTeamColor : matchData.awayTeamColor}
-            />
+            <motion.div
+              animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="text-sm font-black text-gray-400 dark:text-warm-500"
+            >
+              VS
+            </motion.div>
           </div>
 
-          {/* Away Team */}
-          <div className="flex-1 flex flex-col items-center gap-1.5">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
-              style={{
-                backgroundColor: matchData.awayTeamColor + '20',
-                border: `2px solid ${matchData.awayTeamColor}40`,
-              }}
-            >
-              <Shield className="w-6 h-6" style={{ color: matchData.awayTeamColor }} />
+          {/* Away Players Row */}
+          <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin" style={{ scrollbarWidth: 'thin' }}>
+            {matchData.awayPlayers.slice(0, matchData.playersPerSide || 7).map((player, idx) => (
+              <PlayerBox
+                key={player.id}
+                player={player}
+                teamColor={matchData.awayTeamColor}
+                index={idx}
+              />
+            ))}
+            {matchData.awayPlayers.length === 0 && (
+              <div className="flex items-center justify-center w-full py-3">
+                <span className="text-[10px] text-gray-400 dark:text-warm-500">No players added</span>
+              </div>
+            )}
+          </div>
+
+          {/* Away Team Name + Score Row */}
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-3 h-3 rounded-sm"
+                style={{ backgroundColor: matchData.awayTeamColor }}
+              />
+              <span className="text-xs font-bold text-gray-800 dark:text-warm-100 truncate max-w-[100px]">
+                {matchData.awayTeam}
+              </span>
             </div>
-            <p className="text-sm font-bold text-gray-800 dark:text-warm-100 text-center truncate max-w-[100px]">
-              {matchData.awayTeam}
-            </p>
+            <AnimatedScore value={matchData.awayScore} color={matchData.awayTeamColor} size="medium" />
           </div>
         </div>
 
