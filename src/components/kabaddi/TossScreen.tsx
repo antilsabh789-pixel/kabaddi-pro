@@ -3,11 +3,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useKabaddiStore } from '@/lib/store';
-import { Swords, Shield, X, Volume2, Sparkles, CircleDot, ArrowLeft, Zap, MapPin } from 'lucide-react';
+import { Swords, Shield, X, Volume2, Sparkles, CircleDot, ArrowLeft, Zap, MapPin, FastForward } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Toss Phases ────────────────────────────────────────────────────
-type TossPhase = 'choose-caller' | 'choose-side' | 'ready' | 'flipping' | 'result' | 'choose-advantage' | 'countdown';
+type TossPhase = 'choose-caller' | 'choose-side' | 'ready' | 'flipping' | 'result' | 'choose-advantage' | 'countdown' | 'skip-toss';
 
 // ─── Confetti Particle ──────────────────────────────────────────────
 
@@ -334,6 +334,10 @@ export default function TossScreen({
   const [showConfetti, setShowConfetti] = useState(false);
   const [flipKey, setFlipKey] = useState(0);
 
+  // Skip toss data
+  const [skipTossWinner, setSkipTossWinner] = useState<'home' | 'away' | null>(null);
+  const [skipTossChoice, setSkipTossChoice] = useState<'raid' | 'court' | null>(null);
+
   // Countdown
   const [countdown, setCountdown] = useState<number | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -474,6 +478,20 @@ export default function TossScreen({
       >
         <X className="w-5 h-5 text-white/70" />
       </motion.button>
+
+      {/* ═══ Skip Toss button ═══ */}
+      {phase !== 'countdown' && phase !== 'skip-toss' && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.4 }}
+          onClick={() => setPhase('skip-toss')}
+          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-colors"
+        >
+          <FastForward className="w-4 h-4 text-white/70" />
+          <span className="text-xs font-bold text-white/70">Skip Toss</span>
+        </motion.button>
+      )}
 
       {/* ═══ Phase Indicator ═══ */}
       <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
@@ -1102,6 +1120,155 @@ export default function TossScreen({
             <p className="text-xs text-gray-500">
               {winnerName} chose to {tossWinner === tossWinner ? 'raid' : 'defend'} first
             </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ Skip Toss Phase ═══ */}
+      <AnimatePresence>
+        {phase === 'skip-toss' && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+            className="relative z-10 text-center w-full max-w-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.1 }}
+              className="mb-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10"
+            >
+              <FastForward className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-bold text-gray-300">Quick Toss Setup</span>
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="text-xl font-black text-white mb-2"
+            >
+              Who Won the Toss?
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-xs text-gray-400 mb-5"
+            >
+              Select the toss winner and their choice — skip the animation
+            </motion.p>
+
+            {/* Team buttons */}
+            <div className="flex gap-3 mb-5">
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3, type: 'spring', damping: 20 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setSkipTossWinner('home')}
+                className={`flex-1 py-5 px-3 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${
+                  skipTossWinner === 'home' ? '' : 'opacity-50'
+                }`}
+                style={{
+                  borderColor: skipTossWinner === 'home' ? homeTeamColor : `${homeTeamColor}30`,
+                  backgroundColor: skipTossWinner === 'home' ? `${homeTeamColor}15` : `${homeTeamColor}05`,
+                }}
+              >
+                <TeamAvatar name={homeTeam} color={homeTeamColor} size="sm" glow={skipTossWinner === 'home'} />
+                <span className="font-black text-sm" style={{ color: homeTeamColor }}>{homeTeam}</span>
+              </motion.button>
+
+              <motion.button
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.35, type: 'spring', damping: 20 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setSkipTossWinner('away')}
+                className={`flex-1 py-5 px-3 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${
+                  skipTossWinner === 'away' ? '' : 'opacity-50'
+                }`}
+                style={{
+                  borderColor: skipTossWinner === 'away' ? awayTeamColor : `${awayTeamColor}30`,
+                  backgroundColor: skipTossWinner === 'away' ? `${awayTeamColor}15` : `${awayTeamColor}05`,
+                }}
+              >
+                <TeamAvatar name={awayTeam} color={awayTeamColor} size="sm" glow={skipTossWinner === 'away'} />
+                <span className="font-black text-sm" style={{ color: awayTeamColor }}>{awayTeam}</span>
+              </motion.button>
+            </div>
+
+            {/* Choice buttons */}
+            {skipTossWinner && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-2"
+              >
+                <p className="text-xs text-gray-500 mb-2">What did they choose?</p>
+                <div className="flex gap-3">
+                  <AdvantageCard
+                    icon={<Swords className="w-6 h-6" style={{ color: skipTossWinner === 'home' ? homeTeamColor : awayTeamColor }} />}
+                    title="RAID FIRST"
+                    subtitle={`${skipTossWinner === 'home' ? homeTeam : awayTeam} raids first`}
+                    color={skipTossWinner === 'home' ? homeTeamColor : awayTeamColor}
+                    onClick={() => {
+                      setSkipTossChoice('raid');
+                      // Skip directly to countdown
+                      setTossWinner(skipTossWinner);
+                      setPhase('countdown');
+                      setCountdown(3);
+                      let count = 3;
+                      countdownRef.current = setInterval(() => {
+                        count--;
+                        setCountdown(count);
+                        if (count <= 0) {
+                          if (countdownRef.current) clearInterval(countdownRef.current);
+                          onTossComplete(skipTossWinner);
+                        }
+                      }, 800);
+                    }}
+                    delay={0.2}
+                  />
+                  <AdvantageCard
+                    icon={<Shield className="w-6 h-6" style={{ color: skipTossWinner === 'home' ? awayTeamColor : homeTeamColor }} />}
+                    title="CHOOSE COURT"
+                    subtitle={`${skipTossWinner === 'home' ? awayTeam : homeTeam} raids first`}
+                    color={skipTossWinner === 'home' ? awayTeamColor : homeTeamColor}
+                    onClick={() => {
+                      setSkipTossChoice('court');
+                      const otherTeam = skipTossWinner === 'home' ? 'away' : 'home';
+                      setTossWinner(skipTossWinner);
+                      setPhase('countdown');
+                      setCountdown(3);
+                      let count = 3;
+                      countdownRef.current = setInterval(() => {
+                        count--;
+                        setCountdown(count);
+                        if (count <= 0) {
+                          if (countdownRef.current) clearInterval(countdownRef.current);
+                          onTossComplete(otherTeam);
+                        }
+                      }, 800);
+                    }}
+                    delay={0.35}
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Back to normal toss */}
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              onClick={() => { setPhase('choose-caller'); setSkipTossWinner(null); setSkipTossChoice(null); }}
+              className="mt-5 text-gray-500 text-xs underline underline-offset-2 hover:text-gray-300 transition-colors"
+            >
+              Do full toss instead
+            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>

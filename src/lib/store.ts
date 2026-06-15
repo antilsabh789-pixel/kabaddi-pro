@@ -28,6 +28,8 @@ export interface MatchPlayer {
   jerseyNumber?: number;
   playerCode?: string;
   team: 'home' | 'away';
+  isCaptain?: boolean;
+  isStarting?: boolean;
 }
 
 export interface MatchEvent {

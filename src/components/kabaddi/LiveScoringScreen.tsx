@@ -2277,21 +2277,46 @@ export default function LiveScoringScreen() {
               <span className="text-[8px] bg-green-900/60 text-green-300 px-1.5 py-0.5 rounded font-medium">Practice</span>
             )}
           </div>
-          {/* Half indicator badge */}
-          <motion.div
-            key={halfLabel}
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={`text-[8px] font-black tracking-[0.12em] px-2 py-0.5 rounded-full ${
-              halfLabel === 'HALF TIME' || halfLabel === 'FULL TIME'
-                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                : halfLabel === 'NOT STARTED'
-                  ? 'bg-gray-600/40 text-gray-400 border border-gray-500/30'
-                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-            }`}
-          >
-            {halfLabel}
-          </motion.div>
+          {/* ═══ PROMINENT MATCH TIMER ═══ */}
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[7px] font-bold tracking-wider uppercase ${
+              match.currentHalf === 1 ? 'text-emerald-400' : 'text-purple-400'
+            }`}>
+              {match.currentHalf === 1 ? '1st Half' : '2nd Half'}
+            </span>
+            <motion.div
+              className={cn(
+                'flex items-center gap-1 px-2 py-0.5 rounded-lg font-mono font-black tabular-nums',
+                isTimerPulsing && 'animate-pulse',
+              )}
+              style={{
+                backgroundColor: isTimerPulsing ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${isTimerPulsing ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.1)'}`,
+              }}
+              animate={isTimerPulsing ? { scale: [1, 1.05, 1] } : {}}
+              transition={{ duration: 0.8, repeat: isTimerPulsing ? Infinity : 0 }}
+            >
+              <Clock className="w-3 h-3" style={{ color: isTimerPulsing ? '#ef4444' : '#9ca3af' }} />
+              <span className="text-sm font-black" style={{ color: isTimerPulsing ? '#ef4444' : '#e5e7eb' }}>
+                {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
+              </span>
+            </motion.div>
+            {/* Half indicator badge */}
+            <motion.div
+              key={halfLabel}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className={`text-[8px] font-black tracking-[0.12em] px-2 py-0.5 rounded-full ${
+                halfLabel === 'HALF TIME' || halfLabel === 'FULL TIME'
+                  ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                  : halfLabel === 'NOT STARTED'
+                    ? 'bg-gray-600/40 text-gray-400 border border-gray-500/30'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+              }`}
+            >
+              {halfLabel}
+            </motion.div>
+          </div>
           <div className="text-[8px] text-gray-400 font-medium">
             {match.gender === 'male' ? '♂' : '♀'}
           </div>
@@ -2496,6 +2521,90 @@ export default function LiveScoringScreen() {
           />
         </div>
       </div>
+
+      {/* ═══ OUT PLAYERS SECTION ═══ */}
+      {(match.homeOutPlayerIds.length > 0 || match.awayOutPlayerIds.length > 0) && (
+        <div className="shrink-0 border-t border-gray-700/50 px-2 py-1.5" style={{
+          background: `linear-gradient(135deg, rgba(239,68,68,0.05), #111827, rgba(239,68,68,0.05))`,
+        }}>
+          <div className="flex items-start gap-3">
+            {/* Home OUT players */}
+            <div className="flex-1 min-w-0">
+              {match.homeOutPlayerIds.length > 0 && (
+                <div>
+                  <div className="text-[7px] font-bold text-red-400/80 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                    <X className="w-2 h-2" />
+                    OUT ({match.homeOutPlayerIds.length})
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {match.homeOutPlayerIds.map((pid, idx) => {
+                      const player = match.homeLineup.find(p => p.id === pid);
+                      if (!player) return null;
+                      return (
+                        <motion.div
+                          key={pid}
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-red-900/20 border border-red-800/30"
+                        >
+                          <span className="text-[7px] font-bold text-red-400/70">{idx + 1}.</span>
+                          {player.jerseyNumber && (
+                            <span className="text-[8px] font-black" style={{ color: match.homeTeamColor }}>#{player.jerseyNumber}</span>
+                          )}
+                          <span className="text-[8px] font-semibold text-gray-300 truncate max-w-[60px]">
+                            {player.name.split(' ').length > 1
+                              ? `${player.name.split(' ')[0]} ${player.name.split(' ')[1][0]}.`
+                              : player.name.split(' ')[0]
+                            }
+                          </span>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Away OUT players */}
+            <div className="flex-1 min-w-0">
+              {match.awayOutPlayerIds.length > 0 && (
+                <div>
+                  <div className="text-[7px] font-bold text-red-400/80 uppercase tracking-wider mb-0.5 flex items-center gap-1 justify-end">
+                    OUT ({match.awayOutPlayerIds.length})
+                    <X className="w-2 h-2" />
+                  </div>
+                  <div className="flex flex-wrap gap-1 justify-end">
+                    {match.awayOutPlayerIds.map((pid, idx) => {
+                      const player = match.awayLineup.find(p => p.id === pid);
+                      if (!player) return null;
+                      return (
+                        <motion.div
+                          key={pid}
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-red-900/20 border border-red-800/30"
+                        >
+                          <span className="text-[7px] font-bold text-red-400/70">{idx + 1}.</span>
+                          {player.jerseyNumber && (
+                            <span className="text-[8px] font-black" style={{ color: match.awayTeamColor }}>#{player.jerseyNumber}</span>
+                          )}
+                          <span className="text-[8px] font-semibold text-gray-300 truncate max-w-[60px]">
+                            {player.name.split(' ').length > 1
+                              ? `${player.name.split(' ')[0]} ${player.name.split(' ')[1][0]}.`
+                              : player.name.split(' ')[0]
+                            }
+                          </span>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ RAID FLOW OVERLAYS — Tabbed Quick Actions ═══ */}
       <AnimatePresence>

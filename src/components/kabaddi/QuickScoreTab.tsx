@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, Plus, X, Search, UserPlus, Database, Check, Clock, Users, Swords, Play, GripVertical, Shield, Zap,
-  AlertTriangle, Sparkles, Eye, Info, ChevronDown, ArrowLeftRight,
+  AlertTriangle, Sparkles, Eye, Info, ChevronDown, ArrowLeftRight, Crown,
 } from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -279,6 +279,10 @@ export default function QuickScoreTab() {
   const teamInputRef = useRef<HTMLDivElement>(null);
   const [suggestingLineup, setSuggestingLineup] = useState(false);
   const [hoveredPlayer, setHoveredPlayer] = useState<string | null>(null);
+  const [homePlaying7, setHomePlaying7] = useState<Set<string>>(new Set());
+  const [awayPlaying7, setAwayPlaying7] = useState<Set<string>>(new Set());
+  const [homeCaptain, setHomeCaptain] = useState<string | null>(null);
+  const [awayCaptain, setAwayCaptain] = useState<string | null>(null);
 
   // Close team/player suggestions when clicking outside
   useEffect(() => {
@@ -440,6 +444,12 @@ export default function QuickScoreTab() {
   };
 
   const handleStart = () => {
+    const markLineup = (lineup: MatchPlayer[], playing7: Set<string>, captainId: string | null) =>
+      lineup.map(p => ({
+        ...p,
+        isStarting: playing7.has(p.id),
+        isCaptain: p.id === captainId,
+      }));
     initiateToss({
       id: `match_${Date.now()}`,
       homeTeamId: `home_${Date.now()}`,
@@ -452,8 +462,8 @@ export default function QuickScoreTab() {
       gender: config.gender,
       halfDuration: config.halfDuration,
       playersPerSide: config.playersPerSide,
-      homeLineup: config.homeLineup,
-      awayLineup: config.awayLineup,
+      homeLineup: markLineup(config.homeLineup, homePlaying7, homeCaptain),
+      awayLineup: markLineup(config.awayLineup, awayPlaying7, awayCaptain),
     });
   };
 
@@ -2030,35 +2040,80 @@ export default function QuickScoreTab() {
                         </motion.div>
                         <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 flex items-center justify-center gap-1">
                           <Users className="w-3 h-3" />
-                          {config.homeLineup.length} players
+                          {config.homeLineup.length} players · {homePlaying7.size}/7 starting
                         </div>
-                        {/* Lineup Summary with position badges */}
-                        <div className="flex flex-wrap gap-1 mt-2 justify-center">
-                          {config.homeLineup.slice(0, 5).map((p) => {
+                        {/* Select Playing 7 & Captain */}
+                        <div className="mt-2 space-y-1.5 text-left max-h-48 overflow-y-auto">
+                          {homePlaying7.size < 7 && (
+                            <div className="text-[9px] font-bold text-brand-red text-center animate-pulse">Tap players to mark as Playing 7</div>
+                          )}
+                          {config.homeLineup.map((p) => {
                             const dbP = allPlayers.find(ap => ap.id === p.id);
                             const position = dbP?.profile?.position;
+                            const isStarting = homePlaying7.has(p.id);
+                            const isCap = homeCaptain === p.id;
                             return (
-                              <span
+                              <button
                                 key={p.id}
-                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                                  position
-                                    ? getPositionCategory(position) === 'raider'
+                                onClick={() => {
+                                  const next = new Set(homePlaying7);
+                                  if (next.has(p.id)) {
+                                    next.delete(p.id);
+                                    if (homeCaptain === p.id) setHomeCaptain(null);
+                                  } else if (next.size < 7) {
+                                    next.add(p.id);
+                                  }
+                                  setHomePlaying7(next);
+                                }}
+                                className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] transition-all ${
+                                  isStarting
+                                    ? 'bg-brand-red/10 ring-1 ring-brand-red/30'
+                                    : 'bg-warm-100 dark:bg-warm-700/50 opacity-60'
+                                }`}
+                              >
+                                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                  isStarting ? 'border-brand-red bg-brand-red/20' : 'border-warm-300 dark:border-warm-600'
+                                }`}>
+                                  {isStarting && <Check className="w-2.5 h-2.5 text-brand-red" />}
+                                </span>
+                                <span className="font-bold text-warm-400 shrink-0">#{p.jerseyNumber}</span>
+                                <span className={`font-medium truncate ${isStarting ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+                                  {p.name}
+                                </span>
+                                {position && (
+                                  <span className={`ml-auto px-1 py-0 rounded text-[8px] font-bold ${
+                                    getPositionCategory(position) === 'raider'
                                       ? 'bg-brand-red/10 text-brand-red'
                                       : getPositionCategory(position) === 'defender'
                                         ? 'bg-brand-teal/10 text-brand-teal'
                                         : 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold'
-                                    : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
-                                }`}
-                              >
-                                #{p.jerseyNumber} {p.name.split(' ')[0]}
-                              </span>
+                                  }`}>
+                                    {position.slice(0, 3).toUpperCase()}
+                                  </span>
+                                )}
+                                {isStarting && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setHomeCaptain(isCap ? null : p.id);
+                                    }}
+                                    className={`ml-0.5 shrink-0 w-4 h-4 rounded-full flex items-center justify-center transition-all ${
+                                      isCap
+                                        ? 'bg-yellow-400 text-yellow-900'
+                                        : 'bg-warm-200 dark:bg-warm-600 text-warm-400 hover:bg-yellow-200'
+                                    }`}
+                                    title="Set as Captain"
+                                  >
+                                    <Crown className="w-2.5 h-2.5" />
+                                  </button>
+                                )}
+                                {!isStarting && (
+                                  <span className="ml-auto px-1 py-0 rounded text-[8px] font-bold bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400">SUB</span>
+                                )}
+                                {isCap && <span className="text-[8px] font-bold text-yellow-600 dark:text-yellow-400">C</span>}
+                              </button>
                             );
                           })}
-                          {config.homeLineup.length > 5 && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-500">
-                              +{config.homeLineup.length - 5}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -2104,35 +2159,80 @@ export default function QuickScoreTab() {
                         </motion.div>
                         <div className="text-xs text-warm-500 dark:text-warm-400 mt-0.5 flex items-center justify-center gap-1">
                           <Users className="w-3 h-3" />
-                          {config.awayLineup.length} players
+                          {config.awayLineup.length} players · {awayPlaying7.size}/7 starting
                         </div>
-                        {/* Lineup Summary with position badges */}
-                        <div className="flex flex-wrap gap-1 mt-2 justify-center">
-                          {config.awayLineup.slice(0, 5).map((p) => {
+                        {/* Select Playing 7 & Captain */}
+                        <div className="mt-2 space-y-1.5 text-left max-h-48 overflow-y-auto">
+                          {awayPlaying7.size < 7 && (
+                            <div className="text-[9px] font-bold text-brand-red text-center animate-pulse">Tap players to mark as Playing 7</div>
+                          )}
+                          {config.awayLineup.map((p) => {
                             const dbP = allPlayers.find(ap => ap.id === p.id);
                             const position = dbP?.profile?.position;
+                            const isStarting = awayPlaying7.has(p.id);
+                            const isCap = awayCaptain === p.id;
                             return (
-                              <span
+                              <button
                                 key={p.id}
-                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                                  position
-                                    ? getPositionCategory(position) === 'raider'
+                                onClick={() => {
+                                  const next = new Set(awayPlaying7);
+                                  if (next.has(p.id)) {
+                                    next.delete(p.id);
+                                    if (awayCaptain === p.id) setAwayCaptain(null);
+                                  } else if (next.size < 7) {
+                                    next.add(p.id);
+                                  }
+                                  setAwayPlaying7(next);
+                                }}
+                                className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] transition-all ${
+                                  isStarting
+                                    ? 'bg-brand-red/10 ring-1 ring-brand-red/30'
+                                    : 'bg-warm-100 dark:bg-warm-700/50 opacity-60'
+                                }`}
+                              >
+                                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                  isStarting ? 'border-brand-red bg-brand-red/20' : 'border-warm-300 dark:border-warm-600'
+                                }`}>
+                                  {isStarting && <Check className="w-2.5 h-2.5 text-brand-red" />}
+                                </span>
+                                <span className="font-bold text-warm-400 shrink-0">#{p.jerseyNumber}</span>
+                                <span className={`font-medium truncate ${isStarting ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+                                  {p.name}
+                                </span>
+                                {position && (
+                                  <span className={`ml-auto px-1 py-0 rounded text-[8px] font-bold ${
+                                    getPositionCategory(position) === 'raider'
                                       ? 'bg-brand-red/10 text-brand-red'
                                       : getPositionCategory(position) === 'defender'
                                         ? 'bg-brand-teal/10 text-brand-teal'
                                         : 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold'
-                                    : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
-                                }`}
-                              >
-                                #{p.jerseyNumber} {p.name.split(' ')[0]}
-                              </span>
+                                  }`}>
+                                    {position.slice(0, 3).toUpperCase()}
+                                  </span>
+                                )}
+                                {isStarting && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAwayCaptain(isCap ? null : p.id);
+                                    }}
+                                    className={`ml-0.5 shrink-0 w-4 h-4 rounded-full flex items-center justify-center transition-all ${
+                                      isCap
+                                        ? 'bg-yellow-400 text-yellow-900'
+                                        : 'bg-warm-200 dark:bg-warm-600 text-warm-400 hover:bg-yellow-200'
+                                    }`}
+                                    title="Set as Captain"
+                                  >
+                                    <Crown className="w-2.5 h-2.5" />
+                                  </button>
+                                )}
+                                {!isStarting && (
+                                  <span className="ml-auto px-1 py-0 rounded text-[8px] font-bold bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400">SUB</span>
+                                )}
+                                {isCap && <span className="text-[8px] font-bold text-yellow-600 dark:text-yellow-400">C</span>}
+                              </button>
                             );
                           })}
-                          {config.awayLineup.length > 5 && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-warm-100 dark:bg-warm-700 text-warm-500">
-                              +{config.awayLineup.length - 5}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
