@@ -1302,7 +1302,7 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
   const storeEvents: MatchEvent[] = useMemo(() => {
     return events.map((e) => ({
       ...e,
-      playerName: undefined,
+      playerName: e.playerName ?? undefined,
     }));
   }, [events]);
 

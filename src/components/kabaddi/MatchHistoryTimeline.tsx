@@ -20,6 +20,7 @@ export interface TimelineMatch {
   date: string;
   isPractice: boolean;
   userTeamSide: 'home' | 'away' | 'unknown';
+  result?: 'W' | 'L' | 'D';
   completedAt?: string;
   /** Key stats for the match */
   raidPoints?: number;

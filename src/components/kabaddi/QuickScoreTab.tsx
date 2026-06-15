@@ -1748,13 +1748,13 @@ export default function QuickScoreTab() {
                                 {hasStats && (
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[9px] font-semibold text-brand-navy dark:text-brand-navy-light">
-                                      ⭐ {p.profile.totalPoints}pts
+                                      ⭐ {p.profile?.totalPoints || 0}pts
                                     </span>
                                     <span className="text-[9px] text-brand-red">
-                                      ⚡ {p.profile.raidPoints || 0}R
+                                      ⚡ {p.profile?.raidPoints || 0}R
                                     </span>
                                     <span className="text-[9px] text-brand-teal">
-                                      🎯 {p.profile.tacklePoints || 0}T
+                                      🎯 {p.profile?.tacklePoints || 0}T
                                     </span>
                                   </div>
                                 )}

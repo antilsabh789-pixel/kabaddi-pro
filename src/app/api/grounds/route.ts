@@ -92,8 +92,8 @@ export async function GET(req: NextRequest) {
       result = grounds
         .filter((g) => g.lat !== null && g.lng !== null)
         .sort((a, b) => {
-          const distA = Math.sqrt(Math.pow((a.lat! - userLat) ** 2 + (a.lng! - userLng) ** 2));
-          const distB = Math.sqrt(Math.pow((b.lat! - userLat) ** 2 + (b.lng! - userLng) ** 2));
+          const distA = Math.sqrt((a.lat! - userLat) ** 2 + (a.lng! - userLng) ** 2);
+          const distB = Math.sqrt((b.lat! - userLat) ** 2 + (b.lng! - userLng) ** 2);
           return distA - distB;
         })
         .slice(0, limit);

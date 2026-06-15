@@ -451,7 +451,7 @@ function CountdownTimer({ targetDate }: { targetDate: string | null }) {
     }
 
     function calculate() {
-      const diff = Math.max(0, new Date(targetDate).getTime() - Date.now());
+      const diff = Math.max(0, new Date(targetDate || '').getTime() - Date.now());
       if (diff === 0) {
         setExpired(true);
         setTimeLeft({ d: 0, h: 0, m: 0, s: 0 });
