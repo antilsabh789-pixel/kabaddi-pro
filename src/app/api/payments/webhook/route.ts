@@ -3,8 +3,11 @@ import crypto from 'crypto';
 import { db } from '@/lib/db';
 
 function getCashfreeConfig() {
-  const env = process.env.CASHFREE_ENV || 'sandbox';
-  const isProduction = env === 'production';
+  // Support both CASHFREE_ENV (sandbox/production) and CASHFREE_IS_LIVE (true/false)
+  const cashfreeIsLive = process.env.CASHFREE_IS_LIVE;
+  const cashfreeEnv = process.env.CASHFREE_ENV;
+  const isProduction = cashfreeIsLive === 'true' || cashfreeIsLive === '1' || cashfreeEnv === 'production';
+  const env = isProduction ? 'production' : 'sandbox';
   const defaultBaseUrl = isProduction
     ? 'https://api.cashfree.com/pg'
     : 'https://sandbox.cashfree.com/pg';

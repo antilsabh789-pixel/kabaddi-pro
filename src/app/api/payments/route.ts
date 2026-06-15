@@ -10,8 +10,10 @@ export async function GET(request: NextRequest) {
 
     // Payment gateway diagnostic endpoint
     if (diagnostic === 'true') {
-      const env = process.env.CASHFREE_ENV || 'sandbox';
-      const isProduction = env === 'production';
+      const cashfreeIsLive = process.env.CASHFREE_IS_LIVE;
+      const cashfreeEnv = process.env.CASHFREE_ENV;
+      const isProduction = cashfreeIsLive === 'true' || cashfreeIsLive === '1' || cashfreeEnv === 'production';
+      const env = isProduction ? 'production' : 'sandbox';
       const defaultBaseUrl = isProduction
         ? 'https://api.cashfree.com/pg'
         : 'https://sandbox.cashfree.com/pg';
@@ -24,6 +26,8 @@ export async function GET(request: NextRequest) {
         apiVersion: process.env.CASHFREE_API_VERSION || '2023-08-01',
         hasAppId: !!process.env.CASHFREE_APP_ID,
         hasSecretKey: !!process.env.CASHFREE_SECRET_KEY,
+        hasIsLive: !!cashfreeIsLive,
+        isLiveValue: cashfreeIsLive || 'NOT_SET',
         appIdPrefix: process.env.CASHFREE_APP_ID?.substring(0, 6) || 'NOT_SET',
         recommendation: !process.env.CASHFREE_APP_ID
           ? 'CASHFREE_APP_ID not set. Add it in Vercel Environment Variables.'

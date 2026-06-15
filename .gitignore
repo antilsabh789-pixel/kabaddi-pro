@@ -53,3 +53,4 @@ server.log
 # Skills directory
 /skills/tool-results/
 worklog.md
+tool-results/
