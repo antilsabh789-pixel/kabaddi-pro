@@ -330,23 +330,38 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
         throw new Error('No payment session ID received. Please try again.');
       }
 
-      // Step 2: Redirect directly to Cashfree's hosted payment page
-      // This bypasses the JS SDK entirely — no domain whitelisting needed!
-      // Payment happens on Cashfree's own domain, then redirects back to our return_url
+      // Step 2: Redirect to Cashfree's checkout page
+      // Cashfree has deprecated the old /pg/orders/pay/{id} URL (returns 404)
+      // The new approach uses POST form redirect to /pg/view/sessions/checkout
+      // This bypasses the JS SDK and doesn't require domain whitelisting
       const isProduction = orderData.env === 'production';
-      const cashfreePayUrl = isProduction
-        ? `https://payments.cashfree.com/pg/orders/pay/${orderData.paymentSessionId}`
-        : `https://sandbox.cashfree.com/pg/orders/pay/${orderData.paymentSessionId}`;
+      const checkoutUrl = isProduction
+        ? 'https://api.cashfree.com/pg/view/sessions/checkout'
+        : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
 
-      console.log(`[Cashfree] Redirecting to hosted checkout: env=${orderData.env}, orderId=${orderData.orderId}`);
-      console.log(`[Cashfree] Payment URL: ${cashfreePayUrl}`);
+      console.log(`[Cashfree] Redirecting to checkout: env=${orderData.env}, orderId=${orderData.orderId}`);
+      console.log(`[Cashfree] Checkout URL: ${checkoutUrl}`);
 
       // Save order ID to localStorage so we can verify payment when user returns
       localStorage.setItem('pendingPaymentOrderId', orderData.orderId);
       localStorage.setItem('pendingPaymentPlan', selectedPlan);
 
-      // Redirect user to Cashfree's hosted payment page
-      window.location.href = cashfreePayUrl;
+      // Create a hidden form and POST to Cashfree's checkout endpoint
+      // The payment_session_id is sent as a POST body parameter (not in URL)
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = checkoutUrl;
+      form.target = '_self';
+
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'payment_session_id';
+      input.value = orderData.paymentSessionId;
+      form.appendChild(input);
+
+      document.body.appendChild(form);
+      form.submit();
+      form.remove();
 
     } catch (error) {
       console.error('Payment error:', error);
