@@ -159,17 +159,68 @@ const VALID_COUPONS: Record<string, { discount: number; label: string }> = {
   'LAUNCH20': { discount: 20, label: '20% OFF' },
 };
 
-// Redirect to server-side checkout — tries 302 redirect first (most reliable),
-// then falls back to HTML page with visible form + direct link
-function redirectToServerCheckout(paymentSessionId: string, env: string, orderId: string, plan: string) {
+// Open Cashfree checkout using MULTIPLE methods for maximum compatibility
+// Method 1: Cashfree JS SDK v3 (best for web/desktop)
+// Method 2: Direct form POST to Cashfree (fallback)
+// Method 3: Redirect to server-rendered checkout page with visible buttons (last resort for mobile/WebView)
+function openCashfreeCheckout(paymentSessionId: string, env: string, orderId: string, orderToken: string) {
+  const isProduction = env === 'production';
+
+  // Save order ID to localStorage so we can verify payment when user returns
+  localStorage.setItem('pendingPaymentOrderId', orderId);
+
+  // METHOD 1: Try Cashfree JS SDK v3 (best experience, works on web)
+  const win = window as Record<string, unknown>;
+  if (win.Cashfree) {
+    try {
+      const CF = win.Cashfree as (config: { mode: string }) => { checkout: (options: Record<string, string>) => void };
+      const cashfree = CF({ mode: isProduction ? 'production' : 'sandbox' });
+      console.log('[Cashfree] Using JS SDK v3 checkout');
+      cashfree.checkout({
+        paymentSessionId: paymentSessionId,
+        redirectTarget: '_self',
+      });
+      return; // SDK handled it
+    } catch (sdkErr) {
+      console.warn('[Cashfree] JS SDK checkout failed, trying fallback:', sdkErr);
+    }
+  }
+
+  // METHOD 2: Direct form POST to Cashfree /pg/view/sessions/checkout
+  try {
+    const checkoutUrl = isProduction
+      ? 'https://api.cashfree.com/pg/view/sessions/checkout'
+      : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = checkoutUrl;
+    form.target = '_self';
+    form.style.position = 'absolute';
+    form.style.left = '-9999px';
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payment_session_id';
+    input.value = paymentSessionId;
+    form.appendChild(input);
+
+    document.body.appendChild(form);
+    form.submit();
+    return; // Form POST handled it
+  } catch (formErr) {
+    console.warn('[Cashfree] Form POST failed, trying server checkout page:', formErr);
+  }
+
+  // METHOD 3: Redirect to server-rendered checkout page with visible buttons
+  // This is the last resort — shows a page with "Pay Securely Now" button + direct link
   const params = new URLSearchParams({
     session_id: paymentSessionId,
     env: env,
     order_id: orderId,
-    plan: plan,
+    order_token: orderToken,
   });
-  console.log(`[Cashfree] Redirecting to checkout for order ${orderId}`);
-  // The server will try a 302 redirect to Cashfree's hosted checkout first
+  console.log('[Cashfree] Redirecting to server checkout page');
   window.location.href = `/api/payments/checkout?${params.toString()}`;
 }
 
@@ -344,10 +395,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
         throw new Error('No payment session ID received. Please try again.');
       }
 
-      // Step 2: Redirect to server-rendered checkout page
-      // This is the MOST RELIABLE method — works on ALL devices including mobile/PWA/WebView
-      // The server returns an HTML page with an auto-submitting POST form to Cashfree
-      // No client-side JS SDK dependency, no dynamic DOM manipulation needed
+      // Step 2: Open Cashfree checkout using multi-method approach
       const paymentSessionId = orderData.paymentSessionId;
 
       console.log(`[Cashfree] Opening checkout: env=${orderData.env}, orderId=${orderData.orderId}, sessionId=${paymentSessionId.substring(0, 10)}...`);
@@ -356,8 +404,8 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       localStorage.setItem('pendingPaymentOrderId', orderData.orderId);
       localStorage.setItem('pendingPaymentPlan', selectedPlan);
 
-      // Redirect to server-rendered checkout — this works on ALL devices
-      redirectToServerCheckout(paymentSessionId, orderData.env, orderData.orderId, selectedPlan);
+      // Try JS SDK → form POST → server checkout page (3 fallback levels)
+      openCashfreeCheckout(paymentSessionId, orderData.env, orderData.orderId, orderData.orderToken || '');
 
     } catch (error) {
       console.error('Payment error:', error);

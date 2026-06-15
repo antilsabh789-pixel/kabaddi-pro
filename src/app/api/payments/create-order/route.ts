@@ -199,6 +199,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       orderId: cashfreeData.order_id || cashfreeOrderId,
       paymentSessionId: cashfreeData.payment_session_id,
+      orderToken: cashfreeData.order_token || '',  // For hosted checkout URL
       paymentId: payment.id,
       amount,
       originalAmount: PLAN_PRICES[plan],
