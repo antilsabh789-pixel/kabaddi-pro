@@ -2141,8 +2141,11 @@ export default function LiveScoringScreen() {
               {halfLabel}
             </motion.div>
           </div>
-          <div className="text-[8px] text-gray-400 font-medium">
-            {match.gender === 'male' ? '♂' : '♀'}
+          <div className="text-[8px] text-gray-400 font-medium flex items-center gap-1">
+            <span>{match.gender === 'male' ? '♂' : '♀'}</span>
+            {match.weightCategory && match.weightCategory !== 'open' && (
+              <span className="text-amber-400/80">⚖️{match.weightCategory}</span>
+            )}
           </div>
         </div>
 

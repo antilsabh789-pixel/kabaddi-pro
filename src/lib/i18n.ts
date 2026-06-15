@@ -242,6 +242,21 @@ export const translations: TranslationMap = {
   'quickScore.halfDuration': { en: 'Half Duration (min)', hi: 'हाफ अवधि (मिनट)' },
   'quickScore.playersPerSide': { en: 'Players Per Side', hi: 'प्रति पक्ष खिलाड़ी' },
 
+  // ─── Weight Category ───
+  'weight.title': { en: 'Weight Category', hi: 'वजन श्रेणी' },
+  'weight.selectCategory': { en: 'Select Weight Category', hi: 'वजन श्रेणी चुनें' },
+  'weight.selectDesc': { en: 'Choose the weight category for this match', hi: 'इस मैच की वजन श्रेणी चुनें' },
+  'weight.selectTournamentDesc': { en: 'Choose the weight category for this tournament', hi: 'इस टूर्नामेंट की वजन श्रेणी चुनें' },
+  'weight.below60': { en: 'Below 60 kg', hi: '60 किग्रा से कम' },
+  'weight.60to70': { en: '60 - 70 kg', hi: '60 - 70 किग्रा' },
+  'weight.70to80': { en: '70 - 80 kg', hi: '70 - 80 किग्रा' },
+  'weight.80to90': { en: '80 - 90 kg', hi: '80 - 90 किग्रा' },
+  'weight.above90': { en: 'Above 90 kg', hi: '90 किग्रा से अधिक' },
+  'weight.open': { en: 'Open', hi: 'ओपन' },
+  'weight.openDesc': { en: 'No weight restriction', hi: 'कोई वजन प्रतिबंध नहीं' },
+  'weight.matchCategory': { en: 'Match Category', hi: 'मैच श्रेणी' },
+  'weight.tournamentCategory': { en: 'Tournament Category', hi: 'टूर्नामेंट श्रेणी' },
+
   // ─── Share Scorecard ───
   'share.scorecard': { en: 'SCORECARD', hi: 'स्कोरकार्ड' },
   'share.shareScorecard': { en: 'Share Scorecard', hi: 'स्कोरकार्ड शेयर करें' },

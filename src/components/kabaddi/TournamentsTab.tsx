@@ -49,6 +49,7 @@ interface Tournament {
   endDate: string | null;
   status: string;
   gender: string;
+  weightCategory?: string;
   teams: TeamInTournament[];
   matchCount: number;
   organizerId?: string;
@@ -626,6 +627,7 @@ export default function TournamentsTab() {
     name: '',
     venue: '',
     gender: 'male',
+    weightCategory: 'open',
     type: 'knockout',
   });
 
@@ -832,7 +834,7 @@ export default function TournamentsTab() {
     } catch {
       toast({ title: 'Error', description: 'Failed to create tournament', variant: 'destructive' });
     }
-    setNewTournament({ name: '', venue: '', gender: 'male', type: 'knockout' });
+    setNewTournament({ name: '', venue: '', gender: 'male', weightCategory: 'open', type: 'knockout' });
   };
 
   const handleGenerateBracket = async (tournamentId: string, teamIds: string[]) => {
@@ -1296,6 +1298,34 @@ export default function TournamentsTab() {
                     </button>
                   </div>
                 </div>
+                <div>
+                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 mb-1.5 block flex items-center gap-1.5">
+                    <span>⚖️</span> Weight Category
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { key: 'below-60', emoji: '🪶', label: '< 60 kg' },
+                      { key: '60-70', emoji: '⚖️', label: '60-70 kg' },
+                      { key: '70-80', emoji: '💪', label: '70-80 kg' },
+                      { key: '80-90', emoji: '🏋️', label: '80-90 kg' },
+                      { key: 'above-90', emoji: '🦏', label: '> 90 kg' },
+                      { key: 'open', emoji: '♾️', label: 'Open' },
+                    ] as const).map((wc) => (
+                      <button
+                        key={wc.key}
+                        onClick={() => setNewTournament({ ...newTournament, weightCategory: wc.key })}
+                        className={`p-2 rounded-xl border-2 text-[10px] font-bold transition-all flex flex-col items-center gap-0.5 ${
+                          newTournament.weightCategory === wc.key
+                            ? 'border-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-300 shadow-sm shadow-amber-500/10'
+                            : 'border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-400 hover:border-warm-300 dark:hover:border-warm-600'
+                        }`}
+                      >
+                        <span className="text-sm leading-none">{wc.emoji}</span>
+                        {wc.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <Button
                   onClick={() => setHostStep(1)}
                   disabled={!newTournament.name || !newTournament.venue}
@@ -1405,6 +1435,10 @@ export default function TournamentsTab() {
                       <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
                         {getTypeBadge(newTournament.type).icon}
                         <span className="capitalize">{newTournament.type} Format</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-warm-600 dark:text-warm-300">
+                        <span className="text-sm">⚖️</span>
+                        <span>{newTournament.weightCategory === 'open' ? 'Open (No restriction)' : newTournament.weightCategory ? `${({['below-60']: 'Below 60 kg', '60-70': '60-70 kg', '70-80': '70-80 kg', '80-90': '80-90 kg', 'above-90': 'Above 90 kg'} as Record<string,string>)[newTournament.weightCategory] || newTournament.weightCategory}` : 'Not set'}</span>
                       </div>
                     </div>
                   </div>
@@ -1795,6 +1829,13 @@ export default function TournamentsTab() {
                             {tournament.gender === 'male' ? <Mars className="w-3 h-3" /> : <Venus className="w-3 h-3" />}
                             {tournament.gender === 'male' ? 'Boys' : 'Girls'}
                           </span>
+
+                          {/* Weight Category Badge */}
+                          {tournament.weightCategory && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                              ⚖️ {tournament.weightCategory === 'open' ? 'Open' : tournament.weightCategory}
+                            </span>
+                          )}
 
                           {/* Tournament Code */}
                           {tournament.tournamentCode && (

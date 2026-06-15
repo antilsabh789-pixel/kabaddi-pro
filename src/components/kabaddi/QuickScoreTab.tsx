@@ -22,6 +22,7 @@ interface UserTeam {
 
 interface MatchConfig {
   gender: string;
+  weightCategory: string;
   halfDuration: number;
   playersPerSide: number;
   homeTeam: string;
@@ -31,6 +32,16 @@ interface MatchConfig {
   homeLineup: MatchPlayer[];
   awayLineup: MatchPlayer[];
 }
+
+// ─── Weight Category Config ─────────────────────────────────────
+const WEIGHT_CATEGORIES = [
+  { key: 'below-60', label: 'Below 60 kg', labelHi: '60 किग्रा से कम', emoji: '🪶', color: 'from-emerald-500 to-teal-500' },
+  { key: '60-70', label: '60 - 70 kg', labelHi: '60 - 70 किग्रा', emoji: '⚖️', color: 'from-blue-500 to-cyan-500' },
+  { key: '70-80', label: '70 - 80 kg', labelHi: '70 - 80 किग्रा', emoji: '💪', color: 'from-amber-500 to-orange-500' },
+  { key: '80-90', label: '80 - 90 kg', labelHi: '80 - 90 किग्रा', emoji: '🏋️', color: 'from-red-500 to-rose-500' },
+  { key: 'above-90', label: 'Above 90 kg', labelHi: '90 किग्रा से अधिक', emoji: '🦏', color: 'from-purple-500 to-violet-500' },
+  { key: 'open', label: 'Open', labelHi: 'ओपन', emoji: '♾️', color: 'from-gray-500 to-slate-500' },
+] as const;
 
 const STEPS = ['Category', 'Teams', 'Settings', 'Lineup', 'Start'];
 const STEP_ICONS = [Users, Swords, Clock, Shield, Play];
@@ -251,6 +262,7 @@ export default function QuickScoreTab() {
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<MatchConfig>({
     gender: '',
+    weightCategory: '',
     halfDuration: 10,
     playersPerSide: 7,
     homeTeam: '',
@@ -561,7 +573,7 @@ export default function QuickScoreTab() {
 
   const canNext = () => {
     switch (step) {
-      case 0: return config.gender !== '';
+      case 0: return config.gender !== '' && config.weightCategory !== '';
       case 1: return config.homeTeam !== '' && config.awayTeam !== '';
       case 2: return config.halfDuration >= 1 && config.playersPerSide >= 1;
       case 3: return config.homeLineup.length >= config.playersPerSide && config.awayLineup.length >= config.playersPerSide;
@@ -602,6 +614,7 @@ export default function QuickScoreTab() {
       awayTeamColor: config.awayTeamColor,
       isPractice: true,
       gender: config.gender,
+      weightCategory: config.weightCategory,
       halfDuration: config.halfDuration,
       playersPerSide: config.playersPerSide,
       homeLineup: markLineup(config.homeLineup, homePlaying7, homeCaptain),
@@ -1226,6 +1239,83 @@ export default function QuickScoreTab() {
                   )}
                 </motion.button>
               </div>
+
+              {/* Weight Category Selection */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="space-y-3"
+              >
+                <div className="text-center">
+                  <h3 className="text-base font-bold text-warm-800 dark:text-warm-100 flex items-center justify-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-sm">⚖️</span>
+                    Weight Category
+                  </h3>
+                  <p className="text-xs text-warm-500 dark:text-warm-400 mt-1">Select the weight category for this match</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {WEIGHT_CATEGORIES.map((wc) => (
+                    <motion.button
+                      key={wc.key}
+                      onClick={() => setConfig({ ...config, weightCategory: wc.key })}
+                      whileTap={{ scale: 0.95 }}
+                      className={`relative p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 overflow-hidden group ${
+                        config.weightCategory === wc.key
+                          ? 'border-amber-500 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/5 shadow-lg shadow-amber-500/20'
+                          : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-amber-300 hover:shadow-sm'
+                      }`}
+                    >
+                      {config.weightCategory === wc.key && (
+                        <motion.div
+                          className="absolute top-1.5 right-1.5 z-10"
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                        >
+                          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        </motion.div>
+                      )}
+                      <span className="text-lg leading-none">{wc.emoji}</span>
+                      <span className={`text-[10px] font-bold leading-tight text-center ${
+                        config.weightCategory === wc.key
+                          ? 'text-amber-700 dark:text-amber-300'
+                          : 'text-warm-600 dark:text-warm-300'
+                      }`}>
+                        {wc.label}
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+                {config.weightCategory && config.weightCategory !== 'open' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-2.5 flex items-center gap-2"
+                  >
+                    <span className="text-sm">⚖️</span>
+                    <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">
+                      Only players within this weight range can participate in this match
+                    </span>
+                  </motion.div>
+                )}
+                {config.weightCategory === 'open' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-800/30 rounded-xl p-2.5 flex items-center gap-2"
+                  >
+                    <span className="text-sm">♾️</span>
+                    <span className="text-[10px] text-gray-600 dark:text-gray-400 font-medium">
+                      No weight restriction — players of any weight can participate
+                    </span>
+                  </motion.div>
+                )}
+              </motion.div>
             </div>
           )}
 
@@ -2368,13 +2458,20 @@ export default function QuickScoreTab() {
                     ? 'bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-blue-600/10 dark:from-blue-500/20 dark:via-blue-500/10 dark:to-blue-600/20'
                     : 'bg-gradient-to-r from-red-500/10 via-red-500/5 to-red-600/10 dark:from-red-500/20 dark:via-red-500/10 dark:to-red-600/20'
                 }`}>
-                  <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold ${
-                    config.gender === 'male'
-                      ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                      : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                  }`}>
-                    {config.gender === 'male' ? '♂ Boys Match' : '♀ Girls Match'}
-                  </span>
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold ${
+                      config.gender === 'male'
+                        ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                        : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                    }`}>
+                      {config.gender === 'male' ? '♂ Boys Match' : '♀ Girls Match'}
+                    </span>
+                    {config.weightCategory && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                        ⚖️ {WEIGHT_CATEGORIES.find(w => w.key === config.weightCategory)?.label || config.weightCategory}
+                      </span>
+                    )}
+                  </div>
                   {/* Decorative dots */}
                   <div className="absolute top-2 left-6 w-1.5 h-1.5 rounded-full bg-white/20" />
                   <div className="absolute bottom-2 right-8 w-1 h-1 rounded-full bg-white/15" />

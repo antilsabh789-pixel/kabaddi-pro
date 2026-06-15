@@ -73,6 +73,7 @@ export interface ActiveMatch {
   isLive: boolean;
   isPractice: boolean;
   gender: string;
+  weightCategory?: string;
   halfDuration: number;
   playersPerSide: number;
   currentHalf: number;

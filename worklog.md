@@ -294,3 +294,43 @@ Stage Summary:
 - API handles comprehensive data cleanup across 20+ database tables
 - On successful deletion, user is automatically logged out
 - Both English and Hindi translations included
+
+---
+Task ID: 7
+Agent: Main
+Task: Add weight categories section for matches and tournaments
+
+Work Log:
+- Added `weightCategory` String? field to both Match and Tournament models in Prisma schema
+- Ran `bun run db:push` to sync the schema changes to the database
+- Added `weightCategory?: string` to `ActiveMatch` interface in store.ts
+- Added 13 new i18n translation keys in both English and Hindi for weight categories (weight.title, weight.selectCategory, weight.below60, weight.60to70, weight.70to80, weight.80to90, weight.above90, weight.open, etc.)
+- Updated `/api/tournaments` POST route to accept and store `weightCategory`
+- Updated `/api/tournaments` GET route to return `weightCategory` in formatted tournament data
+- Updated `/api/matches` POST route to accept and store `weightCategory`
+- Added `WEIGHT_CATEGORIES` constant in QuickScoreTab with 6 categories: Below 60kg, 60-70kg, 70-80kg, 80-90kg, Above 90kg, Open
+- Added `weightCategory` field to `MatchConfig` interface in QuickScoreTab
+- Updated initial config state with `weightCategory: ''`
+- Updated `canNext()` step 0 validation to require both gender AND weightCategory selection
+- Updated `handleStart()` to pass `weightCategory` through to `initiateToss()`
+- Added weight category selection UI in Step 0 (Category step) of QuickScoreTab — 3-column grid with emoji, label, animated checkmarks, info banners
+- Added weight category badge next to gender badge in Step 4 (Match Preview) of QuickScoreTab
+- Added `weightCategory: 'open'` default to tournament creation form state in TournamentsTab
+- Added `weightCategory?` field to Tournament interface in TournamentsTab
+- Added weight category selection grid (6 options) in tournament creation dialog Step 0 (Details)
+- Added weight category display in tournament review step (Step 2)
+- Added weight category badge display in tournament cards in the tournament list
+- Updated LiveScoringScreen to show weight category indicator next to gender symbol in the info bar
+- Updated MatchDayExperience.tsx MatchDataAPI interface to include gender and weightCategory fields
+- Verified with agent-browser: Quick Score tab shows "Select Category" with gender + weight category, weight info banner appears after selection, Next button enables after both are selected
+- Lint passes with no errors, dev server running cleanly
+
+Stage Summary:
+- Weight category feature is now fully implemented across match and tournament flows
+- 6 weight categories: Below 60kg, 60-70kg, 70-80kg, 80-90kg, Above 90kg, Open
+- Match setup (QuickScoreTab) requires weight category before proceeding
+- Tournament creation includes weight category selection (premium feature)
+- Weight category badges display on tournament cards and match preview
+- Live scoring shows weight category indicator
+- All backend APIs support weightCategory field
+- Database schema updated with weightCategory on Match and Tournament models

@@ -78,6 +78,8 @@ interface MatchDataAPI {
   status?: string;
   venue?: string;
   scheduledAt?: string;
+  gender?: string;
+  weightCategory?: string;
 }
 
 interface MatchEventsAPIResponse {

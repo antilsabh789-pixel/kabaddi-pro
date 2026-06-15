@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
       endDate: t.endDate ? t.endDate.toISOString().split('T')[0] : null,
       status: t.status,
       gender: t.gender,
+      weightCategory: t.weightCategory,
       organizerId: t.organizerId,
       teams: t.entries.map((entry) => ({
         id: entry.team.id,
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, venue, gender, type, startDate, endDate, organizerId } = body;
+    const { name, venue, gender, type, weightCategory, startDate, endDate, organizerId } = body;
 
     // Auto-generate tournament code
     const tournamentCode = await generateTournamentCode();
@@ -109,6 +110,7 @@ export async function POST(request: NextRequest) {
         tournamentCode,
         venue,
         gender,
+        weightCategory: weightCategory || null,
         type: type || 'knockout',
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
