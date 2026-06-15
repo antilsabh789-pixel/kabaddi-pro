@@ -43,9 +43,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script src="https://sdk.cashfree.com/js/v3/cashfree.js" async></script>
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

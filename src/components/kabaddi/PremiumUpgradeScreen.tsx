@@ -159,31 +159,19 @@ const VALID_COUPONS: Record<string, { discount: number; label: string }> = {
   'LAUNCH20': { discount: 20, label: '20% OFF' },
 };
 
-// Fallback: Redirect to Cashfree checkout without JS SDK
-// Uses the new Cashfree checkout URL (POST to /pg/view/sessions/checkout)
-function redirectToCashfreeCheckout(paymentSessionId: string, isProduction: boolean) {
-  const checkoutUrl = isProduction
-    ? 'https://api.cashfree.com/pg/view/sessions/checkout'
-    : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
-
-  console.log(`[Cashfree] Fallback: POST redirect to ${checkoutUrl}`);
-
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = checkoutUrl;
-  form.target = '_self';
-  form.style.display = 'none';
-
-  const input = document.createElement('input');
-  input.type = 'hidden';
-  input.name = 'payment_session_id';
-  input.value = paymentSessionId;
-  form.appendChild(input);
-
-  document.body.appendChild(form);
-  form.submit();
-  // Don't remove form immediately — mobile browsers need it during submission
-  setTimeout(() => form.remove(), 5000);
+// Redirect to server-rendered checkout page
+// This is the MOST RELIABLE method — works on ALL devices (desktop, mobile, PWA, WebView)
+// The server returns an HTML page with an auto-submitting POST form to Cashfree
+// No client-side JS SDK dependency, no dynamic DOM manipulation needed
+function redirectToServerCheckout(paymentSessionId: string, env: string, orderId: string, plan: string) {
+  const params = new URLSearchParams({
+    session_id: paymentSessionId,
+    env: env,
+    order_id: orderId,
+    plan: plan,
+  });
+  console.log(`[Cashfree] Redirecting to server-rendered checkout for order ${orderId}`);
+  window.location.href = `/api/payments/checkout?${params.toString()}`;
 }
 
 export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgradeScreenProps) {
@@ -357,8 +345,10 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
         throw new Error('No payment session ID received. Please try again.');
       }
 
-      // Step 2: Open Cashfree checkout
-      const isProduction = orderData.env === 'production';
+      // Step 2: Redirect to server-rendered checkout page
+      // This is the MOST RELIABLE method — works on ALL devices including mobile/PWA/WebView
+      // The server returns an HTML page with an auto-submitting POST form to Cashfree
+      // No client-side JS SDK dependency, no dynamic DOM manipulation needed
       const paymentSessionId = orderData.paymentSessionId;
 
       console.log(`[Cashfree] Opening checkout: env=${orderData.env}, orderId=${orderData.orderId}, sessionId=${paymentSessionId.substring(0, 10)}...`);
@@ -367,45 +357,8 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       localStorage.setItem('pendingPaymentOrderId', orderData.orderId);
       localStorage.setItem('pendingPaymentPlan', selectedPlan);
 
-      // Wait for Cashfree SDK to be available (loaded from layout.tsx head)
-      let sdkReady = false;
-      for (let i = 0; i < 20; i++) {
-        if ((window as Record<string, unknown>).Cashfree) {
-          sdkReady = true;
-          break;
-        }
-        // Wait 250ms and check again (up to 5 seconds total)
-        await new Promise(r => setTimeout(r, 250));
-      }
-
-      if (sdkReady) {
-        try {
-          const CF = ((window as Record<string, unknown>).Cashfree) as (config: { mode: string }) => { checkout: (options: Record<string, string>) => void };
-          const cashfree = CF({
-            mode: isProduction ? 'production' : 'sandbox',
-          });
-
-          console.log('[Cashfree] SDK initialized, calling checkout...');
-
-          // Use _self redirect — this is the most reliable method
-          // The SDK will redirect the entire page to Cashfree's checkout
-          cashfree.checkout({
-            paymentSessionId: paymentSessionId,
-            redirectTarget: '_self',
-          });
-
-          // Note: After checkout(), the page will redirect to Cashfree
-          // so code below won't execute in most cases
-        } catch (sdkErr) {
-          console.error('[Cashfree] SDK checkout() failed:', sdkErr);
-          // SDK loaded but checkout failed — try fallback
-          redirectToCashfreeCheckout(paymentSessionId, isProduction);
-        }
-      } else {
-        console.warn('[Cashfree] SDK not loaded after 5s, using direct redirect');
-        // SDK didn't load — use direct redirect fallback
-        redirectToCashfreeCheckout(paymentSessionId, isProduction);
-      }
+      // Redirect to server-rendered checkout — this works on ALL devices
+      redirectToServerCheckout(paymentSessionId, orderData.env, orderData.orderId, selectedPlan);
 
     } catch (error) {
       console.error('Payment error:', error);
