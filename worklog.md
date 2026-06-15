@@ -207,3 +207,31 @@ Stage Summary:
 - Vercel will auto-deploy from the GitHub push
 - Key changes deployed: Team A/B equal setup, step reorder (Teams before Settings), team code search for both sides
 - Live URL: kabaddi-app-cyan.vercel.app
+
+---
+Task ID: 4
+Agent: Main
+Task: Fix profile photo upload showing "Upload failed" error
+
+Work Log:
+- Analyzed user's screenshot showing "Upload failed" error on profile photo upload
+- Found that ProfileTab.tsx sends POST to `/api/upload` but that route DID NOT EXIST
+- Only a GET route at `/api/uploads/avatars/[filename]` existed (for serving files)
+- Created `/api/upload/route.ts` with POST handler that:
+  - Accepts base64 file data, fileName, fileType, userId, folder
+  - Validates file type (JPEG, PNG, WebP, GIF only)
+  - Extracts base64 data from data URL format
+  - Generates unique filename with userId + timestamp
+  - Saves file to public/uploads/{folder}/ directory
+  - Updates user avatar in database for avatar uploads
+  - Returns { success: true, url: '/api/uploads/avatars/filename.png' }
+- Created `/api/uploads/teams/[filename]/route.ts` GET handler for serving team logos
+- Updated TeamManagementScreen.tsx to pass folder: 'teams' for team logo uploads
+- Tested with agent-browser: upload API returns success, files are saved and served correctly
+- Committed and pushed to GitHub, Vercel will auto-deploy
+
+Stage Summary:
+- Root cause: Missing `/api/upload` POST route - the component was calling an endpoint that didn't exist
+- Fix: Created the upload API route with proper file handling, validation, and DB updates
+- Both profile avatar and team logo uploads now work
+- Deployed to Vercel via GitHub push
