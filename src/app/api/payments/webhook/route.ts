@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     if (!payment) {
       console.error(`Cashfree webhook: Payment not found for order ${cashfreeOrderId}`);
-      return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Payment record not found for this order' }, { status: 200 });
     }
 
     // Handle different event types

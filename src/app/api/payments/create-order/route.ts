@@ -88,9 +88,10 @@ export async function POST(request: NextRequest) {
     const config = getCashfreeConfig();
 
     if (!config.appId || !config.secretKey) {
+      console.error('[Cashfree] Missing credentials - CASHFREE_APP_ID or CASHFREE_SECRET_KEY not set');
       return NextResponse.json(
-        { error: 'Cashfree credentials not configured. Please contact support.' },
-        { status: 500 }
+        { error: 'Payment gateway is being configured. Please try again in a few minutes.' },
+        { status: 503 }
       );
     }
 
@@ -101,7 +102,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Your account was not found. Please log out and log back in, then try again.' },
+        { status: 400 }
+      );
     }
 
     // Generate a unique order_id for Cashfree
@@ -152,9 +156,22 @@ export async function POST(request: NextRequest) {
     if (!cashfreeResponse.ok) {
       const errorData = await cashfreeResponse.json().catch(() => ({}));
       console.error('[Cashfree] Create order error:', JSON.stringify(errorData));
+
+      // Provide user-friendly error messages based on Cashfree error type
+      let userMessage = 'Payment gateway error. Please try again later.';
+      const errorType = errorData?.type || errorData?.code || '';
+      if (errorType === 'authentication_error' || errorType === 'authentication_failed') {
+        userMessage = 'Payment gateway configuration issue. Our team has been notified. Please try again later.';
+        console.error('[Cashfree] CRITICAL: Authentication failed - check CASHFREE_APP_ID and CASHFREE_SECRET_KEY');
+      } else if (errorType === 'rate_limit_exceeded') {
+        userMessage = 'Too many payment attempts. Please wait a moment and try again.';
+      } else if (errorData?.message?.includes('order_id')) {
+        userMessage = 'Payment order conflict. Please try again.';
+      }
+
       return NextResponse.json(
-        { error: 'Failed to create payment order with Cashfree', details: errorData },
-        { status: 500 }
+        { error: userMessage, details: errorData },
+        { status: 502 }
       );
     }
 

@@ -303,8 +303,25 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       });
 
       if (!orderRes.ok) {
-        const errData = await orderRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to create payment order');
+        let errorMessage = 'Failed to create payment order';
+        try {
+          const errData = await orderRes.json();
+          errorMessage = errData.error || errorMessage;
+        } catch {
+          // Non-JSON response (e.g., 404 HTML page from Next.js)
+          if (orderRes.status === 404) {
+            errorMessage = 'Payment service is currently unavailable. Please try again later.';
+          } else if (orderRes.status === 503) {
+            errorMessage = 'Payment gateway is being configured. Please try again in a few minutes.';
+          } else if (orderRes.status === 502) {
+            errorMessage = 'Payment gateway error. Please try again later.';
+          } else if (orderRes.status === 500) {
+            errorMessage = 'Payment server error. Please try again later.';
+          } else {
+            errorMessage = `Payment error (${orderRes.status}). Please try again.`;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const orderData = await orderRes.json();

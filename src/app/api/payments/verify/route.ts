@@ -38,8 +38,8 @@ export async function GET(request: NextRequest) {
 
     if (!payment) {
       return NextResponse.json(
-        { error: 'Payment order not found' },
-        { status: 404 }
+        { error: 'Payment order not found. It may have expired. Please try purchasing again.' },
+        { status: 400 }
       );
     }
 
@@ -180,8 +180,8 @@ export async function POST(request: NextRequest) {
 
     if (!payment) {
       return NextResponse.json(
-        { error: 'Payment order not found' },
-        { status: 404 }
+        { error: 'Payment order not found. It may have expired. Please try purchasing again.' },
+        { status: 400 }
       );
     }
 

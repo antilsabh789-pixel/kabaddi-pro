@@ -818,3 +818,38 @@ Stage Summary:
 - Super Tackle correctly awards 2 points when ≤3 defenders
 - Vertical mat layout with teams facing each other like a real kabaddi court
 - Do-or-Die properly tracked per team from empty raid events
+
+---
+Task ID: 20
+Agent: Main
+Task: Shift scoring layout back to sideways (horizontal) - teams side by side
+
+Work Log:
+- Analyzed the current vertical layout in LiveScoringScreen.tsx (Away team TOP rotated 180°, center divider, Home team BOTTOM)
+- Renamed TeamHalf component to TeamPanel with updated structure for horizontal layout
+- Added per-team score display (large score number + raid/tackle breakdown) inside each TeamPanel
+- Replaced vertical mat layout (flex-col) with horizontal layout (flex-row):
+  - Home team (EAGLES) on LEFT
+  - Compact center divider (52px) with timer, turn indicator, half indicator
+  - Away team (LIONS) on RIGHT
+- Center divider features:
+  - Subtle vertical court line pattern
+  - Turn arrow indicator (Swords icon with direction animation)
+  - Do-or-Die flame emoji
+  - Timer display (font-mono, pulse when <60s)
+  - Half indicator (H1/H2)
+- TeamPanel structure:
+  - Header with team name, color badge, RAID/DEF indicator, player count, timeouts, SUB button
+  - Score display with large number + ⚡raid/🛡tackle breakdown
+  - Player grid (2 columns) with scrollable area
+  - Substitutes section at bottom (compact)
+  - TAP TO RAID / DEFENDING indicator
+- Tested via agent-browser: Match loads correctly, sideways layout renders, raid flow works
+- Lint passes clean
+
+Stage Summary:
+- Scoring layout shifted from vertical (top/bottom) back to sideways (left/right)
+- Home team on left, Away team on right, center timer divider
+- Each team panel shows score, players, and status
+- Raid flow (select raider → choose outcome → select defenders → confirm) works correctly
+- Turn swapping, timer, and all overlays function properly in the new layout
