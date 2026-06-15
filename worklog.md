@@ -265,3 +265,32 @@ Stage Summary:
 - Warning note reminds users that the new phone will be used for login
 - API validates format (+91XXXXXXXXXX) and uniqueness before updating
 - Both English and Hindi translations included
+
+---
+Task ID: 6
+Agent: Main
+Task: Add delete account option in profile/account section
+
+Work Log:
+- Created `/api/auth/delete-account/route.ts` API endpoint with comprehensive data cleanup
+- Delete order respects foreign key constraints: rewards → fees → attendance → academy players → parent contacts → AI insights → poll votes → referrals → challenges → achievements → activities → notifications → follows → payments → match scorers → team members → player profile → tournament/match transfer nullification → user record
+- Added "DELETE" confirmation phrase requirement for safety
+- Added 8 i18n translation keys in both English and Hindi for delete account flow
+- Added state variables: showDeleteAccount, deleteConfirmText, deleteAccountLoading, deleteAccountError
+- Added handleDeleteAccount() function that validates confirmation, calls API, logs out user on success
+- Added "Delete Account" button with Trash2 icon after Logout button in danger zone (red-styled outline)
+- Created Delete Account dialog with: user info card, data loss warning (6 bullet items), DELETE confirmation input, real-time validation feedback, error display, Cancel/Permanently Delete buttons
+- "Permanently Delete Account" button disabled until user types "DELETE" exactly
+- Tested API: created test user → called delete API → verified user and profile removed from DB
+- Tested API rejection: wrong confirmation phrase returns proper error
+- Agent-browser verified: dialog opens, shows all content, DELETE enables button, Cancel works
+- Lint passes with no errors
+
+Stage Summary:
+- Users can now delete their account from the Profile tab
+- "Delete Account" button appears below the Logout button with red styling
+- Dialog shows detailed data loss warning with 6 categories of data that will be lost
+- User must type "DELETE" to confirm before the delete button becomes active
+- API handles comprehensive data cleanup across 20+ database tables
+- On successful deletion, user is automatically logged out
+- Both English and Hindi translations included

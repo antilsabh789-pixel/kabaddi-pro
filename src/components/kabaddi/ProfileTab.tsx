@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil, Trash2 } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import Portal from '@/components/portal';
 import { useTheme } from 'next-themes';
@@ -259,6 +259,10 @@ export default function ProfileTab() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState('');
 
   // Member since date - use createdAt timestamp, fallback to 30 days ago
   const memberSince = currentUser?.createdAt ? new Date(currentUser.createdAt) : new Date(Date.now() - 30 * 86400000);
@@ -640,6 +644,39 @@ export default function ProfileTab() {
       setPhoneEditError('Failed to update phone number. Please try again.');
     } finally {
       setPhoneEditLoading(false);
+    }
+  };
+
+  // ─── Delete Account ───
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+
+    setDeleteAccountLoading(true);
+    setDeleteAccountError('');
+
+    try {
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser?.id,
+          confirmation: 'DELETE',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        // Clear all local state and logout
+        logout();
+        toast({ title: t('profile.deleteAccountSuccess', language) });
+      } else {
+        setDeleteAccountError(data.error || t('profile.deleteAccountFailed', language));
+      }
+    } catch {
+      setDeleteAccountError(t('profile.deleteAccountFailed', language));
+    } finally {
+      setDeleteAccountLoading(false);
     }
   };
 
@@ -2781,6 +2818,24 @@ export default function ProfileTab() {
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
+      {/* 10b. DELETE ACCOUNT BUTTON */}
+      {/* ═══════════════════════════════════════════ */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
+        <Button
+          variant="outline"
+          onClick={() => { setShowDeleteAccount(true); setDeleteConfirmText(''); setDeleteAccountError(''); }}
+          className="w-full rounded-xl border-red-200 dark:border-red-800/40 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 h-11 gap-2 text-xs"
+        >
+          <Trash2 className="w-4 h-4" />
+          {t('profile.deleteAccount', language)}
+        </Button>
+      </motion.div>
+
+      {/* ═══════════════════════════════════════════ */}
       {/* 11. CHANGE PHONE NUMBER DIALOG */}
       {/* ═══════════════════════════════════════════ */}
       <Dialog open={showPhoneEdit} onOpenChange={(open) => { setShowPhoneEdit(open); if (!open) { setNewPhone(''); setPhoneEditError(''); } }}>
@@ -2876,6 +2931,118 @@ export default function ProfileTab() {
                   <>
                     <Phone className="w-3.5 h-3.5 mr-1.5" />
                     {t('profile.updatePhone', language)}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* 12. DELETE ACCOUNT DIALOG */}
+      {/* ═══════════════════════════════════════════ */}
+      <Dialog open={showDeleteAccount} onOpenChange={(open) => { setShowDeleteAccount(open); if (!open) { setDeleteConfirmText(''); setDeleteAccountError(''); } }}>
+        <DialogContent className="bg-warm-50 dark:bg-warm-100 border-warm-300 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 dark:text-red-500 flex items-center gap-2">
+              <Trash2 className="w-4 h-4" />
+              {t('profile.deleteAccountTitle', language)}
+            </DialogTitle>
+            <DialogDescription className="text-warm-500 dark:text-warm-400 text-xs">
+              {t('profile.deleteAccountWarning', language)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {/* User info */}
+            <div className="bg-warm-100 dark:bg-warm-200/50 rounded-xl p-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-brand-red/10 flex items-center justify-center text-lg overflow-hidden border-2 border-red-200">
+                {currentUser?.avatar ? (
+                  <img src={currentUser.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span>{currentUser?.gender === 'female' ? '👩' : '👨'}</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-warm-800 dark:text-warm-100 text-sm font-semibold truncate">{currentUser?.name || 'Player'}</p>
+                <p className="text-warm-400 text-[10px] font-mono">{currentUser?.phone}</p>
+              </div>
+            </div>
+
+            {/* Data loss warning */}
+            <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                <p className="text-xs font-semibold text-red-600 dark:text-red-400">{t('profile.deleteAccountDataLoss', language)}</p>
+              </div>
+              <ul className="text-[10px] text-red-500/80 dark:text-red-400/80 space-y-1 ml-5">
+                {t('profile.deleteAccountDataItems', language).split(', ').map((item, i) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <span className="text-red-400 mt-0.5">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Confirmation input */}
+            <div>
+              <label className="text-xs font-semibold text-warm-700 dark:text-warm-600 mb-2 block">
+                {t('profile.deleteAccountConfirm', language)}
+              </label>
+              <Input
+                type="text"
+                placeholder="DELETE"
+                value={deleteConfirmText}
+                onChange={(e) => {
+                  setDeleteConfirmText(e.target.value);
+                  if (deleteAccountError) setDeleteAccountError('');
+                }}
+                className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl font-mono text-center text-sm tracking-widest uppercase"
+                autoFocus
+              />
+              {deleteConfirmText && deleteConfirmText !== 'DELETE' && (
+                <p className="text-[10px] text-red-500 mt-1">Type DELETE exactly to confirm</p>
+              )}
+              {deleteConfirmText === 'DELETE' && (
+                <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> Ready to delete — this cannot be undone
+                </p>
+              )}
+            </div>
+
+            {/* Error Message */}
+            {deleteAccountError && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 text-xs text-red-500 bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                {deleteAccountError}
+              </motion.div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => { setShowDeleteAccount(false); setDeleteConfirmText(''); setDeleteAccountError(''); }}
+                className="flex-1 rounded-xl border-warm-300 dark:border-warm-200 h-10 text-xs"
+              >
+                {t('common.cancel', language)}
+              </Button>
+              <Button
+                onClick={handleDeleteAccount}
+                disabled={deleteAccountLoading || deleteConfirmText !== 'DELETE'}
+                className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white h-10 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deleteAccountLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    {t('profile.deleteAccountConfirmBtn', language)}
                   </>
                 )}
               </Button>
