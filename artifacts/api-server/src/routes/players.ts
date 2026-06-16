@@ -204,25 +204,38 @@ router.get('/popular-players', async (req, res) => {
   try {
     const limit = parseInt((req.query['limit'] as string) || '10');
     const gender = (req.query['gender'] as string) || 'all';
+    const currentUserId = (req.query['userId'] as string) || '';
 
     const where: Record<string, unknown> = {};
     if (gender && gender !== 'all') where.gender = gender;
 
     const users = await db.user.findMany({
       where: { ...where, profile: { totalMatches: { gt: 0 } } },
-      include: { profile: true, followers: { select: { id: true } } },
+      include: {
+        profile: true,
+        followers: { select: { followerId: true } },
+        teams: { include: { team: { select: { name: true } } }, take: 2 },
+      },
       orderBy: { followers: { _count: 'desc' } },
       take: limit,
     });
 
-    const players = users.map((u) => ({
-      id: u.id,
+    const players = users.map((u, i) => ({
+      rank: i + 1,
+      userId: u.id,
       name: u.name,
       avatar: u.avatar,
       playerCode: u.playerCode,
       gender: u.gender,
       followerCount: u.followers.length,
-      profile: u.profile ? { position: u.profile.position, overallRating: u.profile.overallRating, totalMatches: u.profile.totalMatches, totalPoints: u.profile.totalPoints } : null,
+      isFollowing: currentUserId ? u.followers.some((f) => f.followerId === currentUserId) : false,
+      position: u.profile?.position ?? null,
+      overallRating: u.profile?.overallRating ?? 0,
+      totalPoints: u.profile?.totalPoints ?? 0,
+      totalMatches: u.profile?.totalMatches ?? 0,
+      raidPoints: u.profile?.raidPoints ?? 0,
+      tacklePoints: u.profile?.tacklePoints ?? 0,
+      teamNames: u.teams.map((tm) => tm.team.name).filter(Boolean),
     }));
 
     return res.json({ players });
