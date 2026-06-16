@@ -408,3 +408,48 @@ Stage Summary:
 - "Discover & Learn" section added to HomeTab with 10 feature cards
 - Match action buttons added to recent match cards for 6 match-specific features
 - Full i18n support (English + Hindi) for all new features
+
+---
+Task ID: 12
+Agent: Main Agent
+Task: Remove player level system and coach weight/position fields; extend player profile accessibility
+
+Work Log:
+- Removed player level system (beginner/intermediate/advanced/legend):
+  - Removed `getPlayerLevel()` function from ProfileTab.tsx
+  - Removed `OnboardingExperience` type from store.ts
+  - Removed `experienceLevel` from `CurrentUser` interface in store.ts
+  - Removed `experience` from `OnboardingProfile` interface in store.ts
+  - Removed `completeOnboarding` mapping of `experienceLevel` in store.ts
+  - Removed `EXPERIENCE_OPTIONS` array from OnboardingWizard.tsx
+  - Removed `CircleDot` import from OnboardingWizard.tsx
+  - Removed Experience Level selection UI from ProfileStep in OnboardingWizard.tsx
+  - Removed Experience row from profile summary in CompleteStep
+  - Updated ProfileStep props to remove experience type
+  - Updated handleLocalProfileChange to remove experience type
+  - Removed level badge, progress bar, and SVG ring from ProfileTab.tsx banner
+  - Removed level badge below avatar in ProfileTab.tsx
+  - Removed calculatedLevel/experienceMap/selfReportedLevel/playerLevel variables
+
+- Removed weight/position/jersey fields for coaches:
+  - Wrapped Gender, Weight, Jersey Number, Position edit form fields with `currentUser?.role !== 'coach'` check
+  - Wrapped Weight display in banner with coach check
+  - Wrapped Position badge in banner with coach check
+  - Wrapped Jersey badge in Badges Row with coach check
+  - Wrapped Weight/Position/Jersey display rows in profile info section with coach check
+  - Note: AuthScreen already had `!isCoach` conditionals for weight/position during signup
+  - Note: OnboardingWizard is already skipped for coaches (auto-complete in page.tsx)
+
+- Extended player profile accessibility:
+  - Added `onViewPlayer` prop to MatchDetailsScreen.tsx
+  - Made MOTM name, event timeline player names, top raiders, top defenders clickable
+  - Added `onViewPlayer` prop to GlobalSearchScreen.tsx
+  - Made search result player entries clickable
+  - Connected both screens to `openPlayerProfile` in HomeTab.tsx
+
+Stage Summary:
+- Player level system completely removed from all UI and state management
+- Coach accounts no longer see or can edit weight/position/jersey fields
+- Player profiles now accessible from: Popular Players, Leaderboard (preview + full), Match Details, Global Search, Awards
+- Premium gating for full stats already implemented in PlayerProfileScreen
+- All changes verified with linter (no errors) and agent browser (onboarding shows no level, profile has no level badge)

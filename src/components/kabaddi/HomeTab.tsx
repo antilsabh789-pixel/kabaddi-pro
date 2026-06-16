@@ -1123,6 +1123,7 @@ export default function HomeTab() {
             setShowMatchDetails(false);
             setSelectedMatchId(null);
           }}
+          onViewPlayer={openPlayerProfile}
         />
       )}
       {showMatchDayExperience && matchDayExperienceId && (
@@ -1217,6 +1218,7 @@ export default function HomeTab() {
       {showSearch && (
         <GlobalSearchScreen
           onClose={() => setShowSearch(false)}
+          onViewPlayer={openPlayerProfile}
         />
       )}
       {showMatchHistory && (

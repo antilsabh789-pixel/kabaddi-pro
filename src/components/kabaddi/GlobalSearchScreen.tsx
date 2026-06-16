@@ -82,6 +82,7 @@ interface GlobalSearchScreenProps {
   onNavigatePlayer?: (playerId: string) => void;
   onNavigateTeam?: (teamId: string) => void;
   onNavigateTournament?: (tournamentId: string) => void;
+  onViewPlayer?: (userId: string) => void;
 }
 
 // ─── Debounce hook ──────────────────────────────────────────────────
@@ -232,6 +233,7 @@ export default function GlobalSearchScreen({
   onNavigatePlayer,
   onNavigateTeam,
   onNavigateTournament,
+  onViewPlayer,
 }: GlobalSearchScreenProps) {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
@@ -670,7 +672,9 @@ export default function GlobalSearchScreen({
                           transition={{ delay: idx * 0.03 }}
                           onClick={() => {
                             saveRecentSearch(query.trim());
-                            if (onNavigatePlayer) {
+                            if (onViewPlayer) {
+                              onViewPlayer(player.id);
+                            } else if (onNavigatePlayer) {
                               onNavigatePlayer(player.id);
                             }
                             onClose();

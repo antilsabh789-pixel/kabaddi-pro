@@ -71,6 +71,7 @@ interface MatchData {
 interface MatchDetailsScreenProps {
   matchId: string;
   onClose: () => void;
+  onViewPlayer?: (userId: string) => void;
 }
 
 // ─── Event icon / label map using lucide icon names ──────────────────────────
@@ -137,7 +138,7 @@ function getStatusConfig(status: string): { label: string; color: string; bgColo
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScreenProps) {
+export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: MatchDetailsScreenProps) {
   const [match, setMatch] = useState<MatchData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,8 +208,8 @@ export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScr
   const aggregatePlayers = useCallback(() => {
     if (!match) return { topRaiders: [], topDefenders: [] };
 
-    const raidMap: Record<string, { name: string; teamId: string; points: number; raidPoints: number; bonusPoints: number }> = {};
-    const tackleMap: Record<string, { name: string; teamId: string; points: number; tacklePoints: number; superTackles: number }> = {};
+    const raidMap: Record<string, { id: string; name: string; teamId: string; points: number; raidPoints: number; bonusPoints: number }> = {};
+    const tackleMap: Record<string, { id: string; name: string; teamId: string; points: number; tacklePoints: number; superTackles: number }> = {};
 
     // Build player name lookup from scorers
     const scorerNames: Record<string, string> = {};
@@ -224,13 +225,13 @@ export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScr
       const name = scorerNames[evt.playerId] || evt.playerId.slice(0, 6);
 
       if (meta.isRaid) {
-        if (!raidMap[evt.playerId]) raidMap[evt.playerId] = { name, teamId: evt.teamId, points: 0, raidPoints: 0, bonusPoints: 0 };
+        if (!raidMap[evt.playerId]) raidMap[evt.playerId] = { id: evt.playerId, name, teamId: evt.teamId, points: 0, raidPoints: 0, bonusPoints: 0 };
         raidMap[evt.playerId].points += evt.value;
         if (evt.eventType === 'bonus_point') raidMap[evt.playerId].bonusPoints += evt.value;
         else raidMap[evt.playerId].raidPoints += evt.value;
       }
       if (meta.isTackle) {
-        if (!tackleMap[evt.playerId]) tackleMap[evt.playerId] = { name, teamId: evt.teamId, points: 0, tacklePoints: 0, superTackles: 0 };
+        if (!tackleMap[evt.playerId]) tackleMap[evt.playerId] = { id: evt.playerId, name, teamId: evt.teamId, points: 0, tacklePoints: 0, superTackles: 0 };
         tackleMap[evt.playerId].points += evt.value;
         tackleMap[evt.playerId].tacklePoints += evt.value;
         if (evt.eventType === 'super_tackle') tackleMap[evt.playerId].superTackles += 1;
@@ -621,7 +622,10 @@ export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScr
                             <Crown className="w-2.5 h-2.5 mr-0.5" />
                             Man of the Match
                           </Badge>
-                          <p className="text-warm-800 dark:text-warm-800 font-bold text-sm truncate">
+                          <p
+                            className="text-warm-800 dark:text-warm-800 font-bold text-sm truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
+                            onClick={() => onViewPlayer?.(match.motmUser!.id)}
+                          >
                             {match.motmUser.name}
                           </p>
                           {(() => {
@@ -741,7 +745,10 @@ export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScr
                                   </div>
                                   <div className={`flex items-center gap-2 mt-0.5 ${!isHome ? 'flex-row-reverse' : ''}`}>
                                     {playerName && (
-                                      <span className="text-[11px] text-warm-600 dark:text-warm-600 font-medium">
+                                      <span
+                                        className="text-[11px] text-warm-600 dark:text-warm-600 font-medium cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
+                                        onClick={() => evt.playerId && onViewPlayer?.(evt.playerId)}
+                                      >
                                         {playerName}
                                       </span>
                                     )}
@@ -920,7 +927,12 @@ export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScr
 
                               {/* Name & team */}
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate">{p.name}</p>
+                                <p
+                                  className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
+                                  onClick={() => onViewPlayer?.(p.id)}
+                                >
+                                  {p.name}
+                                </p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span
                                     className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
@@ -984,7 +996,12 @@ export default function MatchDetailsScreen({ matchId, onClose }: MatchDetailsScr
 
                               {/* Name & team */}
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate">{p.name}</p>
+                                <p
+                                  className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
+                                  onClick={() => onViewPlayer?.(p.id)}
+                                >
+                                  {p.name}
+                                </p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span
                                     className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"

@@ -164,16 +164,6 @@ function timeAgo(dateStr: string): string {
   }
 }
 
-// ─── Level/Rank helper ────────────────────
-
-function getPlayerLevel(totalMatches: number, totalPoints: number): { label: string; color: string; icon: string; progress: number } {
-  const score = totalMatches * 2 + totalPoints;
-  if (score >= 500) return { label: 'Legend', color: 'from-amber-400 to-yellow-600', icon: '👑', progress: 100 };
-  if (score >= 200) return { label: 'Pro', color: 'from-red-500 to-orange-500', icon: '🔥', progress: Math.min(((score - 200) / 300) * 100, 100) };
-  if (score >= 50) return { label: 'Intermediate', color: 'from-teal-500 to-emerald-500', icon: '⚡', progress: Math.min(((score - 50) / 150) * 100, 100) };
-  return { label: 'Beginner', color: 'from-slate-400 to-slate-500', icon: '🌱', progress: Math.min((score / 50) * 100, 100) };
-}
-
 export default function ProfileTab() {
   const { currentUser, updateUser, logout } = useKabaddiStore();
   const language = useKabaddiStore((s) => s.language);
@@ -706,16 +696,6 @@ export default function ProfileTab() {
   const raidSuccessRate = profileData.totalRaids > 0 ? (profileData.successfulRaids / profileData.totalRaids) * 100 : 0;
   const tackleSuccessRate = profileData.totalTackles > 0 ? (profileData.successfulTackles / profileData.totalTackles) * 100 : 0;
 
-  // Use calculated level if player has match history, otherwise use self-reported experience
-  const calculatedLevel = getPlayerLevel(totalMatches, totalPoints);
-  const experienceMap: Record<string, { label: string; color: string; icon: string; progress: number }> = {
-    beginner: { label: 'Beginner', color: 'from-slate-400 to-slate-500', icon: '🌱', progress: 10 },
-    intermediate: { label: 'Intermediate', color: 'from-teal-500 to-emerald-500', icon: '⚡', progress: 40 },
-    advanced: { label: 'Advanced', color: 'from-red-500 to-orange-500', icon: '🔥', progress: 70 },
-  };
-  const selfReportedLevel = currentUser?.experienceLevel ? experienceMap[currentUser.experienceLevel] : null;
-  const playerLevel = totalMatches > 0 ? calculatedLevel : (selfReportedLevel || calculatedLevel);
-
   const performanceData = [
     { name: 'Raids', value: profileData.successfulRaids },
     { name: 'Tackles', value: profileData.successfulTackles },
@@ -1087,7 +1067,8 @@ export default function ProfileTab() {
                     <p className="text-[10px] text-warm-400">Tap to change photo</p>
                   </div>
 
-                  {/* Gender Selection */}
+                  {/* Gender Selection - Players only */}
+                  {currentUser?.role !== 'coach' && (
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Gender</label>
                     <div className="grid grid-cols-2 gap-3">
@@ -1113,8 +1094,10 @@ export default function ProfileTab() {
                       </button>
                     </div>
                   </div>
+                  )}
 
-                  {/* Weight Category Selector */}
+                  {/* Weight Category Selector - Players only */}
+                  {currentUser?.role !== 'coach' && (
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Weight Category</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -1159,6 +1142,7 @@ export default function ProfileTab() {
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Practice Ground with Autocomplete */}
                   <div className="relative">
@@ -1195,7 +1179,8 @@ export default function ProfileTab() {
                     )}
                   </div>
 
-                  {/* Jersey Number */}
+                  {/* Jersey Number - Players only */}
+                  {currentUser?.role !== 'coach' && (
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Jersey Number</label>
                     <div className="relative">
@@ -1211,8 +1196,10 @@ export default function ProfileTab() {
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 text-sm pointer-events-none">#</span>
                     </div>
                   </div>
+                  )}
 
-                  {/* Position Selection with Visual Icons */}
+                  {/* Position Selection with Visual Icons - Players only */}
+                  {currentUser?.role !== 'coach' && (
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Position</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -1237,6 +1224,7 @@ export default function ProfileTab() {
                       ))}
                     </div>
                   </div>
+                  )}
 
                   <Button
                     onClick={handleSaveProfile}
@@ -1282,8 +1270,8 @@ export default function ProfileTab() {
               ) : null}
             </h2>
 
-            {/* Position badge with kabaddi-themed icon */}
-            {(profileData.position || currentUser?.position) && (
+            {/* Position badge with kabaddi-themed icon - Players only */}
+            {currentUser?.role !== 'coach' && (profileData.position || currentUser?.position) && (
               <div className="flex items-center justify-center gap-1.5 mt-1.5">
                 <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 flex items-center gap-1.5">
                   <span className="text-sm">{getPositionIcon(profileData.position || currentUser?.position || '')}</span>
@@ -1297,7 +1285,7 @@ export default function ProfileTab() {
 
             {/* Weight & Practice Ground */}
             <div className="flex items-center justify-center gap-3 mt-1.5 text-white/70 text-xs">
-              {currentUser?.weight && (
+              {currentUser?.role !== 'coach' && currentUser?.weight && (
                 <span className="flex items-center gap-1">
                   <Activity className="w-3 h-3" />
                   {currentUser.weight === 'open' ? '♾️ Open' : `⚖️ ${currentUser.weight}`}
@@ -1313,7 +1301,7 @@ export default function ProfileTab() {
 
             {/* Badges Row */}
             <div className="flex items-center justify-center gap-2 mt-2">
-              {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+              {currentUser?.role !== 'coach' && (profileData.jerseyNumber || currentUser?.jerseyNumber) && (
                 <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
                   #{profileData.jerseyNumber || currentUser?.jerseyNumber}
                 </span>
@@ -1324,35 +1312,6 @@ export default function ProfileTab() {
                   <span className="relative z-10 flex items-center gap-1"><Crown className="w-3 h-3" />PRO</span>
                 </span>
               )}
-            </div>
-
-            {/* Level/Rank Indicator */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="mt-3 flex items-center justify-center gap-2"
-            >
-              <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${playerLevel.color} text-white text-xs font-bold flex items-center gap-1 shadow-lg`}>
-                <span>{playerLevel.icon}</span>
-                {playerLevel.label}
-              </div>
-            </motion.div>
-
-            {/* Level progress bar with gradient */}
-            <div className="mt-2 mx-auto max-w-[160px]">
-              <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${playerLevel.progress}%` }}
-                  transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
-                  className="h-full rounded-full bg-gradient-to-r from-white/50 via-white/80 to-brand-gold/80 relative"
-                >
-                  {/* Shine effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
-                </motion.div>
-              </div>
-              <p className="text-[9px] text-white/40 mt-1">{playerLevel.progress.toFixed(0)}% to next level</p>
             </div>
 
             {/* Member Since */}
@@ -1390,27 +1349,6 @@ export default function ProfileTab() {
               }}
               transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
             />
-            {/* Profile completeness ring */}
-            <svg className="absolute -inset-1 w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90 pointer-events-none z-10" viewBox="0 0 140 140">
-              <circle cx="70" cy="70" r="66" fill="none" stroke="rgba(220,38,38,0.1)" strokeWidth="2" />
-              <motion.circle
-                cx="70" cy="70" r="66" fill="none"
-                stroke="url(#completenessGrad)"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 66}
-                initial={{ strokeDashoffset: 2 * Math.PI * 66 }}
-                animate={{ strokeDashoffset: 2 * Math.PI * 66 * (1 - playerLevel.progress / 100) }}
-                transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
-              />
-              <defs>
-                <linearGradient id="completenessGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#DC2626" />
-                  <stop offset="50%" stopColor="#F59E0B" />
-                  <stop offset="100%" stopColor="#14B8A6" />
-                </linearGradient>
-              </defs>
-            </svg>
             <div className={`w-28 h-28 rounded-full bg-warm-200 dark:bg-warm-300 flex items-center justify-center text-4xl overflow-hidden border-4 border-white dark:border-warm-100 shadow-2xl relative ${
               profileData.position?.includes('raider') || profileData.position?.includes('both')
                 ? 'position-ring-raider'
@@ -1432,22 +1370,6 @@ export default function ProfileTab() {
                 </span>
               )}
             </div>
-            {/* Animated level badge with bounce */}
-            <motion.div
-              className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-30"
-              initial={{ scale: 0, y: 10 }}
-              animate={{ scale: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 15, delay: 0.5 }}
-            >
-              <motion.div
-                className={`px-3 py-1 rounded-full bg-gradient-to-r ${playerLevel.color} text-white text-[10px] font-bold flex items-center gap-1 shadow-lg whitespace-nowrap`}
-                animate={{ y: [0, -3, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-              >
-                <span>{playerLevel.icon}</span>
-                {playerLevel.label}
-              </motion.div>
-            </motion.div>
             <button
               onClick={handleAvatarClick}
               disabled={uploading}
@@ -2502,8 +2424,8 @@ export default function ProfileTab() {
             </div>
           </div>
 
-          {/* Weight */}
-          {currentUser?.weight && (
+          {/* Weight - Players only */}
+          {currentUser?.role !== 'coach' && currentUser?.weight && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
@@ -2534,8 +2456,8 @@ export default function ProfileTab() {
             </div>
           )}
 
-          {/* Position */}
-          {(profileData.position || currentUser?.position) && (
+          {/* Position - Players only */}
+          {currentUser?.role !== 'coach' && (profileData.position || currentUser?.position) && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
@@ -2550,8 +2472,8 @@ export default function ProfileTab() {
             </div>
           )}
 
-          {/* Jersey */}
-          {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+          {/* Jersey - Players only */}
+          {currentUser?.role !== 'coach' && (profileData.jerseyNumber || currentUser?.jerseyNumber) && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
