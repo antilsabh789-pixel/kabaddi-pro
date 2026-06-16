@@ -2,19 +2,11 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, TrendingUp, UserPlus, Crown, Sparkles, Zap } from 'lucide-react';
+import { Users, Crown, Sparkles } from 'lucide-react';
 
 interface TotalPlayersData {
   totalPlayers: number;
   totalCoaches: number;
-  totalActivePlayers: number;
-  recentSignups: number;
-  todaySignups: number;
-  latestSignup: {
-    name: string;
-    createdAt: string;
-    role: string;
-  } | null;
 }
 
 // ─── Animated Number with Roll Effect ─────────────────────────────
@@ -36,14 +28,11 @@ function RollNumber({ value, fontSize = 'text-5xl', fontWeight = 'font-black', c
 
     const duration = 2000;
     const startTime = performance.now();
-
-    // Set animating via a microtask to avoid direct setState in effect
     const animatingTimer = setTimeout(() => setIsAnimating(true), 0);
 
     function step(currentTime: number) {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // ease-out elastic feel
       const eased = 1 - Math.pow(1 - progress, 4);
       const current = Math.round(startVal + (value - startVal) * eased);
       setDisplayValue(current);
@@ -139,41 +128,10 @@ function PulseRing() {
   );
 }
 
-// ─── Stat Mini Card ───────────────────────────────────────────────
-function StatMiniCard({ icon: Icon, label, value, delay, color = 'from-white/15 to-white/5' }: {
-  icon: typeof Users;
-  label: string;
-  value: number;
-  delay: number;
-  color?: string;
-}) {
-  return (
-    <motion.div
-      className={`bg-gradient-to-br ${color} backdrop-blur-sm rounded-xl p-3 border border-white/10 relative overflow-hidden`}
-      initial={{ opacity: 0, y: 20, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.5, delay }}
-      whileHover={{ scale: 1.05, y: -2 }}
-    >
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
-      <div className="flex items-center gap-2 relative z-10">
-        <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-          <Icon className="w-4 h-4 text-brand-gold-light" />
-        </div>
-        <div>
-          <div className="text-lg font-black text-white">{value.toLocaleString()}</div>
-          <div className="text-[9px] text-white/60 font-semibold uppercase tracking-wider">{label}</div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────
 export default function TotalPlayersBanner() {
   const [data, setData] = useState<TotalPlayersData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -224,9 +182,7 @@ export default function TotalPlayersBanner() {
       transition={{ duration: 0.6, type: 'spring', damping: 20 }}
     >
       <motion.div
-        className="bg-gradient-to-br from-brand-red via-brand-red-dark to-brand-navy rounded-2xl shadow-xl shadow-brand-red/30 overflow-hidden relative cursor-pointer"
-        onClick={() => setShowDetails(!showDetails)}
-        whileTap={{ scale: 0.98 }}
+        className="bg-gradient-to-br from-brand-red via-brand-red-dark to-brand-navy rounded-2xl shadow-xl shadow-brand-red/30 overflow-hidden relative"
       >
         {/* Decorative background circles */}
         <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/5" />
@@ -250,10 +206,10 @@ export default function TotalPlayersBanner() {
         <FloatingParticles />
 
         {/* ─── Main Content ─── */}
-        <div className="relative z-10 p-5">
+        <div className="relative z-10 px-5 pt-5 pb-5">
           {/* Header Row */}
           <motion.div
-            className="flex items-center justify-between mb-4"
+            className="flex items-center justify-between mb-2"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
@@ -274,7 +230,7 @@ export default function TotalPlayersBanner() {
               </motion.div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-white text-sm font-bold uppercase tracking-wider">Total Players</span>
+                  <span className="text-white text-sm font-bold uppercase tracking-wider">Our Kabaddi Family</span>
                   <motion.div
                     animate={{ rotate: [0, 360] }}
                     transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
@@ -282,7 +238,7 @@ export default function TotalPlayersBanner() {
                     <Sparkles className="w-3 h-3 text-brand-gold-light" />
                   </motion.div>
                 </div>
-                <span className="text-white/50 text-[9px] font-semibold tracking-widest uppercase">Kabaddi Pro Community</span>
+                <span className="text-white/50 text-[9px] font-semibold tracking-widest uppercase">Growing Stronger Every Day</span>
               </div>
             </div>
             <motion.div
@@ -297,153 +253,43 @@ export default function TotalPlayersBanner() {
 
           {/* Big Number */}
           <motion.div
-            className="flex items-center justify-center mb-3 relative"
+            className="flex items-center justify-center py-4 relative"
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2, type: 'spring', damping: 12 }}
           >
             <PulseRing />
             <div className="text-center relative z-10">
-              <RollNumber value={data.totalPlayers} fontSize="text-6xl" color="text-white" />
+              <RollNumber value={data.totalPlayers} fontSize="text-7xl" color="text-white" />
               <motion.div
-                className="text-brand-gold-light text-xs font-bold uppercase tracking-widest mt-1"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.5 }}
+                className="text-brand-gold-light text-xs font-bold uppercase tracking-[0.2em] mt-2"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.5, duration: 0.6 }}
               >
-                Players Signed Up
+                Warriors United
               </motion.div>
             </div>
           </motion.div>
 
-          {/* Quick Stats Row */}
+          {/* Coaches count */}
           <motion.div
-            className="grid grid-cols-3 gap-2 mb-3"
+            className="flex items-center justify-center mt-1"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
+            transition={{ duration: 0.5, delay: 0.7 }}
           >
-            <div className="text-center bg-white/8 rounded-xl p-2 backdrop-blur-sm border border-white/5">
-              <div className="flex items-center justify-center gap-1">
-                <UserPlus className="w-3 h-3 text-emerald-400" />
-                <span className="text-white font-bold text-sm">{data.todaySignups}</span>
-              </div>
-              <span className="text-white/50 text-[8px] font-semibold uppercase tracking-wider">Today</span>
-            </div>
-            <div className="text-center bg-white/8 rounded-xl p-2 backdrop-blur-sm border border-white/5">
-              <div className="flex items-center justify-center gap-1">
-                <TrendingUp className="w-3 h-3 text-brand-gold-light" />
-                <span className="text-white font-bold text-sm">{data.recentSignups}</span>
-              </div>
-              <span className="text-white/50 text-[8px] font-semibold uppercase tracking-wider">This Week</span>
-            </div>
-            <div className="text-center bg-white/8 rounded-xl p-2 backdrop-blur-sm border border-white/5">
-              <div className="flex items-center justify-center gap-1">
-                <Crown className="w-3 h-3 text-brand-gold" />
-                <span className="text-white font-bold text-sm">{data.totalCoaches}</span>
-              </div>
-              <span className="text-white/50 text-[8px] font-semibold uppercase tracking-wider">Coaches</span>
+            <div className="flex items-center gap-2 bg-white/8 rounded-full px-4 py-2 backdrop-blur-sm border border-white/10">
+              <motion.div
+                animate={{ y: [0, -2, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <Crown className="w-4 h-4 text-brand-gold" />
+              </motion.div>
+              <span className="text-white font-black text-lg">{data.totalCoaches}</span>
+              <span className="text-white/60 text-[10px] font-semibold uppercase tracking-wider">Expert Coaches</span>
             </div>
           </motion.div>
-
-          {/* Latest Signup Ticker */}
-          {data.latestSignup && (
-            <motion.div
-              className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/8 overflow-hidden"
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
-            >
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                <Zap className="w-3.5 h-3.5 text-brand-gold shrink-0" />
-              </motion.div>
-              <div className="flex-1 min-w-0">
-                <span className="text-white/70 text-[10px]">
-                  <span className="text-brand-gold-light font-bold">New!</span>{' '}
-                  <span className="font-semibold text-white/90">{data.latestSignup.name}</span>{' '}
-                  joined as{' '}
-                  <span className="font-semibold text-white/90">{data.latestSignup.role}</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-white/40 text-[9px] font-medium">
-                  {new Date(data.latestSignup.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Expand/Collapse indicator */}
-          <motion.div
-            className="flex items-center justify-center mt-2"
-            animate={{ rotate: showDetails ? 180 : 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <svg className="w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </motion.div>
-
-          {/* ─── Expanded Details ─── */}
-          <AnimatePresence>
-            {showDetails && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.4, ease: 'easeInOut' }}
-                className="overflow-hidden"
-              >
-                <div className="pt-3 border-t border-white/10 mt-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <StatMiniCard
-                      icon={Users}
-                      label="Active Players"
-                      value={data.totalActivePlayers}
-                      delay={0.1}
-                      color="from-brand-gold/15 to-brand-gold/5"
-                    />
-                    <StatMiniCard
-                      icon={TrendingUp}
-                      label="This Week"
-                      value={data.recentSignups}
-                      delay={0.2}
-                      color="from-emerald-500/15 to-emerald-500/5"
-                    />
-                  </div>
-
-                  {/* Growth bar */}
-                  <motion.div
-                    className="mt-3 bg-white/5 rounded-xl p-3 border border-white/8"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-white/60 text-[9px] font-bold uppercase tracking-wider">Weekly Growth</span>
-                      <span className="text-brand-gold-light text-[10px] font-bold">
-                        {data.totalPlayers > 0 ? ((data.recentSignups / data.totalPlayers) * 100).toFixed(1) : 0}%
-                      </span>
-                    </div>
-                    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full bg-gradient-to-r from-brand-gold to-brand-gold-light"
-                        initial={{ width: 0 }}
-                        animate={{
-                          width: `${Math.min((data.recentSignups / Math.max(data.totalPlayers, 1)) * 100 * 10, 100)}%`,
-                        }}
-                        transition={{ duration: 1.5, delay: 0.5, ease: 'easeOut' }}
-                      />
-                    </div>
-                  </motion.div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </motion.div>
     </motion.div>
