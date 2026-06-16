@@ -1,6 +1,40 @@
 # Kabaddi Pro - Work Log
 
 ---
+Task ID: 10
+Agent: Main Agent
+Task: Add Popular Players section with follow option and score on home screen
+
+Work Log:
+- Created /api/popular-players endpoint (src/app/api/popular-players/route.ts):
+  - Queries Follow table to count followers per player via groupBy
+  - Calculates composite popularity score (followers * 10 + totalPoints)
+  - Falls back to top players by totalPoints if no follows exist in the database
+  - Fetches team names separately via TeamMember (avoiding Prisma relation issues)
+  - Supports userId param to check isFollowing status
+  - Returns: rank, userId, name, avatar, playerCode, gender, position, overallRating, totalPoints, totalMatches, raidPoints, tacklePoints, followerCount, teamNames, isFollowing
+- Created PopularPlayersSection component (src/components/kabaddi/PopularPlayersSection.tsx):
+  - Horizontal scrollable player cards on home screen (between Leaderboard and Explore)
+  - Each card shows: rank badge (animated crown for #1, silver/bronze for #2-3), avatar, name, position badge (R/D/AR), team name
+  - Stats row: total points (⚡ brand-teal), overall rating (⭐ amber), matches (🏆 warm)
+  - Follow/Following toggle button with POST /api/follow API integration
+  - Loading skeleton with pulse animation while fetching
+  - Animated card entrance with staggered spring delays
+  - Rank-specific card styling: gold gradient (#1), silver (#2), bronze (#3)
+  - Follower count display next to rank badge
+- Integrated into HomeTab.tsx after Leaderboard Preview section (line ~2536)
+- Added i18n translation: home.popularPlayers (en: 'Popular Players', hi: 'लोकप्रिय खिलाड़ी')
+- Fixed Prisma query error: Used 'teams' instead of 'teamMembers' for User relation, and separate TeamMember queries instead of nested includes with isNotNull
+- Tested with agent-browser: Section renders correctly, Follow button toggles to Following, API returns 200
+
+Stage Summary:
+- New "Popular Players" section on home screen with horizontal scrollable cards
+- Players ranked by composite popularity score (follower count + total points)
+- Each card has: avatar, name, position badge, team name, stats (points/rating/matches), follow button
+- Follow/unfollow toggle works via existing /api/follow endpoint
+- Fallback shows top-scoring players when no follows exist yet
+
+---
 Task ID: 9
 Agent: Main Agent
 Task: Add image crop option while uploading profile image
