@@ -128,7 +128,7 @@ function FollowButton({
 }
 
 // ─── Main Component ──────────────────────────────────────────────
-export default function PopularPlayersSection() {
+export default function PopularPlayersSection({ onViewProfile }: { onViewProfile?: (userId: string) => void }) {
   const { currentUser } = useKabaddiStore();
   const language = useKabaddiStore((s) => s.language) as Language;
   const { toast } = useToast();
@@ -258,7 +258,7 @@ export default function PopularPlayersSection() {
               transition={{ delay: index * 0.06, duration: 0.4, type: 'spring', damping: 20 }}
               layout
             >
-              <div className={`relative rounded-xl p-3 border overflow-hidden transition-all duration-200 hover:shadow-lg group card-hover-lift ${
+              <div className={`relative rounded-xl p-3 border overflow-hidden transition-all duration-200 hover:shadow-lg group card-hover-lift cursor-pointer ${
                 player.rank === 1
                   ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/10 border-amber-300/50 dark:border-amber-700/50'
                   : player.rank === 2
@@ -266,7 +266,7 @@ export default function PopularPlayersSection() {
                     : player.rank === 3
                       ? 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 border-orange-300/50 dark:border-orange-700/50'
                       : 'bg-warm-50 dark:bg-warm-800/50 border-warm-200 dark:border-warm-700'
-              }`}>
+              }`} onClick={() => onViewProfile?.(player.userId)}>
                 {/* Rank indicator strip */}
                 <div className={`absolute left-0 top-0 bottom-0 w-0.5 ${
                   player.rank === 1

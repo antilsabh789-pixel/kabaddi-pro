@@ -113,6 +113,7 @@ import LeaderboardSeasonsScreen from './LeaderboardSeasonsScreen';
 import ScorecardPDFScreen from './ScorecardPDFScreen';
 import TotalPlayersBanner from './TotalPlayersBanner';
 import PopularPlayersSection from './PopularPlayersSection';
+import PlayerProfileScreen from './PlayerProfileScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -646,6 +647,8 @@ export default function HomeTab() {
   const [showLeaderboardSeasons, setShowLeaderboardSeasons] = useState(false);
   const [showScorecardPDF, setShowScorecardPDF] = useState(false);
   const [scorecardMatchId, setScorecardMatchId] = useState<string | null>(null);
+  const [showPlayerProfile, setShowPlayerProfile] = useState(false);
+  const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);
@@ -811,16 +814,13 @@ export default function HomeTab() {
     setShowShareScorecard(true);
   };
 
+  const openPlayerProfile = (userId: string) => {
+    setPlayerProfileUserId(userId);
+    setShowPlayerProfile(true);
+  };
+
   const handleAwardClick = (player: AwardPlayer) => {
-    if (!isPremium) {
-      setUpgradeFeature('Player Stats');
-      setShowUpgrade(true);
-      return;
-    }
-    toast({
-      title: `${player.name}`,
-      description: `${player.title} — ${player.stat} ${player.statLabel}`,
-    });
+    openPlayerProfile(player.id);
   };
 
   const handleCopyPlayerCode = () => {
@@ -1073,7 +1073,7 @@ export default function HomeTab() {
         />
       )}
       {showLeaderboard && (
-        <LeaderboardScreen onClose={() => setShowLeaderboard(false)} />
+        <LeaderboardScreen onClose={() => setShowLeaderboard(false)} onViewPlayer={openPlayerProfile} />
       )}
       {showAwards && (
         <MatchAwardsScreen onClose={() => setShowAwards(false)} />
@@ -1282,6 +1282,9 @@ export default function HomeTab() {
       )}
       {showScorecardPDF && scorecardMatchId && (
         <ScorecardPDFScreen matchId={scorecardMatchId} onBack={() => { setShowScorecardPDF(false); setScorecardMatchId(null); }} />
+      )}
+      {showPlayerProfile && playerProfileUserId && (
+        <PlayerProfileScreen userId={playerProfileUserId} onBack={() => { setShowPlayerProfile(false); setPlayerProfileUserId(null); }} />
       )}
       </Portal>
 
@@ -2513,6 +2516,7 @@ export default function HomeTab() {
                 key={rank}
                 rank={rank}
                 category="raiders"
+                onClickPlayer={openPlayerProfile}
               />
             ))}
             {/* "See More" Card */}
@@ -2534,7 +2538,7 @@ export default function HomeTab() {
       </section>
 
       {/* ─── Popular Players ─── */}
-      <PopularPlayersSection />
+      <PopularPlayersSection onViewProfile={openPlayerProfile} />
 
       {/* ─── Explore ─── */}
       <section className="px-4 mt-6">
@@ -3381,8 +3385,9 @@ export default function HomeTab() {
 
 // ─── Leaderboard Preview Card (mini) ───────────────────────────────
 
-function LeaderboardPreviewCard({ rank, category }: { rank: number; category: string }) {
+function LeaderboardPreviewCard({ rank, category, onClickPlayer }: { rank: number; category: string; onClickPlayer?: (userId: string) => void }) {
   const [player, setPlayer] = useState<{
+    userId: string;
     name: string;
     avatar: string | null;
     stat: number;
@@ -3399,6 +3404,7 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
         const entry = data.leaderboard?.[rank - 1];
         if (entry) {
           setPlayer({
+            userId: entry.userId,
             name: entry.name,
             avatar: entry.avatar,
             stat: entry.stat,
@@ -3439,11 +3445,12 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
 
   return (
     <motion.div
-      className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankConfig.bg} ${rankConfig.border} border p-3 flex flex-col items-center gap-1 relative overflow-hidden`}
+      className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankConfig.bg} ${rankConfig.border} border p-3 flex flex-col items-center gap-1 relative overflow-hidden cursor-pointer`}
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: rank * 0.1 }}
       whileHover={{ scale: 1.05, y: -2 }}
+      onClick={() => player?.userId && onClickPlayer?.(player.userId)}
     >
       {/* Shimmer overlay for top rank */}
       {rank === 1 && (
