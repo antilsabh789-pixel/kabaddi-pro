@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Cashfree Checkout Page — Fallback for mobile/WebView
+ * Cashfree Checkout Page — Reliable payment page for both mobile and desktop
  *
- * This route returns an HTML page with MULTIPLE ways to pay:
- * 1. Form POST to Cashfree /pg/view/sessions/checkout (auto-submits)
- * 2. Direct link to Cashfree hosted checkout using order_token
- * 3. Manual "Tap to Pay" button
+ * This route returns an HTML page that uses MULTIPLE methods to pay:
+ * 1. Cashfree JS SDK v3 (using payment_session_id — most reliable, avoids "Invalid Session ID")
+ * 2. Form POST to Cashfree /pg/view/sessions/checkout (fallback)
+ * 3. Direct link to Cashfree hosted checkout using order_token (last resort)
+ *
+ * KEY FIX: This page always tries the JS SDK with payment_session_id FIRST,
+ * which avoids the "Invalid Session ID" error that occurs when using order_token
+ * on Cashfree's hosted checkout page (especially on mobile re-purchases).
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -47,6 +51,7 @@ export async function GET(request: NextRequest) {
   }
 
   const isProduction = env === 'production';
+  const sdkMode = isProduction ? 'production' : 'sandbox';
 
   // Form POST URL for Cashfree checkout
   const formPostUrl = isProduction
@@ -80,7 +85,7 @@ export async function GET(request: NextRequest) {
     }
     .container {
       text-align: center;
-      max-width: 400px;
+      max-width: 420px;
       width: 100%;
     }
     .logo {
@@ -118,6 +123,23 @@ export async function GET(request: NextRequest) {
       word-break: break-all;
       margin-bottom: 20px;
     }
+    .status-area {
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .status-msg {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .status-sub {
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+    }
     .pay-btn {
       display: block;
       width: 100%;
@@ -137,6 +159,11 @@ export async function GET(request: NextRequest) {
     }
     .pay-btn:hover { background: linear-gradient(135deg, #d97706, #b45309); }
     .pay-btn:active { transform: scale(0.98); }
+    .pay-btn:disabled {
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.4);
+      cursor: not-allowed;
+    }
     .secondary-btn {
       display: block;
       width: 100%;
@@ -176,10 +203,15 @@ export async function GET(request: NextRequest) {
       color: rgba(255,255,255,0.3);
       margin-top: 20px;
     }
-    .auto-notice {
-      font-size: 12px;
-      color: rgba(255,255,255,0.4);
-      margin-top: 12px;
+    .spinner {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
     }
     .spinner-small {
       display: inline-block;
@@ -195,6 +227,9 @@ export async function GET(request: NextRequest) {
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    .error-text { color: #ef4444; }
+    .success-text { color: #10b981; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -208,64 +243,175 @@ export async function GET(request: NextRequest) {
       <div class="order-id">${orderId}</div>
       ` : ''}
 
-      <!-- PRIMARY: Form POST to Cashfree /pg/view/sessions/checkout -->
-      <form method="POST" action="${formPostUrl}" id="checkout-form">
-        <input type="hidden" name="payment_session_id" value="${sessionId}">
-        <button type="submit" class="pay-btn" id="pay-btn">
-          <span class="spinner-small" id="btn-spinner"></span>
+      <!-- Status area: shows loading, success, or error -->
+      <div class="status-area" id="status-area">
+        <div class="spinner" id="loading-spinner"></div>
+        <div class="status-msg" id="status-msg">Preparing Payment...</div>
+        <div class="status-sub" id="status-sub">Please wait while we set up your secure payment</div>
+      </div>
+
+      <!-- PRIMARY METHOD: Cashfree JS SDK v3 (uses payment_session_id) -->
+      <div id="sdk-section" class="hidden">
+        <button type="button" class="pay-btn" id="sdk-pay-btn" onclick="initSDKCheckout()">
           Pay Securely Now
         </button>
-      </form>
+        <div class="status-sub" style="margin-top:8px;">Powered by Cashfree — UPI, Cards & Netbanking</div>
+      </div>
 
+      <!-- FALLBACK 1: Form POST to Cashfree (uses payment_session_id) -->
+      <div id="form-section" class="hidden">
+        <form method="POST" action="${formPostUrl}" id="checkout-form">
+          <input type="hidden" name="payment_session_id" value="${sessionId}">
+          <button type="submit" class="pay-btn">
+            Pay Securely Now
+          </button>
+        </form>
+      </div>
+
+      <!-- FALLBACK 2: Hosted checkout link (uses order_token) -->
       ${hostedCheckoutUrl ? `
-      <div class="or-divider">or</div>
-
-      <!-- SECONDARY: Direct link to Cashfree hosted checkout using order_token -->
-      <a href="${hostedCheckoutUrl}" class="secondary-btn" id="direct-link">
-        Open Payment Page
-      </a>
+      <div id="hosted-section" class="hidden">
+        <div class="or-divider">or</div>
+        <a href="${hostedCheckoutUrl}" class="secondary-btn" id="direct-link">
+          Open Payment Page
+        </a>
+      </div>
       ` : ''}
 
-      <div class="auto-notice" id="auto-notice">
-        <span class="spinner-small"></span> Auto-redirecting in 3 seconds...
+      <!-- Error state -->
+      <div id="error-section" class="hidden">
+        <div class="status-msg error-text">Payment Setup Failed</div>
+        <div class="status-sub" id="error-msg" style="margin-bottom:16px;"></div>
+        <button type="button" class="secondary-btn" onclick="location.reload()">Try Again</button>
+        <a href="/" class="secondary-btn">Go Back to App</a>
       </div>
     </div>
 
     <div class="secure-badge">🔒 Secured by Cashfree Payments</div>
   </div>
 
+  <!-- Load Cashfree JS SDK v3 inline -->
+  <script src="https://sdk.cashfree.com/js/v3/cashfree.js" async></script>
+
   <script>
-    // Auto-submit the form after 3 seconds
-    var submitted = false;
-    var form = document.getElementById('checkout-form');
-    var btn = document.getElementById('pay-btn');
-    var notice = document.getElementById('auto-notice');
+    var sessionId = '${sessionId}';
+    var sdkMode = '${sdkMode}';
+    var sdkInitialized = false;
+    var sdkLoadAttempts = 0;
+    var MAX_SDK_WAIT = 10000; // 10 seconds max wait for SDK
+    var sdkWaitStart = Date.now();
 
-    setTimeout(function() {
-      if (!submitted && form) {
-        try {
-          submitted = true;
-          if (btn) btn.click();  // Click the button instead of form.submit() for better compatibility
-        } catch(e) {
-          try {
-            form.submit();  // Fallback to direct submit
-          } catch(e2) {
-            if (notice) notice.textContent = 'Tap the Pay button above to proceed.';
-          }
+    // Try to initialize the Cashfree JS SDK
+    function tryInitSDK() {
+      if (typeof Cashfree !== 'undefined' && !sdkInitialized) {
+        sdkInitialized = true;
+        console.log('[Checkout] Cashfree SDK loaded successfully');
+        showSDKSection();
+        // Auto-init checkout after a short delay
+        setTimeout(function() {
+          initSDKCheckout();
+        }, 500);
+        return true;
+      }
+      return false;
+    }
+
+    function showSDKSection() {
+      document.getElementById('loading-spinner').classList.add('hidden');
+      document.getElementById('status-msg').textContent = 'Ready to Pay';
+      document.getElementById('status-sub').textContent = 'Tap the button below to proceed';
+      document.getElementById('sdk-section').classList.remove('hidden');
+    }
+
+    function showFormFallback() {
+      document.getElementById('loading-spinner').classList.add('hidden');
+      document.getElementById('status-msg').textContent = 'Alternative Payment Method';
+      document.getElementById('status-sub').textContent = 'Use the form below to complete payment';
+      document.getElementById('form-section').classList.remove('hidden');
+      ${hostedCheckoutUrl ? "document.getElementById('hosted-section').classList.remove('hidden');" : ""}
+    }
+
+    function showError(msg) {
+      document.getElementById('loading-spinner').classList.add('hidden');
+      document.getElementById('sdk-section').classList.add('hidden');
+      document.getElementById('form-section').classList.add('hidden');
+      ${hostedCheckoutUrl ? "document.getElementById('hosted-section').classList.add('hidden');" : ""}
+      document.getElementById('status-msg').textContent = '';
+      document.getElementById('status-sub').textContent = '';
+      document.getElementById('error-msg').textContent = msg;
+      document.getElementById('error-section').classList.remove('hidden');
+    }
+
+    function initSDKCheckout() {
+      if (typeof Cashfree === 'undefined') {
+        console.warn('[Checkout] Cashfree SDK not available, showing form fallback');
+        showFormFallback();
+        return;
+      }
+
+      try {
+        var cashfree = Cashfree({ mode: sdkMode });
+        console.log('[Checkout] Initializing Cashfree checkout with payment_session_id');
+        
+        // Update button state
+        var btn = document.getElementById('sdk-pay-btn');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-small"></span> Redirecting to Payment...';
         }
-      }
-    }, 3000);
 
-    // After 8 seconds, if still here, update the notice
-    setTimeout(function() {
-      if (notice && document.visibilityState !== 'hidden') {
-        notice.innerHTML = 'Tap <strong>Pay Securely Now</strong> above to proceed.';
+        cashfree.checkout({
+          paymentSessionId: sessionId,
+          redirectTarget: '_self'
+        });
+      } catch (err) {
+        console.error('[Checkout] SDK checkout failed:', err);
+        // Show form fallback
+        showFormFallback();
       }
-    }, 8000);
+    }
+
+    // Wait for SDK to load with polling
+    var sdkPollInterval = setInterval(function() {
+      sdkLoadAttempts++;
+      
+      if (tryInitSDK()) {
+        clearInterval(sdkPollInterval);
+        return;
+      }
+
+      // If we've waited too long, show the form fallback
+      if (Date.now() - sdkWaitStart > MAX_SDK_WAIT) {
+        clearInterval(sdkPollInterval);
+        console.warn('[Checkout] SDK load timed out, showing form fallback');
+        showFormFallback();
+      }
+    }, 300);
+
+    // Also try on script load event
+    document.querySelector('script[src*="cashfree.js"]')?.addEventListener('load', function() {
+      setTimeout(tryInitSDK, 100);
+    });
+
+    // Safety net: if nothing happens after 15 seconds, show the form
+    setTimeout(function() {
+      if (!sdkInitialized && document.getElementById('loading-spinner') && !document.getElementById('loading-spinner').classList.contains('hidden')) {
+        console.warn('[Checkout] Safety net triggered, showing form fallback');
+        showFormFallback();
+      }
+    }, 15000);
   </script>
 
   <noscript>
-    <style>.auto-notice { display: none; }</style>
+    <style>
+      #status-area, #sdk-section, #hosted-section, #error-section { display: none !important; }
+      #form-section { display: block !important; }
+      #checkout-form button { display: block !important; }
+    </style>
+    <form method="POST" action="${formPostUrl}">
+      <input type="hidden" name="payment_session_id" value="${sessionId}">
+      <button type="submit" style="display:block;width:100%;padding:18px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#1a1a2e;border:none;border-radius:12px;font-size:18px;font-weight:800;cursor:pointer;">Pay Securely Now</button>
+    </form>
   </noscript>
 </body>
 </html>`;

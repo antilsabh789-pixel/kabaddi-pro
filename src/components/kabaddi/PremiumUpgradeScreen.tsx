@@ -193,13 +193,15 @@ function isMobileDevice(): boolean {
 }
 
 /**
- * Open Cashfree checkout using MULTIPLE methods for maximum compatibility.
+ * Open Cashfree checkout using the most reliable method for each device.
  *
- * On mobile the Cashfree JS SDK v3 often doesn't load (async script on slow connections)
- * which causes "invalid id" errors. We now:
- *  1. Wait for the SDK to load (up to 8 s)
- *  2. On mobile, prefer the Hosted Checkout URL (most reliable on phones)
- *  3. Fall back to JS SDK → form POST → server checkout page
+ * KEY FIX: On mobile, the Cashfree hosted checkout URL (using order_token)
+ * often shows "Invalid Session ID" for re-purchases. Instead, we redirect
+ * to our own server checkout page which uses payment_session_id (always valid).
+ *
+ * Flow:
+ *  Mobile → Server checkout page (uses payment_session_id + JS SDK + form POST)
+ *  Desktop → JS SDK v3 (uses payment_session_id) → fallback to server checkout page
  */
 async function openCashfreeCheckout(
   paymentSessionId: string,
@@ -213,20 +215,23 @@ async function openCashfreeCheckout(
   // Save order ID to localStorage so we can verify payment when user returns
   localStorage.setItem('pendingPaymentOrderId', orderId);
 
-  // ── METHOD 0 (Mobile-first): Use Cashfree Hosted Checkout URL ──────
-  // This is the MOST RELIABLE method on phones because it doesn't depend
-  // on the JS SDK being loaded. It opens Cashfree's own payment page.
-  if (orderToken && onMobile) {
-    const hostedUrl = isProduction
-      ? `https://payments.cashfree.com/pg/orders/pay/${orderToken}`
-      : `https://sandbox.cashfree.com/pg/orders/pay/${orderToken}`;
-
-    console.log('[Cashfree] Mobile detected — using hosted checkout URL:', hostedUrl);
-    window.location.href = hostedUrl;
+  // ── MOBILE: Redirect to our server checkout page ────────────────────
+  // This is the MOST RELIABLE method on phones. Our checkout page loads
+  // the Cashfree JS SDK inline and uses payment_session_id (not order_token),
+  // which avoids the "Invalid Session ID" error.
+  if (onMobile) {
+    const params = new URLSearchParams({
+      session_id: paymentSessionId,
+      env: env,
+      order_id: orderId,
+      order_token: orderToken,
+    });
+    console.log('[Cashfree] Mobile detected — redirecting to server checkout page');
+    window.location.href = `/api/payments/checkout?${params.toString()}`;
     return;
   }
 
-  // ── METHOD 1: Cashfree JS SDK v3 (best for web/desktop) ───────────
+  // ── DESKTOP: Try Cashfree JS SDK v3 first (best for desktop) ──────
   const sdkLoaded = await waitForCashfreeSDK(8000);
   const win = window as Record<string, unknown>;
 
@@ -234,7 +239,7 @@ async function openCashfreeCheckout(
     try {
       const CF = win.Cashfree as (config: { mode: string }) => { checkout: (options: Record<string, string>) => void };
       const cashfree = CF({ mode: isProduction ? 'production' : 'sandbox' });
-      console.log('[Cashfree] Using JS SDK v3 checkout');
+      console.log('[Cashfree] Using JS SDK v3 checkout (desktop)');
       cashfree.checkout({
         paymentSessionId: paymentSessionId,
         redirectTarget: '_self',
@@ -244,53 +249,17 @@ async function openCashfreeCheckout(
       console.warn('[Cashfree] JS SDK checkout failed, trying fallback:', sdkErr);
     }
   } else {
-    console.warn('[Cashfree] SDK not loaded after waiting, trying fallbacks');
+    console.warn('[Cashfree] SDK not loaded after waiting, trying fallback');
   }
 
-  // ── METHOD 2: Hosted Checkout URL (desktop fallback when SDK fails) ─
-  if (orderToken) {
-    const hostedUrl = isProduction
-      ? `https://payments.cashfree.com/pg/orders/pay/${orderToken}`
-      : `https://sandbox.cashfree.com/pg/orders/pay/${orderToken}`;
-    console.log('[Cashfree] Redirecting to hosted checkout URL');
-    window.location.href = hostedUrl;
-    return;
-  }
-
-  // ── METHOD 3: Form POST to Cashfree ────────────────────────────────
-  try {
-    const checkoutUrl = isProduction
-      ? 'https://api.cashfree.com/pg/view/sessions/checkout'
-      : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
-
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = checkoutUrl;
-    form.target = '_self';
-    form.style.position = 'absolute';
-    form.style.left = '-9999px';
-
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'payment_session_id';
-    input.value = paymentSessionId;
-    form.appendChild(input);
-
-    document.body.appendChild(form);
-    form.submit();
-    return; // Form POST handled it
-  } catch (formErr) {
-    console.warn('[Cashfree] Form POST failed, trying server checkout page:', formErr);
-  }
-
-  // ── METHOD 4: Redirect to server-rendered checkout page ─────────────
+  // ── DESKTOP FALLBACK: Redirect to server checkout page ────────────
   const params = new URLSearchParams({
     session_id: paymentSessionId,
     env: env,
     order_id: orderId,
     order_token: orderToken,
   });
-  console.log('[Cashfree] Redirecting to server checkout page');
+  console.log('[Cashfree] Redirecting to server checkout page (desktop fallback)');
   window.location.href = `/api/payments/checkout?${params.toString()}`;
 }
 
@@ -353,6 +322,9 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
 
   // Handle payment result from URL params or localStorage (when redirected back after payment)
   useEffect(() => {
+    // Skip if user is currently initiating a new purchase (activating = true means they just clicked pay)
+    if (activating) return;
+
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
     let orderId = params.get('order_id');
@@ -387,7 +359,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       localStorage.removeItem('pendingPaymentPlan');
       verifyPayment(pendingOrderId);
     }
-  }, [verifyPayment]);
+  }, [verifyPayment, activating]);
 
   const currentPlan = PLANS.find(p => p.id === selectedPlan)!;
   const discountedPaise = couponApplied
@@ -433,6 +405,10 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
     setActivating(true);
     setPaymentError(null);
     hasVerifiedRef.current = false;
+
+    // Clear any stale payment data from previous attempts
+    localStorage.removeItem('pendingPaymentOrderId');
+    localStorage.removeItem('pendingPaymentPlan');
 
     try {
       // Step 1: Create order on server

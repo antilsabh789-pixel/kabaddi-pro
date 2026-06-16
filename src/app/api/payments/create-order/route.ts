@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cashfreeData = await cashfreeResponse.json();
-    console.log(`[Cashfree] Order created: orderId=${cashfreeData.order_id}, hasPaymentSessionId=${!!cashfreeData.payment_session_id}, orderStatus=${cashfreeData.order_status}`);
+    console.log(`[Cashfree] Order created: orderId=${cashfreeData.order_id}, hasPaymentSessionId=${!!cashfreeData.payment_session_id}, hasOrderToken=${!!cashfreeData.order_token}, orderStatus=${cashfreeData.order_status}`);
 
     // Save payment record to database
     const payment = await db.payment.create({
