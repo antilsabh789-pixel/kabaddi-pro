@@ -77,7 +77,6 @@
   "dependencies": {
     "@prisma/client": "^7.8.0",
     "html-to-image": "^1.11.13",
-    "next": "^16.2.9",
     "react-easy-crop": "^6.0.2",
     "zustand": "^5.0.14"
   }

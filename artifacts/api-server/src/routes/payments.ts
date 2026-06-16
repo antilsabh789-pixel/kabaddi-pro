@@ -161,21 +161,22 @@ async function verifyPayment(orderId: string, res: any) {
 
 router.post('/payments/webhook', async (req, res) => {
   try {
+    const signature = (req.headers['x-webhook-signature'] as string) || '';
+    const timestamp = (req.headers['x-webhook-timestamp'] as string) || '';
+
+    if (!signature || !timestamp) return res.status(401).json({ error: 'Missing webhook signature headers' });
+
     const config = getCashfreeConfig();
     if (!config.secretKey) return res.status(500).json({ error: 'Webhook not configured' });
 
     const rawData = JSON.stringify(req.body);
-    const signature = (req.headers['x-webhook-signature'] as string) || '';
-    const timestamp = (req.headers['x-webhook-timestamp'] as string) || '';
 
-    if (signature && timestamp) {
-      const message = timestamp + rawData;
-      const expected = crypto.createHmac('sha256', config.secretKey).update(message).digest('base64');
-      try {
-        const sigValid = crypto.timingSafeEqual(Buffer.from(signature, 'base64'), Buffer.from(expected, 'base64'));
-        if (!sigValid) return res.status(401).json({ error: 'Invalid signature' });
-      } catch { return res.status(401).json({ error: 'Signature verification failed' }); }
-    }
+    const message = timestamp + rawData;
+    const expected = crypto.createHmac('sha256', config.secretKey).update(message).digest('base64');
+    try {
+      const sigValid = crypto.timingSafeEqual(Buffer.from(signature, 'base64'), Buffer.from(expected, 'base64'));
+      if (!sigValid) return res.status(401).json({ error: 'Invalid signature' });
+    } catch { return res.status(401).json({ error: 'Signature verification failed' }); }
 
     const event = req.body;
     const orderId = event?.data?.order?.order_id;

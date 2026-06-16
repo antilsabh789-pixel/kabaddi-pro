@@ -224,8 +224,10 @@ router.get('/grounds', async (req, res) => {
 router.post('/grounds', async (req, res) => {
   try {
     const { name, address, city, state, latitude, longitude } = req.body;
+    const lat = latitude ?? req.body.lat ?? null;
+    const lng = longitude ?? req.body.lng ?? null;
     if (!name) return res.status(400).json({ error: 'name is required' });
-    const ground = await db.ground.create({ data: { name, address: address || null, city: city || null, state: state || null, latitude: latitude || null, longitude: longitude || null } });
+    const ground = await db.ground.create({ data: { name, address: address || null, city: city || null, state: state || null, lat, lng } });
     return res.json({ ground });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

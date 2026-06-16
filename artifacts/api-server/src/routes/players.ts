@@ -183,8 +183,13 @@ router.get('/player-win-rate', async (req, res) => {
     const completedMatches = matches.filter((m) => m.match.status === 'completed');
     let wins = 0, losses = 0, draws = 0;
 
+    const userTeams = await db.teamMember.findMany({ where: { userId }, select: { teamId: true } });
+    const teamIds = new Set(userTeams.map((t) => t.teamId));
+
     for (const ms of completedMatches) {
-      const isHome = ms.teamId === ms.match.homeTeamId;
+      const isHome = teamIds.has(ms.match.homeTeamId);
+      const isAway = teamIds.has(ms.match.awayTeamId);
+      if (!isHome && !isAway) continue;
       const playerScore = isHome ? ms.match.homeScore : ms.match.awayScore;
       const oppScore = isHome ? ms.match.awayScore : ms.match.homeScore;
       if (playerScore > oppScore) wins++;
@@ -267,12 +272,15 @@ router.get('/player-location', async (req, res) => {
 
 router.post('/player-location', async (req, res) => {
   try {
-    const { userId, latitude, longitude, city, state } = req.body;
-    if (!userId || latitude === undefined || longitude === undefined) return res.status(400).json({ error: 'userId, latitude, longitude required' });
+    const { userId, latitude, longitude, city, state, area } = req.body;
+    const lat = latitude ?? req.body.lat;
+    const lng = longitude ?? req.body.lng;
+    if (!userId || lat === undefined || lng === undefined) return res.status(400).json({ error: 'userId, latitude/lat, longitude/lng required' });
+    const resolvedArea = area || state || null;
     const location = await db.playerLocation.upsert({
       where: { userId },
-      update: { latitude, longitude, city: city || null, state: state || null, updatedAt: new Date() },
-      create: { userId, latitude, longitude, city: city || null, state: state || null },
+      update: { lat, lng, city: city || null, area: resolvedArea },
+      create: { id: `pl_${Date.now()}`, userId, lat, lng, city: city || null, area: resolvedArea },
     });
     return res.json({ location });
   } catch (error) {

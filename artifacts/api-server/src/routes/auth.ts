@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { db } from '../lib/db';
 
 const router = Router();
