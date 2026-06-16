@@ -1,36 +1,50 @@
-# [Project name]
+# Kabaddi Pro
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Live kabaddi scoring, tournament management, and player tracking app — migrated from Vercel/Next.js to Replit Vite + React.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/kabaddi-pro run dev` — run the frontend (port auto-assigned)
+- `pnpm --filter @workspace/api-server run dev` — run the API server
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Frontend: Vite + React + Tailwind CSS v4
+- API: Express 5 (artifacts/api-server)
+- State: Zustand (persisted to localStorage)
+- UI: Radix UI + shadcn components
+- Animations: Framer Motion
+- Build: Vite (esbuild)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/kabaddi-pro/src/app/page.tsx` — main app component (splash → auth → tabs)
+- `artifacts/kabaddi-pro/src/components/kabaddi/` — all feature screens (76 components)
+- `artifacts/kabaddi-pro/src/lib/store.ts` — Zustand global store (source of truth for state)
+- `artifacts/kabaddi-pro/src/index.css` — Tailwind v4 theme (brand colors, animations)
+- `artifacts/api-server/src/` — Express API routes
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Migrated from Next.js to Vite + React — no SSR, fully client-rendered
+- All `next/dynamic` → `React.lazy` + `Suspense`
+- All `next/image` → standard `<img>` tags
+- `next-themes` kept (it's a standalone package, not Next.js-specific)
+- API routes (51 endpoints) remain in `artifacts/kabaddi-pro/src/app/api/` for reference — production calls go to the Express api-server
+- Zustand persisted store handles all user state (auth, active tab, match state)
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Splash screen** → **Auth** (phone/OTP) → **Home tab** (upcoming matches, news)
+- **Tournaments tab** — browse and manage kabaddi tournaments
+- **Quick Score tab** — live match scoring interface
+- **Profile tab** — player profile, stats, premium features
+- Live scoring with toss flow, real-time events
+- Premium subscription via Cashfree payments
+- Dark/light mode support
 
 ## User preferences
 
@@ -38,7 +52,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- `next-themes` is used for ThemeProvider (not Next.js-specific, works in Vite)
+- `artifacts/kabaddi-pro/src/lib/db.ts` imports Prisma — this is server-side only and not bundled by Vite
+- The API server (Express) must be started separately for backend features
+- All custom CSS animations/classes are in `src/index.css` (not globals.css)
 
 ## Pointers
 

@@ -1,0 +1,39 @@
+{
+  "name": "Kabaddi Pro",
+  "short_name": "KabaddiPro",
+  "description": "The ultimate kabaddi scoring & tournament management app. Score matches, track stats, manage tournaments, and more!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#DC2626",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["sports", "entertainment"],
+  "shortcuts": [
+    {
+      "name": "Quick Score",
+      "short_name": "Score",
+      "description": "Start scoring a match",
+      "url": "/?tab=quick-score"
+    },
+    {
+      "name": "Tournaments",
+      "short_name": "Tourneys",
+      "description": "View tournaments",
+      "url": "/?tab=tournaments"
+    }
+  ]
+}
