@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { db } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function POST(request: NextRequest) {
     let fileName: string;
     let fileType: string;
     let folder = 'avatars';
+    let userId: string | undefined;
 
     if (contentType.includes('multipart/form-data')) {
       // FormData upload (e.g., from MatchPhotoGalleryScreen)
@@ -39,6 +41,7 @@ export async function POST(request: NextRequest) {
       fileName = body.fileName;
       fileType = body.fileType;
       if (body.folder) folder = body.folder;
+      if (body.userId) userId = body.userId;
     }
 
     if (!fileData || !fileName) {
@@ -71,18 +74,34 @@ export async function POST(request: NextRequest) {
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const uniqueFileName = `${timestamp}-${randomSuffix}.${ext}`;
 
-    // Ensure upload directory exists
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', folder);
-    await mkdir(uploadDir, { recursive: true });
+    // Try to write to filesystem (works locally, fails silently on Vercel's read-only fs)
+    try {
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', folder);
+      await mkdir(uploadDir, { recursive: true });
+      const filePath = path.join(uploadDir, uniqueFileName);
+      await writeFile(filePath, buffer);
+    } catch (fsError) {
+      // Filesystem write failed (expected on Vercel) — that's OK, we save to DB
+      console.log('Filesystem write skipped (likely read-only environment):', (fsError as Error).message);
+    }
 
-    // Write file
-    const filePath = path.join(uploadDir, uniqueFileName);
-    await writeFile(filePath, buffer);
+    // Store the data URL directly in the database (works on Vercel too)
+    if (folder === 'avatars' && userId) {
+      try {
+        await db.user.update({
+          where: { id: userId },
+          data: { avatar: fileData },
+        });
+      } catch (dbError) {
+        console.error('Failed to save avatar to DB:', dbError);
+      }
+    }
 
-    // Return the URL that matches the GET route pattern
-    const url = `/api/uploads/${folder}/${uniqueFileName}`;
+    // Return the data URL as the primary URL — works everywhere as <img src>
+    // Also include the filesystem path for backwards compatibility
+    const fileUrl = `/api/uploads/${folder}/${uniqueFileName}`;
 
-    return NextResponse.json({ url, fileName: uniqueFileName });
+    return NextResponse.json({ url: fileData, fileUrl, fileName: uniqueFileName });
   } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
