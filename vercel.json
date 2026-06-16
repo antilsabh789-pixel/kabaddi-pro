@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/kabaddi-pro run build",
+  "outputDirectory": "artifacts/kabaddi-pro/dist/public",
+  "framework": null,
+  "env": {
+    "BASE_PATH": "/",
+    "PORT": "3000",
+    "NODE_ENV": "production"
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
