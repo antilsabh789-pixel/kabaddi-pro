@@ -1,6 +1,29 @@
 # Kabaddi Pro - Work Log
 
 ---
+Task ID: 8
+Agent: Main Agent
+Task: Remove Smart Match tab and AI Team Suggestions feature
+
+Work Log:
+- Removed SmartTeamSuggestionsScreen import from HomeTab.tsx (line 109)
+- Removed showTeamSuggestions state variable (line 643)
+- Removed SmartTeamSuggestionsScreen render block (lines 1270-1272)
+- Removed Smart Match feature card from Discover & Learn section (lines 2954-2969) - the violet/violet card with Wand2 icon
+- Removed Wand2 icon import from lucide-react (only used by Smart Match card)
+- Verified with agent-browser: "Smart Match" and "AI team suggestions" text no longer appear on the page
+- Verified other Discover features still intact (Tournament Map, Rules Quiz, etc.)
+- Note: "Smart analysis" text still exists - this is from the AI Insights feature, not Smart Match
+- Lint passes clean
+- Pushed to GitHub for auto-deploy
+
+Stage Summary:
+- Smart Match / AI Team Suggestions feature completely removed from UI
+- SmartTeamSuggestionsScreen.tsx and /api/team-suggestions/route.ts still exist but are no longer referenced
+- Discover & Learn section now has 9 cards instead of 10
+- All other features remain intact
+
+---
 Task ID: 7
 Agent: Main Agent
 Task: Add Total Players primary tab with animated counter showing total signup numbers
