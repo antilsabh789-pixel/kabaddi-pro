@@ -83,6 +83,7 @@ export const translations: TranslationMap = {
   'profile.tournamentStats': { en: 'Tournament Stats', hi: 'टूर्नामेंट आंकड़े' },
   'profile.practiceStats': { en: 'Practice Stats', hi: 'अभ्यास आंकड़े' },
   'profile.editProfile': { en: 'Edit Profile', hi: 'प्रोफ़ाइल बदलें' },
+  'profile.cropPhoto': { en: 'Crop Photo', hi: 'फ़ोटो क्रॉप करें' },
   'profile.changePhone': { en: 'Change Phone', hi: 'फ़ोन नंबर बदलें' },
   'profile.phoneUpdated': { en: 'Phone number updated!', hi: 'फ़ोन नंबर अपडेट हो गया!' },
   'profile.phoneAlreadyRegistered': { en: 'This phone number is already registered', hi: 'यह फ़ोन नंबर पहले से रजिस्टर है' },

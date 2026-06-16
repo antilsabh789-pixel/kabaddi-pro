@@ -42,6 +42,7 @@ import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchHistoryTimeline from './MatchHistoryTimeline';
 import CoachDashboard from './CoachDashboard';
+import ImageCropDialog from './ImageCropDialog';
 import { t } from '@/lib/i18n';
 
 const POSITIONS = [
@@ -210,6 +211,7 @@ export default function ProfileTab() {
     jerseyNumber: '',
   });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [groundSearch, setGroundSearch] = useState('');
   const [showGroundSuggestions, setShowGroundSuggestions] = useState(false);
   const [earnings, setEarnings] = useState<{
@@ -471,27 +473,28 @@ export default function ProfileTab() {
       return;
     }
 
-    // Show preview immediately
-    const previewUrl = URL.createObjectURL(file);
-    setAvatarPreview(previewUrl);
+    // Read the file and open crop dialog instead of uploading directly
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImageSrc(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
+  const handleCropComplete = async (croppedDataUrl: string) => {
+    if (!currentUser?.id) return;
+    setCropImageSrc(null);
+    setAvatarPreview(croppedDataUrl);
     setUploading(true);
-    try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(file);
-      const fileData = await base64Promise;
 
+    try {
       const res = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fileData,
-          fileName: file.name,
-          fileType: file.type,
+          fileData: croppedDataUrl,
+          fileName: 'avatar.jpg',
+          fileType: 'image/jpeg',
           userId: currentUser.id,
         }),
       });
@@ -512,6 +515,11 @@ export default function ProfileTab() {
       setAvatarPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleCropCancel = () => {
+    setCropImageSrc(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // ─── Save Profile ───
@@ -964,6 +972,18 @@ export default function ProfileTab() {
         aria-hidden="true"
         tabIndex={-1}
       />
+
+      {/* Image Crop Dialog */}
+      {cropImageSrc && (
+        <ImageCropDialog
+          imageSrc={cropImageSrc}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          circularCrop={true}
+          aspectRatio={1}
+          title={t('profile.cropPhoto', language)}
+        />
+      )}
 
       {/* ═══════════════════════════════════════════ */}
       {/* 1. PROFILE HEADER with Dynamic Gradient Banner */}
