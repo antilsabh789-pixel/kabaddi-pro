@@ -389,6 +389,9 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
 
     try {
       // Step 1: Create order on server
+      // Build absolute return URL so Cashfree redirects back correctly in WebViews
+      const returnBase = window.location.origin + window.location.pathname;
+      const returnUrl = `${returnBase}?payment=success&order_id={order_id}`;
       const orderRes = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -397,6 +400,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
           plan: selectedPlan,
           couponCode: couponApplied ? couponCode.trim().toUpperCase() : undefined,
           amount: discountedPaise,
+          returnUrl,
         }),
       });
 
