@@ -18,10 +18,9 @@ import {
   PartyPopper,
   Weight,
   Dumbbell,
-  CircleDot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useKabaddiStore, type OnboardingPosition, type OnboardingExperience, type OnboardingWeightCategory } from '@/lib/store';
+import { useKabaddiStore, type OnboardingPosition, type OnboardingWeightCategory } from '@/lib/store';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -42,12 +41,6 @@ const POSITION_OPTIONS: { value: OnboardingPosition; label: string; description:
   { value: 'raider', label: 'Raider', description: 'Attack & score points', icon: Swords },
   { value: 'defender', label: 'Defender', description: 'Tackle & stop raiders', icon: Shield },
   { value: 'all-rounder', label: 'All-Rounder', description: 'Master of both sides', icon: Sparkles },
-];
-
-const EXPERIENCE_OPTIONS: { value: OnboardingExperience; label: string; description: string; icon: typeof Target }[] = [
-  { value: 'beginner', label: 'Beginner', description: 'New to kabaddi', icon: CircleDot },
-  { value: 'intermediate', label: 'Intermediate', description: '1-3 years of play', icon: Target },
-  { value: 'advanced', label: 'Advanced', description: '3+ years competitive', icon: Flame },
 ];
 
 const WEIGHT_OPTIONS: { value: OnboardingWeightCategory; label: string; description: string; icon: typeof Weight }[] = [
@@ -200,8 +193,8 @@ function ProfileStep({
   profile,
   onProfileChange,
 }: {
-  profile: { position: OnboardingPosition | null; experience: OnboardingExperience | null; weightCategory: OnboardingWeightCategory | null };
-  onProfileChange: (data: { position?: OnboardingPosition | null; experience?: OnboardingExperience | null; weightCategory?: OnboardingWeightCategory | null }) => void;
+  profile: { position: OnboardingPosition | null; weightCategory: OnboardingWeightCategory | null };
+  onProfileChange: (data: { position?: OnboardingPosition | null; weightCategory?: OnboardingWeightCategory | null }) => void;
 }) {
   return (
     <motion.div
@@ -239,33 +232,6 @@ function ProfileStep({
                 {opt.label}
               </span>
               <span className={`text-[10px] leading-tight text-center ${profile.position === opt.value ? 'text-brand-gold/70' : 'text-white/40'}`}>
-                {opt.description}
-              </span>
-            </motion.button>
-          ))}
-        </div>
-      </div>
-
-      {/* Experience Level */}
-      <div className="mb-5">
-        <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-2.5">Experience Level</p>
-        <div className="grid grid-cols-3 gap-2">
-          {EXPERIENCE_OPTIONS.map((opt) => (
-            <motion.button
-              key={opt.value}
-              onClick={() => onProfileChange({ experience: opt.value })}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 ${
-                profile.experience === opt.value
-                  ? 'bg-brand-gold/20 border-brand-gold/50 shadow-lg shadow-brand-gold/10'
-                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-              }`}
-              whileTap={{ scale: 0.95 }}
-            >
-              <opt.icon className={`w-6 h-6 ${profile.experience === opt.value ? 'text-brand-gold' : 'text-white/50'}`} />
-              <span className={`text-xs font-bold ${profile.experience === opt.value ? 'text-brand-gold' : 'text-white/60'}`}>
-                {opt.label}
-              </span>
-              <span className={`text-[10px] leading-tight text-center ${profile.experience === opt.value ? 'text-brand-gold/70' : 'text-white/40'}`}>
                 {opt.description}
               </span>
             </motion.button>
@@ -430,9 +396,8 @@ function TeamStep({
 
 // ─── Step 4: All Set ──────────────────────────────────────────────
 
-function CompleteStep({ profile }: { profile: { position: OnboardingPosition | null; experience: OnboardingExperience | null } }) {
+function CompleteStep({ profile }: { profile: { position: OnboardingPosition | null } }) {
   const positionLabel = POSITION_OPTIONS.find((o) => o.value === profile.position)?.label || 'Player';
-  const experienceLabel = EXPERIENCE_OPTIONS.find((o) => o.value === profile.experience)?.label || '';
 
   return (
     <motion.div
@@ -485,10 +450,6 @@ function CompleteStep({ profile }: { profile: { position: OnboardingPosition | n
           <div className="flex items-center justify-between">
             <span className="text-white/50 text-xs">Position</span>
             <span className="text-brand-gold text-xs font-bold">{positionLabel}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/50 text-xs">Experience</span>
-            <span className="text-brand-gold text-xs font-bold">{experienceLabel || 'Not set'}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-white/50 text-xs">Ready to play</span>
@@ -568,7 +529,7 @@ export default function OnboardingWizard() {
     completeOnboarding();
   }, [completeOnboarding, localProfile, setOnboardingProfile]);
 
-  const handleLocalProfileChange = useCallback((data: { position?: OnboardingPosition | null; experience?: OnboardingExperience | null; weightCategory?: OnboardingWeightCategory | null }) => {
+  const handleLocalProfileChange = useCallback((data: { position?: OnboardingPosition | null; weightCategory?: OnboardingWeightCategory | null }) => {
     setLocalProfile((prev) => ({ ...prev, ...data }));
   }, []);
 

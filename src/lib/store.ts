@@ -20,7 +20,6 @@ export interface CurrentUser {
   premiumExpiry?: string | null;
   premiumPlan?: string | null;
   isAdmin?: boolean;
-  experienceLevel?: OnboardingExperience;
   createdAt?: number;
 }
 
@@ -95,6 +94,7 @@ export interface ActiveMatch {
   awayOutPlayers: number;
   homeOutPlayerIds: string[];
   awayOutPlayerIds: string[];
+  liveStreamUrl?: string;
 }
 
 export type TabId = 'home' | 'tournaments' | 'quick-score' | 'profile';
@@ -116,12 +116,10 @@ export type Language = 'en' | 'hi';
 export type HomeData = Record<string, unknown> | null;
 
 export type OnboardingPosition = 'raider' | 'defender' | 'all-rounder';
-export type OnboardingExperience = 'beginner' | 'intermediate' | 'advanced';
 export type OnboardingWeightCategory = string; // 'open' or any manually entered weight like '65kg'
 
 export interface OnboardingProfile {
   position: OnboardingPosition | null;
-  experience: OnboardingExperience | null;
   weightCategory: OnboardingWeightCategory | null;
   selectedTeamId: string | null;
 }
@@ -527,7 +525,6 @@ export const useKabaddiStore = create<KabaddiState>()(
       hasCompletedOnboarding: false,
       onboardingProfile: {
         position: null,
-        experience: null,
         weightCategory: null,
         selectedTeamId: null,
       },
@@ -898,7 +895,6 @@ export const useKabaddiStore = create<KabaddiState>()(
                 ...state.currentUser,
                 ...(state.onboardingProfile.position && { position: state.onboardingProfile.position }),
                 ...(state.onboardingProfile.weightCategory && { weight: state.onboardingProfile.weightCategory }),
-                ...(state.onboardingProfile.experience && { experienceLevel: state.onboardingProfile.experience }),
                 createdAt: state.currentUser.createdAt || Date.now(),
               }
             : null,

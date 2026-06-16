@@ -47,9 +47,10 @@ const TIME_PERIODS: { id: TimePeriod; label: string }[] = [
 
 interface LeaderboardScreenProps {
   onClose: () => void;
+  onViewPlayer?: (userId: string) => void;
 }
 
-export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
+export default function LeaderboardScreen({ onClose, onViewPlayer }: LeaderboardScreenProps) {
   const isPremium = useKabaddiStore((s) => s.currentUser?.isPremium) || false;
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const [tabMode, setTabMode] = useState<TabMode>('tournament');
@@ -286,7 +287,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                       transition={{ delay: 0.2, type: 'spring', damping: 20, stiffness: 240 }}
                       className="flex flex-col items-center"
                     >
-                      <div className={`w-[100px] rounded-2xl p-3 ${getPodiumClass(2)}`}>
+                      <div className={`w-[100px] rounded-2xl p-3 ${getPodiumClass(2)} cursor-pointer`} onClick={() => onViewPlayer?.(podiumEntries[1].userId)}>
                         <div className="flex flex-col items-center text-center">
                           <span className="text-2xl mb-1">{getRankIcon(2)}</span>
                           <div className="relative mb-2">
@@ -324,7 +325,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                       transition={{ delay: 0.1, type: 'spring', damping: 18, stiffness: 220 }}
                       className="flex flex-col items-center"
                     >
-                      <div className={`w-[120px] rounded-2xl p-3 ${getPodiumClass(1)} animate-shimmer-slow`}>
+                      <div className={`w-[120px] rounded-2xl p-3 ${getPodiumClass(1)} animate-shimmer-slow cursor-pointer`} onClick={() => onViewPlayer?.(podiumEntries[0].userId)}>
                         <div className="flex flex-col items-center text-center">
                           <div className="mb-1">
                             <Crown className={`w-6 h-6 ${isTournament ? 'text-brand-gold' : 'text-emerald-400'} animate-float-gentle`} />
@@ -365,7 +366,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                       transition={{ delay: 0.3, type: 'spring', damping: 20, stiffness: 240 }}
                       className="flex flex-col items-center"
                     >
-                      <div className={`w-[100px] rounded-2xl p-3 ${getPodiumClass(3)}`}>
+                      <div className={`w-[100px] rounded-2xl p-3 ${getPodiumClass(3)} cursor-pointer`} onClick={() => onViewPlayer?.(podiumEntries[2].userId)}>
                         <div className="flex flex-col items-center text-center">
                           <span className="text-2xl mb-1">{getRankIcon(3)}</span>
                           <div className="relative mb-2">
@@ -407,7 +408,7 @@ export default function LeaderboardScreen({ onClose }: LeaderboardScreenProps) {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.04 }}
                     >
-                      <Card className={`border-warm-200 dark:border-warm-600/30 py-0 gap-0 overflow-hidden transition-colors ${isTournament ? 'bg-warm-100/60 dark:bg-warm-700/40 hover:border-brand-gold/30' : 'bg-emerald-50/40 dark:bg-emerald-900/10 hover:border-emerald-400/30'}`}>
+                      <Card className={`border-warm-200 dark:border-warm-600/30 py-0 gap-0 overflow-hidden transition-colors cursor-pointer ${isTournament ? 'bg-warm-100/60 dark:bg-warm-700/40 hover:border-brand-gold/30' : 'bg-emerald-50/40 dark:bg-emerald-900/10 hover:border-emerald-400/30'}`} onClick={() => onViewPlayer?.(entry.userId)}>
                         <CardContent className="p-3 flex items-center gap-3">
                           {/* Rank */}
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isTournament ? 'bg-warm-200 dark:bg-warm-600' : 'bg-emerald-100 dark:bg-emerald-800/40'}`}>

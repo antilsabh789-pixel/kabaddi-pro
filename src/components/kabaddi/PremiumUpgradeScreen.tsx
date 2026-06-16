@@ -111,12 +111,12 @@ const PREMIUM_FEATURES = [
 const PLANS = [
   {
     id: 'daily',
-    name: 'Daily',
+    name: '1 Day',
     price: '1',
     pricePaise: 100,
     period: '/day',
-    badge: 'TRY NOW',
-    features: ['All premium features', 'Cancel anytime'],
+    badge: 'TRY IT',
+    features: ['All premium features', 'Full access for 24 hours', 'Cancel anytime'],
     highlight: false,
   },
   {
@@ -266,7 +266,7 @@ async function openCashfreeCheckout(
 export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgradeScreenProps) {
   const { currentUser, updateUser } = useKabaddiStore();
   const { toast } = useToast();
-  const [selectedPlan, setSelectedPlan] = useState('monthly');
+  const [selectedPlan, setSelectedPlan] = useState('daily');
   const [activating, setActivating] = useState(false);
   const [activated, setActivated] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -616,8 +616,45 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
               {/* Plan Selection */}
               <div className="p-4 pt-2 pb-2">
                 <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2.5">Choose your plan</h4>
+                {/* Daily plan - highlighted separately */}
+                <motion.button
+                  onClick={() => { setSelectedPlan('daily'); setPaymentError(null); }}
+                  className={`relative w-full p-2.5 rounded-xl border-2 text-center transition-all mb-2 ${
+                    selectedPlan === 'daily'
+                      ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-200/50 dark:bg-emerald-500/10 dark:shadow-emerald-500/20'
+                      : 'border-border bg-background hover:border-emerald-300'
+                  }`}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-sm">
+                        <Zap className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="text-left">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">1 Day Trial</p>
+                          <span className="text-[7px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500 text-white whitespace-nowrap">TRY IT</span>
+                        </div>
+                        <p className="text-[9px] text-muted-foreground">Full access for 24 hours</p>
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹1</span>
+                      <span className="text-[9px] text-muted-foreground">/day</span>
+                    </div>
+                  </div>
+                  {selectedPlan === 'daily' && (
+                    <motion.div
+                      layoutId="plan-check-daily"
+                      className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center"
+                    >
+                      <Check className="w-2.5 h-2.5 text-white" />
+                    </motion.div>
+                  )}
+                </motion.button>
                 <div className="grid grid-cols-4 gap-1.5">
-                  {PLANS.map((plan) => (
+                  {PLANS.filter(p => p.id !== 'daily').map((plan) => (
                     <motion.button
                       key={plan.id}
                       onClick={() => { setSelectedPlan(plan.id); setPaymentError(null); }}

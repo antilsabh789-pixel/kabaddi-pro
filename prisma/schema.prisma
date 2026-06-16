@@ -52,6 +52,11 @@ model User {
   feeRecords        FeeRecord[]
   rewards           StudentReward[]
   parentContacts    ParentContact[]
+  matchComments     MatchComment[]
+  matchPhotos       MatchPhoto[]
+  quizAttempts      QuizAttempt[]
+  playerLocation    PlayerLocation?
+  leaderboardEntries LeaderboardSeasonEntry[]
 }
 
 model PlayerProfile {
@@ -192,6 +197,7 @@ model Match {
   weightCategory  String?  // "open" or manually entered weight e.g. "65kg", "Below 80kg"
   venue           String?
   groundId        String?
+  liveStreamUrl   String?  // YouTube/Twitch live stream URL
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime @default(now())
@@ -206,6 +212,8 @@ model Match {
   events     MatchEvent[]
   seasonMatches SeasonMatch[]
   aiInsights AIInsight[]
+  comments   MatchComment[]
+  photos     MatchPhoto[]
 }
 
 model MatchScorer {
@@ -241,7 +249,7 @@ model Payment {
   cashfreePaymentId String?          // cf_payment_id from Cashfree
   cashfreeSignature String?          // signature for verification
   cfPaymentId       String?           // Cashfree's internal payment ID
-  plan              String   // monthly, yearly, lifetime
+  plan              String   // daily, weekly, monthly, yearly, lifetime
   amount            Int      // amount in paise (e.g., 14900 = ₹149)
   currency          String   @default("INR")
   status            String   @default("created") // created, paid, failed, refunded
@@ -606,4 +614,90 @@ model MatchTransfer {
   claimedAt     DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ─── Match Comments (Feature #28) ─────────────────────────────────
+
+model MatchComment {
+  id        String   @id @default(cuid())
+  matchId   String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Match Photos (Feature #34) ───────────────────────────────────
+
+model MatchPhoto {
+  id        String   @id @default(cuid())
+  matchId   String
+  userId    String
+  url       String   // path to uploaded photo
+  caption   String?
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Quiz System (Feature #41) ────────────────────────────────────
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  category    String   // rules, technique, strategy
+  score       Int      @default(0)
+  totalQuestions Int   @default(10)
+  xpEarned    Int      @default(0)
+  completedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Player Location for Discovery (Feature #63/64) ──────────────
+
+model PlayerLocation {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  lat       Float
+  lng       Float
+  city      String?
+  area      String?
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Leaderboard Season (Feature #51) ─────────────────────────────
+
+model LeaderboardSeason {
+  id        String   @id @default(cuid())
+  name      String   @unique  // e.g. "March 2025"
+  month     Int      // 1-12
+  year      Int      // 2025
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("active") // active, completed
+  createdAt DateTime @default(now())
+
+  entries LeaderboardSeasonEntry[]
+}
+
+model LeaderboardSeasonEntry {
+  id                String   @id @default(cuid())
+  leaderboardSeasonId String
+  userId            String
+  rank              Int?
+  totalPoints       Int      @default(0)
+  raidPoints        Int      @default(0)
+  tacklePoints      Int      @default(0)
+  matchesPlayed     Int      @default(0)
+
+  leaderboardSeason LeaderboardSeason @relation(fields: [leaderboardSeasonId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leaderboardSeasonId, userId])
 }

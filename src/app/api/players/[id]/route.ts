@@ -9,21 +9,25 @@ export async function GET(
     const { id } = await params;
     const user = await db.user.findUnique({
       where: { id },
-      include: { profile: true },
+      include: { profile: true, teams: { include: { team: { select: { name: true, shortName: true } } }, take: 3 } },
     });
 
     if (!user) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
     }
 
+    // Extract team names from memberships
+    const teamNames = user.teams.map((tm) => tm.team.name || tm.team.shortName || '').filter(Boolean);
+
     // Return player with masked phone for privacy
+    const { teams, ...playerData } = user;
     const player = {
-      ...user,
-      phone: user.phone ? `****${user.phone.slice(-2)}` : null,
-      playerCode: user.playerCode, // Ensure playerCode is explicitly included
+      ...playerData,
+      phone: playerData.phone ? `****${playerData.phone.slice(-2)}` : null,
+      playerCode: playerData.playerCode,
     };
 
-    return NextResponse.json({ player, profile: user.profile });
+    return NextResponse.json({ player, profile: user.profile, teamNames });
   } catch (error) {
     console.error('Player fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

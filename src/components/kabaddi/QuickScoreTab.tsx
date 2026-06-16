@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, Plus, X, Search, UserPlus, Database, Check, Clock, Users, Swords, Play, GripVertical, Shield, Zap,
-  AlertTriangle, Sparkles, Eye, Info, ChevronDown, ArrowLeftRight, Crown,
+  AlertTriangle, Sparkles, Eye, Info, ChevronDown, ArrowLeftRight, Crown, Radio,
 } from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ interface MatchConfig {
   awayTeamColor: string;
   homeLineup: MatchPlayer[];
   awayLineup: MatchPlayer[];
+  liveStreamUrl: string;
 }
 
 // ─── Weight Category Config ─────────────────────────────────────
@@ -265,6 +266,7 @@ export default function QuickScoreTab() {
     awayTeamColor: '#1E293B',
     homeLineup: [],
     awayLineup: [],
+    liveStreamUrl: '',
   });
   // Weight category type: 'open' | 'weight' — if 'weight', user enters manually
   const [weightType, setWeightType] = useState<'open' | 'weight'>('open');
@@ -616,6 +618,7 @@ export default function QuickScoreTab() {
       playersPerSide: config.playersPerSide,
       homeLineup: markLineup(config.homeLineup, homePlaying7, homeCaptain),
       awayLineup: markLineup(config.awayLineup, awayPlaying7, awayCaptain),
+      liveStreamUrl: config.liveStreamUrl || undefined,
     });
   };
 
@@ -1614,6 +1617,43 @@ export default function QuickScoreTab() {
                       Recommended: {POSITION_BALANCE[config.playersPerSide].raiders} Raiders · {POSITION_BALANCE[config.playersPerSide].defenders} Defenders · {POSITION_BALANCE[config.playersPerSide].allRounders} All-rounders
                     </span>
                   </motion.div>
+                )}
+              </motion.div>
+
+              {/* Live Stream URL */}
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700 rounded-2xl p-5"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500/15 to-red-500/5 flex items-center justify-center">
+                    <Radio className="w-4.5 h-4.5 text-red-500" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-bold text-warm-800 dark:text-warm-100">
+                      Live Stream
+                    </label>
+                    <p className="text-[10px] text-warm-400 dark:text-warm-500">Add YouTube or Twitch link (optional)</p>
+                  </div>
+                </div>
+                <input
+                  type="url"
+                  value={config.liveStreamUrl}
+                  onChange={(e) => setConfig({ ...config, liveStreamUrl: e.target.value })}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="w-full px-4 py-3 rounded-xl bg-warm-50 dark:bg-warm-900/50 border border-warm-200 dark:border-warm-700 text-sm text-warm-800 dark:text-warm-100 placeholder:text-warm-300 dark:placeholder:text-warm-600 focus:outline-none focus:ring-2 focus:ring-brand-red/30 focus:border-brand-red/50 transition-all"
+                />
+                {config.liveStreamUrl && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-2 text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1"
+                  >
+                    <Check className="w-3 h-3" />
+                    Stream link will be shown on match screen
+                  </motion.p>
                 )}
               </motion.div>
             </div>

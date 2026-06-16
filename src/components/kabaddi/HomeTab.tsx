@@ -17,7 +17,7 @@ import {
   Share2,
   Clock,
   ChevronRight,
-  BellOff,
+
   Users,
   Rss,
   Sparkles,
@@ -43,6 +43,18 @@ import {
   Crosshair,
   Megaphone,
   IndianRupee,
+  Monitor,
+  GitBranch,
+  MessageSquare,
+  Camera,
+  FileText,
+  Navigation,
+  Map,
+  BarChart2,
+  HelpCircle,
+  Percent,
+  CalendarRange,
+  FileDown,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -85,6 +97,23 @@ import MatchTimelineScreen from './MatchTimelineScreen';
 import CoachDashboard from './CoachDashboard';
 import LiveCommentaryTicker, { toCommentaryMatchInfo, type CommentaryMatchInfo } from './LiveCommentaryTicker';
 import LiveMatchCommentaryFeed, { type LiveMatchCommentaryInfo } from './LiveMatchCommentaryFeed';
+import LiveScoreTVMode from './LiveScoreTVMode';
+import RaidTimelineScreen from './RaidTimelineScreen';
+import HeadToHeadScreen from './HeadToHeadScreen';
+import MatchCommentsScreen from './MatchCommentsScreen';
+import MatchPhotoGalleryScreen from './MatchPhotoGalleryScreen';
+import MatchReportScreen from './MatchReportScreen';
+import FindTeamsScreen from './FindTeamsScreen';
+import TournamentMapScreen from './TournamentMapScreen';
+import PlayerWinRateScreen from './PlayerWinRateScreen';
+import RulesQuizScreen from './RulesQuizScreen';
+import TechniqueTutorialsScreen from './TechniqueTutorialsScreen';
+import PercentileRankingsScreen from './PercentileRankingsScreen';
+import LeaderboardSeasonsScreen from './LeaderboardSeasonsScreen';
+import ScorecardPDFScreen from './ScorecardPDFScreen';
+import TotalPlayersBanner from './TotalPlayersBanner';
+import PopularPlayersSection from './PopularPlayersSection';
+import PlayerProfileScreen from './PlayerProfileScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -596,6 +625,30 @@ export default function HomeTab() {
   const [showMatchTimeline, setShowMatchTimeline] = useState(false);
   const [showCoachesCorner, setShowCoachesCorner] = useState(false);
   const [showTeamsLeaderboard, setShowTeamsLeaderboard] = useState(false);
+  const [showTVMode, setShowTVMode] = useState(false);
+  const [tvModeMatchId, setTvModeMatchId] = useState<string | null>(null);
+  const [showRaidTimeline, setShowRaidTimeline] = useState(false);
+  const [raidTimelineMatchId, setRaidTimelineMatchId] = useState<string | null>(null);
+  const [showHeadToHead, setShowHeadToHead] = useState(false);
+  const [h2hHomeTeamId, setH2hHomeTeamId] = useState<string | null>(null);
+  const [h2hAwayTeamId, setH2hAwayTeamId] = useState<string | null>(null);
+  const [showMatchComments, setShowMatchComments] = useState(false);
+  const [commentsMatchId, setCommentsMatchId] = useState<string | null>(null);
+  const [showMatchPhotos, setShowMatchPhotos] = useState(false);
+  const [photosMatchId, setPhotosMatchId] = useState<string | null>(null);
+  const [showMatchReport, setShowMatchReport] = useState(false);
+  const [reportMatchId, setReportMatchId] = useState<string | null>(null);
+  const [showFindTeams, setShowFindTeams] = useState(false);
+  const [showTournamentMap, setShowTournamentMap] = useState(false);
+  const [showPlayerWinRate, setShowPlayerWinRate] = useState(false);
+  const [showRulesQuiz, setShowRulesQuiz] = useState(false);
+  const [showTechniqueTutorials, setShowTechniqueTutorials] = useState(false);
+  const [showPercentileRankings, setShowPercentileRankings] = useState(false);
+  const [showLeaderboardSeasons, setShowLeaderboardSeasons] = useState(false);
+  const [showScorecardPDF, setShowScorecardPDF] = useState(false);
+  const [scorecardMatchId, setScorecardMatchId] = useState<string | null>(null);
+  const [showPlayerProfile, setShowPlayerProfile] = useState(false);
+  const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);
@@ -761,16 +814,13 @@ export default function HomeTab() {
     setShowShareScorecard(true);
   };
 
+  const openPlayerProfile = (userId: string) => {
+    setPlayerProfileUserId(userId);
+    setShowPlayerProfile(true);
+  };
+
   const handleAwardClick = (player: AwardPlayer) => {
-    if (!isPremium) {
-      setUpgradeFeature('Player Stats');
-      setShowUpgrade(true);
-      return;
-    }
-    toast({
-      title: `${player.name}`,
-      description: `${player.title} — ${player.stat} ${player.statLabel}`,
-    });
+    openPlayerProfile(player.id);
   };
 
   const handleCopyPlayerCode = () => {
@@ -939,11 +989,6 @@ export default function HomeTab() {
     ? '♀'
     : '♂';
 
-  // Compute stats values for banner
-  const statsData = homeData as StatsData | null;
-  const raidPts = awardPlayers.length > 0 ? parseInt(awardPlayers[0]?.stat ?? '0', 10) : 0;
-  const tacklePts = awardPlayers.length > 1 ? parseInt(awardPlayers[1]?.stat ?? '0', 10) : 0;
-  const totalMatches = statsData?.stats?.totalMatches ?? 0;
 
   return (
     <div
@@ -1028,7 +1073,7 @@ export default function HomeTab() {
         />
       )}
       {showLeaderboard && (
-        <LeaderboardScreen onClose={() => setShowLeaderboard(false)} />
+        <LeaderboardScreen onClose={() => setShowLeaderboard(false)} onViewPlayer={openPlayerProfile} />
       )}
       {showAwards && (
         <MatchAwardsScreen onClose={() => setShowAwards(false)} />
@@ -1078,6 +1123,7 @@ export default function HomeTab() {
             setShowMatchDetails(false);
             setSelectedMatchId(null);
           }}
+          onViewPlayer={openPlayerProfile}
         />
       )}
       {showMatchDayExperience && matchDayExperienceId && (
@@ -1172,6 +1218,7 @@ export default function HomeTab() {
       {showSearch && (
         <GlobalSearchScreen
           onClose={() => setShowSearch(false)}
+          onViewPlayer={openPlayerProfile}
         />
       )}
       {showMatchHistory && (
@@ -1195,6 +1242,51 @@ export default function HomeTab() {
       )}
       {showTeamsLeaderboard && (
         <TeamsLeaderboardScreen onClose={() => setShowTeamsLeaderboard(false)} />
+      )}
+      {showTVMode && tvModeMatchId && (
+        <LiveScoreTVMode matchId={tvModeMatchId} onBack={() => { setShowTVMode(false); setTvModeMatchId(null); }} />
+      )}
+      {showRaidTimeline && raidTimelineMatchId && (
+        <RaidTimelineScreen matchId={raidTimelineMatchId} onBack={() => { setShowRaidTimeline(false); setRaidTimelineMatchId(null); }} />
+      )}
+      {showHeadToHead && h2hHomeTeamId && h2hAwayTeamId && (
+        <HeadToHeadScreen homeTeamId={h2hHomeTeamId} awayTeamId={h2hAwayTeamId} onBack={() => { setShowHeadToHead(false); setH2hHomeTeamId(null); setH2hAwayTeamId(null); }} />
+      )}
+      {showMatchComments && commentsMatchId && (
+        <MatchCommentsScreen matchId={commentsMatchId} onBack={() => { setShowMatchComments(false); setCommentsMatchId(null); }} />
+      )}
+      {showMatchPhotos && photosMatchId && (
+        <MatchPhotoGalleryScreen matchId={photosMatchId} onBack={() => { setShowMatchPhotos(false); setPhotosMatchId(null); }} />
+      )}
+      {showMatchReport && reportMatchId && (
+        <MatchReportScreen matchId={reportMatchId} onBack={() => { setShowMatchReport(false); setReportMatchId(null); }} />
+      )}
+      {showFindTeams && (
+        <FindTeamsScreen onBack={() => setShowFindTeams(false)} />
+      )}
+      {showTournamentMap && (
+        <TournamentMapScreen onBack={() => setShowTournamentMap(false)} />
+      )}
+      {showPlayerWinRate && (
+        <PlayerWinRateScreen onBack={() => setShowPlayerWinRate(false)} />
+      )}
+      {showRulesQuiz && (
+        <RulesQuizScreen onBack={() => setShowRulesQuiz(false)} />
+      )}
+      {showTechniqueTutorials && (
+        <TechniqueTutorialsScreen onBack={() => setShowTechniqueTutorials(false)} />
+      )}
+      {showPercentileRankings && (
+        <PercentileRankingsScreen onBack={() => setShowPercentileRankings(false)} />
+      )}
+      {showLeaderboardSeasons && (
+        <LeaderboardSeasonsScreen onBack={() => setShowLeaderboardSeasons(false)} />
+      )}
+      {showScorecardPDF && scorecardMatchId && (
+        <ScorecardPDFScreen matchId={scorecardMatchId} onBack={() => { setShowScorecardPDF(false); setScorecardMatchId(null); }} />
+      )}
+      {showPlayerProfile && playerProfileUserId && (
+        <PlayerProfileScreen userId={playerProfileUserId} onBack={() => { setShowPlayerProfile(false); setPlayerProfileUserId(null); }} />
       )}
       </Portal>
 
@@ -1246,27 +1338,7 @@ export default function HomeTab() {
             >
               <Search className="w-5 h-5 text-warm-700 dark:text-warm-200" />
             </button>
-            <button
-              onClick={() => setShowNotifications(true)}
-              className="relative p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors"
-            >
-              {unreadNotificationCount > 0 ? (
-                <Bell className="w-5 h-5 text-warm-700 dark:text-warm-200" />
-              ) : (
-                <BellOff className="w-5 h-5 text-warm-400" />
-              )}
-              {unreadNotificationCount > 0 && (
-                <motion.span
-                  key={unreadNotificationCount}
-                  initial={{ scale: 0.5 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', damping: 12, stiffness: 280 }}
-                  className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold px-1 badge-smooth-bounce"
-                >
-                  {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
-                </motion.span>
-              )}
-            </button>
+
           </div>
         </div>
       </header>
@@ -1378,136 +1450,13 @@ export default function HomeTab() {
         </div>
       </motion.div>
 
-      {/* ─── Quick Stats Banner ─── */}
-      <div className="px-4 mt-2">
-        <motion.div
-          className="bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-navy rounded-2xl p-5 shadow-xl shadow-brand-red/25 overflow-hidden relative"
-          initial={{ opacity: 0, y: 12, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-        >
-          {/* Decorative elements */}
-          <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
-          <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full bg-white/5" />
-          <div className="absolute top-2 right-20 w-8 h-8 rounded-full bg-white/5" />
-          {/* Court line pattern decorations */}
-          <div className="absolute top-0 left-1/4 w-px h-full bg-white/5" />
-          <div className="absolute top-0 left-1/2 w-px h-full bg-white/5" />
-          <div className="absolute top-1/2 left-0 right-0 h-px bg-white/5" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-white/5" />
-          {/* Enhanced parallax shimmer overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-gold/5 via-transparent to-brand-teal/5" />
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center backdrop-blur-sm border border-white/10">
-                  <Shield className="w-4 h-4 text-yellow-300" />
-                </div>
-                <span className="text-white/80 text-[10px] font-bold uppercase tracking-widest">{t('home.globalStats', language)}</span>
-              </div>
-              {currentUser?.playerCode && (
-                <div className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm">
-                  <span className="text-white/90 text-[10px] font-mono font-bold tracking-wider">{currentUser.playerCode}</span>
-                </div>
-              )}
-            </div>
-            <motion.div
-              className="grid grid-cols-3 gap-3"
-              variants={stagger}
-              initial="hidden"
-              animate="show"
-            >
-              <motion.div
-                variants={fadeUp}
-                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group ripple-container"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const ripple = document.createElement('div');
-                  ripple.className = 'ripple-effect';
-                  ripple.style.left = `${e.clientX - rect.left}px`;
-                  ripple.style.top = `${e.clientY - rect.top}px`;
-                  ripple.style.width = '20px';
-                  ripple.style.height = '20px';
-                  e.currentTarget.appendChild(ripple);
-                  setTimeout(() => ripple.remove(), 600);
-                  if (currentUser?.id) setShowStats(true);
-                }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-b from-brand-gold/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="flex items-center justify-center gap-1 relative z-10">
-                  <Swords className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
-                </div>
-                <div className="text-2xl font-black text-white mt-1 relative z-10">
-                  <AnimatedCounter target={raidPts} />
-                </div>
-                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.raidPoints', language)}</div>
-              </motion.div>
-              <motion.div
-                variants={fadeUp}
-                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer border-x border-white/10 relative overflow-hidden group ripple-container"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const ripple = document.createElement('div');
-                  ripple.className = 'ripple-effect';
-                  ripple.style.left = `${e.clientX - rect.left}px`;
-                  ripple.style.top = `${e.clientY - rect.top}px`;
-                  ripple.style.width = '20px';
-                  ripple.style.height = '20px';
-                  e.currentTarget.appendChild(ripple);
-                  setTimeout(() => ripple.remove(), 600);
-                  if (currentUser?.id) setShowStats(true);
-                }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-b from-brand-teal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="flex items-center justify-center gap-1 relative z-10">
-                  <Shield className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
-                </div>
-                <div className="text-2xl font-black text-white mt-1 relative z-10">
-                  <AnimatedCounter target={tacklePts} />
-                </div>
-                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.tacklePoints', language)}</div>
-              </motion.div>
-              <motion.div
-                variants={fadeUp}
-                className="text-center glass-card rounded-xl p-2.5 stat-card-glow cursor-pointer relative overflow-hidden group ripple-container"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const ripple = document.createElement('div');
-                  ripple.className = 'ripple-effect';
-                  ripple.style.left = `${e.clientX - rect.left}px`;
-                  ripple.style.top = `${e.clientY - rect.top}px`;
-                  ripple.style.width = '20px';
-                  ripple.style.height = '20px';
-                  e.currentTarget.appendChild(ripple);
-                  setTimeout(() => ripple.remove(), 600);
-                  if (currentUser?.id) setShowStats(true);
-                }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-b from-brand-red/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="flex items-center justify-center gap-1 relative z-10">
-                  <Calendar className="w-3.5 h-3.5 text-brand-gold-light stat-icon-hover" />
-                </div>
-                <div className="text-2xl font-black text-white mt-1 relative z-10">
-                  <AnimatedCounter target={totalMatches} />
-                </div>
-                <div className="text-[9px] text-white/70 font-semibold uppercase mt-0.5 relative z-10">{t('profile.matches', language)}</div>
-              </motion.div>
-            </motion.div>
-          </div>
-        </motion.div>
-      </div>
+      {/* ─── Total Players Banner (hidden temporarily, will re-enable when we have more users) ─── */}
+      {/* <TotalPlayersBanner /> */}
 
       {/* ─── Gradient Separator ─── */}
-      <div className="px-4 mt-4">
+      {/* <div className="px-4 mt-4">
         <div className="section-gradient-separator" />
-      </div>
+      </div> */}
 
       {/* ─── Error State ─── */}
       {error && (
@@ -2100,14 +2049,82 @@ export default function HomeTab() {
                           </Badge>
                         </div>
                       )}
-                      {/* Share button */}
-                      <div className="flex justify-end mt-2">
+                      {/* Match action buttons */}
+                      <div className="flex items-center justify-end gap-1 mt-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRaidTimelineMatchId(match.id);
+                            setShowRaidTimeline(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-violet-500"
+                          title="Raid Timeline"
+                        >
+                          <GitBranch className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setH2hHomeTeamId(match.homeTeam.id);
+                            setH2hAwayTeamId(match.awayTeam.id);
+                            setShowHeadToHead(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-orange-500"
+                          title="Head to Head"
+                        >
+                          <Swords className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCommentsMatchId(match.id);
+                            setShowMatchComments(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-blue-500"
+                          title="Comments"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPhotosMatchId(match.id);
+                            setShowMatchPhotos(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-pink-500"
+                          title="Photos"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReportMatchId(match.id);
+                            setShowMatchReport(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-emerald-500"
+                          title="Match Report"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setScorecardMatchId(match.id);
+                            setShowScorecardPDF(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-teal-500"
+                          title="Scorecard PDF"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleShareClick(match);
                           }}
                           className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-brand-teal"
+                          title="Share Scorecard"
                         >
                           <Share2 className="w-3.5 h-3.5" />
                         </button>
@@ -2501,6 +2518,7 @@ export default function HomeTab() {
                 key={rank}
                 rank={rank}
                 category="raiders"
+                onClickPlayer={openPlayerProfile}
               />
             ))}
             {/* "See More" Card */}
@@ -2520,6 +2538,9 @@ export default function HomeTab() {
           </div>
         )}
       </section>
+
+      {/* ─── Popular Players ─── */}
+      <PopularPlayersSection onViewProfile={openPlayerProfile} />
 
       {/* ─── Explore ─── */}
       <section className="px-4 mt-6">
@@ -2896,6 +2917,157 @@ export default function HomeTab() {
 
         </div>
         <div className="flex items-center gap-2 mt-5 mb-3">
+          <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Discover & Learn</h3>
+          <Badge className="bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-[9px] border-0 font-bold px-1.5 py-0">NEW</Badge>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Find Teams & Grounds */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-blue-50/80 to-warm-50 dark:from-blue-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowFindTeams(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/30 to-blue-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-blue-500/20 transition-shadow">
+                  <Users className="w-4.5 h-4.5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Teams & Grounds</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Nearby teams & venues</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Tournament Map */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTournamentMap(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-amber-500 to-amber-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/30 to-amber-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-amber-500/20 transition-shadow">
+                  <Map className="w-4.5 h-4.5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Tournament Map</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Discover tournaments</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Rules Quiz */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-cyan-50/80 to-warm-50 dark:from-cyan-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowRulesQuiz(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-500 to-cyan-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/30 to-cyan-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-cyan-500/20 transition-shadow">
+                  <HelpCircle className="w-4.5 h-4.5 text-cyan-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Rules Quiz</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Test your knowledge</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Technique Tutorials */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-indigo-50/80 to-warm-50 dark:from-indigo-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTechniqueTutorials(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/30 to-indigo-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-indigo-500/20 transition-shadow">
+                  <BookOpen className="w-4.5 h-4.5 text-indigo-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Tutorials</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Learn techniques</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Percentile Rankings */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-rose-50/80 to-warm-50 dark:from-rose-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowPercentileRankings(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-rose-500 to-rose-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500/30 to-rose-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-rose-500/20 transition-shadow">
+                  <Percent className="w-4.5 h-4.5 text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Percentile Rank</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">How you compare</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Win Rate */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-orange-50/80 to-warm-50 dark:from-orange-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowPlayerWinRate(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-500 to-orange-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/30 to-orange-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-orange-500/20 transition-shadow">
+                  <BarChart2 className="w-4.5 h-4.5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Win Rate</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">vs each team</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Leaderboard Seasons */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowLeaderboardSeasons(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-teal-500 to-teal-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500/30 to-teal-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-teal-500/20 transition-shadow">
+                  <CalendarRange className="w-4.5 h-4.5 text-teal-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Season Leaderboard</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Monthly rankings</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* TV Mode */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-slate-50/80 to-warm-50 dark:from-slate-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => {
+              if (liveMatches.length > 0) {
+                setTvModeMatchId(liveMatches[0].id);
+                setShowTVMode(true);
+              } else if (recentMatches.length > 0) {
+                setTvModeMatchId(recentMatches[0].id);
+                setShowTVMode(true);
+              } else {
+                toast({ title: 'No matches', description: 'Score a match to use TV Mode' });
+              }
+            }}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-slate-600 to-slate-600/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-slate-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-500/30 to-slate-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-slate-500/20 transition-shadow">
+                  <Monitor className="w-4.5 h-4.5 text-slate-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">TV Mode</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Projector display</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+        <div className="flex items-center gap-2 mt-5 mb-3">
           <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Pro Features</h3>
           <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[9px] border-0 font-bold px-1.5 py-0 flex items-center gap-0.5 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_2.5s_ease-in-out_infinite]" />
@@ -3215,8 +3387,9 @@ export default function HomeTab() {
 
 // ─── Leaderboard Preview Card (mini) ───────────────────────────────
 
-function LeaderboardPreviewCard({ rank, category }: { rank: number; category: string }) {
+function LeaderboardPreviewCard({ rank, category, onClickPlayer }: { rank: number; category: string; onClickPlayer?: (userId: string) => void }) {
   const [player, setPlayer] = useState<{
+    userId: string;
     name: string;
     avatar: string | null;
     stat: number;
@@ -3233,6 +3406,7 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
         const entry = data.leaderboard?.[rank - 1];
         if (entry) {
           setPlayer({
+            userId: entry.userId,
             name: entry.name,
             avatar: entry.avatar,
             stat: entry.stat,
@@ -3273,11 +3447,12 @@ function LeaderboardPreviewCard({ rank, category }: { rank: number; category: st
 
   return (
     <motion.div
-      className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankConfig.bg} ${rankConfig.border} border p-3 flex flex-col items-center gap-1 relative overflow-hidden`}
+      className={`w-28 shrink-0 rounded-xl bg-gradient-to-br ${rankConfig.bg} ${rankConfig.border} border p-3 flex flex-col items-center gap-1 relative overflow-hidden cursor-pointer`}
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: rank * 0.1 }}
       whileHover={{ scale: 1.05, y: -2 }}
+      onClick={() => player?.userId && onClickPlayer?.(player.userId)}
     >
       {/* Shimmer overlay for top rank */}
       {rank === 1 && (

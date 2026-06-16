@@ -7,7 +7,7 @@ import {
   Crown, Share2, Zap, Shield, Hand, Clock, ArrowLeftRight,
   ChevronUp, AlertTriangle, Sparkles, Flame,
   ArrowRight, ArrowRightLeft,
-  MessageSquare, ChevronDown, UserPlus,
+  MessageSquare, ChevronDown, UserPlus, Radio,
 } from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer, type MatchEvent } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
@@ -1058,6 +1058,7 @@ export default function LiveScoringScreen() {
             homeScore: match.homeScore, awayScore: match.awayScore,
             gender: match.gender, isPractice: match.isPractice,
             weightCategory: match.weightCategory,
+            liveStreamUrl: match.liveStreamUrl,
             halfDuration: match.halfDuration, playersPerSide: match.playersPerSide,
             events: match.events.map(e => ({
               eventType: e.eventType, teamId: e.teamId, half: e.half,
@@ -2146,6 +2147,14 @@ export default function LiveScoringScreen() {
             <span>{match.gender === 'male' ? '♂' : '♀'}</span>
             {match.weightCategory && (
               <span className="text-amber-400/80">⚖️{match.weightCategory === 'open' ? 'Open' : match.weightCategory}</span>
+            )}
+            {match.liveStreamUrl && (
+              <button
+                onClick={() => window.open(match.liveStreamUrl, '_blank')}
+                className="ml-1 px-1.5 py-0.5 rounded bg-red-500/80 text-white text-[7px] font-bold flex items-center gap-0.5 hover:bg-red-500 transition-colors"
+              >
+                <Radio className="w-2 h-2" />LIVE
+              </button>
             )}
           </div>
         </div>
