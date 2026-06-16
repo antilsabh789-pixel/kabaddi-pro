@@ -112,6 +112,7 @@ import PercentileRankingsScreen from './PercentileRankingsScreen';
 import LeaderboardSeasonsScreen from './LeaderboardSeasonsScreen';
 import ScorecardPDFScreen from './ScorecardPDFScreen';
 import TotalPlayersBanner from './TotalPlayersBanner';
+import PopularPlayersSection from './PopularPlayersSection';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -2531,6 +2532,9 @@ export default function HomeTab() {
           </div>
         )}
       </section>
+
+      {/* ─── Popular Players ─── */}
+      <PopularPlayersSection />
 
       {/* ─── Explore ─── */}
       <section className="px-4 mt-6">

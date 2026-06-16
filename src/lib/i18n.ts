@@ -23,6 +23,7 @@ export const translations: TranslationMap = {
   'home.activeTournaments': { en: 'Active Tournaments', hi: 'सक्रिय टूर्नामेंट' },
   'home.totalTeams': { en: 'Total Teams', hi: 'कुल टीमें' },
   'home.leaderboard': { en: 'Leaderboard', hi: 'लीडरबोर्ड' },
+  'home.popularPlayers': { en: 'Popular Players', hi: 'लोकप्रिय खिलाड़ी' },
   'home.seeAll': { en: 'See All', hi: 'सभी देखें' },
   'home.noLiveMatches': { en: 'No live matches right now', hi: 'अभी कोई लाइव मैच नहीं' },
   'home.noUpcomingTournaments': { en: 'No upcoming tournaments', hi: 'कोई आगामी टूर्नामेंट नहीं' },
