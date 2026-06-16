@@ -50,7 +50,6 @@ import {
   FileText,
   Navigation,
   Map,
-  Wand2,
   BarChart2,
   HelpCircle,
   Percent,
@@ -106,7 +105,6 @@ import MatchPhotoGalleryScreen from './MatchPhotoGalleryScreen';
 import MatchReportScreen from './MatchReportScreen';
 import FindTeamsScreen from './FindTeamsScreen';
 import TournamentMapScreen from './TournamentMapScreen';
-import SmartTeamSuggestionsScreen from './SmartTeamSuggestionsScreen';
 import PlayerWinRateScreen from './PlayerWinRateScreen';
 import RulesQuizScreen from './RulesQuizScreen';
 import TechniqueTutorialsScreen from './TechniqueTutorialsScreen';
@@ -640,7 +638,6 @@ export default function HomeTab() {
   const [reportMatchId, setReportMatchId] = useState<string | null>(null);
   const [showFindTeams, setShowFindTeams] = useState(false);
   const [showTournamentMap, setShowTournamentMap] = useState(false);
-  const [showTeamSuggestions, setShowTeamSuggestions] = useState(false);
   const [showPlayerWinRate, setShowPlayerWinRate] = useState(false);
   const [showRulesQuiz, setShowRulesQuiz] = useState(false);
   const [showTechniqueTutorials, setShowTechniqueTutorials] = useState(false);
@@ -1266,9 +1263,6 @@ export default function HomeTab() {
       )}
       {showTournamentMap && (
         <TournamentMapScreen onBack={() => setShowTournamentMap(false)} />
-      )}
-      {showTeamSuggestions && (
-        <SmartTeamSuggestionsScreen onBack={() => setShowTeamSuggestions(false)} />
       )}
       {showPlayerWinRate && (
         <PlayerWinRateScreen onBack={() => setShowPlayerWinRate(false)} />
@@ -2946,23 +2940,6 @@ export default function HomeTab() {
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Tournament Map</p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">Discover tournaments</p>
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Smart Suggestions */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-violet-50/80 to-warm-50 dark:from-violet-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTeamSuggestions(true)}>
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-violet-500 to-violet-500/40" />
-              <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/30 to-violet-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-violet-500/20 transition-shadow">
-                  <Wand2 className="w-4.5 h-4.5 text-violet-500" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Smart Match</p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">AI team suggestions</p>
                 </div>
               </div>
             </Card>
