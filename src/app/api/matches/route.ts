@@ -312,6 +312,7 @@ export async function POST(request: NextRequest) {
       awayScore,
       events,
       venue,
+      liveStreamUrl,
     } = body;
 
     // Create or find teams by name if IDs not provided
@@ -345,6 +346,7 @@ export async function POST(request: NextRequest) {
         homeScore: homeScore || 0,
         awayScore: awayScore || 0,
         venue,
+        liveStreamUrl: liveStreamUrl || null,
         status: 'completed',
         startedAt: new Date(),
         completedAt: new Date(),

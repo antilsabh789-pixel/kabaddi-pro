@@ -17,7 +17,7 @@ import {
   Share2,
   Clock,
   ChevronRight,
-  BellOff,
+
   Users,
   Rss,
   Sparkles,
@@ -43,6 +43,19 @@ import {
   Crosshair,
   Megaphone,
   IndianRupee,
+  Monitor,
+  GitBranch,
+  MessageSquare,
+  Camera,
+  FileText,
+  Navigation,
+  Map,
+  Wand2,
+  BarChart2,
+  HelpCircle,
+  Percent,
+  CalendarRange,
+  FileDown,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -85,6 +98,22 @@ import MatchTimelineScreen from './MatchTimelineScreen';
 import CoachDashboard from './CoachDashboard';
 import LiveCommentaryTicker, { toCommentaryMatchInfo, type CommentaryMatchInfo } from './LiveCommentaryTicker';
 import LiveMatchCommentaryFeed, { type LiveMatchCommentaryInfo } from './LiveMatchCommentaryFeed';
+import LiveScoreTVMode from './LiveScoreTVMode';
+import RaidTimelineScreen from './RaidTimelineScreen';
+import HeadToHeadScreen from './HeadToHeadScreen';
+import MatchCommentsScreen from './MatchCommentsScreen';
+import MatchPhotoGalleryScreen from './MatchPhotoGalleryScreen';
+import MatchReportScreen from './MatchReportScreen';
+import FindPlayersScreen from './FindPlayersScreen';
+import FindTeamsScreen from './FindTeamsScreen';
+import TournamentMapScreen from './TournamentMapScreen';
+import SmartTeamSuggestionsScreen from './SmartTeamSuggestionsScreen';
+import PlayerWinRateScreen from './PlayerWinRateScreen';
+import RulesQuizScreen from './RulesQuizScreen';
+import TechniqueTutorialsScreen from './TechniqueTutorialsScreen';
+import PercentileRankingsScreen from './PercentileRankingsScreen';
+import LeaderboardSeasonsScreen from './LeaderboardSeasonsScreen';
+import ScorecardPDFScreen from './ScorecardPDFScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -596,6 +625,30 @@ export default function HomeTab() {
   const [showMatchTimeline, setShowMatchTimeline] = useState(false);
   const [showCoachesCorner, setShowCoachesCorner] = useState(false);
   const [showTeamsLeaderboard, setShowTeamsLeaderboard] = useState(false);
+  const [showTVMode, setShowTVMode] = useState(false);
+  const [tvModeMatchId, setTvModeMatchId] = useState<string | null>(null);
+  const [showRaidTimeline, setShowRaidTimeline] = useState(false);
+  const [raidTimelineMatchId, setRaidTimelineMatchId] = useState<string | null>(null);
+  const [showHeadToHead, setShowHeadToHead] = useState(false);
+  const [h2hHomeTeamId, setH2hHomeTeamId] = useState<string | null>(null);
+  const [h2hAwayTeamId, setH2hAwayTeamId] = useState<string | null>(null);
+  const [showMatchComments, setShowMatchComments] = useState(false);
+  const [commentsMatchId, setCommentsMatchId] = useState<string | null>(null);
+  const [showMatchPhotos, setShowMatchPhotos] = useState(false);
+  const [photosMatchId, setPhotosMatchId] = useState<string | null>(null);
+  const [showMatchReport, setShowMatchReport] = useState(false);
+  const [reportMatchId, setReportMatchId] = useState<string | null>(null);
+  const [showFindPlayers, setShowFindPlayers] = useState(false);
+  const [showFindTeams, setShowFindTeams] = useState(false);
+  const [showTournamentMap, setShowTournamentMap] = useState(false);
+  const [showTeamSuggestions, setShowTeamSuggestions] = useState(false);
+  const [showPlayerWinRate, setShowPlayerWinRate] = useState(false);
+  const [showRulesQuiz, setShowRulesQuiz] = useState(false);
+  const [showTechniqueTutorials, setShowTechniqueTutorials] = useState(false);
+  const [showPercentileRankings, setShowPercentileRankings] = useState(false);
+  const [showLeaderboardSeasons, setShowLeaderboardSeasons] = useState(false);
+  const [showScorecardPDF, setShowScorecardPDF] = useState(false);
+  const [scorecardMatchId, setScorecardMatchId] = useState<string | null>(null);
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);
@@ -1196,6 +1249,54 @@ export default function HomeTab() {
       {showTeamsLeaderboard && (
         <TeamsLeaderboardScreen onClose={() => setShowTeamsLeaderboard(false)} />
       )}
+      {showTVMode && tvModeMatchId && (
+        <LiveScoreTVMode matchId={tvModeMatchId} onBack={() => { setShowTVMode(false); setTvModeMatchId(null); }} />
+      )}
+      {showRaidTimeline && raidTimelineMatchId && (
+        <RaidTimelineScreen matchId={raidTimelineMatchId} onBack={() => { setShowRaidTimeline(false); setRaidTimelineMatchId(null); }} />
+      )}
+      {showHeadToHead && h2hHomeTeamId && h2hAwayTeamId && (
+        <HeadToHeadScreen homeTeamId={h2hHomeTeamId} awayTeamId={h2hAwayTeamId} onBack={() => { setShowHeadToHead(false); setH2hHomeTeamId(null); setH2hAwayTeamId(null); }} />
+      )}
+      {showMatchComments && commentsMatchId && (
+        <MatchCommentsScreen matchId={commentsMatchId} onBack={() => { setShowMatchComments(false); setCommentsMatchId(null); }} />
+      )}
+      {showMatchPhotos && photosMatchId && (
+        <MatchPhotoGalleryScreen matchId={photosMatchId} onBack={() => { setShowMatchPhotos(false); setPhotosMatchId(null); }} />
+      )}
+      {showMatchReport && reportMatchId && (
+        <MatchReportScreen matchId={reportMatchId} onBack={() => { setShowMatchReport(false); setReportMatchId(null); }} />
+      )}
+      {showFindPlayers && (
+        <FindPlayersScreen onBack={() => setShowFindPlayers(false)} />
+      )}
+      {showFindTeams && (
+        <FindTeamsScreen onBack={() => setShowFindTeams(false)} />
+      )}
+      {showTournamentMap && (
+        <TournamentMapScreen onBack={() => setShowTournamentMap(false)} />
+      )}
+      {showTeamSuggestions && (
+        <SmartTeamSuggestionsScreen onBack={() => setShowTeamSuggestions(false)} />
+      )}
+      {showPlayerWinRate && (
+        <PlayerWinRateScreen onBack={() => setShowPlayerWinRate(false)} />
+      )}
+      {showRulesQuiz && (
+        <RulesQuizScreen onBack={() => setShowRulesQuiz(false)} />
+      )}
+      {showTechniqueTutorials && (
+        <TechniqueTutorialsScreen onBack={() => setShowTechniqueTutorials(false)} />
+      )}
+      {showPercentileRankings && (
+        <PercentileRankingsScreen onBack={() => setShowPercentileRankings(false)} />
+      )}
+      {showLeaderboardSeasons && (
+        <LeaderboardSeasonsScreen onBack={() => setShowLeaderboardSeasons(false)} />
+      )}
+      {showScorecardPDF && scorecardMatchId && (
+        <ScorecardPDFScreen matchId={scorecardMatchId} onBack={() => { setShowScorecardPDF(false); setScorecardMatchId(null); }} />
+      )}
       </Portal>
 
       {/* ─── Header ─── */}
@@ -1246,27 +1347,7 @@ export default function HomeTab() {
             >
               <Search className="w-5 h-5 text-warm-700 dark:text-warm-200" />
             </button>
-            <button
-              onClick={() => setShowNotifications(true)}
-              className="relative p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors"
-            >
-              {unreadNotificationCount > 0 ? (
-                <Bell className="w-5 h-5 text-warm-700 dark:text-warm-200" />
-              ) : (
-                <BellOff className="w-5 h-5 text-warm-400" />
-              )}
-              {unreadNotificationCount > 0 && (
-                <motion.span
-                  key={unreadNotificationCount}
-                  initial={{ scale: 0.5 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', damping: 12, stiffness: 280 }}
-                  className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-brand-red text-white text-[9px] font-bold px-1 badge-smooth-bounce"
-                >
-                  {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
-                </motion.span>
-              )}
-            </button>
+
           </div>
         </div>
       </header>
@@ -2100,14 +2181,82 @@ export default function HomeTab() {
                           </Badge>
                         </div>
                       )}
-                      {/* Share button */}
-                      <div className="flex justify-end mt-2">
+                      {/* Match action buttons */}
+                      <div className="flex items-center justify-end gap-1 mt-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRaidTimelineMatchId(match.id);
+                            setShowRaidTimeline(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-violet-500"
+                          title="Raid Timeline"
+                        >
+                          <GitBranch className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setH2hHomeTeamId(match.homeTeam.id);
+                            setH2hAwayTeamId(match.awayTeam.id);
+                            setShowHeadToHead(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-orange-500"
+                          title="Head to Head"
+                        >
+                          <Swords className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCommentsMatchId(match.id);
+                            setShowMatchComments(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-blue-500"
+                          title="Comments"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPhotosMatchId(match.id);
+                            setShowMatchPhotos(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-pink-500"
+                          title="Photos"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReportMatchId(match.id);
+                            setShowMatchReport(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-emerald-500"
+                          title="Match Report"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setScorecardMatchId(match.id);
+                            setShowScorecardPDF(true);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-teal-500"
+                          title="Scorecard PDF"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleShareClick(match);
                           }}
                           className="p-1.5 rounded-lg hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-400 hover:text-brand-teal"
+                          title="Share Scorecard"
                         >
                           <Share2 className="w-3.5 h-3.5" />
                         </button>
@@ -2894,6 +3043,191 @@ export default function HomeTab() {
             </Card>
           </motion.div>
 
+        </div>
+        <div className="flex items-center gap-2 mt-5 mb-3">
+          <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Discover & Learn</h3>
+          <Badge className="bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-[9px] border-0 font-bold px-1.5 py-0">NEW</Badge>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Find Players */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-green-50/80 to-warm-50 dark:from-green-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowFindPlayers(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-green-500 to-green-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500/30 to-green-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-green-500/20 transition-shadow">
+                  <Navigation className="w-4.5 h-4.5 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Find Players</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Nearby kabaddi players</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Find Teams */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-blue-50/80 to-warm-50 dark:from-blue-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowFindTeams(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/30 to-blue-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-blue-500/20 transition-shadow">
+                  <Users className="w-4.5 h-4.5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Find Teams</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Nearby teams to join</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Tournament Map */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTournamentMap(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-amber-500 to-amber-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/30 to-amber-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-amber-500/20 transition-shadow">
+                  <Map className="w-4.5 h-4.5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Tournament Map</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Discover tournaments</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Smart Suggestions */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-violet-50/80 to-warm-50 dark:from-violet-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTeamSuggestions(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-violet-500 to-violet-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/30 to-violet-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-violet-500/20 transition-shadow">
+                  <Wand2 className="w-4.5 h-4.5 text-violet-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Smart Match</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">AI team suggestions</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Rules Quiz */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-cyan-50/80 to-warm-50 dark:from-cyan-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowRulesQuiz(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-500 to-cyan-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/30 to-cyan-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-cyan-500/20 transition-shadow">
+                  <HelpCircle className="w-4.5 h-4.5 text-cyan-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Rules Quiz</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Test your knowledge</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Technique Tutorials */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-indigo-50/80 to-warm-50 dark:from-indigo-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTechniqueTutorials(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/30 to-indigo-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-indigo-500/20 transition-shadow">
+                  <BookOpen className="w-4.5 h-4.5 text-indigo-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Tutorials</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Learn techniques</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Percentile Rankings */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-rose-50/80 to-warm-50 dark:from-rose-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowPercentileRankings(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-rose-500 to-rose-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500/30 to-rose-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-rose-500/20 transition-shadow">
+                  <Percent className="w-4.5 h-4.5 text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Percentile Rank</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">How you compare</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Win Rate */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-orange-50/80 to-warm-50 dark:from-orange-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowPlayerWinRate(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-500 to-orange-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/30 to-orange-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-orange-500/20 transition-shadow">
+                  <BarChart2 className="w-4.5 h-4.5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Win Rate</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">vs each team</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Leaderboard Seasons */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowLeaderboardSeasons(true)}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-teal-500 to-teal-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500/30 to-teal-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-teal-500/20 transition-shadow">
+                  <CalendarRange className="w-4.5 h-4.5 text-teal-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Season Leaderboard</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Monthly rankings</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* TV Mode */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
+            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-slate-50/80 to-warm-50 dark:from-slate-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => {
+              if (liveMatches.length > 0) {
+                setTvModeMatchId(liveMatches[0].id);
+                setShowTVMode(true);
+              } else if (recentMatches.length > 0) {
+                setTvModeMatchId(recentMatches[0].id);
+                setShowTVMode(true);
+              } else {
+                toast({ title: 'No matches', description: 'Score a match to use TV Mode' });
+              }
+            }}>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-slate-600 to-slate-600/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-slate-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-500/30 to-slate-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-slate-500/20 transition-shadow">
+                  <Monitor className="w-4.5 h-4.5 text-slate-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">TV Mode</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Projector display</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
         </div>
         <div className="flex items-center gap-2 mt-5 mb-3">
           <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Pro Features</h3>

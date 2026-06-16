@@ -93,6 +93,7 @@ export interface ActiveMatch {
   awayOutPlayers: number;
   homeOutPlayerIds: string[];
   awayOutPlayerIds: string[];
+  liveStreamUrl?: string;
 }
 
 export type TabId = 'home' | 'tournaments' | 'quick-score' | 'profile';
