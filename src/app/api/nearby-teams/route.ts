@@ -91,8 +91,8 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Build a map of team -> closest distance
-    const teamDistanceMap = new Map<string, { distance: number; city: string | null; area: string | null }>();
+    // Build a map of team -> closest distance + ground info
+    const teamDistanceMap = new Map<string, { distance: number; city: string | null; area: string | null; groundName: string | null }>();
 
     // Process team members' locations
     for (const tm of teamMembers) {
@@ -108,6 +108,7 @@ export async function GET(req: NextRequest) {
           distance: Math.round(distance * 10) / 10,
           city: loc.city,
           area: loc.area,
+          groundName: null,
         });
       }
     }
@@ -126,6 +127,7 @@ export async function GET(req: NextRequest) {
               distance: Math.round(distance * 10) / 10,
               city: ground.city,
               area: null,
+              groundName: ground.name,
             });
           }
         }
@@ -193,6 +195,7 @@ export async function GET(req: NextRequest) {
           distance: distInfo?.distance ?? 0,
           city: distInfo?.city ?? null,
           area: distInfo?.area ?? null,
+          groundName: distInfo?.groundName ?? null,
           isMember: memberTeamIds.has(team.id),
         };
       })

@@ -422,20 +422,21 @@ export const translations: TranslationMap = {
   'findPlayers.matches': { en: 'matches', hi: 'मैच' },
 
   // ─── Find Teams (Feature #64) ───
-  'findTeams.title': { en: 'Find Teams', hi: 'टीमें खोजें' },
-  'findTeams.subtitle': { en: 'Discover kabaddi teams in your area', hi: 'अपने क्षेत्र में कबड्डी टीमें खोजें' },
+  'findTeams.title': { en: 'Teams & Grounds', hi: 'टीमें और मैदान' },
+  'findTeams.subtitle': { en: 'Discover kabaddi teams & grounds near you', hi: 'अपने पास कबड्डी टीमें और मैदान खोजें' },
   'findTeams.gpsNotSupported': { en: 'GPS is not supported on this device', hi: 'इस डिवाइस पर GPS समर्थित नहीं है' },
   'findTeams.gpsDenied': { en: 'Location access denied. Please enable GPS.', hi: 'स्थान एक्सेस अस्वीकृत। कृपया GPS चालू करें।' },
   'findTeams.locationActive': { en: 'Location detected', hi: 'स्थान पहचाना गया' },
   'findTeams.radius': { en: 'Radius', hi: 'त्रिज्या' },
   'findTeams.teamsFound': { en: 'teams found', hi: 'टीमें मिलीं' },
   'findTeams.noTeams': { en: 'No teams found nearby', hi: 'आस-पास कोई टीम नहीं मिली' },
+  'findTeams.noGrounds': { en: 'No grounds found nearby', hi: 'आस-पास कोई मैदान नहीं मिला' },
   'findTeams.tryLargerRadius': { en: 'Try increasing the search radius', hi: 'खोज त्रिज्या बढ़ाकर देखें' },
   'findTeams.members': { en: 'members', hi: 'सदस्य' },
   'findTeams.join': { en: 'Join', hi: 'जॉइन' },
   'findTeams.joinError': { en: 'Failed to join team', hi: 'टीम जॉइन करने में विफल' },
   'findTeams.joinedSuccess': { en: 'Joined team successfully!', hi: 'टीम सफलतापूर्वक जॉइन की!' },
-  'findTeams.fetchError': { en: 'Failed to find teams', hi: 'टीमें खोजने में विफल' },
+  'findTeams.fetchError': { en: 'Failed to find teams & grounds', hi: 'टीमें और मैदान खोजने में विफल' },
 
   // ─── Tournament Map (Feature #67) ───
   'tournamentMap.title': { en: 'Tournament Map', hi: 'टूर्नामेंट मैप' },
