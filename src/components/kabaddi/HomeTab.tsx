@@ -113,6 +113,7 @@ import TechniqueTutorialsScreen from './TechniqueTutorialsScreen';
 import PercentileRankingsScreen from './PercentileRankingsScreen';
 import LeaderboardSeasonsScreen from './LeaderboardSeasonsScreen';
 import ScorecardPDFScreen from './ScorecardPDFScreen';
+import TotalPlayersBanner from './TotalPlayersBanner';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -1453,6 +1454,9 @@ export default function HomeTab() {
           )}
         </div>
       </motion.div>
+
+      {/* ─── Total Players Banner ─── */}
+      <TotalPlayersBanner />
 
       {/* ─── Quick Stats Banner ─── */}
       <div className="px-4 mt-2">
