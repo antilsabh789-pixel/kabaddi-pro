@@ -23,7 +23,7 @@ router.post('/seasons', async (req, res) => {
   try {
     const { name, year, startDate, endDate, description } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
-    const season = await db.season.create({ data: { name, year: year || new Date().getFullYear(), startDate: startDate ? new Date(startDate) : null, endDate: endDate ? new Date(endDate) : null, description: description || null, status: 'upcoming' } });
+    const season = await db.season.create({ data: { name, year: year || new Date().getFullYear(), startDate: startDate ? new Date(startDate) : new Date(), endDate: endDate ? new Date(endDate) : null, description: description || null, status: 'upcoming' } });
     return res.json({ season });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });
@@ -194,7 +194,7 @@ router.get('/scorecard-pdf', async (req, res) => {
 
     const match = await db.match.findUnique({
       where: { id: matchId },
-      include: { homeTeam: true, awayTeam: true, events: { orderBy: { createdAt: 'asc' } }, scorers: { include: { user: { select: { id: true, name: true } } } } },
+      include: { homeTeam: true, awayTeam: true, events: { orderBy: { timestamp: 'asc' } }, scorers: { include: { user: { select: { id: true, name: true } } } } },
     });
     if (!match) return res.status(404).json({ error: 'Match not found' });
 

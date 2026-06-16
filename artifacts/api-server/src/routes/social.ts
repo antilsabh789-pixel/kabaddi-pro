@@ -156,7 +156,7 @@ router.get('/broadcast', async (req, res) => {
     if (!matchId) return res.status(400).json({ error: 'matchId is required' });
     const match = await db.match.findUnique({
       where: { id: matchId },
-      include: { homeTeam: { select: { name: true, shortName: true, color: true } }, awayTeam: { select: { name: true, shortName: true, color: true } }, events: { orderBy: { createdAt: 'desc' }, take: 10 } },
+      include: { homeTeam: { select: { name: true, shortName: true, color: true } }, awayTeam: { select: { name: true, shortName: true, color: true } }, events: { orderBy: { timestamp: 'desc' }, take: 10 } },
     });
     if (!match) return res.status(404).json({ error: 'Match not found' });
     return res.json({ match });
@@ -196,7 +196,7 @@ router.post('/polls', async (req, res) => {
         endsAt: endsAt ? new Date(endsAt) : null,
         matchId: matchId || null,
         seasonId: seasonId || null,
-        options: options && Array.isArray(options) ? { create: options.map((o: string, i: number) => ({ text: o, order: i })) } : undefined,
+        options: options && Array.isArray(options) ? { create: options.map((o: string) => ({ label: o })) } : undefined,
       },
       include: { options: true },
     });

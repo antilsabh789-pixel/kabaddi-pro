@@ -1,11 +1,18 @@
 import { Router } from 'express';
-import { createHash } from 'crypto';
+import bcrypt from 'bcryptjs';
 import { db } from '../lib/db';
 
 const router = Router();
 
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'kabaddi_pro_salt').digest('hex');
+const BCRYPT_ROUNDS = 12;
+
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_ROUNDS);
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  if (hash.startsWith('$2')) return bcrypt.compare(password, hash);
+  return false;
 }
 
 async function generatePlayerCode(): Promise<string> {
@@ -44,7 +51,7 @@ router.post('/auth', async (req, res) => {
 
       const playerCode = await generatePlayerCode();
       const user = await db.user.create({
-        data: { phone, playerCode, password: hashPassword(password), name, email: email || null, dateOfBirth, gender: gender || null, weight: weight || null, practiceGround: practiceGround || null, role: role || 'player', phoneVerified: true },
+        data: { phone, playerCode, password: await hashPassword(password), name, email: email || null, dateOfBirth, gender: gender || null, weight: weight || null, practiceGround: practiceGround || null, role: role || 'player', phoneVerified: true },
       });
       await db.playerProfile.create({ data: { userId: user.id } });
       const { password: _, ...userWithoutPassword } = user;
@@ -55,7 +62,8 @@ router.post('/auth', async (req, res) => {
       if (!phone || !password) return res.status(400).json({ error: 'Phone and password are required' });
       const user = await db.user.findUnique({ where: { phone }, include: { profile: true } });
       if (!user) return res.status(401).json({ error: 'Invalid phone number or password' });
-      if (user.password !== hashPassword(password)) return res.status(401).json({ error: 'Invalid phone number or password' });
+      const passwordValid = await verifyPassword(password, user.password);
+      if (!passwordValid) return res.status(401).json({ error: 'Invalid phone number or password' });
       const { password: _, profile: __, ...userWithoutPassword } = user;
       return res.json({ user: { ...userWithoutPassword, position: user.profile?.position || null, jerseyNumber: user.profile?.jerseyNumber || null } });
     }
@@ -75,7 +83,7 @@ router.post('/auth', async (req, res) => {
       if (!user || !user.dateOfBirth) return res.status(400).json({ error: 'Invalid verification. Please start over.' });
       const expectedToken = createDOBVerificationToken(phone, user.dateOfBirth);
       if (verificationToken !== expectedToken) return res.status(400).json({ error: 'Invalid verification token. Please start over.' });
-      await db.user.update({ where: { phone }, data: { password: hashPassword(password) } });
+      await db.user.update({ where: { phone }, data: { password: await hashPassword(password) } });
       return res.json({ message: 'Password reset successfully' });
     }
 
@@ -86,7 +94,7 @@ router.post('/auth', async (req, res) => {
       for (const field of allowedFields) {
         if (body[field] !== undefined) updateData[field] = body[field];
       }
-      if (body.password) updateData.password = hashPassword(body.password);
+      if (body.password) updateData.password = await hashPassword(body.password);
       if (updateData.phone) {
         const phoneRegex = /^\+91\d{10}$/;
         if (!phoneRegex.test(updateData.phone as string)) return res.status(400).json({ error: 'Invalid phone number format. Must be +91 followed by 10 digits.' });

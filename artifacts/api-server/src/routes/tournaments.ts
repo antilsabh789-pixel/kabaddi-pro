@@ -54,7 +54,7 @@ router.post('/tournaments', async (req, res) => {
 
     const tournamentCode = await generateTournamentCode();
     const tournament = await db.tournament.create({
-      data: { name, type: type || 'knockout', startDate: startDate ? new Date(startDate) : null, endDate: endDate ? new Date(endDate) : null, location: location || null, organizerId, gender: gender || null, description: description || null, maxTeams: maxTeams || null, format: format || null, tournamentCode, status: 'upcoming' },
+      data: { name, type: type || 'knockout', startDate: startDate ? new Date(startDate) : null, endDate: endDate ? new Date(endDate) : null, venue: location || null, organizerId, gender: gender || null, tournamentCode, status: 'upcoming' },
     });
     return res.json({ tournament });
   } catch (error) {
@@ -88,7 +88,16 @@ router.patch('/tournaments/:id', async (req, res) => {
     const { addTeamIds, removeTeamIds, ...updateData } = req.body;
 
     if (!addTeamIds && !removeTeamIds) {
-      const tournament = await db.tournament.update({ where: { id }, data: updateData });
+      const validFields = ['name', 'type', 'status', 'gender', 'weightCategory', 'startDate', 'endDate', 'venue', 'organizerId'];
+      const safeUpdate: Record<string, unknown> = {};
+      for (const f of validFields) {
+        if (updateData[f] !== undefined) {
+          if (f === 'startDate' || f === 'endDate') safeUpdate[f] = updateData[f] ? new Date(updateData[f] as string) : null;
+          else safeUpdate[f] = updateData[f];
+        }
+      }
+      if (updateData['location']) safeUpdate['venue'] = updateData['location'];
+      const tournament = await db.tournament.update({ where: { id }, data: safeUpdate });
       return res.json({ tournament });
     }
 

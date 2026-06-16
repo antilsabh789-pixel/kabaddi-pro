@@ -47,9 +47,9 @@ router.post('/teams', async (req, res) => {
 
     const teamCode = await generateTeamCode();
     const team = await db.team.create({
-      data: { name, color: color || '#DC2626', logo: logo || null, shortName: shortName || generateShortName(name), teamCode, captainId },
+      data: { name, color: color || '#DC2626', logo: logo || null, shortName: shortName || generateShortName(name), teamCode },
     });
-    await db.teamMember.create({ data: { teamId: team.id, userId: captainId, role: 'captain' } });
+    await db.teamMember.create({ data: { teamId: team.id, userId: captainId, isCaptain: true } });
     return res.json({ team });
   } catch (error) {
     console.error('Team create error:', error);
@@ -150,7 +150,7 @@ router.post('/teams/join', async (req, res) => {
     const existing = await db.teamMember.findFirst({ where: { teamId: resolvedTeamId, userId } });
     if (existing) return res.status(409).json({ error: 'Already a member of this team' });
 
-    const member = await db.teamMember.create({ data: { teamId: resolvedTeamId, userId, role: 'player' } });
+    const member = await db.teamMember.create({ data: { teamId: resolvedTeamId, userId, isCaptain: false } });
     return res.json({ member });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

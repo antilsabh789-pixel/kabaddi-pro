@@ -173,10 +173,10 @@ router.get('/nearby-players', async (req, res) => {
 
     const locations = await db.playerLocation.findMany({ include: { user: { select: { id: true, name: true, avatar: true, playerCode: true, profile: true } } }, take: limit });
     const nearby = locations.filter((l) => {
-      const d = Math.sqrt(Math.pow(l.latitude - lat, 2) + Math.pow(l.longitude - lng, 2)) * 111;
+      const d = Math.sqrt(Math.pow(l.lat - lat, 2) + Math.pow(l.lng - lng, 2)) * 111;
       return d <= radius;
     });
-    return res.json({ players: nearby.map((l) => ({ ...l.user, distance: Math.round(Math.sqrt(Math.pow(l.latitude - lat, 2) + Math.pow(l.longitude - lng, 2)) * 111), city: l.city })) });
+    return res.json({ players: nearby.map((l) => ({ ...l.user, distance: Math.round(Math.sqrt(Math.pow(l.lat - lat, 2) + Math.pow(l.lng - lng, 2)) * 111), city: l.city })) });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });
   }

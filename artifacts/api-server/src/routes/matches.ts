@@ -160,7 +160,13 @@ router.get('/match-awards', async (req, res) => {
   try {
     const matchId = req.query['matchId'] as string;
     if (!matchId) return res.status(400).json({ error: 'matchId is required' });
-    const awards = await db.matchAward.findMany({ where: { matchId }, include: { user: { select: { id: true, name: true, avatar: true } } } });
+    const match = await db.match.findUnique({ where: { id: matchId }, select: { id: true, motmUserId: true } });
+    if (!match) return res.status(404).json({ error: 'Match not found' });
+    const awards = [];
+    if (match.motmUserId) {
+      const user = await db.user.findUnique({ where: { id: match.motmUserId }, select: { id: true, name: true, avatar: true } });
+      if (user) awards.push({ matchId, userId: user.id, awardType: 'motm', user });
+    }
     return res.json({ awards });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });
@@ -169,10 +175,13 @@ router.get('/match-awards', async (req, res) => {
 
 router.post('/match-awards', async (req, res) => {
   try {
-    const { matchId, userId, awardType, description } = req.body;
+    const { matchId, userId, awardType } = req.body;
     if (!matchId || !userId || !awardType) return res.status(400).json({ error: 'matchId, userId, awardType required' });
-    const award = await db.matchAward.create({ data: { matchId, userId, awardType, description: description || null } });
-    return res.json({ award });
+    if (awardType === 'motm') {
+      await db.match.update({ where: { id: matchId }, data: { motmUserId: userId } });
+    }
+    const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, name: true, avatar: true } });
+    return res.json({ award: { matchId, userId, awardType, user } });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -197,7 +206,7 @@ router.post('/match-comments', async (req, res) => {
   try {
     const { matchId, userId, content } = req.body;
     if (!matchId || !userId || !content) return res.status(400).json({ error: 'matchId, userId, content required' });
-    const comment = await db.matchComment.create({ data: { matchId, userId, content }, include: { user: { select: { id: true, name: true, avatar: true } } } });
+    const comment = await db.matchComment.create({ data: { matchId, userId, comment: content }, include: { user: { select: { id: true, name: true, avatar: true } } } });
     return res.json({ comment });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });
