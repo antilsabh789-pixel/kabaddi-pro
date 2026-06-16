@@ -17,6 +17,8 @@ export interface CurrentUser {
   jerseyNumber?: number;
   email?: string;
   isPremium?: boolean;
+  premiumExpiry?: string | null;
+  premiumPlan?: string | null;
   isAdmin?: boolean;
   experienceLevel?: OnboardingExperience;
   createdAt?: number;

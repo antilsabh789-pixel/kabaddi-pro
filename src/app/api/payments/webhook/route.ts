@@ -159,10 +159,36 @@ export async function POST(request: NextRequest) {
               },
             });
 
-            // Activate premium for the user
+            // Activate premium for the user with expiry
+            const now = new Date();
+            let premiumExpiry: Date | null = null;
+            switch (payment.plan) {
+              case 'daily':
+                premiumExpiry = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+                break;
+              case 'weekly':
+                premiumExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                break;
+              case 'monthly':
+                premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                break;
+              case 'yearly':
+                premiumExpiry = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+                break;
+              case 'lifetime':
+                premiumExpiry = null;
+                break;
+              default:
+                premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+            }
+
             await db.user.update({
               where: { id: payment.userId },
-              data: { isPremium: true },
+              data: {
+                isPremium: true,
+                premiumExpiry: premiumExpiry,
+                premiumPlan: payment.plan,
+              },
             });
 
             console.log(`Cashfree webhook: Payment success for order ${cashfreeOrderId}`);

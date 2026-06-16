@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 
 // Plan prices in paise (1 INR = 100 paise)
 const PLAN_PRICES: Record<string, number> = {
+  daily: 100,        // ₹1
   weekly: 2700,      // ₹27
   monthly: 9900,     // ₹99
   yearly: 99900,     // ₹999
@@ -11,6 +12,7 @@ const PLAN_PRICES: Record<string, number> = {
 
 // Plan display amounts in rupees (for Cashfree API which takes decimal string)
 const PLAN_AMOUNTS_INR: Record<string, string> = {
+  daily: '1.00',
   weekly: '27.00',
   monthly: '99.00',
   yearly: '999.00',
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     if (!PLAN_PRICES[plan]) {
       return NextResponse.json(
-        { error: 'Invalid plan. Choose weekly, monthly, yearly, or lifetime.' },
+        { error: 'Invalid plan. Choose daily, weekly, monthly, yearly, or lifetime.' },
         { status: 400 }
       );
     }
@@ -127,7 +129,7 @@ export async function POST(request: NextRequest) {
       order_amount: amountINR,
       order_currency: 'INR',
       customer_details: {
-        customer_id: userId,
+        customer_id: `KP_${userId.replace(/[^a-zA-Z0-9]/g, '').slice(-12)}`,
         customer_name: user.name || 'Kabaddi Pro User',
         customer_email: user.email || `user_${userId.slice(-6)}@kabaddipro.app`,
         customer_phone: user.phone || '9999999999',

@@ -266,7 +266,11 @@ export default function Home() {
           .then(res => res.json())
           .then(data => {
             if (data.success) {
-              updateUser({ isPremium: true });
+              updateUser({
+                isPremium: true,
+                premiumExpiry: data.user?.premiumExpiry || null,
+                premiumPlan: data.user?.premiumPlan || null,
+              });
             }
           })
           .catch(err => console.error('Payment verification error:', err));
@@ -287,13 +291,44 @@ export default function Home() {
           .then(res => res.json())
           .then(data => {
             if (data.success) {
-              updateUser({ isPremium: true });
+              updateUser({
+                isPremium: true,
+                premiumExpiry: data.user?.premiumExpiry || null,
+                premiumPlan: data.user?.premiumPlan || null,
+              });
             }
           })
           .catch(err => console.error('Payment verification error:', err));
       }
     }
   }, [isAuthenticated, currentUser?.id, updateUser]);
+
+  // Auto-check premium expiry on app load
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id || !currentUser.isPremium) return;
+
+    // Check if premium has expired locally first (instant)
+    if (currentUser.premiumExpiry && new Date(currentUser.premiumExpiry) < new Date()) {
+      updateUser({ isPremium: false, premiumExpiry: null, premiumPlan: null });
+      return;
+    }
+
+    // Then verify with backend (in case of timezone differences)
+    fetch(`/api/premium?userId=${currentUser.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.expired || !data.isPremium) {
+          updateUser({ isPremium: false, premiumExpiry: null, premiumPlan: null });
+        } else if (data.premiumExpiry !== currentUser.premiumExpiry) {
+          updateUser({
+            isPremium: data.isPremium,
+            premiumExpiry: data.premiumExpiry,
+            premiumPlan: data.premiumPlan,
+          });
+        }
+      })
+      .catch(() => {}); // silent fail - not critical
+  }, [isAuthenticated, currentUser?.id, currentUser?.isPremium, currentUser?.premiumExpiry, updateUser]);
 
   // Scroll to top whenever activeTab changes
   useEffect(() => {

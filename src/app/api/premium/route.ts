@@ -16,6 +16,12 @@ export async function POST(request: NextRequest) {
       let premiumExpiry: Date | null = null;
 
       switch (plan) {
+        case 'daily':
+          premiumExpiry = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+          break;
+        case 'weekly':
+          premiumExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          break;
         case 'monthly':
           premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
           break;
@@ -29,11 +35,30 @@ export async function POST(request: NextRequest) {
           premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       }
 
-      // Update user premium status
+      // If user already has premium with an expiry, extend from the current expiry or from now
+      const existingUser = await db.user.findUnique({
+        where: { id: userId },
+        select: { isPremium: true, premiumExpiry: true, premiumPlan: true },
+      });
+
+      let effectiveExpiry = premiumExpiry;
+      if (existingUser?.isPremium && existingUser.premiumExpiry) {
+        const currentExpiry = new Date(existingUser.premiumExpiry);
+        const now = new Date();
+        // If current premium hasn't expired yet, extend from the current expiry
+        if (currentExpiry > now && plan !== 'lifetime') {
+          const extensionMs = premiumExpiry! ? premiumExpiry!.getTime() - now.getTime() : 0;
+          effectiveExpiry = new Date(currentExpiry.getTime() + extensionMs);
+        }
+      }
+
+      // Update user premium status with expiry and plan
       const user = await db.user.update({
         where: { id: userId },
         data: {
           isPremium: true,
+          premiumExpiry: effectiveExpiry,
+          premiumPlan: plan,
         },
       });
 
@@ -41,7 +66,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         user: userWithoutPassword,
         plan,
-        premiumExpiry: premiumExpiry?.toISOString() || null,
+        premiumExpiry: effectiveExpiry?.toISOString() || null,
         activated: true,
       });
     }
@@ -51,6 +76,8 @@ export async function POST(request: NextRequest) {
         where: { id: userId },
         data: {
           isPremium: false,
+          premiumExpiry: null,
+          premiumPlan: null,
         },
       });
 
@@ -64,11 +91,31 @@ export async function POST(request: NextRequest) {
     if (action === 'check') {
       const user = await db.user.findUnique({
         where: { id: userId },
-        select: { isPremium: true, id: true },
+        select: { isPremium: true, id: true, premiumExpiry: true, premiumPlan: true },
       });
+
+      // Auto-expire premium if expiry date has passed
+      if (user?.isPremium && user.premiumExpiry && new Date(user.premiumExpiry) < new Date()) {
+        const updatedUser = await db.user.update({
+          where: { id: userId },
+          data: {
+            isPremium: false,
+            premiumExpiry: null,
+            premiumPlan: null,
+          },
+        });
+        return NextResponse.json({
+          isPremium: false,
+          premiumExpiry: null,
+          premiumPlan: null,
+          expired: true,
+        });
+      }
 
       return NextResponse.json({
         isPremium: user?.isPremium || false,
+        premiumExpiry: user?.premiumExpiry?.toISOString() || null,
+        premiumPlan: user?.premiumPlan || null,
       });
     }
 
@@ -90,11 +137,31 @@ export async function GET(request: NextRequest) {
 
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { isPremium: true, id: true },
+      select: { isPremium: true, id: true, premiumExpiry: true, premiumPlan: true },
     });
+
+    // Auto-expire premium if expiry date has passed
+    if (user?.isPremium && user.premiumExpiry && new Date(user.premiumExpiry) < new Date()) {
+      await db.user.update({
+        where: { id: userId },
+        data: {
+          isPremium: false,
+          premiumExpiry: null,
+          premiumPlan: null,
+        },
+      });
+      return NextResponse.json({
+        isPremium: false,
+        premiumExpiry: null,
+        premiumPlan: null,
+        expired: true,
+      });
+    }
 
     return NextResponse.json({
       isPremium: user?.isPremium || false,
+      premiumExpiry: user?.premiumExpiry?.toISOString() || null,
+      premiumPlan: user?.premiumPlan || null,
     });
   } catch (error) {
     console.error('Premium check error:', error);

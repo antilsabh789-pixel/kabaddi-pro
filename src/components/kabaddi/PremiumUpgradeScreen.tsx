@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Crown,
@@ -110,6 +110,16 @@ const PREMIUM_FEATURES = [
 
 const PLANS = [
   {
+    id: 'daily',
+    name: 'Daily',
+    price: '1',
+    pricePaise: 100,
+    period: '/day',
+    badge: 'TRY NOW',
+    features: ['All premium features', 'Cancel anytime'],
+    highlight: false,
+  },
+  {
     id: 'weekly',
     name: 'Weekly',
     price: '27',
@@ -139,16 +149,6 @@ const PLANS = [
     features: ['All premium features', 'Save ₹183', 'Priority support', 'Exclusive badges'],
     highlight: false,
   },
-  {
-    id: 'lifetime',
-    name: 'Lifetime',
-    price: '3,199',
-    pricePaise: 319900,
-    period: ' once',
-    badge: null,
-    features: ['All premium features', 'One-time payment', 'All future updates', 'VIP badge forever'],
-    highlight: false,
-  },
 ];
 
 // Sample coupon codes (in production these would be validated on the server)
@@ -159,19 +159,78 @@ const VALID_COUPONS: Record<string, { discount: number; label: string }> = {
   'LAUNCH20': { discount: 20, label: '20% OFF' },
 };
 
-// Open Cashfree checkout using MULTIPLE methods for maximum compatibility
-// Method 1: Cashfree JS SDK v3 (best for web/desktop)
-// Method 2: Direct form POST to Cashfree (fallback)
-// Method 3: Redirect to server-rendered checkout page with visible buttons (last resort for mobile/WebView)
-function openCashfreeCheckout(paymentSessionId: string, env: string, orderId: string, orderToken: string) {
+/**
+ * Wait for the Cashfree JS SDK to load (up to `timeoutMs`).
+ * Returns true if the SDK became available, false on timeout.
+ */
+function waitForCashfreeSDK(timeoutMs = 8000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const win = window as Record<string, unknown>;
+    if (win.Cashfree) {
+      resolve(true);
+      return;
+    }
+    const start = Date.now();
+    const interval = setInterval(() => {
+      if (win.Cashfree) {
+        clearInterval(interval);
+        resolve(true);
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(interval);
+        resolve(false);
+      }
+    }, 200);
+  });
+}
+
+/**
+ * Detect if we're on a mobile/touch device
+ */
+function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    || ('ontouchstart' in window && window.innerWidth < 1024);
+}
+
+/**
+ * Open Cashfree checkout using MULTIPLE methods for maximum compatibility.
+ *
+ * On mobile the Cashfree JS SDK v3 often doesn't load (async script on slow connections)
+ * which causes "invalid id" errors. We now:
+ *  1. Wait for the SDK to load (up to 8 s)
+ *  2. On mobile, prefer the Hosted Checkout URL (most reliable on phones)
+ *  3. Fall back to JS SDK → form POST → server checkout page
+ */
+async function openCashfreeCheckout(
+  paymentSessionId: string,
+  env: string,
+  orderId: string,
+  orderToken: string,
+) {
   const isProduction = env === 'production';
+  const onMobile = isMobileDevice();
 
   // Save order ID to localStorage so we can verify payment when user returns
   localStorage.setItem('pendingPaymentOrderId', orderId);
 
-  // METHOD 1: Try Cashfree JS SDK v3 (best experience, works on web)
+  // ── METHOD 0 (Mobile-first): Use Cashfree Hosted Checkout URL ──────
+  // This is the MOST RELIABLE method on phones because it doesn't depend
+  // on the JS SDK being loaded. It opens Cashfree's own payment page.
+  if (orderToken && onMobile) {
+    const hostedUrl = isProduction
+      ? `https://payments.cashfree.com/pg/orders/pay/${orderToken}`
+      : `https://sandbox.cashfree.com/pg/orders/pay/${orderToken}`;
+
+    console.log('[Cashfree] Mobile detected — using hosted checkout URL:', hostedUrl);
+    window.location.href = hostedUrl;
+    return;
+  }
+
+  // ── METHOD 1: Cashfree JS SDK v3 (best for web/desktop) ───────────
+  const sdkLoaded = await waitForCashfreeSDK(8000);
   const win = window as Record<string, unknown>;
-  if (win.Cashfree) {
+
+  if (sdkLoaded && win.Cashfree) {
     try {
       const CF = win.Cashfree as (config: { mode: string }) => { checkout: (options: Record<string, string>) => void };
       const cashfree = CF({ mode: isProduction ? 'production' : 'sandbox' });
@@ -184,9 +243,21 @@ function openCashfreeCheckout(paymentSessionId: string, env: string, orderId: st
     } catch (sdkErr) {
       console.warn('[Cashfree] JS SDK checkout failed, trying fallback:', sdkErr);
     }
+  } else {
+    console.warn('[Cashfree] SDK not loaded after waiting, trying fallbacks');
   }
 
-  // METHOD 2: Direct form POST to Cashfree /pg/view/sessions/checkout
+  // ── METHOD 2: Hosted Checkout URL (desktop fallback when SDK fails) ─
+  if (orderToken) {
+    const hostedUrl = isProduction
+      ? `https://payments.cashfree.com/pg/orders/pay/${orderToken}`
+      : `https://sandbox.cashfree.com/pg/orders/pay/${orderToken}`;
+    console.log('[Cashfree] Redirecting to hosted checkout URL');
+    window.location.href = hostedUrl;
+    return;
+  }
+
+  // ── METHOD 3: Form POST to Cashfree ────────────────────────────────
   try {
     const checkoutUrl = isProduction
       ? 'https://api.cashfree.com/pg/view/sessions/checkout'
@@ -212,8 +283,7 @@ function openCashfreeCheckout(paymentSessionId: string, env: string, orderId: st
     console.warn('[Cashfree] Form POST failed, trying server checkout page:', formErr);
   }
 
-  // METHOD 3: Redirect to server-rendered checkout page with visible buttons
-  // This is the last resort — shows a page with "Pay Securely Now" button + direct link
+  // ── METHOD 4: Redirect to server-rendered checkout page ─────────────
   const params = new URLSearchParams({
     session_id: paymentSessionId,
     env: env,
@@ -236,9 +306,12 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
   const [couponError, setCouponError] = useState<string | null>(null);
   const [checkingCoupon, setCheckingCoupon] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const hasVerifiedRef = useRef(false);
 
   // Verify payment with backend
   const verifyPayment = useCallback(async (orderId: string) => {
+    if (hasVerifiedRef.current) return; // prevent double verification
+    hasVerifiedRef.current = true;
     setVerifying(true);
     try {
       const verifyRes = await fetch('/api/payments/verify', {
@@ -253,7 +326,11 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
         setActivated(true);
         setActivating(false);
         if (verifyData.user) {
-          updateUser({ isPremium: true });
+          updateUser({
+            isPremium: true,
+            premiumExpiry: verifyData.user.premiumExpiry || null,
+            premiumPlan: verifyData.user.premiumPlan || null,
+          });
         }
         toast({
           title: '🎉 Premium Activated!',
@@ -262,11 +339,13 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       } else {
         setPaymentError(verifyData.error || 'Payment verification failed. Please contact support.');
         setActivating(false);
+        hasVerifiedRef.current = false; // allow retry
       }
     } catch (err) {
       console.error('Payment verification error:', err);
       setPaymentError('Could not verify payment. Please contact support if you were charged.');
       setActivating(false);
+      hasVerifiedRef.current = false; // allow retry
     } finally {
       setVerifying(false);
     }
@@ -279,7 +358,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
     let orderId = params.get('order_id');
 
     // Also check Cashfree's standard redirect params
-    const cfOrderId = params.get('cf_order_id') || params.get('order_id');
+    const cfOrderId = params.get('cf_order_id');
 
     // Check localStorage for pending payment (saved before redirect)
     const pendingOrderId = localStorage.getItem('pendingPaymentOrderId');
@@ -353,6 +432,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
 
     setActivating(true);
     setPaymentError(null);
+    hasVerifiedRef.current = false;
 
     try {
       // Step 1: Create order on server
@@ -398,14 +478,14 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       // Step 2: Open Cashfree checkout using multi-method approach
       const paymentSessionId = orderData.paymentSessionId;
 
-      console.log(`[Cashfree] Opening checkout: env=${orderData.env}, orderId=${orderData.orderId}, sessionId=${paymentSessionId.substring(0, 10)}...`);
+      console.log(`[Cashfree] Opening checkout: env=${orderData.env}, orderId=${orderData.orderId}, sessionId=${paymentSessionId.substring(0, 10)}..., orderToken=${!!orderData.orderToken}`);
 
       // Save order ID to localStorage so we can verify payment when user returns
       localStorage.setItem('pendingPaymentOrderId', orderData.orderId);
       localStorage.setItem('pendingPaymentPlan', selectedPlan);
 
-      // Try JS SDK → form POST → server checkout page (3 fallback levels)
-      openCashfreeCheckout(paymentSessionId, orderData.env, orderData.orderId, orderData.orderToken || '');
+      // Mobile-first: detect device and use best method
+      await openCashfreeCheckout(paymentSessionId, orderData.env, orderData.orderId, orderData.orderToken || '');
 
     } catch (error) {
       console.error('Payment error:', error);
@@ -418,6 +498,11 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
       setActivating(false);
     }
   }, [currentUser, selectedPlan, couponApplied, couponCode, discountedPaise, toast]);
+
+  // Check if user already has active premium
+  const hasActivePremium = currentUser?.isPremium && (
+    !currentUser.premiumExpiry || new Date(currentUser.premiumExpiry) > new Date()
+  );
 
   return (
     <AnimatePresence>
@@ -471,14 +556,16 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                   <Crown className="w-10 h-10 text-white mx-auto" />
                 </motion.div>
                 <h3 className="text-xl font-black text-white">
-                  {activated ? "You're Premium Now!" : 'Unlock Pro Features'}
+                  {activated ? "You're Premium Now!" : hasActivePremium ? 'Extend Your Premium' : 'Unlock Pro Features'}
                 </h3>
                 <p className="text-white/80 text-sm mt-0.5">
                   {activated
                     ? 'All premium features are now active'
                     : feature
                       ? `Upgrade to access ${feature}`
-                      : 'Take your kabaddi game to the next level'}
+                      : hasActivePremium
+                        ? 'Add more time to your premium subscription'
+                        : 'Take your kabaddi game to the next level'}
                 </p>
               </div>
             </div>
@@ -539,6 +626,16 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                   <span>Free always: Live tournaments, past scores, quick scoring & basic profile</span>
                 </div>
               </div>
+
+              {/* Current premium status */}
+              {hasActivePremium && currentUser?.premiumExpiry && (
+                <div className="px-4 py-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-medium bg-emerald-50 rounded-lg px-2.5 py-1.5">
+                    <ShieldCheck className="w-3 h-3 shrink-0" />
+                    <span>Your premium is active until {new Date(currentUser.premiumExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Purchasing again will extend it.</span>
+                  </div>
+                </div>
+              )}
 
               {/* Plan Selection */}
               <div className="p-4 pt-2 pb-2">
@@ -689,7 +786,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                           <span>Pay ₹{displayPrice}</span>
                         </span>
                       ) : (
-                        <span>Pay ₹{currentPlan.price}</span>
+                        <span>{hasActivePremium ? 'Extend — ₹' : 'Pay ₹'}{currentPlan.price}</span>
                       )}
                     </>
                   )}

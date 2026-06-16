@@ -17,6 +17,8 @@ model User {
   role           String   @default("player") // player, coach
   avatar         String?
   isPremium      Boolean  @default(false) // premium subscription status
+  premiumExpiry  DateTime? // when premium expires (null = lifetime or no expiry)
+  premiumPlan    String?   // current active plan: daily, weekly, monthly, yearly, lifetime
   isAdmin        Boolean  @default(false) // admin can see earnings dashboard
   dateOfBirth    String?  // Format: "YYYY-MM-DD" - used for password reset verification
   phoneVerified  Boolean  @default(true) // No OTP needed anymore

@@ -28,3 +28,37 @@ Stage Summary:
 - Weight category displays on: match feed, recent results, upcoming matches, match details, scorecard, match history
 - All existing old weight category values (below-60, 60-70, etc.) have been removed from the UI
 - Schema and API support any string value for weightCategory
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix premium purchase 'invalid id' error on phones + add daily plan + premium expiry tracking
+
+Work Log:
+- Investigated the full payment flow: PremiumUpgradeScreen → create-order API → Cashfree checkout → verify API → webhook
+- Identified root cause of "invalid id" on phones: Cashfree JS SDK loaded with `async` attribute doesn't load reliably on mobile browsers, causing fallback to form POST/redirect which shows "invalid id" errors
+- Fixed Cashfree SDK loading: Changed from `async <script>` to Next.js `<Script strategy="beforeInteractive">` for reliable loading
+- Added mobile-first checkout flow: On mobile devices, now uses Cashfree Hosted Checkout URL (most reliable method on phones) instead of JS SDK
+- Added SDK wait mechanism: `waitForCashfreeSDK()` function waits up to 8s for SDK to load before falling back
+- Fixed `customer_id` format: Changed from raw CUID to `KP_{sanitized_id}` format for Cashfree compatibility
+- Added daily plan (₹1/day) back to `PLAN_PRICES` in create-order route
+- Added daily plan to PLANS array in PremiumUpgradeScreen with "TRY NOW" badge
+- Added `premiumExpiry` and `premiumPlan` fields to User model in Prisma schema
+- Updated premium/route.ts to save premiumExpiry and premiumPlan to DB on activation
+- Updated verify/route.ts to save premiumExpiry and premiumPlan on payment verification
+- Updated webhook/route.ts to save premiumExpiry and premiumPlan on webhook success
+- Added premium expiry auto-check on app load in page.tsx
+- Added premium expiry extension logic: When user purchases again while premium is active, the new plan extends from the current expiry date
+- Updated AuthScreen.tsx to save premiumExpiry and premiumPlan on login/signup
+- Updated ProfileTab to show premium expiry date in the premium active card
+- Updated i18n with daily/weekly premium translations
+- Added double-verification prevention with `hasVerifiedRef` in PremiumUpgradeScreen
+- Added "Extend Your Premium" messaging when user already has active premium
+- Tested with agent-browser: Verified premium upgrade screen shows all 4 plans (Daily/Weekly/Monthly/Yearly)
+
+Stage Summary:
+- Fixed mobile premium purchase by using Cashfree Hosted Checkout URL as primary method on phones
+- Daily plan (₹1/day) restored with TRY NOW badge
+- Premium expiry dates now properly tracked in database and displayed to users
+- Repeat premium purchases extend existing subscription instead of replacing
+- Premium auto-expires when the expiry date passes (checked on app load + via API)

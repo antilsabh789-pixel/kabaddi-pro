@@ -82,10 +82,51 @@ export async function GET(request: NextRequest) {
         },
       });
 
+      // Calculate premium expiry based on plan
+      const now = new Date();
+      let premiumExpiry: Date | null = null;
+      switch (payment.plan) {
+        case 'daily':
+          premiumExpiry = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+          break;
+        case 'weekly':
+          premiumExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'monthly':
+          premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'yearly':
+          premiumExpiry = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+          break;
+        case 'lifetime':
+          premiumExpiry = null;
+          break;
+        default:
+          premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      }
+
+      // If user already has premium with a future expiry, extend it
+      const existingUser = await db.user.findUnique({
+        where: { id: payment.userId },
+        select: { isPremium: true, premiumExpiry: true },
+      });
+      let effectiveExpiry = premiumExpiry;
+      if (existingUser?.isPremium && existingUser.premiumExpiry) {
+        const currentExpiry = new Date(existingUser.premiumExpiry);
+        if (currentExpiry > now && payment.plan !== 'lifetime' && premiumExpiry) {
+          const extensionMs = premiumExpiry.getTime() - now.getTime();
+          effectiveExpiry = new Date(currentExpiry.getTime() + extensionMs);
+        }
+      }
+
       // Activate premium for the user
       const user = await db.user.update({
         where: { id: payment.userId },
-        data: { isPremium: true },
+        data: {
+          isPremium: true,
+          premiumExpiry: effectiveExpiry,
+          premiumPlan: payment.plan,
+        },
       });
 
       const { password: _, ...userWithoutPassword } = user;
@@ -240,10 +281,51 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Calculate premium expiry based on plan
+      const now = new Date();
+      let premiumExpiry: Date | null = null;
+      switch (payment.plan) {
+        case 'daily':
+          premiumExpiry = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+          break;
+        case 'weekly':
+          premiumExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'monthly':
+          premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'yearly':
+          premiumExpiry = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+          break;
+        case 'lifetime':
+          premiumExpiry = null;
+          break;
+        default:
+          premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      }
+
+      // If user already has premium with a future expiry, extend it
+      const existingUser = await db.user.findUnique({
+        where: { id: payment.userId },
+        select: { isPremium: true, premiumExpiry: true },
+      });
+      let effectiveExpiry = premiumExpiry;
+      if (existingUser?.isPremium && existingUser.premiumExpiry) {
+        const currentExpiry = new Date(existingUser.premiumExpiry);
+        if (currentExpiry > now && payment.plan !== 'lifetime' && premiumExpiry) {
+          const extensionMs = premiumExpiry.getTime() - now.getTime();
+          effectiveExpiry = new Date(currentExpiry.getTime() + extensionMs);
+        }
+      }
+
       // Activate premium for the user
       const user = await db.user.update({
         where: { id: payment.userId },
-        data: { isPremium: true },
+        data: {
+          isPremium: true,
+          premiumExpiry: effectiveExpiry,
+          premiumPlan: payment.plan,
+        },
       });
 
       const { password: _, ...userWithoutPassword } = user;

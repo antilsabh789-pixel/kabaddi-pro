@@ -1583,7 +1583,11 @@ export default function ProfileTab() {
                 </div>
                 <div className="text-left">
                   <p className="text-warm-800 dark:text-warm-100 font-bold text-sm">{t('profile.premiumActive', language)}</p>
-                  <p className="text-warm-500 dark:text-warm-300 text-xs">{t('profile.allFeaturesUnlocked', language)}</p>
+                  <p className="text-warm-500 dark:text-warm-300 text-xs">
+                    {currentUser?.premiumExpiry
+                      ? `${currentUser.premiumPlan === 'lifetime' ? 'Lifetime' : `Expires ${new Date(currentUser.premiumExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}`
+                      : t('profile.allFeaturesUnlocked', language)}
+                  </p>
                 </div>
               </div>
               <Badge className="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 border-0 text-xs font-extrabold shadow-md shadow-yellow-400/20 overflow-hidden relative">
