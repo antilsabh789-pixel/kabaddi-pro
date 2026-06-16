@@ -1,6 +1,43 @@
 # Kabaddi Pro - Work Log
 
 ---
+Task ID: 9
+Agent: Main Agent
+Task: Add image crop option while uploading profile image
+
+Work Log:
+- Installed react-easy-crop (v6.0.2) for client-side image cropping
+- Created ImageCropDialog component (/src/components/kabaddi/ImageCropDialog.tsx):
+  - Uses react-easy-crop with circular crop mask (perfect for profile pics)
+  - Zoom slider (1x-3x) with +/- buttons and percentage display
+  - Reset button to restore default crop position/zoom
+  - Premium UI: animated modal with brand-red gradient header, spring animations
+  - getCroppedImg helper: draws cropped area to canvas, outputs JPEG at 512x512 max
+  - Apply button with loading spinner, Cancel and Reset actions
+- Created /api/upload POST route (/src/app/api/upload/route.ts):
+  - CRITICAL FIX: This endpoint was missing! ProfileTab was POSTing to /api/upload but getting 404
+  - Supports both JSON (base64) and FormData uploads
+  - Saves files to public/uploads/avatars/ or public/uploads/teams/ based on folder param
+  - Generates unique filenames (timestamp + random suffix)
+  - Validates file type (JPEG, PNG, WebP, GIF) and size (5MB max)
+  - Returns { url: "/api/uploads/avatars/{filename}" }
+- Modified ProfileTab.tsx upload flow:
+  - handleFileChange: Now reads file and opens crop dialog instead of uploading directly
+  - handleCropComplete: Receives cropped base64 data, uploads it, updates avatar
+  - handleCropCancel: Closes crop dialog, resets file input
+  - Added cropImageSrc state for crop dialog visibility
+  - Added ImageCropDialog import and render in JSX
+- Added i18n translation: profile.cropPhoto (en: 'Crop Photo', hi: 'फ़ोटो क्रॉप करें')
+- All lint checks pass, no dev server errors
+- Pushed to GitHub for auto-deploy
+
+Stage Summary:
+- Profile image upload now shows a crop dialog before uploading
+- Users can drag to reposition, zoom in/out, and apply crop
+- Circular crop mask matches the circular avatar display
+- Also fixed the missing /api/upload POST endpoint that was causing 404 errors on avatar upload
+
+---
 Task ID: 8
 Agent: Main Agent
 Task: Remove Smart Match tab and AI Team Suggestions feature
