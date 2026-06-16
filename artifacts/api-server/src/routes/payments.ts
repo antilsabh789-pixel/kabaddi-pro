@@ -4,8 +4,8 @@ import { db } from '../lib/db';
 
 const router = Router();
 
-const PLAN_PRICES: Record<string, number> = { daily: 100, weekly: 2700, monthly: 9900, yearly: 99900, lifetime: 319900 };
-const PLAN_AMOUNTS_INR: Record<string, string> = { daily: '1.00', weekly: '27.00', monthly: '99.00', yearly: '999.00', lifetime: '3199.00' };
+const PLAN_PRICES: Record<string, number> = { daily: 200, weekly: 2700, monthly: 9900, yearly: 99900, lifetime: 329900 };
+const PLAN_AMOUNTS_INR: Record<string, string> = { daily: '2.00', weekly: '27.00', monthly: '99.00', yearly: '999.00', lifetime: '3299.00' };
 const VALID_COUPONS: Record<string, { discount: number; type: 'percent' | 'flat' }> = {
   'KABADDI50': { discount: 50, type: 'percent' }, 'FIRST100': { discount: 100, type: 'flat' }, 'PRO2025': { discount: 25, type: 'percent' }, 'LAUNCH20': { discount: 20, type: 'percent' },
 };
@@ -149,6 +149,7 @@ async function verifyPayment(orderId: string, res: any) {
       case 'weekly': premiumExpiry = new Date(now.getTime() + 7 * 86400000); break;
       case 'monthly': premiumExpiry = new Date(now.getTime() + 30 * 86400000); break;
       case 'yearly': premiumExpiry = new Date(now.getTime() + 365 * 86400000); break;
+      case 'lifetime': premiumExpiry = null; break;
     }
 
     const user = await db.user.update({ where: { id: payment.userId }, data: { isPremium: true, premiumExpiry, premiumPlan: payment.plan } });
@@ -193,6 +194,7 @@ router.post('/payments/webhook', async (req, res) => {
           case 'weekly': premiumExpiry = new Date(now.getTime() + 7 * 86400000); break;
           case 'monthly': premiumExpiry = new Date(now.getTime() + 30 * 86400000); break;
           case 'yearly': premiumExpiry = new Date(now.getTime() + 365 * 86400000); break;
+          case 'lifetime': premiumExpiry = null; break;
         }
         await db.user.update({ where: { id: payment.userId }, data: { isPremium: true, premiumExpiry, premiumPlan: payment.plan } });
       }

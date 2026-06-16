@@ -112,8 +112,8 @@ const PLANS = [
   {
     id: 'daily',
     name: '1 Day',
-    price: '1',
-    pricePaise: 100,
+    price: '2',
+    pricePaise: 200,
     period: '/day',
     badge: 'TRY IT',
     features: ['All premium features', 'Full access for 24 hours', 'Cancel anytime'],
@@ -147,6 +147,16 @@ const PLANS = [
     period: '/year',
     badge: 'BEST VALUE',
     features: ['All premium features', 'Save ₹183', 'Priority support', 'Exclusive badges'],
+    highlight: false,
+  },
+  {
+    id: 'lifetime',
+    name: 'Lifetime',
+    price: '3,299',
+    pricePaise: 329900,
+    period: '/once',
+    badge: 'FOREVER',
+    features: ['All premium features', 'Pay once, never again', 'Priority support', 'Exclusive lifetime badge'],
     highlight: false,
   },
 ];
@@ -607,7 +617,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                       </div>
                     </div>
                     <div className="flex items-baseline gap-0.5">
-                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹1</span>
+                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{PLANS.find(p => p.id === 'daily')!.price}</span>
                       <span className="text-[9px] text-muted-foreground">/day</span>
                     </div>
                   </div>
@@ -621,7 +631,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                   )}
                 </motion.button>
                 <div className="grid grid-cols-4 gap-1.5">
-                  {PLANS.filter(p => p.id !== 'daily').map((plan) => (
+                  {PLANS.filter(p => p.id !== 'daily' && p.id !== 'lifetime').map((plan) => (
                     <motion.button
                       key={plan.id}
                       onClick={() => { setSelectedPlan(plan.id); setPaymentError(null); }}
@@ -641,9 +651,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                       )}
                       <p className="text-[10px] font-semibold text-muted-foreground mt-0.5">{plan.name}</p>
                       <div className="mt-1">
-                        <span className="text-sm font-black">
-                          ₹{plan.price}
-                        </span>
+                        <span className="text-sm font-black">₹{plan.price}</span>
                       </div>
                       <p className="text-[8px] text-muted-foreground">{plan.period}</p>
                       {selectedPlan === plan.id && (
@@ -657,6 +665,43 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                     </motion.button>
                   ))}
                 </div>
+
+                {/* Lifetime plan - full width, premium gold look */}
+                <motion.button
+                  onClick={() => { setSelectedPlan('lifetime'); setPaymentError(null); }}
+                  className={`relative w-full mt-1.5 p-3 rounded-xl border-2 text-center transition-all ${
+                    selectedPlan === 'lifetime'
+                      ? 'border-yellow-500 bg-gradient-to-r from-yellow-50 to-amber-50 shadow-md shadow-yellow-200/50 dark:from-yellow-500/10 dark:to-amber-500/10 dark:shadow-yellow-500/20'
+                      : 'border-yellow-300 bg-gradient-to-r from-yellow-50/50 to-amber-50/50 hover:border-yellow-400 dark:border-yellow-700 dark:from-yellow-900/10 dark:to-amber-900/10'
+                  }`}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[7px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-yellow-500 to-amber-500 text-white whitespace-nowrap shadow-sm">
+                    ♾ FOREVER
+                  </span>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-sm">
+                        <Crown className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-yellow-700 dark:text-yellow-400">Lifetime Access</p>
+                        <p className="text-[9px] text-muted-foreground">Pay once, access forever</p>
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-xl font-black text-yellow-600 dark:text-yellow-400">₹3,299</span>
+                    </div>
+                  </div>
+                  {selectedPlan === 'lifetime' && (
+                    <motion.div
+                      layoutId="plan-check-lifetime"
+                      className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center"
+                    >
+                      <Check className="w-2.5 h-2.5 text-white" />
+                    </motion.div>
+                  )}
+                </motion.button>
 
                 {/* Plan features list */}
                 <div className="mt-2 flex flex-wrap gap-1">
