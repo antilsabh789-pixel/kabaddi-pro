@@ -278,10 +278,14 @@ export const translations: TranslationMap = {
 
   // ─── Premium ───
   'premium.unlockPro': { en: 'Unlock Pro Features', hi: 'प्रो सुविधाएं अनलॉक करें' },
+  'premium.daily': { en: '1 Day Trial', hi: '1 दिन ट्रायल' },
+  'premium.perDay': { en: '/day', hi: '/दिन' },
   'premium.monthly': { en: 'Monthly', hi: 'मासिक' },
+  'premium.weekly': { en: 'Weekly', hi: 'साप्ताहिक' },
   'premium.yearly': { en: 'Yearly', hi: 'वार्षिक' },
   'premium.lifetime': { en: 'Lifetime', hi: 'आजीवन' },
   'premium.perMonth': { en: '/month', hi: '/माह' },
+  'premium.perWeek': { en: '/week', hi: '/सप्ताह' },
   'premium.perYear': { en: '/year', hi: '/वर्ष' },
   'premium.oneTime': { en: 'One time', hi: 'एकमुश्त' },
   'premium.mostPopular': { en: 'Most Popular', hi: 'सबसे लोकप्रिय' },

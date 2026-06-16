@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 
 // Plan prices in paise (1 INR = 100 paise)
 const PLAN_PRICES: Record<string, number> = {
+  daily: 100,        // ₹1
   weekly: 2700,      // ₹27
   monthly: 9900,     // ₹99
   yearly: 99900,     // ₹999
@@ -11,6 +12,7 @@ const PLAN_PRICES: Record<string, number> = {
 
 // Plan display amounts in rupees (for Cashfree API which takes decimal string)
 const PLAN_AMOUNTS_INR: Record<string, string> = {
+  daily: '1.00',
   weekly: '27.00',
   monthly: '99.00',
   yearly: '999.00',

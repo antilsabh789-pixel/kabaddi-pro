@@ -16,6 +16,12 @@ export async function POST(request: NextRequest) {
       let premiumExpiry: Date | null = null;
 
       switch (plan) {
+        case 'daily':
+          premiumExpiry = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+          break;
+        case 'weekly':
+          premiumExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          break;
         case 'monthly':
           premiumExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
           break;

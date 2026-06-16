@@ -247,7 +247,7 @@ model Payment {
   cashfreePaymentId String?          // cf_payment_id from Cashfree
   cashfreeSignature String?          // signature for verification
   cfPaymentId       String?           // Cashfree's internal payment ID
-  plan              String   // monthly, yearly, lifetime
+  plan              String   // daily, weekly, monthly, yearly, lifetime
   amount            Int      // amount in paise (e.g., 14900 = ₹149)
   currency          String   @default("INR")
   status            String   @default("created") // created, paid, failed, refunded
