@@ -953,303 +953,299 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
         </AnimatePresence>
       </div>
 
-      {/* ═══ Create Team Dialog ═══ */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-2xl max-w-[calc(100%-2rem)] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-brand-red flex items-center justify-center">
-                <Shield className="w-3.5 h-3.5 text-white" />
-              </div>
-              Create New Team
-            </DialogTitle>
-            <DialogDescription className="text-warm-500 dark:text-warm-400">
-              Set up your Kabaddi team. You&apos;ll be added as captain automatically.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            {/* Team Name */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
-                Team Name <span className="text-brand-red">*</span>
-              </label>
-              <Input
-                placeholder="e.g. Mumbai Warriors"
-                value={newTeamName}
-                onChange={(e) => setNewTeamName(e.target.value)}
-                className={`h-11 bg-white dark:bg-warm-700 border-warm-300 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 ${
-                  newTeamName.length > 0 && newTeamName.length < 3
-                    ? 'border-brand-red focus:border-brand-red'
-                    : ''
-                }`}
-                maxLength={30}
-              />
-              <div className="flex justify-between">
-                <span className="text-[10px] text-warm-400">
-                  {newTeamName.length > 0 && newTeamName.length < 3
-                    ? 'Minimum 3 characters'
-                    : '3-30 characters'}
-                </span>
-                <span className="text-[10px] text-warm-400">
-                  {newTeamName.length}/30
-                </span>
-              </div>
-            </div>
-
-            {/* Short Name */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
-                Short Name
-                <span className="text-warm-400 font-normal ml-1">
-                  (2-3 chars, auto-generated)
-                </span>
-              </label>
-              <Input
-                placeholder="e.g. MUM"
-                value={newTeamShortName}
-                onChange={(e) => {
-                  setNewTeamShortName(
-                    e.target.value.slice(0, 3).toUpperCase()
-                  );
-                  setShortNameManuallySet(true);
-                }}
-                className="h-11 bg-white dark:bg-warm-700 border-warm-300 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 uppercase font-mono tracking-wider"
-                maxLength={3}
-              />
-            </div>
-
-            {/* Color Picker */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
-                Team Color
-              </label>
-              <div className="flex gap-2.5 flex-wrap">
-                {KABADDI_COLORS.map((colorInfo) => (
-                  <button
-                    key={colorInfo.value}
-                    onClick={() => setNewTeamColor(colorInfo.value)}
-                    className={`w-9 h-9 rounded-xl transition-all duration-200 relative ${
-                      newTeamColor === colorInfo.value
-                        ? 'ring-2 ring-offset-2 ring-warm-400 dark:ring-offset-warm-800 scale-110 shadow-md'
-                        : 'hover:scale-105'
-                    }`}
-                    style={{ backgroundColor: colorInfo.value }}
-                    title={colorInfo.label}
-                  >
-                    {newTeamColor === colorInfo.value && (
-                      <Check className="w-4 h-4 text-white absolute inset-0 m-auto" />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Preview */}
-              <div className="flex items-center gap-3 mt-3 p-3 bg-white/60 dark:bg-warm-700/60 backdrop-blur-sm rounded-xl border border-warm-200/60 dark:border-warm-600/60">
-                {newTeamCustomAvatar ? (
-                  <div className="w-12 h-12 rounded-lg overflow-hidden shadow-sm border-2 border-warm-200 dark:border-warm-600">
-                    <img src={newTeamCustomAvatar} alt="Team avatar" className="w-full h-full object-cover" />
+      {/* ═══ Create Team Full Screen ═══ */}
+      <AnimatePresence>
+        {createDialogOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center"
+            onClick={() => { setCreateDialogOpen(false); setShortNameManuallySet(false); }}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-md max-h-[90vh] bg-white dark:bg-zinc-900 rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-brand-red flex items-center justify-center">
+                    <Shield className="w-3.5 h-3.5 text-white" />
                   </div>
-                ) : WARRIOR_IMAGES.find(w => w.id === newTeamWarrior) ? (
-                  <div className="w-12 h-12 rounded-lg overflow-hidden shadow-sm border-2 border-warm-200 dark:border-warm-600">
-                    <img src={WARRIOR_IMAGES.find(w => w.id === newTeamWarrior)!.src} alt="Warrior avatar" className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <div
-                    className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
-                    style={{ backgroundColor: newTeamColor }}
-                  >
-                    {newTeamShortName
-                      ? newTeamShortName.slice(0, 2)
-                      : newTeamName
-                      ? newTeamName.charAt(0).toUpperCase()
-                      : '?'}
-                  </div>
-                )}
-                <div>
-                  <p className="font-bold text-warm-800 dark:text-warm-100 text-sm">
-                    {newTeamName || 'Team Name'}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-warm-400 dark:text-warm-500">
-                      {newTeamShortName
-                        ? `Short: ${newTeamShortName}`
-                        : 'Auto-generated short name'}
-                    </p>
-                    <span className="text-xs text-warm-400 dark:text-warm-500 font-mono">
-                      · KT----
-                    </span>
+                  <div>
+                    <h3 className="text-sm font-bold">Create New Team</h3>
+                    <p className="text-[10px] text-muted-foreground">You&apos;ll be added as captain</p>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Team Avatar / Profile Picture */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
-                Team Avatar
-              </label>
-
-              {/* Current avatar display */}
-              <div className="flex items-center gap-3">
-                {newTeamCustomAvatar ? (
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md border-2 border-brand-teal">
-                    <img src={newTeamCustomAvatar} alt="Custom avatar" className="w-full h-full object-cover" />
-                  </div>
-                ) : WARRIOR_IMAGES.find(w => w.id === newTeamWarrior) ? (
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md border-2 border-brand-teal">
-                    <img src={WARRIOR_IMAGES.find(w => w.id === newTeamWarrior)!.src} alt="Warrior avatar" className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md"
-                    style={{ backgroundColor: newTeamColor }}
-                  >
-                    ?
-                  </div>
-                )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-warm-700 dark:text-warm-300">
-                    {newTeamCustomAvatar ? 'Custom Avatar' : WARRIOR_IMAGES.find(w => w.id === newTeamWarrior)?.name || 'Select Avatar'}
-                  </p>
-                  <p className="text-xs text-warm-400 dark:text-warm-500">
-                    Choose a warrior or upload your own
-                  </p>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setWarriorPickerOpen(true)}
-                  className="flex-1 rounded-xl border-brand-red/30 text-brand-red hover:bg-brand-red/10 text-xs font-semibold"
-                >
-                  <ImageIcon className="w-3.5 h-3.5 mr-1.5" />
-                  Choose Warrior
-                </Button>
-                <label className="flex-1 cursor-pointer">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full rounded-xl border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 text-xs font-semibold"
-                    disabled={uploadLoading}
-                    asChild
-                  >
-                    <span>
-                      {uploadLoading ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-3.5 h-3.5 border-2 border-brand-teal/30 border-t-brand-teal rounded-full animate-spin" />
-                          Uploading...
-                        </span>
-                      ) : (
-                        <>
-                          <Camera className="w-3.5 h-3.5 mr-1.5" />
-                          Upload from Gallery
-                        </>
-                      )}
-                    </span>
-                  </Button>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        handleAvatarUpload(file);
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-
-              {/* Quick warrior strip (small preview) */}
-              {!newTeamCustomAvatar && (
-                <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
-                  {WARRIOR_IMAGES.map((warrior) => (
-                    <button
-                      key={warrior.id}
-                      onClick={() => {
-                        setNewTeamWarrior(warrior.id);
-                        setNewTeamCustomAvatar(null);
-                      }}
-                      className={`shrink-0 w-10 h-10 rounded-lg overflow-hidden transition-all duration-200 border-2 ${
-                        newTeamWarrior === warrior.id
-                          ? 'border-brand-red shadow-md scale-110'
-                          : 'border-warm-200 dark:border-warm-600 hover:border-warm-300 dark:hover:border-warm-500 hover:scale-105'
-                      }`}
-                      title={warrior.name}
-                    >
-                      <img src={warrior.src} alt={warrior.name} className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Clear custom avatar button */}
-              {newTeamCustomAvatar && (
                 <button
-                  onClick={() => {
-                    setNewTeamCustomAvatar(null);
-                    setNewTeamWarrior(WARRIOR_IMAGES[0].id);
-                  }}
-                  className="text-xs text-warm-500 dark:text-warm-400 hover:text-brand-red transition-colors flex items-center gap-1"
+                  onClick={() => { setCreateDialogOpen(false); setShortNameManuallySet(false); }}
+                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80"
                 >
-                  <X className="w-3 h-3" />
-                  Remove custom avatar
+                  <X className="w-3.5 h-3.5" />
                 </button>
-              )}
-            </div>
-
-            {/* Free tier limit notice */}
-            {isFreeUser && myTeamCount >= 1 && (
-              <div className="flex items-center gap-2 p-3 bg-brand-gold/10 dark:bg-brand-gold/20 rounded-xl border border-brand-gold/20">
-                <Lock className="w-4 h-4 text-brand-gold shrink-0" />
-                <p className="text-xs text-brand-gold-dark dark:text-brand-gold-light">
-                  Free users can create 1 team. Upgrade to Premium for unlimited teams.
-                </p>
               </div>
-            )}
-          </div>
 
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCreateDialogOpen(false);
-                setShortNameManuallySet(false);
-              }}
-              className="rounded-xl border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateTeam}
-              disabled={
-                !newTeamName.trim() ||
-                newTeamName.trim().length < 3 ||
-                actionLoading ||
-                (isFreeUser && myTeamCount >= 1)
-              }
-              className="bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold flex-1 sm:flex-none"
-            >
-              {actionLoading ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating...
-                </span>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Create Team
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                {/* Team Name + Short Name row */}
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">
+                      Team Name <span className="text-brand-red">*</span>
+                    </label>
+                    <Input
+                      placeholder="Mumbai Warriors"
+                      value={newTeamName}
+                      onChange={(e) => setNewTeamName(e.target.value)}
+                      className={`h-9 bg-background border-border rounded-lg text-sm ${
+                        newTeamName.length > 0 && newTeamName.length < 3
+                          ? 'border-brand-red focus:border-brand-red'
+                          : ''
+                      }`}
+                      maxLength={30}
+                    />
+                    <div className="flex justify-between">
+                      <span className="text-[9px] text-muted-foreground">
+                        {newTeamName.length > 0 && newTeamName.length < 3 ? 'Min 3 chars' : '3-30 chars'}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground">{newTeamName.length}/30</span>
+                    </div>
+                  </div>
+                  <div className="w-24 space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">
+                      Short
+                    </label>
+                    <Input
+                      placeholder="MUM"
+                      value={newTeamShortName}
+                      onChange={(e) => {
+                        setNewTeamShortName(e.target.value.slice(0, 3).toUpperCase());
+                        setShortNameManuallySet(true);
+                      }}
+                      className="h-9 bg-background border-border rounded-lg text-sm uppercase font-mono tracking-wider text-center"
+                      maxLength={3}
+                    />
+                  </div>
+                </div>
+
+                {/* Team Color */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">Team Color</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {KABADDI_COLORS.map((colorInfo) => (
+                      <button
+                        key={colorInfo.value}
+                        onClick={() => setNewTeamColor(colorInfo.value)}
+                        className={`w-8 h-8 rounded-lg transition-all relative ${
+                          newTeamColor === colorInfo.value
+                            ? 'ring-2 ring-offset-1 ring-foreground/40 scale-110 shadow-sm'
+                            : 'hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: colorInfo.value }}
+                        title={colorInfo.label}
+                      >
+                        {newTeamColor === colorInfo.value && (
+                          <Check className="w-3.5 h-3.5 text-white absolute inset-0 m-auto" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Team Avatar */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">Team Avatar</label>
+
+                  {/* Avatar preview + action buttons row */}
+                  <div className="flex items-center gap-2.5">
+                    {/* Avatar preview */}
+                    {newTeamCustomAvatar ? (
+                      <div className="w-11 h-11 rounded-xl overflow-hidden shadow-sm border-2 border-brand-teal shrink-0">
+                        <img src={newTeamCustomAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                      </div>
+                    ) : WARRIOR_IMAGES.find(w => w.id === newTeamWarrior) ? (
+                      <div className="w-11 h-11 rounded-xl overflow-hidden shadow-sm border-2 border-brand-teal shrink-0">
+                        <img src={WARRIOR_IMAGES.find(w => w.id === newTeamWarrior)!.src} alt="Warrior" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div
+                        className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0"
+                        style={{ backgroundColor: newTeamColor }}
+                      >
+                        {newTeamShortName ? newTeamShortName.slice(0, 2) : newTeamName ? newTeamName.charAt(0).toUpperCase() : '?'}
+                      </div>
+                    )}
+
+                    {/* Buttons */}
+                    <div className="flex-1 flex gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWarriorPickerOpen(true)}
+                        className="flex-1 rounded-lg border-brand-red/30 text-brand-red hover:bg-brand-red/10 text-[10px] font-semibold h-8"
+                      >
+                        <ImageIcon className="w-3 h-3 mr-1" />
+                        Warriors
+                      </Button>
+                      <label className="flex-1 cursor-pointer">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full rounded-lg border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 text-[10px] font-semibold h-8"
+                          disabled={uploadLoading}
+                          asChild
+                        >
+                          <span>
+                            {uploadLoading ? (
+                              <span className="flex items-center gap-1">
+                                <span className="w-3 h-3 border-2 border-brand-teal/30 border-t-brand-teal rounded-full animate-spin" />
+                                ...
+                              </span>
+                            ) : (
+                              <>
+                                <Camera className="w-3 h-3 mr-1" />
+                                Upload
+                              </>
+                            )}
+                          </span>
+                        </Button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleAvatarUpload(file);
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Quick warrior strip */}
+                  {!newTeamCustomAvatar && (
+                    <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 custom-scrollbar">
+                      {WARRIOR_IMAGES.map((warrior) => (
+                        <button
+                          key={warrior.id}
+                          onClick={() => {
+                            setNewTeamWarrior(warrior.id);
+                            setNewTeamCustomAvatar(null);
+                          }}
+                          className={`shrink-0 w-9 h-9 rounded-lg overflow-hidden transition-all border-2 ${
+                            newTeamWarrior === warrior.id
+                              ? 'border-brand-red shadow-sm scale-105'
+                              : 'border-transparent hover:border-border'
+                          }`}
+                          title={warrior.name}
+                        >
+                          <img src={warrior.src} alt={warrior.name} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Clear custom avatar */}
+                  {newTeamCustomAvatar && (
+                    <button
+                      onClick={() => {
+                        setNewTeamCustomAvatar(null);
+                        setNewTeamWarrior(WARRIOR_IMAGES[0].id);
+                      }}
+                      className="text-[10px] text-muted-foreground hover:text-brand-red transition-colors flex items-center gap-0.5"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {/* Team Preview Card */}
+                <div className="p-2.5 bg-muted/50 rounded-xl border border-border/50">
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1.5 font-semibold">Preview</p>
+                  <div className="flex items-center gap-2.5">
+                    {newTeamCustomAvatar ? (
+                      <div className="w-10 h-10 rounded-lg overflow-hidden shadow-sm border border-border shrink-0">
+                        <img src={newTeamCustomAvatar} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                    ) : WARRIOR_IMAGES.find(w => w.id === newTeamWarrior) ? (
+                      <div className="w-10 h-10 rounded-lg overflow-hidden shadow-sm border border-border shrink-0">
+                        <img src={WARRIOR_IMAGES.find(w => w.id === newTeamWarrior)!.src} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0"
+                        style={{ backgroundColor: newTeamColor }}
+                      >
+                        {newTeamShortName ? newTeamShortName.slice(0, 2) : newTeamName ? newTeamName.charAt(0).toUpperCase() : '?'}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-sm truncate">{newTeamName || 'Team Name'}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {newTeamShortName ? newTeamShortName : '---'} · KT----
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Free tier limit notice */}
+                {isFreeUser && myTeamCount >= 1 && (
+                  <div className="flex items-center gap-2 p-2.5 bg-brand-gold/10 rounded-xl border border-brand-gold/20">
+                    <Lock className="w-3.5 h-3.5 text-brand-gold shrink-0" />
+                    <p className="text-[10px] text-brand-gold-dark dark:text-brand-gold-light">
+                      Free users can create 1 team. Upgrade for unlimited.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer buttons */}
+              <div className="px-4 py-3 border-t border-border/50 flex gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setCreateDialogOpen(false);
+                    setShortNameManuallySet(false);
+                  }}
+                  className="flex-1 rounded-xl h-10"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateTeam}
+                  disabled={
+                    !newTeamName.trim() ||
+                    newTeamName.trim().length < 3 ||
+                    actionLoading ||
+                    (isFreeUser && myTeamCount >= 1)
+                  }
+                  className="flex-1 bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold h-10"
+                >
+                  {actionLoading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Creating...
+                    </span>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-1" />
+                      Create Team
+                    </>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ═══ Join Team Confirmation Dialog ═══ */}
       <Dialog open={joinConfirmOpen} onOpenChange={setJoinConfirmOpen}>
