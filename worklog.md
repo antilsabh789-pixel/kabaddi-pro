@@ -1,6 +1,31 @@
 # Kabaddi Pro - Work Log
 
 ---
+Task ID: 6
+Agent: Main Agent
+Task: Transform "Find Teams" into "Teams & Grounds" — add Grounds tab since team location is ground location
+
+Work Log:
+- Completely rewrote FindTeamsScreen.tsx to include two tabs: "Teams" and "Grounds"
+- Created /api/nearby-grounds route: GPS-based ground discovery using Haversine distance, returns ground name/address/city/surface/amenities/matchCount/distance
+- Updated /api/nearby-teams route: Added groundName field to team distance map and API response (when team was found via a ground venue)
+- Grounds tab shows: name, address, city, surface type badges (Mat/Mud/Grass/Synthetic with color coding), amenities (Lights/Changing Room/Seating/Parking with icons), match count, distance
+- Teams tab now shows ground name when team was found via a ground venue (since team location = ground location)
+- Updated HomeTab feature card: "Find Teams" → "Teams & Grounds" with subtitle "Nearby teams & venues"
+- Updated i18n translations: title "Teams & Grounds" / "टीमें और मैदान", subtitle, added noGrounds key
+- Verified with agent-browser + VLM: Both tabs work correctly, active tab styling changes (red for Teams, gold for Grounds), empty states display correctly
+- All lint checks pass, no dev server errors
+- Pushed to GitHub for auto-deploy
+
+Stage Summary:
+- "Find Teams" is now "Teams & Grounds" with a tab-based UI
+- Teams tab: Shows nearby teams with ground name (when available), member count, join button
+- Grounds tab: Shows nearby grounds/venues with surface type, amenities, match count
+- New API: /api/nearby-grounds for GPS-based ground discovery
+- Updated API: /api/nearby-teams now returns groundName field
+- Team location = ground location concept is reflected in the UI (ground name shown on team cards)
+
+---
 Task ID: 5
 Agent: Main Agent
 Task: Remove "Find Kabaddi Player in Area" feature and fix all feature tabs to open as top overlay instead of at end of page
