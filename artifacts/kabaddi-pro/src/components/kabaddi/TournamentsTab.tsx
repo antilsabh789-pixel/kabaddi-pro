@@ -786,7 +786,7 @@ export default function TournamentsTab() {
       const res = await fetch(`/api/tournaments?${params}`);
       if (res.ok) {
         const data = await res.json();
-        setTournaments(data.tournaments || []);
+        setTournaments((data.tournaments || []).map((t: Tournament) => ({ ...t, teams: t.teams ?? [] })));
       }
     } catch {
       setTournaments([]);
