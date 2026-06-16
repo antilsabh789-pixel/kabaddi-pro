@@ -1,6 +1,44 @@
 # Kabaddi Pro - Work Log
 
 ---
+Task ID: 11
+Agent: Main Agent
+Task: Make player profile visits available from everywhere with premium-gated stats
+
+Work Log:
+- Created PlayerProfileScreen component (src/components/kabaddi/PlayerProfileScreen.tsx):
+  - Full-screen overlay with animated slide-in, gradient banner with position-colored theme
+  - Avatar with animated entrance, name, position badge, player code, jersey number
+  - Follow/Following toggle button with follower count and API integration
+  - Team names display
+  - Quick stats grid: Matches (always visible), Total Pts & Rating (premium-gated with blur)
+  - Premium gating: `canSeeStats = isPremium || isOwnProfile` - non-premium sees blurred stats
+  - "Unlock Full Stats" banner opens PremiumUpgradeScreen when clicked
+  - Performance breakdown: Raid Pts, Tackle Pts, Bonus Pts, Super Tackles (locked without premium)
+  - Success rate animated bars: Raid %, Tackle %, Raid Attempts (locked)
+  - Tournament vs Practice breakdown (premium only, only shows if matches > 0)
+  - Weight and practice ground info
+- Added openPlayerProfile helper to HomeTab.tsx
+- Player profile accessible from everywhere:
+  - Popular Players cards → click opens profile
+  - Leaderboard Preview mini cards (top 3 on home) → click opens profile
+  - Full Leaderboard Screen → click any podium entry or list entry
+  - Awards section → handleAwardClick now opens profile (was just showing toast)
+- Updated LeaderboardPreviewCard: now stores userId, accepts onClickPlayer prop, cursor-pointer
+- Updated LeaderboardScreen: added onViewPlayer prop, all podium entries + list entries are clickable
+- Updated PopularPlayersSection: added onViewProfile callback, card has cursor-pointer + onClick
+- Updated /api/players/[id] route: now includes team names via TeamMember include
+- Added i18n translations: profile.followers, profile.viewProfile, profile.unlockStats, profile.unlockStatsDesc (en/hi)
+- Tested with agent-browser: Player profile opens from Popular Players, shows premium-locked stats, "Unlock Full Stats" opens upgrade screen, no errors
+
+Stage Summary:
+- Player profiles now accessible from anywhere in the app (Popular Players, Leaderboard, Awards)
+- Non-premium users see: name, avatar, position, team, matches count, follow button
+- Premium users see: full stats, performance breakdown, success rates, tournament vs practice splits
+- Own profile always shows full stats (no premium required for self)
+- "Unlock Full Stats" CTA drives premium conversions
+
+---
 Task ID: 10
 Agent: Main Agent
 Task: Add Popular Players section with follow option and score on home screen
