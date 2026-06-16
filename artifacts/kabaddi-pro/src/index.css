@@ -85,97 +85,103 @@
 
 :root {
   --radius: 0.75rem;
+  /* Light / day theme — high contrast, crisp whites */
   --background: #FFFFFF;
-  --foreground: #1E293B;
-  --card: #F8FAFC;
-  --card-foreground: #1E293B;
-  --popover: #F8FAFC;
-  --popover-foreground: #1E293B;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
   --primary: #DC2626;
   --primary-foreground: #FFFFFF;
   --secondary: #F1F5F9;
-  --secondary-foreground: #1E293B;
-  --muted: #E2E8F0;
-  --muted-foreground: #475569;
-  --accent: #14B8A6;
+  --secondary-foreground: #0F172A;
+  --muted: #F1F5F9;
+  --muted-foreground: #374151;
+  --accent: #0D9488;
   --accent-foreground: #FFFFFF;
   --destructive: #DC2626;
   --border: #CBD5E1;
-  --input: #CBD5E1;
+  --input: #E2E8F0;
   --ring: #DC2626;
   --chart-1: #DC2626;
   --chart-2: #14B8A6;
   --chart-3: #1E293B;
   --chart-4: #475569;
   --chart-5: #0F172A;
-  --sidebar: #F8FAFC;
-  --sidebar-foreground: #1E293B;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #0F172A;
   --sidebar-primary: #DC2626;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #14B8A6;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #CBD5E1;
+  --sidebar-border: #E2E8F0;
   --sidebar-ring: #DC2626;
 }
 
 .dark {
-  --background: #0F172A;
-  --foreground: #F8FAFC;
-  --card: #1E293B;
-  --card-foreground: #F8FAFC;
-  --popover: #1E293B;
-  --popover-foreground: #F8FAFC;
-  --primary: #EF4444;
-  --primary-foreground: #FFFFFF;
-  --secondary: #1E293B;
-  --secondary-foreground: #F8FAFC;
-  --muted: #334155;
-  --muted-foreground: #94A3B8;
-  --accent: #14B8A6;
-  --accent-foreground: #FFFFFF;
-  --destructive: #EF4444;
-  --border: #334155;
-  --input: #334155;
-  --ring: #EF4444;
-  --chart-1: #DC2626;
-  --chart-2: #14B8A6;
-  --chart-3: #334155;
-  --chart-4: #64748B;
-  --chart-5: #F8FAFC;
-  --sidebar: #1E293B;
-  --sidebar-foreground: #F8FAFC;
-  --sidebar-primary: #EF4444;
+  /* Dark theme — deep navy, excellent contrast */
+  --background: #0D1117;
+  --foreground: #E6EDF3;
+  --card: #161B22;
+  --card-foreground: #E6EDF3;
+  --popover: #161B22;
+  --popover-foreground: #E6EDF3;
+  --primary: #F87171;
+  --primary-foreground: #1A0000;
+  --secondary: #21262D;
+  --secondary-foreground: #E6EDF3;
+  --muted: #21262D;
+  --muted-foreground: #8B949E;
+  --accent: #2DD4BF;
+  --accent-foreground: #021E1B;
+  --destructive: #F87171;
+  --border: #30363D;
+  --input: #21262D;
+  --ring: #F87171;
+  --chart-1: #F87171;
+  --chart-2: #2DD4BF;
+  --chart-3: #60A5FA;
+  --chart-4: #A78BFA;
+  --chart-5: #E6EDF3;
+  --sidebar: #161B22;
+  --sidebar-foreground: #E6EDF3;
+  --sidebar-primary: #F87171;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #F8FAFC;
-  --sidebar-border: #334155;
-  --sidebar-ring: #EF4444;
+  --sidebar-accent: #21262D;
+  --sidebar-accent-foreground: #E6EDF3;
+  --sidebar-border: #30363D;
+  --sidebar-ring: #F87171;
 
-  /* Dark mode warm color inversions */
-  --color-warm-50: #0F172A;
-  --color-warm-100: #1E293B;
-  --color-warm-200: #334155;
-  --color-warm-300: #475569;
-  --color-warm-400: #64748B;
-  --color-warm-500: #94A3B8;
-  --color-warm-600: #CBD5E1;
-  --color-warm-700: #E2E8F0;
-  --color-warm-800: #F8FAFC;
-  --color-warm-900: #0B1120;
-  --color-warm-950: #060A14;
+  /* Dark mode warm color inversions — FIXED (50=darkest bg → 950=lightest text) */
+  --color-warm-50: #0D1117;
+  --color-warm-100: #161B22;
+  --color-warm-200: #21262D;
+  --color-warm-300: #30363D;
+  --color-warm-400: #484F58;
+  --color-warm-500: #6E7681;
+  --color-warm-600: #8B949E;
+  --color-warm-700: #B1BAC4;
+  --color-warm-800: #C9D1D9;
+  --color-warm-900: #E6EDF3;
+  --color-warm-950: #F0F6FC;
 
   /* Dark mode brand color adjustments */
-  --color-brand-red: #EF4444;
-  --color-brand-red-light: #F87171;
-  --color-brand-red-dark: #DC2626;
+  --color-brand-red: #F87171;
+  --color-brand-red-light: #FCA5A5;
+  --color-brand-red-dark: #EF4444;
 
-  --color-brand-navy: #F8FAFC;
-  --color-brand-navy-light: #E2E8F0;
-  --color-brand-navy-dark: #CBD5E1;
+  --color-brand-navy: #E6EDF3;
+  --color-brand-navy-light: #F0F6FC;
+  --color-brand-navy-dark: #C9D1D9;
 
   --color-brand-gold: #FBBF24;
   --color-brand-gold-light: #FCD34D;
   --color-brand-gold-dark: #F59E0B;
+
+  --color-brand-teal: #2DD4BF;
+  --color-brand-teal-light: #5EEAD4;
+  --color-brand-teal-dark: #14B8A6;
 }
 
 @layer base {
