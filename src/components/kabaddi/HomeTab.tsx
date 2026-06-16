@@ -1450,13 +1450,13 @@ export default function HomeTab() {
         </div>
       </motion.div>
 
-      {/* ─── Total Players Banner ─── */}
-      <TotalPlayersBanner />
+      {/* ─── Total Players Banner (hidden temporarily, will re-enable when we have more users) ─── */}
+      {/* <TotalPlayersBanner /> */}
 
       {/* ─── Gradient Separator ─── */}
-      <div className="px-4 mt-4">
+      {/* <div className="px-4 mt-4">
         <div className="section-gradient-separator" />
-      </div>
+      </div> */}
 
       {/* ─── Error State ─── */}
       {error && (
