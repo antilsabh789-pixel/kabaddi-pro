@@ -1,6 +1,39 @@
 # Kabaddi Pro - Work Log
 
 ---
+Task ID: 5
+Agent: Main Agent
+Task: Remove "Find Kabaddi Player in Area" feature and fix all feature tabs to open as top overlay instead of at end of page
+
+Work Log:
+- Removed FindPlayersScreen import from HomeTab.tsx
+- Removed showFindPlayers state variable from HomeTab.tsx
+- Removed FindPlayersScreen rendering from Portal section in HomeTab.tsx
+- Removed "Find Players" feature card from "Discover & Learn" grid in HomeTab.tsx
+- Updated animation delays for remaining Discover & Learn cards (shifted down by 0.05s each)
+- Fixed 9 screen components to use `fixed inset-0 z-50` instead of `min-h-screen` for proper overlay behavior:
+  - FindTeamsScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+  - TournamentMapScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+  - SmartTeamSuggestionsScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+  - PlayerWinRateScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+  - RulesQuizScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+  - TechniqueTutorialsScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+  - PercentileRankingsScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+  - LeaderboardSeasonsScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+  - ScorecardPDFScreen.tsx: min-h-screen → fixed inset-0 z-50 overflow-y-auto
+- Verified with agent-browser: Find Players card is gone, Find Teams opens as full-screen overlay at top
+- Tested Rules Quiz overlay - opens correctly as top overlay
+- All lint checks pass clean, no dev server errors
+- Pushed to GitHub for auto-deploy to Vercel
+
+Stage Summary:
+- "Find Players in Area" feature completely removed (card, state, import, rendering)
+- All 9 feature screens that used `min-h-screen` now use `fixed inset-0 z-50 overflow-y-auto`
+- This means all feature tabs now open as full-screen overlays at the TOP of the page, covering the main content
+- Previously, these tabs would render inline at the BOTTOM of the page, which was confusing
+- The FindTeamsScreen, TournamentMapScreen, and other screens now behave consistently with LeaderboardScreen, AchievementsScreen, etc.
+
+---
 Task ID: 1
 Agent: Main Agent
 Task: Add weight categories feature (Open/Weight with manual entry)
