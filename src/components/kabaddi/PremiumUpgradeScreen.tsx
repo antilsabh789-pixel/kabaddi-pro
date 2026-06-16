@@ -160,8 +160,7 @@ const VALID_COUPONS: Record<string, { discount: number; label: string }> = {
 };
 
 /**
- * Wait for the Cashfree JS SDK to load (up to `timeoutMs`).
- * Returns true if the SDK became available, false on timeout.
+ * Wait for the Cashfree JS SDK to load (kept for backward compat, unused now).
  */
 function waitForCashfreeSDK(timeoutMs = 8000): Promise<boolean> {
   return new Promise((resolve) => {
@@ -193,15 +192,21 @@ function isMobileDevice(): boolean {
 }
 
 /**
- * Open Cashfree checkout using the most reliable method for each device.
+ * Open Cashfree checkout — BULLETPROOF method for ALL devices.
  *
- * KEY FIX: On mobile, the Cashfree hosted checkout URL (using order_token)
- * often shows "Invalid Session ID" for re-purchases. Instead, we redirect
- * to our own server checkout page which uses payment_session_id (always valid).
+ * KEY FIX (v2): Previous approach used Cashfree JS SDK on desktop and
+ * server checkout page on mobile. The JS SDK is unreliable and the mobile
+ * checkout page (which tried JS SDK) still showed "Invalid Session ID".
  *
- * Flow:
- *  Mobile → Server checkout page (uses payment_session_id + JS SDK + form POST)
- *  Desktop → JS SDK v3 (uses payment_session_id) → fallback to server checkout page
+ * NEW APPROACH: Redirect ALL devices (mobile + desktop) to our
+ * /api/payments/checkout page, which returns an auto-submitting form POST
+ * to Cashfree's /pg/view/sessions/checkout endpoint using payment_session_id.
+ *
+ * Why this works:
+ * - No JavaScript SDK dependency (flaky on mobile)
+ * - Uses payment_session_id (always valid, unlike order_token)
+ * - Form POST is the official Cashfree server-side redirect method
+ * - Works identically on ALL browsers (mobile + desktop)
  */
 async function openCashfreeCheckout(
   paymentSessionId: string,
@@ -209,57 +214,19 @@ async function openCashfreeCheckout(
   orderId: string,
   orderToken: string,
 ) {
-  const isProduction = env === 'production';
-  const onMobile = isMobileDevice();
-
   // Save order ID to localStorage so we can verify payment when user returns
   localStorage.setItem('pendingPaymentOrderId', orderId);
 
-  // ── MOBILE: Redirect to our server checkout page ────────────────────
-  // This is the MOST RELIABLE method on phones. Our checkout page loads
-  // the Cashfree JS SDK inline and uses payment_session_id (not order_token),
-  // which avoids the "Invalid Session ID" error.
-  if (onMobile) {
-    const params = new URLSearchParams({
-      session_id: paymentSessionId,
-      env: env,
-      order_id: orderId,
-      order_token: orderToken,
-    });
-    console.log('[Cashfree] Mobile detected — redirecting to server checkout page');
-    window.location.href = `/api/payments/checkout?${params.toString()}`;
-    return;
-  }
+  const onMobile = isMobileDevice();
+  console.log(`[Cashfree] Redirecting to server checkout page (device: ${onMobile ? 'mobile' : 'desktop'}, orderId: ${orderId})`);
 
-  // ── DESKTOP: Try Cashfree JS SDK v3 first (best for desktop) ──────
-  const sdkLoaded = await waitForCashfreeSDK(8000);
-  const win = window as Record<string, unknown>;
-
-  if (sdkLoaded && win.Cashfree) {
-    try {
-      const CF = win.Cashfree as (config: { mode: string }) => { checkout: (options: Record<string, string>) => void };
-      const cashfree = CF({ mode: isProduction ? 'production' : 'sandbox' });
-      console.log('[Cashfree] Using JS SDK v3 checkout (desktop)');
-      cashfree.checkout({
-        paymentSessionId: paymentSessionId,
-        redirectTarget: '_self',
-      });
-      return; // SDK handled it
-    } catch (sdkErr) {
-      console.warn('[Cashfree] JS SDK checkout failed, trying fallback:', sdkErr);
-    }
-  } else {
-    console.warn('[Cashfree] SDK not loaded after waiting, trying fallback');
-  }
-
-  // ── DESKTOP FALLBACK: Redirect to server checkout page ────────────
+  // ALL devices use the same reliable form POST checkout page
   const params = new URLSearchParams({
     session_id: paymentSessionId,
     env: env,
     order_id: orderId,
     order_token: orderToken,
   });
-  console.log('[Cashfree] Redirecting to server checkout page (desktop fallback)');
   window.location.href = `/api/payments/checkout?${params.toString()}`;
 }
 

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -47,11 +46,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        {/* Cashfree SDK - load before interactive so it's available when payment is needed */}
-        <Script
-          src="https://sdk.cashfree.com/js/v3/cashfree.js"
-          strategy="beforeInteractive"
-        />
+        {/*
+          NOTE: Cashfree JS SDK removed — we now use server-side form POST
+          to Cashfree's /pg/view/sessions/checkout endpoint which is more
+          reliable on mobile (no JS SDK loading issues, no "Invalid Session ID").
+        */}
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
