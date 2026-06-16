@@ -184,7 +184,7 @@ export default function FindTeamsScreen({ onBack }: FindTeamsScreenProps) {
       initial={{ x: 20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -20, opacity: 0 }}
-      className="min-h-screen bg-gradient-to-b from-warm-50 to-white dark:from-warm-800 dark:to-warm-900"
+      className="fixed inset-0 z-50 bg-gradient-to-b from-warm-50 to-white dark:from-warm-800 dark:to-warm-900 overflow-y-auto"
     >
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white/90 dark:bg-warm-800/90 backdrop-blur-md border-b border-warm-200 dark:border-warm-700">

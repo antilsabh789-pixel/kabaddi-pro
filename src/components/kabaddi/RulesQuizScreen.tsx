@@ -544,7 +544,7 @@ export default function RulesQuizScreen({ onBack }: RulesQuizScreenProps) {
   // ─── Main Render ──────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="fixed inset-0 z-50 bg-background overflow-y-auto">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex items-center gap-3 p-4">

@@ -104,7 +104,6 @@ import HeadToHeadScreen from './HeadToHeadScreen';
 import MatchCommentsScreen from './MatchCommentsScreen';
 import MatchPhotoGalleryScreen from './MatchPhotoGalleryScreen';
 import MatchReportScreen from './MatchReportScreen';
-import FindPlayersScreen from './FindPlayersScreen';
 import FindTeamsScreen from './FindTeamsScreen';
 import TournamentMapScreen from './TournamentMapScreen';
 import SmartTeamSuggestionsScreen from './SmartTeamSuggestionsScreen';
@@ -638,7 +637,6 @@ export default function HomeTab() {
   const [photosMatchId, setPhotosMatchId] = useState<string | null>(null);
   const [showMatchReport, setShowMatchReport] = useState(false);
   const [reportMatchId, setReportMatchId] = useState<string | null>(null);
-  const [showFindPlayers, setShowFindPlayers] = useState(false);
   const [showFindTeams, setShowFindTeams] = useState(false);
   const [showTournamentMap, setShowTournamentMap] = useState(false);
   const [showTeamSuggestions, setShowTeamSuggestions] = useState(false);
@@ -1266,9 +1264,6 @@ export default function HomeTab() {
       )}
       {showMatchReport && reportMatchId && (
         <MatchReportScreen matchId={reportMatchId} onBack={() => { setShowMatchReport(false); setReportMatchId(null); }} />
-      )}
-      {showFindPlayers && (
-        <FindPlayersScreen onBack={() => setShowFindPlayers(false)} />
       )}
       {showFindTeams && (
         <FindTeamsScreen onBack={() => setShowFindTeams(false)} />
@@ -3049,25 +3044,8 @@ export default function HomeTab() {
           <Badge className="bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-[9px] border-0 font-bold px-1.5 py-0">NEW</Badge>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {/* Find Players */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-green-50/80 to-warm-50 dark:from-green-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowFindPlayers(true)}>
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-green-500 to-green-500/40" />
-              <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500/30 to-green-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-green-500/20 transition-shadow">
-                  <Navigation className="w-4.5 h-4.5 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Find Players</p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Nearby kabaddi players</p>
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-
           {/* Find Teams */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-blue-50/80 to-warm-50 dark:from-blue-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowFindTeams(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -3084,7 +3062,7 @@ export default function HomeTab() {
           </motion.div>
 
           {/* Tournament Map */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-amber-50/80 to-warm-50 dark:from-amber-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTournamentMap(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-amber-500 to-amber-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -3101,7 +3079,7 @@ export default function HomeTab() {
           </motion.div>
 
           {/* Smart Suggestions */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-violet-50/80 to-warm-50 dark:from-violet-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTeamSuggestions(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-violet-500 to-violet-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -3118,7 +3096,7 @@ export default function HomeTab() {
           </motion.div>
 
           {/* Rules Quiz */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-cyan-50/80 to-warm-50 dark:from-cyan-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowRulesQuiz(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-500 to-cyan-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -3135,7 +3113,7 @@ export default function HomeTab() {
           </motion.div>
 
           {/* Technique Tutorials */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-indigo-50/80 to-warm-50 dark:from-indigo-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowTechniqueTutorials(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -3152,7 +3130,7 @@ export default function HomeTab() {
           </motion.div>
 
           {/* Percentile Rankings */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-rose-50/80 to-warm-50 dark:from-rose-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowPercentileRankings(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-rose-500 to-rose-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -3169,7 +3147,7 @@ export default function HomeTab() {
           </motion.div>
 
           {/* Win Rate */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-orange-50/80 to-warm-50 dark:from-orange-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowPlayerWinRate(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-500 to-orange-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -3186,7 +3164,7 @@ export default function HomeTab() {
           </motion.div>
 
           {/* Leaderboard Seasons */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowLeaderboardSeasons(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-teal-500 to-teal-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
