@@ -12,7 +12,7 @@ export const API_BASE: string = (import.meta.env.VITE_API_BASE_URL || "").replac
 
 // Prefix a relative "/api/..." path with API_BASE when configured.
 export function apiUrl(path: string): string {
-  if (API_BASE && path.startsWith("/api")) {
+  if (API_BASE && path.startsWith("/api/")) {
     return API_BASE + path;
   }
   return path;
@@ -30,17 +30,17 @@ export function installApiFetchInterceptor(): void {
   const originalFetch = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     if (typeof input === "string") {
-      if (input.startsWith("/api")) {
+      if (input.startsWith("/api/")) {
         return originalFetch(API_BASE + input, init);
       }
     } else if (input instanceof URL) {
-      if (input.origin === window.location.origin && input.pathname.startsWith("/api")) {
+      if (input.origin === window.location.origin && input.pathname.startsWith("/api/")) {
         return originalFetch(API_BASE + input.pathname + input.search, init);
       }
     } else if (input instanceof Request) {
       try {
         const u = new URL(input.url);
-        if (u.origin === window.location.origin && u.pathname.startsWith("/api")) {
+        if (u.origin === window.location.origin && u.pathname.startsWith("/api/")) {
           return originalFetch(new Request(API_BASE + u.pathname + u.search, input), init);
         }
       } catch {
