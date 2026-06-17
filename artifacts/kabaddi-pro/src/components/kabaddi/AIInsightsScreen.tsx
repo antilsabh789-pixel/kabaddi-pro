@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   X, Brain, Sparkles, TrendingUp, BarChart3,
   AlertTriangle, Lightbulb, Loader2,
@@ -70,7 +70,7 @@ const INSIGHT_TYPE_CONFIG: Record<string, {
 
 // ─── Animation Variants ──────────────────────────────────────────
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -78,7 +78,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 16, scale: 0.97 },
   visible: {
     opacity: 1,

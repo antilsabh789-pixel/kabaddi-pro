@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home as HomeIcon, Trophy, PlusCircle, User, Crown, Bell } from 'lucide-react';
+import { Home as HomeIcon, Trophy, PlusCircle, User, Crown } from 'lucide-react';
 import { useKabaddiStore } from '@/lib/store';
 import { t } from '@/lib/i18n';
 
@@ -10,7 +10,6 @@ interface BottomNavProps {
   activeTab: string;
   setActiveTab: (tab: 'home' | 'tournaments' | 'quick-score' | 'profile') => void;
   hasLiveMatch: boolean;
-  onNotificationOpen?: () => void;
 }
 
 // Ripple effect component for tab press
@@ -38,9 +37,8 @@ const tabs = [
   { id: 'profile' as const, labelKey: 'nav.profile', icon: User, ariaLabel: 'Profile tab' },
 ];
 
-export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNotificationOpen }: BottomNavProps) {
+export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: BottomNavProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const notifications = useKabaddiStore((s) => s.notifications);
   const language = useKabaddiStore((s) => s.language);
   const isPremium = currentUser?.isPremium || false;
 
@@ -50,8 +48,6 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
   const navRef = useRef<HTMLElement>(null);
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
   // Clear ripples after animation
   useEffect(() => {
     if (ripples.length > 0) {
@@ -60,7 +56,8 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
       }, 600);
       return () => clearTimeout(timer);
     }
-  }, [ripples]);
+  
+    return undefined;}, [ripples]);
 
   // Auto-hide live tooltip
   useEffect(() => {
@@ -72,7 +69,8 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
         if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
       };
     }
-  }, [showLiveTooltip, tooltipDismissed]);
+  
+    return undefined;}, [showLiveTooltip, tooltipDismissed]);
 
   const handleTabClick = useCallback(
     (tabId: 'home' | 'tournaments' | 'quick-score' | 'profile', e: React.MouseEvent<HTMLButtonElement>) => {
@@ -318,18 +316,6 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
                         strokeWidth={isActive ? 2.5 : 2}
                       />
 
-                      {/* Notification badge on Home tab - enhanced with prominent pulse */}
-                      {tab.id === 'home' && unreadCount > 0 && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className={`absolute -top-1.5 -right-2 min-w-[18px] h-[18px] rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-brand-red/40 badge-pulse-prominent`}
-                          aria-label={`${unreadCount} unread notifications`}
-                        >
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </motion.div>
-                      )}
-
                       {/* Premium crown indicator on Profile tab - enhanced */}
                       {isProfile && isPremium && (
                         <motion.div
@@ -378,34 +364,6 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, onNot
               </motion.button>
             );
           })}
-
-          {/* Notification Bell Button - Enhanced with shake and glow */}
-          {onNotificationOpen && (
-            <motion.button
-              className="absolute top-1 right-1 flex items-center justify-center w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-200/20 transition-colors hover:bg-warm-200 dark:hover:bg-warm-200/30"
-              onClick={onNotificationOpen}
-              whileTap={{ scale: 0.85 }}
-              aria-label={`Notifications${unreadCount > 0 ? ` - ${unreadCount} unread` : ''}`}
-            >
-              <motion.div
-                animate={unreadCount > 0 ? { rotate: [0, -15, 15, -10, 10, 0] } : {}}
-                transition={{ duration: 0.5, repeat: unreadCount > 0 ? 3 : 0, ease: 'easeInOut', repeatDelay: 5 }}
-              >
-                <Bell className={`w-4 h-4 ${unreadCount > 0 ? 'text-brand-red' : 'text-warm-400 dark:text-warm-500'}`} />
-              </motion.div>
-
-              {/* Notification counter badge - enhanced with glow */}
-              {unreadCount > 0 && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 rounded-full bg-brand-red text-white text-[8px] font-bold flex items-center justify-center px-0.5 shadow-md shadow-brand-red/30"
-                >
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </motion.div>
-              )}
-            </motion.button>
-          )}
         </div>
       </div>
     </nav>

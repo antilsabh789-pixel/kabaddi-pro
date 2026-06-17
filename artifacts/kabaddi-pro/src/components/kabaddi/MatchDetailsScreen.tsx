@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useKabaddiStore, type EventType } from '@/lib/store';
+import { mockMatchDetails } from '@/lib/mockData';
 import ShareScorecard from './ShareScorecard';
 import MatchHighlightsScreen from './MatchHighlightsScreen';
 import MatchReplayScreen from './MatchReplayScreen';
@@ -160,8 +161,15 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
     setError(null);
     try {
       const res = await fetch(`/api/matches?id=${encodeURIComponent(matchId)}`);
-      if (!res.ok) throw new Error('Match not found');
-      const data = await res.json();
+      let data: { match: MatchData };
+      if (res.status === 404) {
+        // Backend not mounted — use mock data so the screen renders
+        data = mockMatchDetails(matchId) as unknown as { match: MatchData };
+      } else if (!res.ok) {
+        throw new Error('Match not found');
+      } else {
+        data = await res.json();
+      }
       setMatch(data.match as MatchData);
     } catch (err) {
       console.error('Match details fetch error:', err);
@@ -190,7 +198,8 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
     }
     setPrevHomeScore(match.homeScore);
     setPrevAwayScore(match.awayScore);
-  }, [match?.homeScore, match?.awayScore, prevHomeScore, prevAwayScore]);
+  
+    return undefined;}, [match?.homeScore, match?.awayScore, prevHomeScore, prevAwayScore]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const homeColor = match?.homeTeam?.color || '#DC2626';

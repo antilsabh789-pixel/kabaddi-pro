@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, Variants } from 'framer-motion';
 import {
   X, Download, Users, Swords, Trophy, Calendar,
   FileSpreadsheet, Loader2, CheckCircle,
@@ -74,7 +74,7 @@ const EXPORT_OPTIONS: ExportOption[] = [
 
 // ─── Animation ────────────────────────────────────────────────────
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -82,7 +82,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 16, scale: 0.97 },
   visible: {
     opacity: 1,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   X, BarChart3, Swords, Shield, Star, Zap, MapPin,
   Trophy, Target, Activity, TrendingUp, TrendingDown,
@@ -59,7 +59,7 @@ type GenderFilter = 'all' | 'male' | 'female';
 
 // ─── Animation variants ──────────────────────────────────────────
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -67,7 +67,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 16, scale: 0.98 },
   visible: {
     opacity: 1,

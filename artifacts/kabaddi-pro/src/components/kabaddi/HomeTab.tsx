@@ -115,6 +115,7 @@ import TotalPlayersBanner from './TotalPlayersBanner';
 import PopularPlayersSection from './PopularPlayersSection';
 import PlayerProfileScreen from './PlayerProfileScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
+import { mockLeaderboard } from '@/lib/mockData';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -329,7 +330,8 @@ function NumberTicker({ value }: { value: number }) {
       const t4 = setTimeout(() => setFlash(false), 600);
       return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
     }
-  }, [value]);
+  
+    return undefined;}, [value]);
 
   return (
     <span className={`${animating ? 'number-ticker' : ''} ${flash ? 'score-change-flash' : ''}`} key={`${value}-${animating}`}>
@@ -358,7 +360,8 @@ function ConfettiParticles({ trigger }: { trigger: number }) {
       const t2 = setTimeout(() => setParticles([]), 900);
       return () => { clearTimeout(t1); clearTimeout(t2); };
     }
-  }, [trigger]);
+  
+    return undefined;}, [trigger]);
 
   return (
     <>
@@ -820,7 +823,9 @@ export default function HomeTab() {
   };
 
   const handleAwardClick = (player: AwardPlayer) => {
-    openPlayerProfile(player.id);
+    if (player.playerId) {
+      openPlayerProfile(player.playerId);
+    }
   };
 
   const handleCopyPlayerCode = () => {
@@ -1297,9 +1302,11 @@ export default function HomeTab() {
             {/* Logo with animated glow */}
             <div className="relative">
               <div className="absolute inset-0 rounded-lg bg-brand-red/30 blur-md animate-pulse" />
-              <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-brand-red via-brand-red-dark to-brand-navy flex items-center justify-center shadow-lg shadow-brand-red/30">
-                <Trophy className="w-4.5 h-4.5 text-white" />
-              </div>
+              <img
+                src="/app-icon.png"
+                alt="Kabaddi Pro"
+                className="relative w-9 h-9 rounded-lg object-cover shadow-lg shadow-brand-red/30"
+              />
             </div>
             <h1 className="text-base font-black tracking-wider">
               <span className="bg-gradient-to-r from-brand-red via-brand-red-light to-brand-gold bg-clip-text text-transparent">
@@ -3401,17 +3408,27 @@ function LeaderboardPreviewCard({ rank, category, onClickPlayer }: { rank: numbe
     async function fetchPreview() {
       try {
         const res = await fetch(`/api/leaderboard?category=${category}&limit=3`);
-        if (!res.ok) return;
-        const data = await res.json();
+        let data: any;
+        if (res.status === 404) {
+          // Backend not mounted — use mock data so leaderboard cards render
+          data = mockLeaderboard(category, 3);
+        } else if (!res.ok) {
+          return;
+        } else {
+          data = await res.json();
+        }
         const entry = data.leaderboard?.[rank - 1];
         if (entry) {
+          // The mock entries don't have stat/statLabel fields, so compute them
+          const stat = entry.raidPoints ?? entry.totalPoints ?? 0;
+          const statLabel = category === 'raider' ? 'raid pts' : category === 'defender' ? 'tackle pts' : 'points';
           setPlayer({
             userId: entry.userId,
             name: entry.name,
             avatar: entry.avatar,
-            stat: entry.stat,
-            statLabel: entry.statLabel,
-            teamNames: entry.teamNames,
+            stat,
+            statLabel,
+            teamNames: entry.teamNames || [],
           });
         }
       } catch {

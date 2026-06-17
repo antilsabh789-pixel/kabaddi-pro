@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   X, Gift, Copy, Share2, Users, Crown, Check, Loader2,
   MessageCircle, Twitter, Link2, Sparkles, ChevronRight,
@@ -33,7 +33,7 @@ interface ReferralInfo {
 
 // ─── Animation variants ──────────────────────────────────────────
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -41,7 +41,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 16, scale: 0.97 },
   visible: {
     opacity: 1,

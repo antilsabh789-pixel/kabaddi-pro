@@ -140,7 +140,6 @@ export default function ImageCropDialog({
               crop={crop}
               zoom={zoom}
               aspect={aspectRatio}
-              circularCrop={circularCrop}
               onCropChange={onCropChange}
               onZoomChange={onZoomChange}
               onCropComplete={handleCropComplete}

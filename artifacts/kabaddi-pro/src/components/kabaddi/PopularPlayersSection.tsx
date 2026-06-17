@@ -6,6 +6,7 @@ import { Trophy, Users, Star, MapPin, ChevronRight, Flame, Crown, Zap, Loader2 }
 import { useKabaddiStore, type Language } from '@/lib/store';
 import { t } from '@/lib/i18n';
 import { useToast } from '@/hooks/use-toast';
+import { mockPopularPlayers } from '@/lib/mockData';
 
 interface PopularPlayer {
   rank: number;
@@ -141,12 +142,19 @@ export default function PopularPlayersSection({ onViewProfile }: { onViewProfile
       try {
         const userId = currentUser?.id || '';
         const res = await fetch(`/api/popular-players?limit=10&userId=${userId}`);
+        if (res.status === 404) {
+          // Backend not mounted — use mock players so the section renders
+          setPlayers(mockPopularPlayers(10).players as unknown as PopularPlayer[]);
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           setPlayers(data.players || []);
         }
       } catch (err) {
         console.error('Error fetching popular players:', err);
+        // Last-resort fallback: still show mock data
+        setPlayers(mockPopularPlayers(10).players as unknown as PopularPlayer[]);
       } finally {
         setLoading(false);
       }

@@ -20,6 +20,7 @@ import LiveCommentaryTicker, {
 } from './LiveCommentaryTicker';
 import { type MatchEvent, type EventType } from '@/lib/store';
 import { generateCommentary, type CommentaryExtras } from '@/lib/commentary';
+import { mockMatchEvents } from '@/lib/mockData';
 
 // ─── Props ──────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ interface MatchEventAPI {
   details?: string;
   half: number;
   timestamp: number;
+  playerName?: string;
 }
 
 interface MatchPlayerAPI {
@@ -281,7 +283,8 @@ function AnimatedScore({ value, color, size = 'large' }: { value: number; color:
       prevValueRef.current = value;
       return () => clearInterval(interval);
     }
-  }, [value, displayValue]);
+  
+    return undefined;}, [value, displayValue]);
 
   const textSize = size === 'large' ? 'text-5xl' : 'text-3xl';
 
@@ -1293,8 +1296,16 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
   const fetchMatchData = useCallback(async () => {
     try {
       const res = await fetch(`/api/match-events?matchId=${matchId}`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data: MatchEventsAPIResponse = await res.json();
+      let data: MatchEventsAPIResponse;
+      if (res.status === 404) {
+        // Backend not mounted — use mock data so the screen renders instead
+        // of staying stuck on the loading spinner forever.
+        data = mockMatchEvents(matchId) as unknown as MatchEventsAPIResponse;
+      } else if (!res.ok) {
+        throw new Error('Failed to fetch');
+      } else {
+        data = await res.json() as MatchEventsAPIResponse;
+      }
 
       setMatchData(data.match);
       setEvents(data.events);
@@ -1307,6 +1318,13 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
       setLoading(false);
     } catch (err) {
       console.error('Failed to fetch match data:', err);
+      // Last-resort fallback: still populate mock data so the UI isn't empty
+      const mock = mockMatchEvents(matchId) as unknown as MatchEventsAPIResponse;
+      setMatchData(mock.match);
+      setEvents(mock.events);
+      if (mock.match.currentHalf && mock.match.halfDuration) {
+        setTimerSeconds(mock.match.halfDuration * 60);
+      }
       setLoading(false);
     }
   }, [matchId]);
@@ -1383,6 +1401,7 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
   const storeEvents: MatchEvent[] = useMemo(() => {
     return events.map((e) => ({
       ...e,
+      eventType: e.eventType as EventType,
       playerName: e.playerName ?? undefined,
     }));
   }, [events]);

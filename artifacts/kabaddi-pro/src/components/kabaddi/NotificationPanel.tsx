@@ -489,7 +489,8 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [addNotification, notifications.length]);
+  
+    return undefined;}, [addNotification, notifications.length]);
 
   const handleMarkRead = useCallback(
     (id: string) => {

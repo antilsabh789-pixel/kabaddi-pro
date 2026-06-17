@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   ChevronLeft,
   Calendar,
@@ -91,7 +91,7 @@ interface MatchItem {
 
 // ─── Animation variants ──────────────────────────────────────────
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -99,7 +99,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 16, scale: 0.98 },
   visible: {
     opacity: 1,
@@ -109,7 +109,7 @@ const itemVariants = {
   },
 };
 
-const filterPillVariants = {
+const filterPillVariants: Variants = {
   inactive: { scale: 1 },
   active: { scale: 1.05, transition: { type: 'spring', stiffness: 400, damping: 20 } },
 };
@@ -1328,7 +1328,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
               Time
             </span>
-            <FilterPill
+            <FilterPill<DateFilter>
               options={[
                 { label: 'All Time', value: 'all' as DateFilter },
                 { label: 'This Week', value: 'week' as DateFilter },
@@ -1345,7 +1345,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
               Result
             </span>
-            <FilterPill
+            <FilterPill<ResultFilter>
               options={[
                 { label: 'All', value: 'all' as ResultFilter },
                 { label: 'Won', value: 'won' as ResultFilter },
@@ -1362,7 +1362,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
               Type
             </span>
-            <FilterPill
+            <FilterPill<TypeFilter>
               options={[
                 { label: 'All', value: 'all' as TypeFilter },
                 { label: 'Tournament', value: 'tournament' as TypeFilter },
@@ -1378,7 +1378,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
               Gender
             </span>
-            <FilterPill
+            <FilterPill<GenderFilter>
               options={[
                 { label: 'All', value: 'all' as GenderFilter },
                 { label: '♂ Boys', value: 'boys' as GenderFilter },
@@ -1394,7 +1394,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-10 shrink-0">
               Sort
             </span>
-            <FilterPill
+            <FilterPill<SortFilter>
               options={[
                 { label: 'Newest', value: 'newest' as SortFilter },
                 { label: 'Oldest', value: 'oldest' as SortFilter },

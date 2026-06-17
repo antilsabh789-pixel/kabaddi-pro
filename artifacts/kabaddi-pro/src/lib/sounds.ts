@@ -79,18 +79,20 @@ function playSweep(
   duration: number,
   type: OscillatorType = 'sine',
   volume: number = 0.3,
+  startTime?: number,
 ) {
+  const t = startTime ?? ctx.currentTime;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = type;
-  osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
-  osc.frequency.linearRampToValueAtTime(endFreq, ctx.currentTime + duration);
-  gain.gain.setValueAtTime(volume, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+  osc.frequency.setValueAtTime(startFreq, t);
+  osc.frequency.linearRampToValueAtTime(endFreq, t + duration);
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
   osc.connect(gain);
   gain.connect(ctx.destination);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + duration);
+  osc.start(t);
+  osc.stop(t + duration);
 }
 
 /** Play sound for a given event type */

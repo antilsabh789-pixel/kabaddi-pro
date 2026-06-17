@@ -345,10 +345,10 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
   ], [raidPoints, tacklePoints, profile?.bonusPoints, profile?.superTackles]);
 
   const raidSuccessRate = (profile?.totalRaids || 0) > 0
-    ? ((profile?.successfulRaids || 0) / profile.totalRaids) * 100
+    ? ((profile?.successfulRaids || 0) / (profile?.totalRaids || 1)) * 100
     : 0;
   const tackleSuccessRate = (profile?.totalTackles || 0) > 0
-    ? ((profile?.successfulTackles || 0) / profile.totalTackles) * 100
+    ? ((profile?.successfulTackles || 0) / (profile?.totalTackles || 1)) * 100
     : 0;
 
   // Static icon renderer for performance bars
@@ -1027,7 +1027,7 @@ export default function PlayerProfileCard({ player: playerProp, profile: profile
                     <Link2 className="w-4 h-4 text-brand-teal" />
                     <span className="text-xs font-medium text-warm-800 dark:text-warm-700">Copy Link</span>
                   </button>
-                  {typeof navigator !== 'undefined' && navigator.share && (
+                  {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
                     <button
                       onClick={handleWebShare}
                       className="w-full flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-warm-200 dark:hover:bg-warm-300 transition-colors text-left"

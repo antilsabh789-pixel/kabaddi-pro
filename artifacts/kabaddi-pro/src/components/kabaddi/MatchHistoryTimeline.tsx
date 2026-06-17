@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   Swords, Clock, Calendar, Trophy, ChevronRight,
   TrendingUp, TrendingDown, Minus, Zap, Shield,
@@ -113,7 +113,7 @@ function getResultIcon(result: MatchResult) {
 
 // ─── Stagger animation variants ──────────────────────────────────
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -121,7 +121,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 12, scale: 0.97 },
   show: {
     opacity: 1, y: 0, scale: 1,
@@ -151,7 +151,7 @@ export default function MatchHistoryTimeline({
 
   // Compute results for all matches
   const matchesWithResults = useMemo(
-    () => matches.map((m) => ({ ...m, result: getMatchResult(m) })),
+    () => matches.map((m): TimelineMatch & { result: MatchResult } => ({ ...m, result: getMatchResult(m) })),
     [matches]
   );
 
@@ -175,7 +175,8 @@ export default function MatchHistoryTimeline({
 
   // Group matches by date
   const groupedByDate = useMemo(() => {
-    const groups: Record<string, TimelineMatch[]> = {};
+    type MatchWithResult = TimelineMatch & { result: MatchResult };
+    const groups: Record<string, MatchWithResult[]> = {};
     filteredMatches.slice(0, 10).forEach((match) => {
       const dateKey = match.date || 'Unknown';
       if (!groups[dateKey]) groups[dateKey] = [];

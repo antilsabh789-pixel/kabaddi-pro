@@ -747,7 +747,7 @@ export default function TeamChatScreen({ onClose }: TeamChatScreenProps) {
       </div>
 
       {/* ─── Custom Scrollbar Styles ────────────────────────────── */}
-      <style jsx global>{`
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 4px;
         }

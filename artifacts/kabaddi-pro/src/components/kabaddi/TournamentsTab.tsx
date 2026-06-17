@@ -1150,11 +1150,15 @@ export default function TournamentsTab() {
           <div>
             <div className="flex items-center gap-2.5">
               <motion.div
-                className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg"
+                className="w-10 h-10 rounded-xl overflow-hidden shadow-lg ring-2 ring-white/20"
                 animate={{ rotate: [0, -5, 5, 0] }}
                 transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               >
-                <Trophy className="w-5 h-5 text-brand-gold-light" />
+                <img
+                  src="/app-icon.png"
+                  alt="Kabaddi Pro"
+                  className="w-full h-full object-cover"
+                />
               </motion.div>
               <h1 className="text-xl font-extrabold text-white tracking-tight">
                 Tournaments

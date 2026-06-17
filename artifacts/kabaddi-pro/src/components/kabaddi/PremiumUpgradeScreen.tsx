@@ -175,7 +175,7 @@ const VALID_COUPONS: Record<string, { discount: number; label: string }> = {
  */
 function waitForCashfreeSDK(timeoutMs = 8000): Promise<boolean> {
   return new Promise((resolve) => {
-    const win = window as Record<string, unknown>;
+    const win = window as unknown as Record<string, unknown>;
     if (win.Cashfree) {
       resolve(true);
       return;

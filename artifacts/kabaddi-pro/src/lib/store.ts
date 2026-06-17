@@ -836,6 +836,14 @@ export const useKabaddiStore = create<KabaddiState>()(
       fetchHomeData: async () => {
         try {
           const res = await fetch('/api/stats');
+          if (res.status === 404) {
+            // Backend not mounted — use mock data so the home page renders
+            // populated sections (Popular Players, Leaderboard, Awards, etc.).
+            const { mockStats } = await import('./mockData');
+            const mock = mockStats() as unknown as HomeData;
+            set({ homeData: mock });
+            return mock;
+          }
           if (!res.ok) throw new Error('Failed to fetch stats');
 
           const data = await res.json();
@@ -845,7 +853,15 @@ export const useKabaddiStore = create<KabaddiState>()(
           return data;
         } catch (err) {
           console.error('fetchHomeData error:', err);
-          return null;
+          // Last-resort fallback: still return mock data so the UI isn't empty
+          try {
+            const { mockStats } = await import('./mockData');
+            const mock = mockStats() as unknown as HomeData;
+            set({ homeData: mock });
+            return mock;
+          } catch {
+            return null;
+          }
         }
       },
 

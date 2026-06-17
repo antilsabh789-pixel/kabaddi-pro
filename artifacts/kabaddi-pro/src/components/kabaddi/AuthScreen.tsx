@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   Trophy, Shield, Megaphone, ChevronRight, ArrowLeft,
   Phone, Eye, EyeOff, User, Lock, Weight, MapPin,
@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useKabaddiStore } from '@/lib/store';
+import { authRequest } from '@/lib/authClient';
 
 type Stage = 'auth' | 'role' | 'details';
 type ForgotStage = 'verify' | 'new-password' | 'success';
@@ -38,7 +39,7 @@ const roles = [
   },
 ] as const;
 
-const slideVariants = {
+const slideVariants: Variants = {
   enter: (direction: number) => ({
     x: direction > 0 ? 300 : -300,
     opacity: 0,
@@ -364,12 +365,8 @@ export default function AuthScreen() {
     }
     setPhoneChecking(true);
     try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check-phone', phone: `+91${phoneVal}` }),
-      });
-      const data = await res.json();
+      const res = await authRequest({ action: 'check-phone', phone: `+91${phoneVal}` });
+      const data = res.data;
       setPhoneExists(data.exists === true);
     } catch {
       // Silently fail - don't block signup
@@ -435,19 +432,15 @@ export default function AuthScreen() {
     const dateOfBirth = formatDOB(dobDay, dobMonth, dobYear);
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'register',
-          phone: `+91${phone}`,
-          name: name.trim(),
-          password,
-          dateOfBirth,
-        }),
+      const res = await authRequest({
+        action: 'register',
+        phone: `+91${phone}`,
+        name: name.trim(),
+        password,
+        dateOfBirth,
       });
 
-      const data = await res.json();
+      const data = res.data;
       if (!res.ok) {
         setError(data.error || 'Registration failed');
         return;
@@ -499,17 +492,13 @@ export default function AuthScreen() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: `+91${phone}`,
-          password,
-          action: 'login',
-        }),
+      const res = await authRequest({
+        phone: `+91${phone}`,
+        password,
+        action: 'login',
       });
 
-      const data = await res.json();
+      const data = res.data;
       if (!res.ok) {
         setError(data.error || 'Authentication failed');
         return;
@@ -563,17 +552,13 @@ export default function AuthScreen() {
 
     const currentUser = useKabaddiStore.getState().currentUser;
     if (currentUser?.id) {
-      fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          action: 'update-details',
-          gender: !isCoach ? (gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender) : undefined,
-          weight: !isCoach && weight ? `${weight.replace(/kg$/i, '')}kg` : undefined,
-          practiceGround: practiceGround || undefined,
-          location: isCoach ? coachLocation || undefined : undefined,
-        }),
+      authRequest({
+        userId: currentUser.id,
+        action: 'update-details',
+        gender: !isCoach ? (gender === 'boy' ? 'male' : gender === 'girl' ? 'female' : gender) : undefined,
+        weight: !isCoach && weight ? `${weight.replace(/kg$/i, '')}kg` : undefined,
+        practiceGround: practiceGround || undefined,
+        location: isCoach ? coachLocation || undefined : undefined,
       }).catch(() => {});
 
       if (!isCoach && position) {
@@ -603,14 +588,10 @@ export default function AuthScreen() {
     try {
       const currentUser = useKabaddiStore.getState().currentUser;
       if (currentUser?.id) {
-        await fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: currentUser.id,
-            action: 'update-details',
-            role: selectedRole,
-          }),
+        await authRequest({
+          userId: currentUser.id,
+          action: 'update-details',
+          role: selectedRole,
         });
         useKabaddiStore.getState().updateUser({ role: selectedRole });
       }
@@ -636,16 +617,12 @@ export default function AuthScreen() {
     const dateOfBirth = formatDOB(forgotDobDay, forgotDobMonth, forgotDobYear);
     setForgotSubmitting(true);
     try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'forgot-password-verify',
-          phone: `+91${forgotPhone}`,
-          dateOfBirth,
-        }),
+      const res = await authRequest({
+        action: 'forgot-password-verify',
+        phone: `+91${forgotPhone}`,
+        dateOfBirth,
       });
-      const data = await res.json();
+      const data = res.data;
       if (!res.ok) {
         setForgotError(data.error || 'Verification failed');
         return;
@@ -672,17 +649,13 @@ export default function AuthScreen() {
     }
     setForgotSubmitting(true);
     try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'reset-password',
-          phone: `+91${forgotPhone}`,
-          password: newPassword,
-          verificationToken: forgotVerificationToken,
-        }),
+      const res = await authRequest({
+        action: 'reset-password',
+        phone: `+91${forgotPhone}`,
+        password: newPassword,
+        verificationToken: forgotVerificationToken,
       });
-      const data = await res.json();
+      const data = res.data;
       if (!res.ok) {
         setForgotError(data.error || 'Failed to reset password');
         return;
@@ -1073,6 +1046,25 @@ export default function AuthScreen() {
                     />
                   ))}
                 </div>
+
+                {/* App Logo (shown on auth stage) */}
+                {stage === 'auth' && (
+                  <div className="flex justify-center mb-5">
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                      className="relative"
+                    >
+                      <div className="absolute inset-0 rounded-2xl bg-brand-red/30 blur-lg animate-pulse" />
+                      <img
+                        src="/app-icon.png"
+                        alt="Kabaddi Pro"
+                        className="relative w-20 h-20 rounded-2xl object-cover shadow-xl shadow-brand-red/30 ring-2 ring-white/40"
+                      />
+                    </motion.div>
+                  </div>
+                )}
 
                 {/* ── LOGIN MODE ── */}
                 {!isSignUp && (

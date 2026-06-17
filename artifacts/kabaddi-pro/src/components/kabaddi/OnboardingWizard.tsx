@@ -118,22 +118,12 @@ function WelcomeStep() {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.2, type: 'spring', damping: 15, stiffness: 200 }}
       >
-        <div className="w-32 h-32 rounded-3xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-2xl">
-          <div className="relative">
-            <motion.div
-              animate={{ rotate: [0, 10, -10, 0] }}
-              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-            >
-              <Swords className="w-16 h-16 text-brand-gold" />
-            </motion.div>
-            <motion.div
-              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-brand-red flex items-center justify-center"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            >
-              <Flame className="w-3 h-3 text-white" />
-            </motion.div>
-          </div>
+        <div className="w-32 h-32 rounded-3xl overflow-hidden border border-white/20 shadow-2xl ring-2 ring-white/10">
+          <img
+            src="/app-icon.png"
+            alt="Kabaddi Pro"
+            className="w-full h-full object-cover"
+          />
         </div>
         {/* Glow effect */}
         <div className="absolute inset-0 rounded-3xl bg-brand-gold/20 blur-2xl -z-10" />

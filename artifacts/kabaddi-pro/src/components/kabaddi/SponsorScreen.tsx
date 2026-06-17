@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   X, Briefcase, Plus, ExternalLink, Loader2,
   Crown, Gem, Award, Star, BarChart3,
@@ -92,7 +92,7 @@ const TIER_ORDER = ['platinum', 'gold', 'silver', 'bronze'] as const;
 
 // ─── Animation ────────────────────────────────────────────────────
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -100,7 +100,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 14, scale: 0.97 },
   visible: {
     opacity: 1,

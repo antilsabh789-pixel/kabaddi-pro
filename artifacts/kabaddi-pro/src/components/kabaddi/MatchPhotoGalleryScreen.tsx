@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Camera, Upload, ZoomIn, ChevronLeft, ChevronRight,
-  Image as ImageIcon, Caption,
+  Image as ImageIcon, Captions,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

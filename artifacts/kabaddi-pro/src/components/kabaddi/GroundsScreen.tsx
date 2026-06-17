@@ -845,7 +845,7 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
                       <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-14 shrink-0">
                         Surface
                       </span>
-                      <FilterPill
+                      <FilterPill<SurfaceFilter>
                         options={[
                           { label: 'All', value: 'all' as SurfaceFilter },
                           { label: 'Mat', value: 'mat' as SurfaceFilter },
@@ -901,7 +901,7 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
                       <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider w-14 shrink-0">
                         Sort
                       </span>
-                      <FilterPill
+                      <FilterPill<SortOption>
                         options={[
                           { label: 'Newest', value: 'newest' as SortOption },
                           { label: 'Popular', value: 'popular' as SortOption },

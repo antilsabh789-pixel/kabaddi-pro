@@ -503,7 +503,6 @@ function ChallengeCard({
               <Button
                 onClick={() => onAccept(challenge.id)}
                 className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white h-9 text-xs font-bold rounded-xl shadow-sm"
-                whileTap={{ scale: 0.97 }}
               >
                 <Shield className="w-3.5 h-3.5 mr-1.5" />
                 Accept

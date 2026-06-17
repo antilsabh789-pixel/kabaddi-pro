@@ -458,7 +458,8 @@ export default function QuickScoreTab() {
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [homeTeamCode]);
+  
+    return undefined;}, [homeTeamCode]);
 
   useEffect(() => {
     if (!awayTeamCode.trim() || awayTeamCode.trim().length < 2) {
@@ -480,7 +481,8 @@ export default function QuickScoreTab() {
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [awayTeamCode]);
+  
+    return undefined;}, [awayTeamCode]);
 
   // Select a team (works for both home/away) — fetches roster and auto-populates lineup
   const selectTeam = async (team: UserTeam | { id: string; name: string; shortName: string | null; teamCode: string | null; color: string | null; memberCount?: number }, side: 'home' | 'away') => {

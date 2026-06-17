@@ -4,7 +4,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, ComponentType, ReactN
 import { motion, AnimatePresence } from 'framer-motion';
 import { useKabaddiStore } from '@/lib/store';
 import Portal from '@/components/portal';
-import { AlertTriangle, RefreshCw, MessageSquare } from 'lucide-react';
+import { AlertTriangle, RefreshCw, MessageSquare, Bell } from 'lucide-react';
 
 const SplashScreen = lazy(() => import('@/components/kabaddi/SplashScreen'));
 const AuthScreen = lazy(() => import('@/components/kabaddi/AuthScreen'));
@@ -209,8 +209,9 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding } =
+  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications } =
     useKabaddiStore();
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -394,6 +395,36 @@ export default function Home() {
       <Suspense fallback={<BrandedLoadingScreen />}>
         <div className="min-h-screen bg-warm-50 dark:bg-warm-900 flex flex-col">
           <OfflineIndicator />
+
+          {/* ─── Top-Right Notification Bell (fixed, above all tabs) ─── */}
+          {/* Hidden on Quick Score tab (scoring area) and during live match/toss */}
+          {activeTab !== 'quick-score' && !activeMatch?.isLive && !showToss && (
+          <motion.button
+            type="button"
+            onClick={() => setShowNotifications(true)}
+            whileTap={{ scale: 0.85 }}
+            aria-label={`Notifications${unreadCount > 0 ? ` - ${unreadCount} unread` : ''}`}
+            className="fixed top-3 right-3 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 dark:bg-warm-800/90 backdrop-blur-md shadow-lg shadow-black/10 hover:bg-white dark:hover:bg-warm-700 transition-colors border border-warm-200/60 dark:border-warm-700/60"
+          >
+            <motion.div
+              animate={unreadCount > 0 ? { rotate: [0, -15, 15, -10, 10, 0] } : {}}
+              transition={{ duration: 0.5, repeat: unreadCount > 0 ? 3 : 0, ease: 'easeInOut', repeatDelay: 5 }}
+            >
+              <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-brand-red' : 'text-warm-500 dark:text-warm-300'}`} />
+            </motion.div>
+
+            {unreadCount > 0 && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-brand-red/40 badge-pulse-prominent"
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </motion.div>
+            )}
+          </motion.button>
+          )}
+
           <main className="flex-1 overflow-y-auto pb-20">
             {activeTab === 'home' && <HomeTab />}
             {activeTab === 'tournaments' && <TournamentsTab />}
@@ -405,7 +436,6 @@ export default function Home() {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             hasLiveMatch={!!activeMatch?.isLive}
-            onNotificationOpen={() => setShowNotifications(true)}
           />
 
           <Portal>

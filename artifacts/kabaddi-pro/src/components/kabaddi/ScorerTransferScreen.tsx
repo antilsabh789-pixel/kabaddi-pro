@@ -69,7 +69,8 @@ export default function ScorerTransferScreen({ onClose, activeMatch }: ScorerTra
         if (timerRef.current) clearInterval(timerRef.current);
       };
     }
-  }, [transferCode, codeExpiry]);
+  
+    return undefined;}, [transferCode, codeExpiry]);
 
   const handleGenerateCode = useCallback(async () => {
     if (!activeMatch) return;

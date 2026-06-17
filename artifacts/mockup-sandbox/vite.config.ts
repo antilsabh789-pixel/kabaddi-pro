@@ -8,24 +8,18 @@ import { mockupPreviewPlugin } from "./mockupPreviewPlugin";
 const rawPort = process.env.PORT;
 
 if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  // Mockup sandbox is a Replit-internal preview tool; outside Replit it has
+  // no meaningful port. Default to 0 (auto-assign) so `vite build` doesn't
+  // crash when run outside the Replit mockup environment.
 }
 
-const port = Number(rawPort);
+const port = rawPort ? Number(rawPort) : 0;
 
-if (Number.isNaN(port) || port <= 0) {
+if (Number.isNaN(port) || port < 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
-
-if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
-}
+const basePath = process.env.BASE_PATH ?? "/";
 
 export default defineConfig({
   base: basePath,
