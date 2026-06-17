@@ -7,3 +7,4 @@
 - [Prisma + Postgres setup](prisma-postgres-setup.md) — api-server on Replit-managed Postgres via DATABASE_URL; build must run `prisma generate` (client externalized); publish migrates schema not data.
 - [Match schema drift](match-schema-drift.md) — match data shape mismatches to watch for.
 - [Git push workflow](git-push-workflow.md) — committing is blocked in main-agent bash; push needs a valid token in the URL.
+- [Legacy password scheme](legacy-password-scheme.md) — pre-bcrypt accounts use sha256(pw+'kabaddi_pro_salt'); verifyPassword must accept both + upgrade on login; seed users = demo123, phones lack +91.

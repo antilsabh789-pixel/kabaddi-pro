@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import { db } from '../lib/db';
 
 const router = Router();
@@ -11,8 +11,19 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
+// Legacy hashing scheme used by the original Next.js app / seed data.
+function legacyHashPassword(password: string): string {
+  return createHash('sha256').update(`${password}kabaddi_pro_salt`).digest('hex');
+}
+
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
   if (hash.startsWith('$2')) return bcrypt.compare(password, hash);
+  // Legacy SHA-256 (64 hex chars) accounts created before the bcrypt switch.
+  if (/^[a-f0-9]{64}$/i.test(hash)) {
+    const computed = Buffer.from(legacyHashPassword(password), 'hex');
+    const stored = Buffer.from(hash.toLowerCase(), 'hex');
+    return computed.length === stored.length && timingSafeEqual(computed, stored);
+  }
   return false;
 }
 
@@ -65,6 +76,10 @@ router.post('/auth', async (req, res) => {
       if (!user) return res.status(401).json({ error: 'Invalid phone number or password' });
       const passwordValid = await verifyPassword(password, user.password);
       if (!passwordValid) return res.status(401).json({ error: 'Invalid phone number or password' });
+      // Transparently upgrade legacy SHA-256 hashes to bcrypt on successful login.
+      if (!user.password.startsWith('$2')) {
+        await db.user.update({ where: { id: user.id }, data: { password: await hashPassword(password) } });
+      }
       const { password: _, profile: __, ...userWithoutPassword } = user;
       return res.json({ user: { ...userWithoutPassword, position: user.profile?.position || null, jerseyNumber: user.profile?.jerseyNumber || null } });
     }
