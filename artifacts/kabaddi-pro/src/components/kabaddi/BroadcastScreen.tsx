@@ -735,7 +735,7 @@ export default function BroadcastScreen({ onClose, matchId }: BroadcastScreenPro
                           <p className="text-[10px] text-warm-500 font-semibold uppercase">Raids</p>
                           <div className="flex items-center justify-center gap-2 mt-1">
                             <span className="text-sm font-bold text-brand-red-light">{data.stats.homeRaids}</span>
-                            <span className="text-warm-600">|</span>
+                            <span className="text-warm-600 dark:text-warm-300">|</span>
                             <span className="text-sm font-bold text-brand-teal-light">{data.stats.awayRaids}</span>
                           </div>
                         </div>
@@ -743,7 +743,7 @@ export default function BroadcastScreen({ onClose, matchId }: BroadcastScreenPro
                           <p className="text-[10px] text-warm-500 font-semibold uppercase">Tackles</p>
                           <div className="flex items-center justify-center gap-2 mt-1">
                             <span className="text-sm font-bold text-brand-red-light">{data.stats.homeTackles}</span>
-                            <span className="text-warm-600">|</span>
+                            <span className="text-warm-600 dark:text-warm-300">|</span>
                             <span className="text-sm font-bold text-brand-teal-light">{data.stats.awayTackles}</span>
                           </div>
                         </div>
@@ -751,7 +751,7 @@ export default function BroadcastScreen({ onClose, matchId }: BroadcastScreenPro
                           <p className="text-[10px] text-warm-500 font-semibold uppercase">Bonus</p>
                           <div className="flex items-center justify-center gap-2 mt-1">
                             <span className="text-sm font-bold text-brand-red-light">{data.stats.homeBonus}</span>
-                            <span className="text-warm-600">|</span>
+                            <span className="text-warm-600 dark:text-warm-300">|</span>
                             <span className="text-sm font-bold text-brand-teal-light">{data.stats.awayBonus}</span>
                           </div>
                         </div>
@@ -883,7 +883,7 @@ export default function BroadcastScreen({ onClose, matchId }: BroadcastScreenPro
 
               {/* Auto-refresh notice */}
               <motion.div variants={itemVariants} className="text-center pb-4">
-                <p className="text-[10px] text-warm-600 font-medium">
+                <p className="text-[10px] text-warm-600 dark:text-warm-300 font-medium">
                   <Shield className="w-3 h-3 inline mr-1" />
                   Spectator mode · Auto-refreshes every 10s
                 </p>

@@ -111,7 +111,7 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
   expired: {
     icon: AlertCircle,
     color: 'text-warm-400',
-    bg: 'bg-warm-50',
+    bg: 'bg-warm-50 dark:bg-warm-900',
     darkBg: 'dark:bg-warm-800/30',
     border: 'border-warm-200 dark:border-warm-700',
     label: 'Expired',

@@ -178,7 +178,7 @@ export default function AIInsightsScreen({ onClose, matchId }: AIInsightsScreenP
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      className="fixed inset-0 z-50 bg-warm-50 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto"
     >
       {/* ═══ Header ═══ */}
       <div className="sticky top-0 z-10 bg-gradient-to-r from-brand-navy to-brand-red">
@@ -231,7 +231,7 @@ export default function AIInsightsScreen({ onClose, matchId }: AIInsightsScreenP
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-32 bg-warm-100 rounded-xl animate-pulse" />
+                <div key={i} className="h-32 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse" />
               ))}
             </div>
           ) : insights.length === 0 ? (
@@ -241,7 +241,7 @@ export default function AIInsightsScreen({ onClose, matchId }: AIInsightsScreenP
                 <div className="w-16 h-16 rounded-full bg-brand-navy/10 flex items-center justify-center mx-auto mb-4">
                   <Brain className="w-8 h-8 text-brand-navy/40" />
                 </div>
-                <h3 className="text-warm-700 font-bold text-sm">No insights yet</h3>
+                <h3 className="text-warm-700 dark:text-warm-200 font-bold text-sm">No insights yet</h3>
                 <p className="text-warm-400 text-xs mt-1 max-w-[260px] mx-auto">
                   Generate one from a match! AI analyzes player form, patterns, and trends to deliver actionable insights.
                 </p>
@@ -292,14 +292,14 @@ export default function AIInsightsScreen({ onClose, matchId }: AIInsightsScreenP
                                 transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
                               />
                             </div>
-                            <span className="text-xs font-bold text-warm-700">
+                            <span className="text-xs font-bold text-warm-700 dark:text-warm-200">
                               {insight.confidence}%
                             </span>
                           </div>
                         </div>
 
                         {/* Content */}
-                        <p className="text-sm text-warm-800 leading-relaxed">
+                        <p className="text-sm text-warm-800 dark:text-warm-100 leading-relaxed">
                           {insight.content}
                         </p>
 

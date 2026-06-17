@@ -217,7 +217,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      className="fixed inset-0 z-50 bg-warm-50 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto"
     >
       {/* ═══ Header ═══ */}
       <div className="sticky top-0 z-10 bg-gradient-to-r from-brand-navy to-brand-navy-light">
@@ -251,12 +251,12 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
                   <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
                     <BarChart3 className="w-3.5 h-3.5 text-brand-teal" />
                   </div>
-                  <h2 className="text-xs font-black tracking-wider text-warm-800">OVERVIEW</h2>
+                  <h2 className="text-xs font-black tracking-wider text-warm-800 dark:text-warm-100">OVERVIEW</h2>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div className="text-center flex-1">
-                    <p className="text-2xl font-black text-warm-800">{totalSponsors}</p>
+                    <p className="text-2xl font-black text-warm-800 dark:text-warm-100">{totalSponsors}</p>
                     <p className="text-[10px] text-warm-500 font-semibold">Total</p>
                   </div>
                   {TIER_ORDER.map((tier) => {
@@ -267,7 +267,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
                         <div className={`w-7 h-7 rounded-lg ${config.badgeBg} flex items-center justify-center mx-auto mb-1`}>
                           <TierIcon className={`w-3.5 h-3.5 ${config.iconColor}`} />
                         </div>
-                        <p className="text-sm font-bold text-warm-700">{tierCounts[tier]}</p>
+                        <p className="text-sm font-bold text-warm-700 dark:text-warm-200">{tierCounts[tier]}</p>
                         <p className="text-[8px] text-warm-500 font-semibold uppercase">{tier}</p>
                       </div>
                     );
@@ -302,7 +302,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
               >
                 <Card className="border-brand-navy/20">
                   <CardContent className="p-4 space-y-3">
-                    <h3 className="font-bold text-warm-800 text-sm">New Sponsor</h3>
+                    <h3 className="font-bold text-warm-800 dark:text-warm-100 text-sm">New Sponsor</h3>
                     <Input
                       placeholder="Sponsor name *"
                       value={form.name}
@@ -324,7 +324,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
 
                     {/* Tier Selection */}
                     <div>
-                      <label className="text-xs font-semibold text-warm-600 mb-1.5 block">Tier</label>
+                      <label className="text-xs font-semibold text-warm-600 dark:text-warm-300 mb-1.5 block">Tier</label>
                       <div className="grid grid-cols-4 gap-2">
                         {TIER_ORDER.map((tier) => {
                           const config = TIER_CONFIG[tier];
@@ -395,7 +395,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 bg-warm-100 rounded-xl animate-pulse" />
+                <div key={i} className="h-24 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse" />
               ))}
             </div>
           ) : sponsors.length === 0 ? (
@@ -404,7 +404,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
                 <div className="w-16 h-16 rounded-full bg-brand-navy/10 flex items-center justify-center mx-auto mb-4">
                   <Briefcase className="w-8 h-8 text-brand-navy/40" />
                 </div>
-                <h3 className="text-warm-700 font-bold text-sm">No sponsors yet</h3>
+                <h3 className="text-warm-700 dark:text-warm-200 font-bold text-sm">No sponsors yet</h3>
                 <p className="text-warm-400 text-xs mt-1 max-w-[280px] mx-auto">
                   Add sponsors to monetize your tournaments!
                 </p>
@@ -423,7 +423,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
                   {/* Tier Header */}
                   <div className="flex items-center gap-2 mb-2">
                     <TierIcon className={`w-4 h-4 ${config.iconColor}`} />
-                    <h2 className="text-xs font-black tracking-wider text-warm-800 uppercase">
+                    <h2 className="text-xs font-black tracking-wider text-warm-800 dark:text-warm-100 uppercase">
                       {config.label}
                     </h2>
                     <Badge className={`${config.badgeBg} ${config.badgeText} text-[9px] font-bold border-0`}>
@@ -459,7 +459,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
                               </div>
 
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-warm-800 truncate">
+                                <p className="text-xs font-bold text-warm-800 dark:text-warm-100 truncate">
                                   {sponsor.name}
                                 </p>
                                 <Badge className={`${config.badgeBg} ${config.badgeText} text-[8px] font-bold border-0 mt-0.5`}>
@@ -473,7 +473,7 @@ export default function SponsorScreen({ onClose }: SponsorScreenProps) {
                                   href={sponsor.website}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="w-7 h-7 rounded-full bg-warm-100 flex items-center justify-center hover:bg-warm-200 transition-colors shrink-0"
+                                  className="w-7 h-7 rounded-full bg-warm-100 dark:bg-warm-800 flex items-center justify-center hover:bg-warm-200 transition-colors shrink-0"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <ExternalLink className="w-3 h-3 text-warm-500" />

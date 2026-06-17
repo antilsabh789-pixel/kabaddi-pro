@@ -139,7 +139,7 @@ function StepIndicator({
         )}
       </div>
       <div className="pt-1.5">
-        <p className="text-sm font-bold text-warm-800">{title}</p>
+        <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{title}</p>
         <p className="text-xs text-warm-500 mt-0.5">{description}</p>
       </div>
     </motion.div>
@@ -284,7 +284,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-warm-50 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto"
     >
       {/* Confetti overlay */}
       <AnimatePresence>
@@ -338,7 +338,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-4">
                     <Sparkles className="w-4 h-4 text-brand-gold" />
-                    <h3 className="font-black text-warm-800 text-sm uppercase tracking-wide">How It Works</h3>
+                    <h3 className="font-black text-warm-800 dark:text-warm-100 text-sm uppercase tracking-wide">How It Works</h3>
                   </div>
                   <div className="space-y-5">
                     <StepIndicator
@@ -375,7 +375,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
                   className="coin-flip"
                   key={info?.referralCode}
                 >
-                  <span className="text-3xl font-black tracking-[0.4em] text-warm-800 block mb-3">
+                  <span className="text-3xl font-black tracking-[0.4em] text-warm-800 dark:text-warm-100 block mb-3">
                     {info?.referralCode || '--------'}
                   </span>
                 </motion.div>
@@ -426,17 +426,17 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
               <div className="grid grid-cols-3 gap-2">
                 <div className="stat-card text-center">
                   <Users className="w-5 h-5 text-brand-teal mx-auto mb-1" />
-                  <p className="text-xl font-black text-warm-800 stat-counter">{info?.totalReferrals || 0}</p>
+                  <p className="text-xl font-black text-warm-800 dark:text-warm-100 stat-counter">{info?.totalReferrals || 0}</p>
                   <p className="text-[9px] text-warm-500 font-bold uppercase tracking-wide">Total Sent</p>
                 </div>
                 <div className="stat-card text-center">
                   <Check className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
-                  <p className="text-xl font-black text-warm-800 stat-counter">{info?.successfulReferrals || 0}</p>
+                  <p className="text-xl font-black text-warm-800 dark:text-warm-100 stat-counter">{info?.successfulReferrals || 0}</p>
                   <p className="text-[9px] text-warm-500 font-bold uppercase tracking-wide">Signed Up</p>
                 </div>
                 <div className="stat-card text-center">
                   <Crown className="w-5 h-5 text-brand-gold mx-auto mb-1" />
-                  <p className="text-xl font-black text-warm-800 stat-counter">{info?.totalPremiumDaysEarned || 0}</p>
+                  <p className="text-xl font-black text-warm-800 dark:text-warm-100 stat-counter">{info?.totalPremiumDaysEarned || 0}</p>
                   <p className="text-[9px] text-warm-500 font-bold uppercase tracking-wide">Premium Days</p>
                 </div>
               </div>
@@ -454,7 +454,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
                     <PartyPopper className="w-6 h-6 text-white" />
                   </motion.div>
                   <div className="flex-1">
-                    <p className="text-sm font-black text-warm-800">7 Days Premium Per Referral!</p>
+                    <p className="text-sm font-black text-warm-800 dark:text-warm-100">7 Days Premium Per Referral!</p>
                     <p className="text-xs text-warm-500">Both you and your friend get 7 days of premium access for every successful referral.</p>
                   </div>
                 </CardContent>
@@ -468,7 +468,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Link2 className="w-4 h-4 text-brand-teal" />
-                      <h3 className="font-bold text-warm-800 text-sm">Have a Referral Code?</h3>
+                      <h3 className="font-bold text-warm-800 dark:text-warm-100 text-sm">Have a Referral Code?</h3>
                     </div>
                     <p className="text-xs text-warm-500 mb-3">Enter a friend&apos;s code to get 7 days of Premium FREE!</p>
                     <div className="flex gap-2">
@@ -495,7 +495,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
             {/* ── Referral History ───────────────────────────── */}
             <motion.div variants={itemVariants}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-black text-warm-800 text-sm uppercase tracking-wide">Referral History</h3>
+                <h3 className="font-black text-warm-800 dark:text-warm-100 text-sm uppercase tracking-wide">Referral History</h3>
                 {info?.referrals && info.referrals.length > 0 && (
                   <span className="text-[10px] text-warm-400 font-medium">{info.referrals.length} total</span>
                 )}
@@ -514,7 +514,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
                         ref.status === 'rewarded' ? 'card-win' : ref.status === 'signed_up' ? 'border-l-4 border-l-emerald-500' : ''
                       }`}>
                         <CardContent className="p-3 flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-warm-100 flex items-center justify-center text-sm shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-warm-100 dark:bg-warm-800 flex items-center justify-center text-sm shrink-0">
                             {ref.referredAvatar ? (
                               <img src={ref.referredAvatar} alt="" className="w-full h-full rounded-full object-cover" />
                             ) : (
@@ -522,7 +522,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-warm-800 truncate">{ref.referredName}</p>
+                            <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">{ref.referredName}</p>
                             <div className="flex items-center gap-2">
                               <p className="text-[10px] text-warm-400">{new Date(ref.createdAt).toLocaleDateString()}</p>
                               {ref.status === 'rewarded' && ref.premiumDays > 0 && (
@@ -545,7 +545,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
                     >
                       <Gift className="w-12 h-12 text-brand-gold/40 mx-auto mb-3" />
                     </motion.div>
-                    <p className="text-sm font-bold text-warm-700 mb-1">No Referrals Yet</p>
+                    <p className="text-sm font-bold text-warm-700 dark:text-warm-200 mb-1">No Referrals Yet</p>
                     <p className="text-xs text-warm-500">Share your code with friends to start earning Premium days!</p>
                     <Button
                       onClick={handleShare}

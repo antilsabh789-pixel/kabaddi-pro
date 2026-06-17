@@ -2360,7 +2360,7 @@ export default function HomeTab() {
                             )}
                           </div>
                           <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md gold-medal-shimmer">
-                            <Crown className="w-3.5 h-3.5 text-warm-800" />
+                            <Crown className="w-3.5 h-3.5 text-warm-800 dark:text-warm-100" />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2413,7 +2413,7 @@ export default function HomeTab() {
                             </div>
                           </div>
                           <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center shadow-md">
-                            <Icon className="w-3.5 h-3.5 text-warm-800" />
+                            <Icon className="w-3.5 h-3.5 text-warm-800 dark:text-warm-100" />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">

@@ -401,6 +401,9 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
           couponCode: couponApplied ? couponCode.trim().toUpperCase() : undefined,
           amount: discountedPaise,
           returnUrl,
+          phone: currentUser.phone,
+          name: currentUser.name,
+          email: currentUser.email,
         }),
       });
 

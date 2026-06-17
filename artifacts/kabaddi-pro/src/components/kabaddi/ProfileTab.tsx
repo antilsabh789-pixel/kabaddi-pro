@@ -1082,7 +1082,7 @@ export default function ProfileTab() {
                         className={`p-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                           editForm.gender === 'male'
                             ? 'border-brand-teal bg-brand-teal/10 text-brand-teal'
-                            : 'border-warm-300 text-warm-600 dark:border-warm-200'
+                            : 'border-warm-300 text-warm-600 dark:text-warm-300 dark:border-warm-200'
                         }`}
                       >
                         <span className="text-lg">♂</span> Boy
@@ -1092,7 +1092,7 @@ export default function ProfileTab() {
                         className={`p-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                           editForm.gender === 'female'
                             ? 'border-brand-red bg-brand-red/10 text-brand-red'
-                            : 'border-warm-300 text-warm-600 dark:border-warm-200'
+                            : 'border-warm-300 text-warm-600 dark:text-warm-300 dark:border-warm-200'
                         }`}
                       >
                         <span className="text-lg">♀</span> Girl

@@ -1016,7 +1016,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 border-warm-200 dark:border-warm-700 text-warm-600 text-xs"
+            className="flex-1 border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-300 text-xs"
             onClick={() => setAttendanceRecords((prev) => prev.map((r) => ({ ...r, isPresent: false })))}
           >
             <X className="w-3 h-3 mr-1" />

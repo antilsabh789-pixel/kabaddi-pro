@@ -374,7 +374,7 @@ export default function Home() {
     return (
       <ErrorBoundary>
         <Suspense fallback={<BrandedLoadingScreen />}>
-          <div className="h-screen bg-warm-50 flex flex-col overflow-hidden">
+          <div className="h-screen bg-warm-50 dark:bg-warm-900 flex flex-col overflow-hidden">
             <LiveScoringScreen />
             <AnimatePresence>
               {showNotifications && (
@@ -392,7 +392,7 @@ export default function Home() {
   return (
     <ErrorBoundary>
       <Suspense fallback={<BrandedLoadingScreen />}>
-        <div className="min-h-screen bg-warm-50 flex flex-col">
+        <div className="min-h-screen bg-warm-50 dark:bg-warm-900 flex flex-col">
           <OfflineIndicator />
           <main className="flex-1 overflow-y-auto pb-20">
             {activeTab === 'home' && <HomeTab />}

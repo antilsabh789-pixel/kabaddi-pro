@@ -45,7 +45,7 @@ router.get('/payments', async (req, res) => {
 
 router.post('/payments/create-order', async (req, res) => {
   try {
-    const { userId, plan, couponCode, returnUrl } = req.body;
+    const { userId, plan, couponCode, returnUrl, phone, name, email } = req.body;
     if (!userId || !plan) return res.status(400).json({ error: 'userId and plan are required' });
     if (!PLAN_PRICES[plan]) return res.status(400).json({ error: 'Invalid plan' });
 
@@ -53,16 +53,27 @@ router.post('/payments/create-order', async (req, res) => {
     const { discountPaise, finalPaise } = calculateDiscount(plan, couponCode);
     const amountInr = (finalPaise / 100).toFixed(2);
 
-    const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, name: true, phone: true, email: true } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Resolve the user robustly: by id first, then by an EXACT match on the
+    // unique phone field. This handles stale client sessions (e.g. after the
+    // database was reseeded) where the persisted userId no longer exists but the
+    // account is still reachable by phone. Exact match on the unique column is
+    // deterministic and collision-free (never `endsWith`/`findFirst`).
+    let user = await db.user.findUnique({ where: { id: userId }, select: { id: true, name: true, phone: true, email: true } });
+    if (!user && phone) {
+      user = await db.user.findUnique({ where: { phone: String(phone).trim() }, select: { id: true, name: true, phone: true, email: true } });
+    }
+    if (!user) {
+      console.error(`[create-order] User not found. userId=${userId} phone=${phone || 'none'}`);
+      return res.status(409).json({ error: 'Your session has expired. Please log out and log in again to continue your purchase.' });
+    }
 
-    const orderId = `KP_${userId.slice(-6)}_${Date.now()}`;
+    const orderId = `KP_${user.id.slice(-6)}_${Date.now()}`;
 
     const cashfreePayload = {
       order_id: orderId,
       order_amount: parseFloat(amountInr),
       order_currency: 'INR',
-      customer_details: { customer_id: userId, customer_name: user.name || 'Kabaddi Pro User', customer_phone: (user.phone || '').replace(/\D/g, '').slice(-10), customer_email: user.email || `${userId}@kabaddipro.app` },
+      customer_details: { customer_id: user.id, customer_name: user.name || name || 'Kabaddi Pro User', customer_phone: (user.phone || phone || '').replace(/\D/g, '').slice(-10), customer_email: user.email || email || `${user.id}@kabaddipro.app` },
       order_meta: { return_url: returnUrl || `${process.env['APP_URL'] || ''}/?payment=success&order_id={order_id}` },
     };
 
@@ -81,7 +92,7 @@ router.post('/payments/create-order', async (req, res) => {
     const cfOrder = await cfResponse.json() as { payment_session_id?: string; cf_order_id?: string; [k: string]: unknown };
 
     await db.payment.create({
-      data: { userId, cashfreeOrderId: orderId, plan, amount: finalPaise, status: 'pending' },
+      data: { userId: user.id, cashfreeOrderId: orderId, plan, amount: finalPaise, status: 'pending' },
     });
 
     return res.json({ orderId, paymentSessionId: cfOrder.payment_session_id, sessionId: cfOrder.payment_session_id, cfOrderId: cfOrder.cf_order_id, amount: amountInr, discount: (discountPaise / 100).toFixed(2), env: config.env });

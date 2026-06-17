@@ -1220,7 +1220,7 @@ export default function MatchHighlightsScreen({ matchId, onClose }: MatchHighlig
                   <PremiumLock feature="MVP Breakdown">
                     <Card className="bg-gradient-to-br from-brand-gold/10 to-brand-gold-dark/5 border-brand-gold/20 py-0 gap-0 overflow-hidden">
                       <div className="px-4 pt-4 pb-2">
-                        <h3 className="text-sm font-black tracking-wider text-warm-800 flex items-center gap-2">
+                        <h3 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100 flex items-center gap-2">
                           <Crown className="w-4 h-4 text-brand-gold" />
                           MVP BREAKDOWN
                         </h3>
@@ -1229,7 +1229,7 @@ export default function MatchHighlightsScreen({ matchId, onClose }: MatchHighlig
                         <div className="flex items-center gap-4">
                           {/* Avatar */}
                           <div className="relative shrink-0">
-                            <div className="w-16 h-16 rounded-full bg-warm-100 border-2 border-brand-gold/40 flex items-center justify-center overflow-hidden">
+                            <div className="w-16 h-16 rounded-full bg-warm-100 dark:bg-warm-800 border-2 border-brand-gold/40 flex items-center justify-center overflow-hidden">
                               {match.motmUser.avatar ? (
                                 <img
                                   src={match.motmUser.avatar}
@@ -1253,7 +1253,7 @@ export default function MatchHighlightsScreen({ matchId, onClose }: MatchHighlig
                               <Crown className="w-2.5 h-2.5 mr-0.5" />
                               Man of the Match
                             </Badge>
-                            <p className="text-warm-800 font-bold text-base truncate">
+                            <p className="text-warm-800 dark:text-warm-100 font-bold text-base truncate">
                               {match.motmUser.name}
                             </p>
                             {mvpBreakdown.teamName && (
@@ -1279,7 +1279,7 @@ export default function MatchHighlightsScreen({ matchId, onClose }: MatchHighlig
                         <div className="mt-4 space-y-3">
                           <div>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-semibold text-warm-700 flex items-center gap-1.5">
+                              <span className="text-xs font-semibold text-warm-700 dark:text-warm-200 flex items-center gap-1.5">
                                 <Swords className="w-3 h-3 text-brand-red" />
                                 Raid Points
                               </span>
@@ -1297,7 +1297,7 @@ export default function MatchHighlightsScreen({ matchId, onClose }: MatchHighlig
 
                           <div>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-semibold text-warm-700 flex items-center gap-1.5">
+                              <span className="text-xs font-semibold text-warm-700 dark:text-warm-200 flex items-center gap-1.5">
                                 <Shield className="w-3 h-3 text-brand-teal" />
                                 Tackle Points
                               </span>
@@ -1315,7 +1315,7 @@ export default function MatchHighlightsScreen({ matchId, onClose }: MatchHighlig
 
                           <div>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-semibold text-warm-700 flex items-center gap-1.5">
+                              <span className="text-xs font-semibold text-warm-700 dark:text-warm-200 flex items-center gap-1.5">
                                 <Target className="w-3 h-3 text-brand-gold" />
                                 Bonus Points
                               </span>

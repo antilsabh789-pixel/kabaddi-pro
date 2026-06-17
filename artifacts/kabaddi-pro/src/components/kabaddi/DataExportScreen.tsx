@@ -188,7 +188,7 @@ export default function DataExportScreen({ onClose }: DataExportScreenProps) {
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      className="fixed inset-0 z-50 bg-warm-50 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto"
     >
       {/* ═══ Header ═══ */}
       <div className="sticky top-0 z-10 bg-gradient-to-r from-brand-teal to-brand-teal-dark">
@@ -216,7 +216,7 @@ export default function DataExportScreen({ onClose }: DataExportScreenProps) {
         >
           {/* Export Type Selector */}
           <motion.div variants={itemVariants}>
-            <h2 className="text-xs font-black tracking-wider text-warm-800 mb-3">
+            <h2 className="text-xs font-black tracking-wider text-warm-800 dark:text-warm-100 mb-3">
               SELECT DATA TYPE
             </h2>
             <div className="grid grid-cols-2 gap-3">
@@ -240,7 +240,7 @@ export default function DataExportScreen({ onClose }: DataExportScreenProps) {
                     <div className={`w-10 h-10 rounded-lg ${option.bgColor} flex items-center justify-center mb-2`}>
                       <Icon className={`w-5 h-5 ${option.color}`} />
                     </div>
-                    <p className="text-sm font-bold text-warm-800">{option.label}</p>
+                    <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{option.label}</p>
                     <p className="text-[10px] text-warm-500 mt-0.5 leading-tight">
                       {option.description}
                     </p>
@@ -259,7 +259,7 @@ export default function DataExportScreen({ onClose }: DataExportScreenProps) {
             >
               <Card className="border-warm-200/60">
                 <CardContent className="p-4">
-                  <h3 className="text-xs font-black tracking-wider text-warm-800 mb-2">
+                  <h3 className="text-xs font-black tracking-wider text-warm-800 dark:text-warm-100 mb-2">
                     SELECT {(selectedType ?? '').toUpperCase()}
                   </h3>
                   <select
@@ -297,7 +297,7 @@ export default function DataExportScreen({ onClose }: DataExportScreenProps) {
                       <FileSpreadsheet className="w-5 h-5 text-green-600" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-warm-800">CSV Format</p>
+                      <p className="text-sm font-bold text-warm-800 dark:text-warm-100">CSV Format</p>
                       <p className="text-[10px] text-warm-500 mt-0.5">
                         Compatible with Excel, Google Sheets, and all data tools
                       </p>

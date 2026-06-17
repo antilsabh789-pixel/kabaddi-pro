@@ -190,10 +190,10 @@ function getActivityConfig(type: string): ActivityTypeConfig {
   return ACTIVITY_CONFIG[type as ActivityType] ?? {
     icon: Rss,
     color: 'text-warm-500',
-    bgColor: 'bg-warm-100',
+    bgColor: 'bg-warm-100 dark:bg-warm-800',
     borderColor: 'border-warm-300',
     badgeBg: 'bg-warm-200',
-    badgeText: 'text-warm-600',
+    badgeText: 'text-warm-600 dark:text-warm-300',
     label: 'Activity',
     leftBorderColor: 'border-l-warm-400',
   };

@@ -256,7 +256,7 @@ function ComparisonBar({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold text-warm-700 uppercase tracking-wide">{label}</span>
+        <span className="text-[10px] font-bold text-warm-700 dark:text-warm-200 uppercase tracking-wide">{label}</span>
         <span className="text-[10px] font-semibold text-warm-500">
           {playerValue.toFixed(1)} vs {compareValue.toFixed(1)}
         </span>
@@ -425,13 +425,13 @@ function PositionHeatmap({ position }: { position: string | null }) {
         {(isRaider || isAllRounder) && (
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full bg-brand-red/30 border border-brand-red/50" />
-            <span className="text-[10px] text-warm-600 font-medium">Raid Zone</span>
+            <span className="text-[10px] text-warm-600 dark:text-warm-300 font-medium">Raid Zone</span>
           </div>
         )}
         {(isDefender || isAllRounder) && (
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full bg-brand-navy/20 border border-brand-navy/40" />
-            <span className="text-[10px] text-warm-600 font-medium">Defense Zone</span>
+            <span className="text-[10px] text-warm-600 dark:text-warm-300 font-medium">Defense Zone</span>
           </div>
         )}
       </div>
@@ -694,7 +694,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="fixed inset-0 z-50 bg-warm-50 flex flex-col"
+        className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col"
       >
         <header className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
           <div className="px-4 py-3 flex items-center justify-between">
@@ -702,7 +702,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-teal to-brand-teal-dark flex items-center justify-center">
                 <BarChart3 className="w-4 h-4 text-white" />
               </div>
-              <h1 className="text-base font-black tracking-wider text-warm-800">ADVANCED STATS</h1>
+              <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">ADVANCED STATS</h1>
             </div>
             <button onClick={onClose} className="w-8 h-8 rounded-full bg-warm-200 flex items-center justify-center text-warm-600">
               <X className="w-4 h-4" />
@@ -723,10 +723,10 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="fixed inset-0 z-50 bg-warm-50 flex flex-col items-center justify-center gap-4"
+        className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col items-center justify-center gap-4"
       >
         <BarChart3 className="w-12 h-12 text-warm-300" />
-        <p className="text-warm-600 font-medium">No stats data available</p>
+        <p className="text-warm-600 dark:text-warm-300 font-medium">No stats data available</p>
         <button onClick={onClose} className="px-4 py-2 rounded-xl bg-brand-teal text-white font-bold text-sm">
           Go Back
         </button>
@@ -741,7 +741,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-warm-50 flex flex-col"
+      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col"
     >
       {/* Header */}
       <header className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
@@ -750,7 +750,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-teal to-brand-teal-dark flex items-center justify-center">
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
-            <h1 className="text-base font-black tracking-wider text-warm-800">ADVANCED STATS</h1>
+            <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">ADVANCED STATS</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -792,7 +792,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           timePeriod === val
                             ? 'bg-brand-teal text-white'
-                            : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
+                            : 'bg-warm-100 dark:bg-warm-800 text-warm-600 hover:bg-warm-200'
                         }`}
                       >
                         {label}
@@ -811,7 +811,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           matchType === val
                             ? 'bg-brand-navy text-white'
-                            : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
+                            : 'bg-warm-100 dark:bg-warm-800 text-warm-600 hover:bg-warm-200'
                         }`}
                       >
                         {label}
@@ -830,7 +830,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all gender-pill ${
                           genderFilter === val
                             ? 'bg-brand-red text-white'
-                            : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
+                            : 'bg-warm-100 dark:bg-warm-800 text-warm-600 hover:bg-warm-200'
                         }`}
                       >
                         {label}
@@ -892,23 +892,23 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                 <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
                   <Activity className="w-3.5 h-3.5 text-brand-teal" />
                 </div>
-                <h2 className="text-sm font-black tracking-wider text-warm-800">PERFORMANCE OVERVIEW</h2>
+                <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">PERFORMANCE OVERVIEW</h2>
               </div>
               <div className="flex items-center gap-6">
                 <CircularGauge value={profile.overallRating} max={100} size={110} strokeWidth={9} color="#14B8A6" label="Rating" />
                 <div className="flex-1 space-y-3">
                   <div>
                     <p className="text-[10px] text-warm-500 font-semibold uppercase tracking-wide">Total Points</p>
-                    <p className="text-xl font-black text-warm-800 stat-counter">{derivedStats.totalPoints}</p>
+                    <p className="text-xl font-black text-warm-800 dark:text-warm-100 stat-counter">{derivedStats.totalPoints}</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <div>
                       <p className="text-[10px] text-warm-500 font-semibold uppercase tracking-wide">Matches</p>
-                      <p className="text-lg font-bold text-warm-700 stat-counter">{derivedStats.matchCount}</p>
+                      <p className="text-lg font-bold text-warm-700 dark:text-warm-200 stat-counter">{derivedStats.matchCount}</p>
                     </div>
                     <div>
                       <p className="text-[10px] text-warm-500 font-semibold uppercase tracking-wide">Avg Pts/Match</p>
-                      <p className="text-lg font-bold text-warm-700 stat-counter">{derivedStats.avgPoints.toFixed(1)}</p>
+                      <p className="text-lg font-bold text-warm-700 dark:text-warm-200 stat-counter">{derivedStats.avgPoints.toFixed(1)}</p>
                     </div>
                   </div>
                 </div>
@@ -924,7 +924,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
                     <TrendingUp className="w-3.5 h-3.5 text-brand-teal" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">PERFORMANCE TRENDS</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">PERFORMANCE TRENDS</h2>
                   <Badge className="bg-brand-teal/10 text-brand-teal text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -982,7 +982,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-red/10 flex items-center justify-center">
                     <Clock className="w-3.5 h-3.5 text-brand-red" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">HALF COMPARISON</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">HALF COMPARISON</h2>
                   <Badge className="bg-brand-red/10 text-brand-red text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1023,7 +1023,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-gold/10 flex items-center justify-center">
                     <Users className="w-3.5 h-3.5 text-brand-gold" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">POSITION STATS</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">POSITION STATS</h2>
                   <Badge className="bg-brand-gold/10 text-brand-gold text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1052,7 +1052,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-navy/10 flex items-center justify-center">
                     <Target className="w-3.5 h-3.5 text-brand-navy" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">DETAILED BREAKDOWN</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">DETAILED BREAKDOWN</h2>
                   <Badge className="bg-brand-navy/10 text-brand-navy text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1085,7 +1085,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-red/10 flex items-center justify-center">
                     <Swords className="w-3.5 h-3.5 text-brand-red" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">RAID ANALYSIS</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">RAID ANALYSIS</h2>
                   <Badge className="bg-brand-red/10 text-brand-red text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1146,7 +1146,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-navy/10 flex items-center justify-center">
                     <Shield className="w-3.5 h-3.5 text-brand-navy" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">DEFENSE ANALYSIS</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">DEFENSE ANALYSIS</h2>
                   <Badge className="bg-brand-navy/10 text-brand-navy text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1200,7 +1200,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
                     <Target className="w-3.5 h-3.5 text-brand-teal" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">SKILL RADAR</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">SKILL RADAR</h2>
                   <Badge className="bg-brand-teal/10 text-brand-teal text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1226,7 +1226,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-gold/10 flex items-center justify-center">
                     <Trophy className="w-3.5 h-3.5 text-brand-gold" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">VS LEAGUE AVERAGE</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">VS LEAGUE AVERAGE</h2>
                   <Badge className="bg-brand-gold/10 text-brand-gold text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1264,7 +1264,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-gold/15 flex items-center justify-center">
                     <Star className="w-3.5 h-3.5 text-brand-gold" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">VS TOP PLAYER</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">VS TOP PLAYER</h2>
                   <Badge className="bg-brand-gold/15 text-brand-gold-dark text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1308,7 +1308,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
                     <BarChart3 className="w-3.5 h-3.5 text-brand-teal" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">PERCENTILE RANKING</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">PERCENTILE RANKING</h2>
                   <Badge className="bg-brand-teal/10 text-brand-teal text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1344,7 +1344,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
                     <Zap className="w-3.5 h-3.5 text-brand-teal" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">ANALYSIS</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">ANALYSIS</h2>
                   <Badge className="bg-brand-teal/10 text-brand-teal text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1394,7 +1394,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                   <div className="w-6 h-6 rounded-md bg-brand-red/10 flex items-center justify-center">
                     <MapPin className="w-3.5 h-3.5 text-brand-red" />
                   </div>
-                  <h2 className="text-sm font-black tracking-wider text-warm-800">POSITION HEATMAP</h2>
+                  <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">POSITION HEATMAP</h2>
                   <Badge className="bg-brand-red/10 text-brand-red text-[9px] border-0 font-bold ml-auto">
                     <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                   </Badge>
@@ -1418,7 +1418,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                 <div className="w-6 h-6 rounded-md bg-brand-teal/10 flex items-center justify-center">
                   <Trophy className="w-3.5 h-3.5 text-brand-teal" />
                 </div>
-                <h2 className="text-sm font-black tracking-wider text-warm-800">MATCH HISTORY</h2>
+                <h2 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">MATCH HISTORY</h2>
                 {(timePeriod !== 'allTime' || matchType !== 'all') && (
                   <Badge className="bg-brand-teal/10 text-brand-teal text-[9px] border-0 font-bold ml-auto">
                     Filtered
@@ -1444,7 +1444,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                         {match.result}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-warm-800 truncate">vs {match.opponent}</p>
+                        <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">vs {match.opponent}</p>
                         <p className="text-[10px] text-warm-500">Score: {match.score}</p>
                       </div>
                       <div className="text-right shrink-0">

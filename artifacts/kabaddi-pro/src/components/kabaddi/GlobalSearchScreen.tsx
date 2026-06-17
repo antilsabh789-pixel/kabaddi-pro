@@ -413,7 +413,7 @@ export default function GlobalSearchScreen({
       case 'upcoming':
         return { label: 'Upcoming', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' };
       default:
-        return { label: status, color: 'text-warm-500 bg-warm-100 border-warm-200' };
+        return { label: status, color: 'text-warm-500 bg-warm-100 dark:bg-warm-800 border-warm-200' };
     }
   }
 

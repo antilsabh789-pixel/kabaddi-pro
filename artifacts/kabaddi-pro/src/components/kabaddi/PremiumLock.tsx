@@ -68,7 +68,7 @@ export default function PremiumLock({ feature, children, className = '', compact
               <Crown className="w-5 h-5 text-white" />
             </div>
           </motion.div>
-          <p className="text-sm font-bold text-warm-800">{feature}</p>
+          <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{feature}</p>
           <div className="flex items-center gap-1 bg-brand-gold/10 px-3 py-1 rounded-full">
             <Lock className="w-3 h-3 text-brand-gold" />
             <span className="text-xs font-semibold text-brand-gold">Premium Feature</span>

@@ -68,7 +68,7 @@ export default function MatchAwardsScreen({ onClose }: MatchAwardsScreenProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-warm-50 flex flex-col"
+        className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col"
       >
         {/* Header */}
         <header className="sticky top-0 z-10 bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60">
@@ -77,7 +77,7 @@ export default function MatchAwardsScreen({ onClose }: MatchAwardsScreenProps) {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-gold to-brand-gold-dark flex items-center justify-center">
                 <Award className="w-4 h-4 text-white" />
               </div>
-              <h1 className="text-base font-black tracking-wider text-warm-800">
+              <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">
                 MATCH AWARDS
               </h1>
             </div>
@@ -95,7 +95,7 @@ export default function MatchAwardsScreen({ onClose }: MatchAwardsScreenProps) {
           {loading ? (
             <div className="flex flex-col gap-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 rounded-xl bg-warm-100 animate-pulse" />
+                <div key={i} className="h-24 rounded-xl bg-warm-100 dark:bg-warm-800 animate-pulse" />
               ))}
             </div>
           ) : awards.length > 0 ? (
@@ -116,7 +116,7 @@ export default function MatchAwardsScreen({ onClose }: MatchAwardsScreenProps) {
                       <div className="flex items-center gap-3">
                         {/* Avatar */}
                         <div className="relative shrink-0">
-                          <div className="w-14 h-14 rounded-full bg-warm-100 border-2 border-brand-gold/40 flex items-center justify-center overflow-hidden">
+                          <div className="w-14 h-14 rounded-full bg-warm-100 dark:bg-warm-800 border-2 border-brand-gold/40 flex items-center justify-center overflow-hidden">
                             {award.userAvatar ? (
                               <img src={award.userAvatar} alt={award.userName} className="w-full h-full object-cover" />
                             ) : (
@@ -138,7 +138,7 @@ export default function MatchAwardsScreen({ onClose }: MatchAwardsScreenProps) {
                               Man of the Match
                             </Badge>
                           </div>
-                          <p className="text-warm-800 font-bold text-sm mt-1 truncate">
+                          <p className="text-warm-800 dark:text-warm-100 font-bold text-sm mt-1 truncate">
                             {award.userName}
                           </p>
                           {award.teamName && (
@@ -173,7 +173,7 @@ export default function MatchAwardsScreen({ onClose }: MatchAwardsScreenProps) {
           ) : (
             <div className="flex flex-col items-center justify-center py-16">
               <Award className="w-12 h-12 text-warm-300 mb-3" />
-              <p className="text-warm-600 text-sm font-medium">No awards yet</p>
+              <p className="text-warm-600 dark:text-warm-300 text-sm font-medium">No awards yet</p>
               <p className="text-warm-400 text-xs mt-1">
                 Complete matches to see MOTM awards here
               </p>

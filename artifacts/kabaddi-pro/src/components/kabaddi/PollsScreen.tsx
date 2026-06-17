@@ -210,7 +210,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      className="fixed inset-0 z-50 bg-warm-50 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto"
     >
       {/* ═══ Header ═══ */}
       <div className="sticky top-0 z-10 bg-gradient-to-r from-brand-gold to-brand-gold-dark">
@@ -282,7 +282,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                   >
                     <Card className="border-brand-gold/20">
                       <CardContent className="p-4 space-y-3">
-                        <h3 className="font-bold text-warm-800 text-sm">Create New Poll</h3>
+                        <h3 className="font-bold text-warm-800 dark:text-warm-100 text-sm">Create New Poll</h3>
                         <Input
                           placeholder="Your question *"
                           value={createForm.question}
@@ -355,7 +355,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
               {loading ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-36 bg-warm-100 rounded-xl animate-pulse" />
+                    <div key={i} className="h-36 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse" />
                   ))}
                 </div>
               ) : polls.length === 0 ? (
@@ -363,7 +363,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                   <div className="w-16 h-16 rounded-full bg-brand-gold/10 flex items-center justify-center mx-auto mb-4">
                     <Vote className="w-8 h-8 text-brand-gold/40" />
                   </div>
-                  <h3 className="text-warm-700 font-bold text-sm">No active polls</h3>
+                  <h3 className="text-warm-700 dark:text-warm-200 font-bold text-sm">No active polls</h3>
                   <p className="text-warm-400 text-xs mt-1">Create one to get the community voting!</p>
                 </Card>
               ) : (
@@ -384,7 +384,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                             {/* Question */}
                             <div className="flex items-start gap-2 mb-3">
                               <div className="flex-1">
-                                <p className="text-sm font-bold text-warm-800">
+                                <p className="text-sm font-bold text-warm-800 dark:text-warm-100">
                                   {poll.question}
                                 </p>
                                 {poll.matchContext && (
@@ -396,7 +396,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                                   </div>
                                 )}
                               </div>
-                              <Badge className="bg-warm-100 text-warm-600 text-[9px] font-bold border-0">
+                              <Badge className="bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-300 text-[9px] font-bold border-0">
                                 {poll.totalVotes} votes
                               </Badge>
                             </div>
@@ -420,7 +420,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                                       isSelected
                                         ? 'border-brand-teal bg-brand-teal/5'
                                         : hasVoted
-                                          ? 'border-warm-200 bg-warm-50'
+                                          ? 'border-warm-200 bg-warm-50 dark:bg-warm-900'
                                           : 'border-warm-200 bg-white hover:border-brand-teal/40 cursor-pointer'
                                     }`}
                                   >
@@ -436,7 +436,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                                     <div className="relative flex items-center justify-between">
                                       <div className="flex items-center gap-2">
                                         {isSelected && <CheckCircle className="w-3.5 h-3.5 text-brand-teal" />}
-                                        <span className="text-xs font-semibold text-warm-800">
+                                        <span className="text-xs font-semibold text-warm-800 dark:text-warm-100">
                                           {option.text}
                                         </span>
                                       </div>
@@ -478,7 +478,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                     <motion.div variants={itemVariants}>
                       <div className="flex items-center gap-2 mb-2">
                         <Trophy className="w-4 h-4 text-brand-gold" />
-                        <h2 className="text-xs font-black tracking-wider text-warm-800">
+                        <h2 className="text-xs font-black tracking-wider text-warm-800 dark:text-warm-100">
                           MATCH PREDICTIONS
                         </h2>
                       </div>
@@ -487,7 +487,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                         .map((poll) => (
                           <Card key={`match-${poll.id}`} className="border-brand-gold/20 mb-2">
                             <CardContent className="p-3">
-                              <p className="text-xs font-bold text-warm-800 mb-2">
+                              <p className="text-xs font-bold text-warm-800 dark:text-warm-100 mb-2">
                                 {poll.question}
                               </p>
                               <div className="flex items-center gap-2">
@@ -498,7 +498,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                                   return (
                                     <div key={option.id} className="flex-1">
                                       <div className="flex items-center justify-between mb-1">
-                                        <span className="text-[10px] font-semibold text-warm-700">
+                                        <span className="text-[10px] font-semibold text-warm-700 dark:text-warm-200">
                                           {option.text}
                                         </span>
                                         <span className="text-[10px] font-bold text-brand-teal">
@@ -540,7 +540,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
               {loading ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-20 bg-warm-100 rounded-xl animate-pulse" />
+                    <div key={i} className="h-20 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse" />
                   ))}
                 </div>
               ) : predictions.length === 0 ? (
@@ -548,7 +548,7 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                   <div className="w-16 h-16 rounded-full bg-brand-gold/10 flex items-center justify-center mx-auto mb-4">
                     <Trophy className="w-8 h-8 text-brand-gold/40" />
                   </div>
-                  <h3 className="text-warm-700 font-bold text-sm">No predictions yet</h3>
+                  <h3 className="text-warm-700 dark:text-warm-200 font-bold text-sm">No predictions yet</h3>
                   <p className="text-warm-400 text-xs mt-1">
                     Vote on active polls to see your prediction history here.
                   </p>
@@ -572,12 +572,12 @@ export default function PollsScreen({ onClose }: PollsScreenProps) {
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-warm-800 truncate">
+                              <p className="text-xs font-bold text-warm-800 dark:text-warm-100 truncate">
                                 {prediction.pollQuestion}
                               </p>
                               <div className="flex items-center gap-2 mt-1.5">
                                 <ChevronRight className="w-3 h-3 text-warm-400" />
-                                <span className="text-[11px] text-warm-600 font-medium">
+                                <span className="text-[11px] text-warm-600 dark:text-warm-300 font-medium">
                                   Voted: {prediction.votedOption}
                                 </span>
                               </div>
