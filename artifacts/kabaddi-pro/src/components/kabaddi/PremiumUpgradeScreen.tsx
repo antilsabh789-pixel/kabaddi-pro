@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiUrl } from '@/lib/apiBase';
 import {
   Crown,
   Trophy,
@@ -237,7 +238,7 @@ async function openCashfreeCheckout(
     order_id: orderId,
     order_token: orderToken,
   });
-  window.location.href = `/api/payments/checkout?${params.toString()}`;
+  window.location.href = apiUrl(`/api/payments/checkout?${params.toString()}`);
 }
 
 export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgradeScreenProps) {
