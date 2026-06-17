@@ -1,2 +1,3 @@
 - [Prisma SQLite Setup](prisma-sqlite-setup.md) — must use Prisma v5 (not v7) with SQLite; db push on nested path creates new DB, use raw SQL ALTER TABLE for schema drift fixes.
 - [Match Schema Drift](match-schema-drift.md) — SQLite DB missing some schema columns; liveStreamUrl was added via raw SQL; MatchEvent uses `timestamp` not `createdAt`; always verify with direct Prisma select before assuming schema matches.
+- [API server stale build](api-server-stale-build.md) — new api-server routes 404 until the workflow is restarted (build+start, no hot reload); verify via curl to :8080
