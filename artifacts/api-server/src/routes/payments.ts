@@ -157,75 +157,17 @@ p{font-size:14px;opacity:.8;margin-bottom:20px;line-height:1.5}
 </form>
 
 <script>
+// Direct form POST — most reliable method, works in all browsers and WebViews.
+// Submits the hidden form immediately, redirecting to Cashfree's hosted checkout.
 (function(){
-  var SESSION = "${safeSession}";
-  var SDK_MODE = "${sdkMode}";
-  var ua = navigator.userAgent || '';
-
-  // Detect Android/iOS WebView (Play Store app, not a real browser)
-  var isWebView =
-    /wv[^a-z]|\.0\.0\.0/.test(ua) ||                 // Android WebView flag
-    /Android(?!.*Chrome\/[0-9])/.test(ua) ||          // Android without Chrome
-    (ua.indexOf('Android') > -1 && ua.indexOf('wv') > -1) ||
-    typeof window.Android !== 'undefined' ||           // Capacitor/Cordova bridge
-    (typeof window !== 'undefined' && window.ReactNativeWebView !== undefined);
-
-  function showBtn() {
+  document.getElementById('status').textContent = 'Redirecting to payment…';
+  document.getElementById('cf-form').submit();
+  // Safety: show manual button after 3s in case the form post was blocked
+  setTimeout(function(){
     document.getElementById('spinner').style.display = 'none';
     document.getElementById('pay-btn').style.display = 'block';
-  }
-
-  function doFormPost() {
-    document.getElementById('status').textContent = 'Redirecting to payment…';
-    document.getElementById('cf-form').submit();
-  }
-
-  window.doFormPost = doFormPost;
-
-  if (isWebView) {
-    // ── WebView path ─────────────────────────────────────────────────────────
-    // JS SDK is unreliable in WebViews (causes "Invalid Session ID").
-    // Form POST to Cashfree's hosted checkout is the correct approach.
-    document.getElementById('status').textContent = 'Opening payment page…';
-    doFormPost();
-    // Show button after 1.5s in case form post navigated away and user returned
-    setTimeout(showBtn, 1500);
-    return;
-  }
-
-  // ── Browser path ──────────────────────────────────────────────────────────
-  // Try the Cashfree JS SDK; fall back to form POST if it fails or times out.
-  var sdkTimer = setTimeout(function(){
-    console.warn('[KP] SDK timeout → form POST fallback');
-    doFormPost();
-  }, 4000);
-
-  function trySdk() {
-    clearTimeout(sdkTimer);
-    try {
-      var cf = window.Cashfree({ mode: SDK_MODE });
-      cf.checkout({ paymentSessionId: SESSION, redirectTarget: '_self' }).catch(function(e){
-        console.warn('[KP] cf.checkout rejected:', e);
-        doFormPost();
-      });
-    } catch(e) {
-      console.warn('[KP] SDK error:', e);
-      doFormPost();
-    }
-  }
-
-  if (window.Cashfree) {
-    trySdk();
-  } else {
-    var s = document.createElement('script');
-    s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-    s.onload = trySdk;
-    s.onerror = function(){ clearTimeout(sdkTimer); doFormPost(); };
-    document.head.appendChild(s);
-  }
-
-  // Always show button after 5s as last resort
-  setTimeout(showBtn, 5000);
+    document.getElementById('status').textContent = 'Click below to pay securely';
+  }, 3000);
 })();
 </script>
 </body>
