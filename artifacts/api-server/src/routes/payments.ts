@@ -15,8 +15,8 @@ function getCashfreeConfig() {
   const cashfreeEnv = process.env['CASHFREE_ENV'];
   const isProduction = cashfreeIsLive === 'true' || cashfreeIsLive === '1' || cashfreeEnv === 'production';
   return {
-    appId: process.env['CASHFREE_APP_ID'] || '',
-    secretKey: process.env['CASHFREE_SECRET_KEY'] || '',
+    appId: (process.env['CASHFREE_APP_ID'] || '').trim(),
+    secretKey: (process.env['CASHFREE_SECRET_KEY'] || '').trim(),
     apiVersion: process.env['CASHFREE_API_VERSION'] || '2023-08-01',
     baseUrl: isProduction ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg',
     env: isProduction ? 'production' : 'sandbox',
