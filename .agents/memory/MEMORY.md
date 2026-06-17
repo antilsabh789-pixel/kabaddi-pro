@@ -1,3 +1,5 @@
-- [Prisma SQLite Setup](prisma-sqlite-setup.md) — must use Prisma v5 (not v7) with SQLite; db push on nested path creates new DB, use raw SQL ALTER TABLE for schema drift fixes.
-- [Match Schema Drift](match-schema-drift.md) — SQLite DB missing some schema columns; liveStreamUrl was added via raw SQL; MatchEvent uses `timestamp` not `createdAt`; always verify with direct Prisma select before assuming schema matches.
-- [API server stale build](api-server-stale-build.md) — new api-server routes 404 until the workflow is restarted (build+start, no hot reload); verify via curl to :8080
+# Memory Index
+
+- [Tailwind @theme inline dark mode](tailwind-theme-inline-dark-mode.md) — `@theme inline` bakes literal colors; `.dark` CSS-var overrides are dead code, must use paired `dark:` utilities.
+- [API trust model](api-trust-model.md) — no server session layer; endpoints trust client-supplied ids; recover identity by exact unique-phone match, never endsWith/findFirst.
+- [Git push workflow](git-push-workflow.md) — committing is blocked in main-agent bash; push needs a valid token in the URL.
