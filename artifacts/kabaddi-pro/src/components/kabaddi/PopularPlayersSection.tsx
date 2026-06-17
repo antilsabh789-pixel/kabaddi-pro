@@ -231,7 +231,31 @@ export default function PopularPlayersSection({ onViewProfile }: { onViewProfile
     );
   }
 
-  if (players.length === 0) return null;
+  if (players.length === 0) {
+    return (
+      <section className="px-4 mt-6">
+        {/* Section Header */}
+        <div className="flex items-center justify-between mb-3 section-header-decorated">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">
+              {t('home.popularPlayers', language)}
+            </h3>
+            <Flame className="w-4 h-4 text-orange-500" />
+          </div>
+        </div>
+        {/* Empty state */}
+        <div className="flex flex-col items-center justify-center py-8 px-4 bg-warm-50 dark:bg-warm-800/50 rounded-xl border border-dashed border-warm-200 dark:border-warm-700">
+          <Users className="w-10 h-10 text-warm-300 dark:text-warm-600 mb-2" />
+          <p className="text-sm font-semibold text-warm-500 dark:text-warm-400 text-center">
+            No players yet
+          </p>
+          <p className="text-[11px] text-warm-400 dark:text-warm-500 text-center mt-1 max-w-[200px]">
+            Be the first! Play matches and earn points to appear here.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="px-4 mt-6">
