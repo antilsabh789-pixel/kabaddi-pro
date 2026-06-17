@@ -22,6 +22,7 @@ import {
 import { useKabaddiStore } from '@/lib/store';
 import Portal from '@/components/portal';
 import { useToast } from '@/hooks/use-toast';
+import { useBackButton } from '@/hooks/use-back-button';
 import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 
 interface TeamInTournament {
@@ -613,6 +614,10 @@ export default function TournamentsTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [generatingBracket, setGeneratingBracket] = useState(false);
+
+  // ─── Android Back Button Support ──────────────────────────────────
+  useBackButton(showUpgrade, () => setShowUpgrade(false));
+  useBackButton(createOpen, () => setCreateOpen(false));
 
   // Tournament search by code
   const [tournamentSearch, setTournamentSearch] = useState('');

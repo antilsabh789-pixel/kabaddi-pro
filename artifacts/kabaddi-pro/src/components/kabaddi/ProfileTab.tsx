@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useBackButton } from '@/hooks/use-back-button';
 import {
   Dialog,
   DialogContent,
@@ -191,7 +192,31 @@ export default function ProfileTab() {
   const [showProfileCard, setShowProfileCard] = useState(false);
   const [showTeamChat, setShowTeamChat] = useState(false);
   const [showDailyChallenge, setShowDailyChallenge] = useState(false);
-  
+
+  // ─── Android Back Button Support ──────────────────────────────────
+  // Each overlay pushes a browser history entry so the Android back button
+  // closes the overlay instead of exiting the app.
+  useBackButton(showUpgrade, () => setShowUpgrade(false));
+  useBackButton(showTeamManagement, () => setShowTeamManagement(false));
+  useBackButton(showPlayerComparison, () => setShowPlayerComparison(false));
+  useBackButton(showAdvancedStats, () => setShowAdvancedStats(false));
+  useBackButton(showFollow, () => setShowFollow(false));
+  useBackButton(showAchievements, () => setShowAchievements(false));
+  useBackButton(showChallenges, () => setShowChallenges(false));
+  useBackButton(showGrounds, () => setShowGrounds(false));
+  useBackButton(showReferral, () => setShowReferral(false));
+  useBackButton(showAIInsights, () => setShowAIInsights(false));
+  useBackButton(showDataExport, () => setShowDataExport(false));
+  useBackButton(showSeason, () => setShowSeason(false));
+  useBackButton(showPolls, () => setShowPolls(false));
+  useBackButton(showCoachDashboard, () => setShowCoachDashboard(false));
+  useBackButton(showSponsors, () => setShowSponsors(false));
+  useBackButton(showStats, () => setShowStats(false));
+  useBackButton(showProfileCard, () => setShowProfileCard(false));
+  useBackButton(showTeamChat, () => setShowTeamChat(false));
+  useBackButton(showDailyChallenge, () => setShowDailyChallenge(false));
+  useBackButton(editOpen, () => setEditOpen(false));
+
   const darkMode = document.documentElement.classList.contains('dark');
   const [editForm, setEditForm] = useState({
     gender: currentUser?.gender || '',
@@ -251,6 +276,11 @@ export default function ProfileTab() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState('');
+
+  // ─── Android Back Button Support (dialogs declared later) ────────
+  useBackButton(showPhoneEdit, () => setShowPhoneEdit(false));
+  useBackButton(showLogoutConfirm, () => setShowLogoutConfirm(false));
+  useBackButton(showDeleteAccount, () => setShowDeleteAccount(false));
 
   // Member since date - use createdAt timestamp, fallback to 30 days ago
   const memberSince = currentUser?.createdAt ? new Date(currentUser.createdAt) : new Date(Date.now() - 30 * 86400000);

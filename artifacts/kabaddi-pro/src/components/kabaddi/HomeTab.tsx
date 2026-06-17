@@ -63,6 +63,7 @@ import { useKabaddiStore } from '@/lib/store';
 import { t } from '@/lib/i18n';
 import Portal from '@/components/portal';
 import { useToast } from '@/hooks/use-toast';
+import { useBackButton } from '@/hooks/use-back-button';
 import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 import LeaderboardScreen from './LeaderboardScreen';
 import TeamsLeaderboardScreen from './TeamsLeaderboardScreen';
@@ -652,6 +653,56 @@ export default function HomeTab() {
   const [scorecardMatchId, setScorecardMatchId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
+
+  // ─── Android Back Button Support ──────────────────────────────────
+  // Each overlay pushes a browser history entry so the Android back button
+  // closes the overlay instead of exiting the app.
+  useBackButton(showPlayerProfile, () => { setShowPlayerProfile(false); setPlayerProfileUserId(null); });
+  useBackButton(showMatchDetails, () => { setShowMatchDetails(false); setSelectedMatchId(null); });
+  useBackButton(showMatchDayExperience, () => { setShowMatchDayExperience(false); setMatchDayExperienceId(null); });
+  useBackButton(showLeaderboard, () => setShowLeaderboard(false));
+  useBackButton(showUpgrade, () => setShowUpgrade(false));
+  useBackButton(showSearch, () => setShowSearch(false));
+  useBackButton(showMatchHistory, () => setShowMatchHistory(false));
+  useBackButton(showShareScorecard, () => { setShowShareScorecard(false); setShareMatchData(null); });
+  useBackButton(showAwards, () => setShowAwards(false));
+  useBackButton(showAdvancedStats, () => setShowAdvancedStats(false));
+  useBackButton(showAchievements, () => setShowAchievements(false));
+  useBackButton(showHighlights, () => setShowHighlights(false));
+  useBackButton(showFollow, () => setShowFollow(false));
+  useBackButton(showSocialFeed, () => setShowSocialFeed(false));
+  useBackButton(showAIInsights, () => setShowAIInsights(false));
+  useBackButton(showStreaks, () => setShowStreaks(false));
+  useBackButton(showRules, () => setShowRules(false));
+  useBackButton(showStats, () => setShowStats(false));
+  useBackButton(showSeason, () => setShowSeason(false));
+  useBackButton(showPolls, () => setShowPolls(false));
+  useBackButton(showPredictions, () => setShowPredictions(false));
+  useBackButton(showSponsors, () => setShowSponsors(false));
+  useBackButton(showDataExport, () => setShowDataExport(false));
+  useBackButton(showDailyChallenge, () => setShowDailyChallenge(false));
+  useBackButton(showTeamChat, () => setShowTeamChat(false));
+  useBackButton(showMatchTimeline, () => setShowMatchTimeline(false));
+  useBackButton(showCoachesCorner, () => setShowCoachesCorner(false));
+  useBackButton(showTeamsLeaderboard, () => setShowTeamsLeaderboard(false));
+  useBackButton(showTVMode, () => setShowTVMode(false));
+  useBackButton(showRaidTimeline, () => setShowRaidTimeline(false));
+  useBackButton(showHeadToHead, () => setShowHeadToHead(false));
+  useBackButton(showMatchComments, () => setShowMatchComments(false));
+  useBackButton(showMatchPhotos, () => setShowMatchPhotos(false));
+  useBackButton(showMatchReport, () => setShowMatchReport(false));
+  useBackButton(showFindTeams, () => setShowFindTeams(false));
+  useBackButton(showTournamentMap, () => setShowTournamentMap(false));
+  useBackButton(showPlayerWinRate, () => setShowPlayerWinRate(false));
+  useBackButton(showRulesQuiz, () => setShowRulesQuiz(false));
+  useBackButton(showTechniqueTutorials, () => setShowTechniqueTutorials(false));
+  useBackButton(showPercentileRankings, () => setShowPercentileRankings(false));
+  useBackButton(showLeaderboardSeasons, () => setShowLeaderboardSeasons(false));
+  useBackButton(showScorecardPDF, () => setShowScorecardPDF(false));
+  useBackButton(showReplay, () => setShowReplay(false));
+  useBackButton(showBroadcast, () => setShowBroadcast(false));
+  useBackButton(showGrounds, () => setShowGrounds(false));
+  useBackButton(showComparison, () => setShowComparison(false));
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);

@@ -4,6 +4,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, ComponentType, ReactN
 import { motion, AnimatePresence } from 'framer-motion';
 import { useKabaddiStore } from '@/lib/store';
 import Portal from '@/components/portal';
+import { useBackButton } from '@/hooks/use-back-button';
 import { AlertTriangle, RefreshCw, MessageSquare, Bell } from 'lucide-react';
 
 const SplashScreen = lazy(() => import('@/components/kabaddi/SplashScreen'));
@@ -212,6 +213,13 @@ export default function Home() {
   const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications } =
     useKabaddiStore();
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // ─── Android Back Button Support ──────────────────────────────────
+  // Prevents the back button from exiting the app when overlays are open.
+  // Each overlay pushes a history entry; pressing back closes the overlay
+  // instead of minimizing the app.
+  useBackButton(showNotifications, () => setShowNotifications(false));
+  useBackButton(showToss && !!tossMatchConfig, () => cancelToss());
 
   useEffect(() => {
     const timer = setTimeout(() => {
