@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useKabaddiStore, type EventType } from '@/lib/store';
-import { mockMatchDetails } from '@/lib/mockData';
 import ShareScorecard from './ShareScorecard';
 import MatchHighlightsScreen from './MatchHighlightsScreen';
 import MatchReplayScreen from './MatchReplayScreen';
@@ -161,13 +160,8 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
     setError(null);
     try {
       const res = await fetch(`/api/matches?id=${encodeURIComponent(matchId)}`);
-      let data: { match: MatchData };
-      // ANY non-OK response means "no backend" → use mock data.
-      if (!res.ok) {
-        data = mockMatchDetails(matchId) as unknown as { match: MatchData };
-      } else {
-        data = await res.json();
-      }
+      if (!res.ok) throw new Error('Match not found');
+      const data = await res.json();
       setMatch(data.match as MatchData);
     } catch (err) {
       console.error('Match details fetch error:', err);

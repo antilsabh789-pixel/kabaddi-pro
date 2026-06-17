@@ -116,7 +116,6 @@ import TotalPlayersBanner from './TotalPlayersBanner';
 import PopularPlayersSection from './PopularPlayersSection';
 import PlayerProfileScreen from './PlayerProfileScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
-import { mockLeaderboard } from '@/lib/mockData';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -3459,20 +3458,14 @@ function LeaderboardPreviewCard({ rank, category, onClickPlayer }: { rank: numbe
     async function fetchPreview() {
       try {
         const res = await fetch(`/api/leaderboard?category=${category}&limit=3`);
-        let data: any;
-        // ANY non-OK response means "no backend" → use mock data.
-        if (!res.ok) {
-          data = mockLeaderboard(category, 3);
-        } else {
-          data = await res.json();
-        }
-        const entry = data.leaderboard?.[rank - 1];
+        if (!res.ok) return;
+        const data = await res.json();
+        const entry = data.leaderboard?.[rank - 1] || data.entries?.[rank - 1];
         if (entry) {
-          // The mock entries don't have stat/statLabel fields, so compute them
-          const stat = entry.raidPoints ?? entry.totalPoints ?? 0;
+          const stat = entry.raidPoints ?? entry.totalPoints ?? entry.stat ?? 0;
           const statLabel = category === 'raider' ? 'raid pts' : category === 'defender' ? 'tackle pts' : 'points';
           setPlayer({
-            userId: entry.userId,
+            userId: entry.userId || entry.id,
             name: entry.name,
             avatar: entry.avatar,
             stat,

@@ -836,31 +836,13 @@ export const useKabaddiStore = create<KabaddiState>()(
       fetchHomeData: async () => {
         try {
           const res = await fetch('/api/stats');
-          // ANY non-OK response means "no backend" → use mock data.
-          // Covers 404 (endpoint not mounted), 502 (Vite proxy can't reach
-          // api-server), 503, 500, etc.
-          if (!res.ok) {
-            const { mockStats } = await import('./mockData');
-            const mock = mockStats() as unknown as HomeData;
-            set({ homeData: mock });
-            return mock;
-          }
+          if (!res.ok) return null;
           const data = await res.json();
-
-          // Cache in store
           set({ homeData: data });
           return data;
         } catch (err) {
           console.error('fetchHomeData error:', err);
-          // Last-resort fallback: still return mock data so the UI isn't empty
-          try {
-            const { mockStats } = await import('./mockData');
-            const mock = mockStats() as unknown as HomeData;
-            set({ homeData: mock });
-            return mock;
-          } catch {
-            return null;
-          }
+          return null;
         }
       },
 

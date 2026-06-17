@@ -20,7 +20,6 @@ import LiveCommentaryTicker, {
 } from './LiveCommentaryTicker';
 import { type MatchEvent, type EventType } from '@/lib/store';
 import { generateCommentary, type CommentaryExtras } from '@/lib/commentary';
-import { mockMatchEvents } from '@/lib/mockData';
 
 // ─── Props ──────────────────────────────────────────────────────────
 
@@ -1296,14 +1295,8 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
   const fetchMatchData = useCallback(async () => {
     try {
       const res = await fetch(`/api/match-events?matchId=${matchId}`);
-      let data: MatchEventsAPIResponse;
-      // ANY non-OK response means "no backend" → use mock data
-      // so the screen renders instead of staying stuck on the loading spinner.
-      if (!res.ok) {
-        data = mockMatchEvents(matchId) as unknown as MatchEventsAPIResponse;
-      } else {
-        data = await res.json() as MatchEventsAPIResponse;
-      }
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json() as MatchEventsAPIResponse;
 
       setMatchData(data.match);
       setEvents(data.events);
@@ -1316,13 +1309,6 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
       setLoading(false);
     } catch (err) {
       console.error('Failed to fetch match data:', err);
-      // Last-resort fallback: still populate mock data so the UI isn't empty
-      const mock = mockMatchEvents(matchId) as unknown as MatchEventsAPIResponse;
-      setMatchData(mock.match);
-      setEvents(mock.events);
-      if (mock.match.currentHalf && mock.match.halfDuration) {
-        setTimerSeconds(mock.match.halfDuration * 60);
-      }
       setLoading(false);
     }
   }, [matchId]);
@@ -1551,7 +1537,7 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
     }
   }, [matchData]);
 
-  // ─── Loading State ───────────────────────────────────────────
+  // ─── Loading / Error State ───────────────────────────────────
   if (loading || !matchData) {
     return (
       <motion.div
@@ -1560,8 +1546,17 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
         className="fixed inset-0 z-50 bg-white dark:bg-warm-900 flex items-center justify-center"
       >
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-full border-4 border-brand-red border-t-transparent animate-spin" />
-          <p className="text-sm text-gray-500 dark:text-warm-400 font-medium">Loading Match Experience...</p>
+          {loading ? (
+            <>
+              <div className="w-12 h-12 rounded-full border-4 border-brand-red border-t-transparent animate-spin" />
+              <p className="text-sm text-gray-500 dark:text-warm-400 font-medium">Loading Match Experience...</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500 dark:text-warm-400 font-medium">Match data not available.</p>
+              <p className="text-xs text-gray-400 dark:text-warm-500">This match may not exist or hasn't started yet.</p>
+            </>
+          )}
         </div>
       </motion.div>
     );

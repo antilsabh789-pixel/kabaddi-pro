@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import { t } from '@/lib/i18n';
-import { mockPlayerProfile } from '@/lib/mockData';
 import { useToast } from '@/hooks/use-toast';
 import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 
@@ -145,13 +144,11 @@ export default function PlayerProfileScreen({ userId, onBack }: PlayerProfileScr
     async function fetchPlayer() {
       try {
         const res = await fetch(`/api/players/${userId}`);
-        let data: { player: any; profile?: any; teamNames?: string[] };
-        // ANY non-OK response means "no backend" → use mock profile.
         if (!res.ok) {
-          data = mockPlayerProfile(userId);
-        } else {
-          data = await res.json();
+          setLoading(false);
+          return;
         }
+        const data = await res.json();
 
         // Fetch follower count + isFollowing
         let followerCount = 0;
