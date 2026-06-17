@@ -162,8 +162,9 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
     try {
       const res = await fetch(`/api/matches?id=${encodeURIComponent(matchId)}`);
       let data: { match: MatchData };
-      if (res.status === 404) {
-        // Backend not mounted — use mock data so the screen renders
+      // 404 = endpoint not mounted. 502 = Vite dev proxy can't reach api-server.
+      // 503 = service unavailable. All mean "no backend" → use mock data.
+      if (res.status === 404 || res.status === 502 || res.status === 503) {
         data = mockMatchDetails(matchId) as unknown as { match: MatchData };
       } else if (!res.ok) {
         throw new Error('Match not found');

@@ -3409,8 +3409,9 @@ function LeaderboardPreviewCard({ rank, category, onClickPlayer }: { rank: numbe
       try {
         const res = await fetch(`/api/leaderboard?category=${category}&limit=3`);
         let data: any;
-        if (res.status === 404) {
-          // Backend not mounted — use mock data so leaderboard cards render
+        // 404 = endpoint not mounted. 502 = Vite dev proxy can't reach api-server.
+        // 503 = service unavailable. All mean "no backend" → use mock data.
+        if (res.status === 404 || res.status === 502 || res.status === 503) {
           data = mockLeaderboard(category, 3);
         } else if (!res.ok) {
           return;

@@ -290,9 +290,9 @@ function mockUpdateDetails(payload: {
 
 /**
  * Send an auth request to the real backend. If the backend is unreachable
- * (network error) OR returns a 404 (endpoint not mounted — e.g. when the
- * Next.js wrapper serves the SPA statically without the Express api-server),
- * fall back to the localStorage-backed mock.
+ * (network error) OR returns a 404/502/503 (endpoint not mounted, proxy
+ * can't reach the api-server, or service unavailable), fall back to the
+ * localStorage-backed mock.
  *
  * @param payload Must include an `action` field. Other fields depend on action.
  * @returns AuthResponse with { ok, status, data }
@@ -306,9 +306,11 @@ export async function authRequest(payload: any): Promise<AuthResponse> {
       body: JSON.stringify(payload),
     });
 
-    // 404 = the auth endpoint isn't mounted at all (no backend). Fall back
-    // to the mock instead of returning a useless 404 to the UI.
-    if (res.status === 404) {
+    // 404 = the auth endpoint isn't mounted at all (no backend).
+    // 502 = Vite dev proxy can't reach the api-server at localhost:8080.
+    // 503 = service unavailable (Cashfree not configured, etc.).
+    // All three mean "no real backend available" → fall back to mock.
+    if (res.status === 404 || res.status === 502 || res.status === 503) {
       return runMock(payload);
     }
 
@@ -317,12 +319,13 @@ export async function authRequest(payload: any): Promise<AuthResponse> {
     try {
       data = await res.json();
     } catch {
-      data = {};
+      // Response wasn't JSON (probably HTML error page from proxy) → fall back to mock
+      return runMock(payload);
     }
 
     return { ok: res.ok, status: res.status, data };
   } catch (networkErr) {
-    // Backend unreachable → fall back to mock
+    // Backend unreachable (fetch threw) → fall back to mock
     return runMock(payload);
   }
 }
