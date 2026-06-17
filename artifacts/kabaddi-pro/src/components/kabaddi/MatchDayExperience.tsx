@@ -1297,13 +1297,10 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
     try {
       const res = await fetch(`/api/match-events?matchId=${matchId}`);
       let data: MatchEventsAPIResponse;
-      // 404 = endpoint not mounted. 502 = Vite dev proxy can't reach api-server.
-      // 503 = service unavailable. All mean "no backend" → use mock data
+      // ANY non-OK response means "no backend" → use mock data
       // so the screen renders instead of staying stuck on the loading spinner.
-      if (res.status === 404 || res.status === 502 || res.status === 503) {
+      if (!res.ok) {
         data = mockMatchEvents(matchId) as unknown as MatchEventsAPIResponse;
-      } else if (!res.ok) {
-        throw new Error('Failed to fetch');
       } else {
         data = await res.json() as MatchEventsAPIResponse;
       }

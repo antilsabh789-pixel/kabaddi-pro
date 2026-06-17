@@ -836,16 +836,15 @@ export const useKabaddiStore = create<KabaddiState>()(
       fetchHomeData: async () => {
         try {
           const res = await fetch('/api/stats');
-          // 404 = endpoint not mounted. 502 = Vite dev proxy can't reach api-server.
-          // 503 = service unavailable. All mean "no backend" → use mock data.
-          if (res.status === 404 || res.status === 502 || res.status === 503) {
+          // ANY non-OK response means "no backend" → use mock data.
+          // Covers 404 (endpoint not mounted), 502 (Vite proxy can't reach
+          // api-server), 503, 500, etc.
+          if (!res.ok) {
             const { mockStats } = await import('./mockData');
             const mock = mockStats() as unknown as HomeData;
             set({ homeData: mock });
             return mock;
           }
-          if (!res.ok) throw new Error('Failed to fetch stats');
-
           const data = await res.json();
 
           // Cache in store

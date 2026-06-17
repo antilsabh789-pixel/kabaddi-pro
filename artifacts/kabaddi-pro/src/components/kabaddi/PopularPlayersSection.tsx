@@ -142,16 +142,21 @@ export default function PopularPlayersSection({ onViewProfile }: { onViewProfile
       try {
         const userId = currentUser?.id || '';
         const res = await fetch(`/api/popular-players?limit=10&userId=${userId}`);
-        // 404 = endpoint not mounted. 502 = Vite dev proxy can't reach api-server.
-        // 503 = service unavailable. All mean "no backend" → use mock players.
-        if (res.status === 404 || res.status === 502 || res.status === 503) {
+        // ANY non-OK response (404, 502, 503, 500, etc.) means "no backend
+        // available" → fall back to mock players so the section renders.
+        if (!res.ok) {
           setPlayers(mockPopularPlayers(10).players as unknown as PopularPlayer[]);
           return;
         }
-        if (res.ok) {
-          const data = await res.json();
-          setPlayers(data.players || []);
+        // Try to parse JSON — if it fails (e.g. HTML error page), fall back to mock
+        let data: any;
+        try {
+          data = await res.json();
+        } catch {
+          setPlayers(mockPopularPlayers(10).players as unknown as PopularPlayer[]);
+          return;
         }
+        setPlayers(data.players || []);
       } catch (err) {
         console.error('Error fetching popular players:', err);
         // Last-resort fallback: still show mock data

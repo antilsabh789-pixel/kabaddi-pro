@@ -146,12 +146,9 @@ export default function PlayerProfileScreen({ userId, onBack }: PlayerProfileScr
       try {
         const res = await fetch(`/api/players/${userId}`);
         let data: { player: any; profile?: any; teamNames?: string[] };
-        // 404 = endpoint not mounted. 502 = Vite dev proxy can't reach api-server.
-        // 503 = service unavailable. All mean "no backend" → use mock profile.
-        if (res.status === 404 || res.status === 502 || res.status === 503) {
+        // ANY non-OK response means "no backend" → use mock profile.
+        if (!res.ok) {
           data = mockPlayerProfile(userId);
-        } else if (!res.ok) {
-          throw new Error('Failed to fetch player');
         } else {
           data = await res.json();
         }
