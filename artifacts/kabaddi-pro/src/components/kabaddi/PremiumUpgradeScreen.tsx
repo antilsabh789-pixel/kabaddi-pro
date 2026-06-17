@@ -23,6 +23,7 @@ import {
   Target,
   Flame,
   Megaphone,
+  Gift,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -157,7 +158,7 @@ const PLANS = [
     pricePaise: 329900,
     period: '/once',
     badge: 'FOREVER',
-    features: ['All premium features', 'Pay once, never again', 'Priority support', 'Exclusive lifetime badge'],
+    features: ['All premium features', 'Pay once, never again', 'Priority support', 'Exclusive lifetime badge', '🎁 FREE Kabaddi Kit'],
     highlight: false,
   },
 ];
@@ -701,6 +702,20 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                       <span className="text-xl font-black text-yellow-600 dark:text-yellow-400">₹3,299</span>
                     </div>
                   </div>
+
+                  {/* Free Kabaddi Kit gift banner */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mt-2 flex items-center gap-1.5 bg-gradient-to-r from-red-500 to-rose-500 rounded-lg px-2 py-1 shadow-sm"
+                  >
+                    <Gift className="w-3.5 h-3.5 text-white shrink-0" />
+                    <p className="text-[10px] font-bold text-white leading-tight">
+                      FREE Kabaddi Kit included!
+                    </p>
+                    <Sparkles className="w-3 h-3 text-yellow-200 ml-auto shrink-0 animate-pulse" />
+                  </motion.div>
+
                   {selectedPlan === 'lifetime' && (
                     <motion.div
                       layoutId="plan-check-lifetime"
@@ -789,6 +804,32 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
                   <Card className="p-3 bg-red-50 border-red-200">
                     <p className="text-xs text-red-700 font-medium">{paymentError}</p>
                     <p className="text-[10px] text-red-500 mt-0.5">Please try again. If the problem persists, contact support.</p>
+                  </Card>
+                </motion.div>
+              )}
+
+              {/* Free Kabaddi Kit gift reminder (only when lifetime plan is selected) */}
+              {selectedPlan === 'lifetime' && !paymentError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="px-4"
+                >
+                  <Card className="p-3 bg-gradient-to-r from-red-50 to-rose-50 border-red-200 dark:from-red-900/20 dark:to-rose-900/20 dark:border-red-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-rose-500 flex items-center justify-center shrink-0 shadow-sm">
+                        <Gift className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-red-700 dark:text-red-300">
+                          🎁 Your FREE Kabaddi Kit is included!
+                        </p>
+                        <p className="text-[10px] text-red-600/80 dark:text-red-400/80 mt-0.5">
+                          We'll contact you after payment to arrange delivery of your kabaddi kit.
+                        </p>
+                      </div>
+                      <Sparkles className="w-4 h-4 text-red-400 animate-pulse shrink-0" />
+                    </div>
                   </Card>
                 </motion.div>
               )}
