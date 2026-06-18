@@ -2400,13 +2400,14 @@ export default function LiveScoringScreen() {
         {raidPhase === 'result' && raider && (
           <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed inset-x-0 bottom-[76px] z-40 px-4">
             <div className="bg-gray-900 dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-700 dark:border-warm-700 p-4 max-w-md mx-auto">
+              {/* Header: Raider info + Timer + Cancel */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md" style={{ backgroundColor: raidingTeamColor }}>
                   {raider.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
                 </div>
                 <div className="flex-1">
                   <div className="text-base font-black text-gray-100 dark:text-warm-100">#{raider.jerseyNumber || '?'} {raider.name}</div>
-                  <div className="text-xs text-gray-400 dark:text-warm-500">goes to raid for {raidingTeamName}</div>
+                  <div className="text-xs text-gray-400 dark:text-warm-500">raiding for {raidingTeamName}</div>
                 </div>
                 {raidTimer !== null && (
                   <div className="relative w-11 h-11 flex-shrink-0">
@@ -2426,157 +2427,109 @@ export default function LiveScoringScreen() {
                 </button>
               </div>
 
-              {/* Tabbed action sections */}
-              <div className="flex gap-1 mb-3 bg-gray-800 dark:bg-warm-900 rounded-xl p-1">
-                {([
-                  { id: 'raid' as ActionTab, label: 'Raid', icon: Swords },
-                  { id: 'defense' as ActionTab, label: 'Defense', icon: Shield },
-                  { id: 'special' as ActionTab, label: 'Special', icon: Sparkles },
-                  { id: 'cards' as ActionTab, label: 'Cards', icon: AlertTriangle },
-                ]).map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActionTab(tab.id)}
-                    className={cn(
-                      'flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold transition-all',
-                      actionTab === tab.id
-                        ? 'bg-gray-600 dark:bg-warm-700 text-white shadow-sm'
-                        : 'text-gray-400 hover:text-gray-300'
-                    )}
-                  >
-                    <tab.icon className="w-3 h-3" />
-                    {tab.label}
-                  </button>
-                ))}
+              {/* 3 BIG RESULT BUTTONS — the main flow */}
+              <div className="text-[10px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-2 text-center">What happened?</div>
+              <div className="grid grid-cols-3 gap-2.5 mb-3">
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => handleSelectResult('success')}
+                  className="py-5 px-2 rounded-2xl flex flex-col items-center gap-2 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #22c55e30, #22c55e10)', border: '2px solid #22c55e60' }}
+                >
+                  <div className="text-3xl">✅</div>
+                  <span className="text-xs font-black text-green-400">SUCCESSFUL</span>
+                  <span className="text-[8px] text-green-400/60">Raider scored</span>
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => handleSelectResult('caught')}
+                  className="py-5 px-2 rounded-2xl flex flex-col items-center gap-2 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #ef444430, #ef444410)', border: '2px solid #ef444460' }}
+                >
+                  <div className="text-3xl">❌</div>
+                  <span className="text-xs font-black text-red-400">UNSUCCESSFUL</span>
+                  <span className="text-[8px] text-red-400/60">Raider caught</span>
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => handleSelectResult('empty')}
+                  className="py-5 px-2 rounded-2xl flex flex-col items-center gap-2 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #9ca3af30, #9ca3af10)', border: '2px solid #9ca3af60' }}
+                >
+                  <div className="text-3xl">⏭️</div>
+                  <span className="text-xs font-black text-gray-400">EMPTY</span>
+                  <span className="text-[8px] text-gray-400/60">No points</span>
+                </motion.button>
               </div>
 
-              <AnimatePresence mode="wait">
-                {actionTab === 'raid' && (
-                  <motion.div key="raid" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
-                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Raid Outcome</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('success')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #22c55e25, #22c55e08)', border: '2px solid #22c55e50' }}>
-                        <div className="text-xl">✅</div>
-                        <span className="text-[10px] font-bold text-green-400">Successful Raid</span>
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('caught')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #ef444425, #ef444408)', border: '2px solid #ef444450' }}>
-                        <div className="text-xl">❌</div>
-                        <span className="text-[10px] font-bold text-red-400">Caught Out</span>
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleSelectResult('empty')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #9ca3af25, #9ca3af08)', border: '2px solid #9ca3af50' }}>
-                        <div className="text-xl">⏭</div>
-                        <span className="text-[10px] font-bold text-gray-400">Empty Raid</span>
-                      </motion.button>
-                    </div>
-                    {/* Self-Out button */}
-                    <motion.button
-                      whileTap={{ scale: 0.92 }}
-                      onClick={() => {
-                        // Show defending team players to pick who self-outed
-                        const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-                        if (activeDefenders.length > 0) {
-                          // Set self-out confirm to first active defender - user can tap a defender below
-                          setActionTab('defense');
-                        }
-                      }}
-                      className="w-full py-2.5 px-2 rounded-xl flex items-center justify-center gap-2 transition-all"
-                      style={{ background: 'linear-gradient(135deg, #f9731625, #f9731608)', border: '2px solid #f9731650' }}
-                    >
-                      <div className="text-base">🚫</div>
-                      <span className="text-[10px] font-bold text-orange-400">SELF-OUT</span>
-                      <span className="text-[8px] text-orange-400/70">Defender steps off mat</span>
-                    </motion.button>
-                  </motion.div>
-                )}
-
-                {actionTab === 'defense' && (
-                  <motion.div key="defense" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
-                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Defense Actions</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleTacklePoint} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, ${defendingTeamColor}25, ${defendingTeamColor}08)`, border: `2px solid ${defendingTeamColor}50` }}>
-                        <div className="text-xl">🛡</div>
-                        <span className="text-[10px] font-bold" style={{ color: defendingTeamColor }}>Tackle Point</span>
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={handleSuperTackle} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #a855f725, #a855f708)', border: '2px solid #a855f750' }}>
-                        <div className="text-xl">⚡</div>
-                        <span className="text-[10px] font-bold text-purple-400">Super Tackle</span>
-                      </motion.button>
-                    </div>
-                    {/* Self-out: tap a defender to declare self-out */}
-                    <div className="border-t border-gray-700 pt-2 mt-2">
-                      <div className="text-[9px] font-bold text-orange-400/80 uppercase tracking-wider mb-1.5">🚫 Tap defender for Self-Out</div>
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        {(() => {
-                          const { onCourt, onCourtActive } = splitLineup(fullDefendingLineup, defendingOutIds);
-                          return onCourt.filter(p => !defendingOutIds.includes(p.id)).map(player => (
-                            <button
-                              key={player.id}
-                              onClick={() => setSelfOutConfirm(player)}
-                              className="flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all hover:bg-orange-900/20 active:bg-orange-900/30"
-                            >
-                              <PlayerCard
-                                player={player}
-                                isOut={false}
-                                isSelectable={false}
-                                teamColor={defendingTeamColor}
-                                size="small"
-                              />
-                              <span className="text-[7px] font-bold text-orange-400">Self-Out</span>
-                            </button>
-                          ));
-                        })()}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {actionTab === 'special' && (() => {
-                  const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-                  const canGetBonus = activeDefenders.length >= 6;
-                  return (
-                    <motion.div key="special" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
-                      <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Special Events</div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <motion.button
-                          whileTap={canGetBonus ? { scale: 0.92 } : {}}
-                          onClick={canGetBonus ? handleBonusPoint : undefined}
-                          className={`py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all ${!canGetBonus ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          style={{ background: 'linear-gradient(135deg, #eab30825, #eab30808)', border: `2px solid ${canGetBonus ? '#eab30850' : '#9ca3af30'}` }}
-                          title={canGetBonus ? 'Bonus Point' : 'Bonus only with 6+ defenders'}
-                        >
-                          <div className="text-xl">🎯</div>
-                          <span className={`text-[10px] font-bold ${canGetBonus ? 'text-yellow-400' : 'text-gray-500'}`}>Bonus Point</span>
-                          {!canGetBonus && <span className="text-[7px] text-gray-500">Need 6+ defenders</span>}
-                        </motion.button>
-                        <motion.button whileTap={{ scale: 0.92 }} onClick={handleAllOut} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: `linear-gradient(135deg, ${raidingTeamColor}25, ${raidingTeamColor}08)`, border: `2px solid ${raidingTeamColor}50` }}>
-                          <div className="text-xl">💥</div>
-                          <span className="text-[10px] font-bold" style={{ color: raidingTeamColor }}>All Out</span>
-                        </motion.button>
-                        <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleTimeout()} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #f9731625, #f9731608)', border: '2px solid #f9731650' }}>
-                          <div className="text-xl">📋</div>
-                          <span className="text-[10px] font-bold text-orange-400">Timeout</span>
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                  );
-                })()}
-
-                {actionTab === 'cards' && (
-                  <motion.div key="cards" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-2">
-                    <div className="text-[9px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1">Card Penalties</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleCard('yellow_card')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #eab30825, #eab30808)', border: '2px solid #eab30850' }}>
-                        <div className="text-xl">🟨</div>
-                        <span className="text-[10px] font-bold text-yellow-400">Yellow Card</span>
-                      </motion.button>
-                      <motion.button whileTap={{ scale: 0.92 }} onClick={() => handleCard('red_card')} className="py-3 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all" style={{ background: 'linear-gradient(135deg, #ef444425, #ef444408)', border: '2px solid #ef444450' }}>
-                        <div className="text-xl">🟥</div>
-                        <span className="text-[10px] font-bold text-red-400">Red Card</span>
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {/* Quick actions row — small buttons for less common events */}
+              <div className="border-t border-gray-700 dark:border-warm-700 pt-2.5">
+                <div className="text-[8px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1.5 text-center">Quick Actions</div>
+                <div className="flex gap-1.5 flex-wrap justify-center">
+                  {/* Self-Out */}
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => {
+                      const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
+                      if (activeDefenders.length > 0) {
+                        setSelfOutConfirm(activeDefenders[0]);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
+                    style={{ background: 'linear-gradient(135deg, #f9731620, #f9731608)', border: '1px solid #f9731640' }}
+                  >
+                    🚫 Self-Out
+                  </motion.button>
+                  {/* Bonus Point */}
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => {
+                      const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
+                      if (activeDefenders.length >= 6) handleBonusPoint();
+                      else toast({ title: 'Bonus needs 6+ defenders', duration: 1500 });
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
+                    style={{ background: 'linear-gradient(135deg, #eab30820, #eab30808)', border: '1px solid #eab30840' }}
+                  >
+                    🎯 Bonus
+                  </motion.button>
+                  {/* Technical Point */}
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => {
+                      const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+                      addEvent({
+                        matchId: match.id, eventType: 'technical_point', teamId,
+                        half: match.currentHalf, value: 1,
+                        details: JSON.stringify({ reason: 'Umpire decision' }),
+                      });
+                      toast({ title: 'Technical point awarded', description: `${raidingTeamName} +1`, duration: 2000 });
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
+                    style={{ background: 'linear-gradient(135deg, #a855f720, #a855f708)', border: '1px solid #a855f740' }}
+                  >
+                    ⚖️ Tech Point
+                  </motion.button>
+                  {/* Timeout */}
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => handleTimeout()}
+                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
+                    style={{ background: 'linear-gradient(135deg, #f9731620, #f9731608)', border: '1px solid #f9731640' }}
+                  >
+                    📋 Timeout
+                  </motion.button>
+                  {/* Cards */}
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => handleCard('yellow_card')}
+                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
+                    style={{ background: 'linear-gradient(135deg, #eab30820, #eab30808)', border: '1px solid #eab30840' }}
+                  >
+                    🟨 Card
+                  </motion.button>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
