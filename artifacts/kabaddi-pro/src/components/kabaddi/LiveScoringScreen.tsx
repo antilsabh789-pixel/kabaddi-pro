@@ -26,7 +26,7 @@ const RAID_TIME_LIMIT = 30; // seconds
 const ON_COURT_MAX = 7; // kabaddi standard: 7 players on court
 const RAID_GAP_TIMEOUT = 5; // seconds after raid ends before auto-pause
 const MAX_TIMEOUTS = 2; // max timeouts per team (practice matches)
-const TIMEOUT_DURATION = 30; // 30 seconds — Pro Kabaddi rule
+const TIMEOUT_DURATION = 120; // 2 minutes timeout duration
 
 // Animations (Confetti, All Out, Super Raid) removed from scorer screen — these run on viewer's phone only
 
@@ -521,8 +521,10 @@ export default function LiveScoringScreen() {
       setRaidTimer(null);
       if (raidPhase !== 'idle' && raider) {
         triggerFeedback(SoundType.RAID_TIME_EXPIRED);
-        processRaidResultRef.current('empty', new Set(), false);
-        toast({ title: 'Raid time expired!', description: 'Recorded as empty raid', duration: 2000 });
+        // Per Pro Kabaddi rules: if raider doesn't complete raid within 30 seconds,
+        // the raider is OUT and the defending team gets 1 point (like a tackle).
+        processRaidResultRef.current('caught', new Set(), false);
+        toast({ title: 'Raid time expired!', description: 'Raider is out — 1 point to defense', duration: 3000 });
       }
       return;
     }
