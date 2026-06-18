@@ -994,11 +994,12 @@ export default function LiveScoringScreen() {
     }
 
     // Show event confirmation
-    const pointValue = result === 'success' ? (touchedDefenders.size + (hasBonus ? 1 : 0)) : result === 'caught' ? 1 : 0;
+    const hasSuperTackle = events.some(e => e.eventType === 'super_tackle');
+    const pointValue = result === 'success' ? (touchedDefenders.size + (hasBonus ? 1 : 0)) : result === 'caught' ? (hasSuperTackle ? 2 : 1) : 0;
     const confirmMsg = result === 'success'
       ? `${raider.name} +${pointValue} raid point${pointValue > 1 ? 's' : ''}`
       : result === 'caught'
-        ? `${defendingTeamName} +1 tackle`
+        ? `${defendingTeamName} +${pointValue} ${hasSuperTackle ? 'super tackle' : 'tackle'}`
         : 'Empty raid recorded';
     setEventConfirm({ message: confirmMsg, teamColor: result === 'caught' ? defendingTeamColor : raidingTeamColor });
 
