@@ -613,13 +613,17 @@ export default function LiveScoringScreen() {
     };
   }, [showTimeoutOverlay]);
 
-  // Auto-resume when timeout reaches 0
+  // Auto-resume when timeout reaches 0 — but start raid gap timer so clock
+  // auto-pauses again if scorer doesn't act within 5 seconds
   useEffect(() => {
     if (showTimeoutOverlay && timeoutCountdown === 0) {
       setShowTimeoutOverlay(false);
       setIsPaused(false);
+      // Start the 5-second raid gap timer so the match clock auto-pauses
+      // if the scorer doesn't select a raider quickly after the timeout
+      if (hasStartedRaiding) setRaidGapTimer(RAID_GAP_TIMEOUT);
     }
-  }, [showTimeoutOverlay, timeoutCountdown]);
+  }, [showTimeoutOverlay, timeoutCountdown, hasStartedRaiding]);
 
   // ═══ AUTO-SCROLL EVENT LOG ═══
   useEffect(() => {
