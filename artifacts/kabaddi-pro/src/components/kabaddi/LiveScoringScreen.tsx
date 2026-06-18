@@ -26,7 +26,7 @@ const RAID_TIME_LIMIT = 30; // seconds
 const ON_COURT_MAX = 7; // kabaddi standard: 7 players on court
 const RAID_GAP_TIMEOUT = 5; // seconds after raid ends before auto-pause
 const MAX_TIMEOUTS = 2; // max timeouts per team (practice matches)
-const TIMEOUT_DURATION = 120; // 2 minutes timeout duration
+const TIMEOUT_DURATION = 30; // 30 seconds — Pro Kabaddi rule
 
 // Animations (Confetti, All Out, Super Raid) removed from scorer screen — these run on viewer's phone only
 

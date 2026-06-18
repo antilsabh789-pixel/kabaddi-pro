@@ -326,14 +326,40 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
       if (checkAllOut(raiderSide)) { addPoints(side, 2); }
     }
 
-    // ─── SELF-OUT ───
+    // ─── SELF-OUT (raider or defender steps out of court) ───
+    // details.selfOutSide tells us WHO stepped out: 'raider' or 'defender'
+    // If raider steps out → defending team gets 1 point + raider goes to out queue
+    // If defender steps out → raiding team gets 1 point + defender goes to out queue + 1 revival
     else if (evt.eventType === 'self_out') {
-      addPoints(side, evt.value);
-      const selfOutPlayerId = (details.selfOutPlayerId as string) || evt.playerId;
-      const defendingSide = side === 'home' ? 'away' : 'home';
-      sendOut(defendingSide, selfOutPlayerId || '');
-      revive(side, 1);
-      emptyRaidCount[evt.teamId] = 0;
+      const selfOutPlayerId = (details.selfOutPlayerId as string) || evt.playerId || '';
+      const selfOutRole = (details.selfOutRole as string) || 'defender'; // 'raider' or 'defender'
+
+      if (selfOutRole === 'raider') {
+        // Raider stepped out → defending team scores
+        // 'side' is the defending team (they get the point)
+        addPoints(side, evt.value);
+        // Raider goes to out queue (raider is from the OPPOSING team)
+        const raiderSide = side === 'home' ? 'away' : 'home';
+        sendOut(raiderSide, selfOutPlayerId);
+        // Defending team revives 1 player
+        revive(side, 1);
+        // Reset empty raid counter for the raider's team (raid ended)
+        const raiderTeamId = side === 'home' ? match.awayTeamId : match.homeTeamId;
+        emptyRaidCount[raiderTeamId] = 0;
+      } else {
+        // Defender stepped out → raiding team scores
+        // 'side' is the raiding team (they get the point)
+        addPoints(side, evt.value);
+        // Defender goes to out queue (defender is from the OPPOSING team)
+        const defendingSide = side === 'home' ? 'away' : 'home';
+        sendOut(defendingSide, selfOutPlayerId);
+        // Raiding team revives 1 player
+        revive(side, 1);
+        // Reset empty raid counter for the raiding team (they scored)
+        emptyRaidCount[evt.teamId] = 0;
+        // Auto All-Out check
+        if (checkAllOut(defendingSide)) { addPoints(side, 2); }
+      }
     }
 
     // ─── DO-OR-DIE RAID (failed) ───
