@@ -57,6 +57,7 @@ export type EventType =
   | 'all_out'
   | 'empty_raid'
   | 'self_out'
+  | 'technical_point'
   | 'substitution'
   | 'timeout'
   | 'yellow_card'
@@ -358,6 +359,15 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
     else if (evt.eventType === 'empty_raid') {
       emptyRaidCount[evt.teamId] = (emptyRaidCount[evt.teamId] || 0) + 1;
     }
+
+    // ─── TECHNICAL POINT (by umpire) ───
+    // Awards points without affecting outs, revivals, or raid queue.
+    // Does NOT end a raid (it's awarded between raids or during stoppages).
+    else if (evt.eventType === 'technical_point') {
+      addPoints(side, evt.value);
+    }
+
+    // Non-scoring events (substitution, timeout, cards) don't affect score or outs
   }
 
   // ─── Auto Do-or-Die after 2 consecutive empty raids ───

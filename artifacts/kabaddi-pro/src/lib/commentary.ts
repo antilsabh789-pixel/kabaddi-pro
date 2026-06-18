@@ -46,6 +46,9 @@ export function generateCommentary(
     case 'do_or_die_raid':
       return `DO-OR-DIE raid for ${playerName}! This one matters!`;
 
+    case 'technical_point':
+      return `Technical point awarded to ${teamName} by the umpire!`;
+
     default:
       return `${playerName} makes a play for ${teamName}!`;
   }
@@ -67,6 +70,8 @@ export function getCommentaryDotColor(type: string): string {
       return 'bg-orange-400';
     case 'empty_raid':
       return 'bg-gray-400';
+    case 'technical_point':
+      return 'bg-purple-400';
     default:
       return 'bg-gray-400';
   }
