@@ -162,6 +162,7 @@ model Tournament {
   organizer User? @relation(fields: [organizerId], references: [id], onDelete: SetNull)
   entries   TournamentEntry[]
   matches   Match[]
+  transfers TournamentTransfer[]
 }
 
 model TournamentEntry {
@@ -614,6 +615,24 @@ model MatchTransfer {
   claimedAt     DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ─── Tournament Transfer (Handoff) ───────────────────────────────────
+
+model TournamentTransfer {
+  id              String   @id @default(cuid())
+  transferCode    String   @unique  // 6-char alphanumeric code for easy sharing
+  tournamentId    String             // The tournament being transferred
+  organizerUserId String?            // User ID of the current organizer
+  organizerName   String?            // Name of the organizer
+  receiverUserId  String?            // User ID of the new organizer who claimed it
+  status          String   @default("active") // active, claimed, expired, cancelled
+  expiresAt       DateTime           // Transfer code expires after 60 minutes
+  claimedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 }
 
 // ─── Match Comments (Feature #28) ─────────────────────────────────

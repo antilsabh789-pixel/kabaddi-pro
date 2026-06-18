@@ -169,4 +169,128 @@ router.post('/tournaments/generate-bracket', async (req, res) => {
   }
 });
 
+// ── Tournament Transfer / Handoff ────────────────────────────────────────────
+
+function genTransferCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+/**
+ * POST /api/tournament-transfer
+ * Body: { tournamentId, organizerUserId, organizerName }
+ * Generates a 6-char transfer code valid for 60 minutes.
+ */
+router.post('/tournament-transfer', async (req, res) => {
+  try {
+    const { tournamentId, organizerUserId, organizerName } = req.body;
+    if (!tournamentId) return res.status(400).json({ error: 'tournamentId is required' });
+
+    const tournament = await db.tournament.findUnique({ where: { id: tournamentId } });
+    if (!tournament) return res.status(404).json({ error: 'Tournament not found' });
+
+    // Cancel any existing active transfers for this tournament
+    await db.tournamentTransfer.updateMany({
+      where: { tournamentId, status: 'active' },
+      data: { status: 'cancelled' },
+    });
+
+    const transferCode = genTransferCode();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 60 minutes
+
+    const transfer = await db.tournamentTransfer.create({
+      data: { transferCode, tournamentId, organizerUserId, organizerName, expiresAt },
+    });
+
+    return res.json({
+      transferCode: transfer.transferCode,
+      expiresAt: transfer.expiresAt,
+      tournamentName: tournament.name,
+    });
+  } catch (error) {
+    console.error('Tournament transfer create error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/tournament-transfer?code=XXXXXX
+ * Validates a transfer code and returns tournament preview info.
+ */
+router.get('/tournament-transfer', async (req, res) => {
+  try {
+    const code = (req.query['code'] as string || '').toUpperCase().trim();
+    if (!code) return res.status(400).json({ error: 'Code is required' });
+
+    const transfer = await db.tournamentTransfer.findUnique({
+      where: { transferCode: code },
+      include: { tournament: { select: { id: true, name: true, type: true, status: true, venue: true, gender: true, startDate: true } } },
+    });
+
+    if (!transfer) return res.status(404).json({ error: 'Invalid transfer code' });
+    if (transfer.status === 'claimed') return res.status(400).json({ error: 'This tournament has already been claimed' });
+    if (transfer.status === 'cancelled') return res.status(400).json({ error: 'This transfer code has been cancelled' });
+    if (new Date(transfer.expiresAt) < new Date()) {
+      await db.tournamentTransfer.update({ where: { id: transfer.id }, data: { status: 'expired' } });
+      return res.status(400).json({ error: 'Transfer code has expired' });
+    }
+
+    return res.json({
+      transferCode: transfer.transferCode,
+      tournament: transfer.tournament,
+      organizerName: transfer.organizerName,
+      expiresAt: transfer.expiresAt,
+    });
+  } catch (error) {
+    console.error('Tournament transfer validate error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/tournament-transfer/claim
+ * Body: { transferCode, newOrganizerId, newOrganizerName }
+ * Claims the tournament — updates organizerId to the new user.
+ */
+router.post('/tournament-transfer/claim', async (req, res) => {
+  try {
+    const { transferCode, newOrganizerId, newOrganizerName } = req.body;
+    if (!transferCode || !newOrganizerId) return res.status(400).json({ error: 'transferCode and newOrganizerId are required' });
+
+    const code = transferCode.toUpperCase().trim();
+    const transfer = await db.tournamentTransfer.findUnique({
+      where: { transferCode: code },
+      include: { tournament: true },
+    });
+
+    if (!transfer) return res.status(404).json({ error: 'Invalid transfer code' });
+    if (transfer.status === 'claimed') return res.status(400).json({ error: 'Already claimed' });
+    if (transfer.status === 'cancelled') return res.status(400).json({ error: 'Transfer cancelled' });
+    if (new Date(transfer.expiresAt) < new Date()) return res.status(400).json({ error: 'Transfer code expired' });
+
+    // Update the tournament's organizer
+    const updatedTournament = await db.tournament.update({
+      where: { id: transfer.tournamentId },
+      data: { organizerId: newOrganizerId },
+    });
+
+    // Mark the transfer as claimed
+    await db.tournamentTransfer.update({
+      where: { id: transfer.id },
+      data: { status: 'claimed', receiverUserId: newOrganizerId, claimedAt: new Date() },
+    });
+
+    return res.json({
+      success: true,
+      tournament: updatedTournament,
+      message: `Tournament "${updatedTournament.name}" is now managed by ${newOrganizerName || 'you'}`,
+    });
+  } catch (error) {
+    console.error('Tournament transfer claim error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

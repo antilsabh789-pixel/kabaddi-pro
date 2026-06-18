@@ -7,7 +7,8 @@ import {
   Lock, Loader2, Search, X, Copy, Check, Hash, UserPlus, Trash2, Swords,
   Sparkles, Timer, Filter, TrendingUp, Clock, Zap, CalendarDays, LayoutGrid,
   ChevronRight, Star, ArrowRight, CircleDot, Radio, Award, Target,
-  Eye, Flame, Shield, Venus, Mars, BarChart3, Activity
+  Eye, Flame, Shield, Venus, Mars, BarChart3, Activity,
+  ArrowRightLeft
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { useKabaddiStore } from '@/lib/store';
 import Portal from '@/components/portal';
@@ -619,6 +621,24 @@ export default function TournamentsTab() {
   useBackButton(showUpgrade, () => setShowUpgrade(false));
   useBackButton(createOpen, () => setCreateOpen(false));
 
+  // ─── Tournament Transfer State ────────────────────────────────────
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferTournament, setTransferTournament] = useState<Tournament | null>(null);
+  const [transferCode, setTransferCode] = useState<string | null>(null);
+  const [transferExpiry, setTransferExpiry] = useState<Date | null>(null);
+  const [generatingTransfer, setGeneratingTransfer] = useState(false);
+
+  // Receive tournament state
+  const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
+  const [receiveCode, setReceiveCode] = useState('');
+  const [receiveValidating, setReceiveValidating] = useState(false);
+  const [receiveError, setReceiveError] = useState<string | null>(null);
+  const [receivePreview, setReceivePreview] = useState<any>(null);
+  const [receiveClaiming, setReceiveClaiming] = useState(false);
+
+  useBackButton(transferDialogOpen, () => { setTransferDialogOpen(false); setTransferCode(null); });
+  useBackButton(receiveDialogOpen, () => { setReceiveDialogOpen(false); setReceiveCode(''); setReceiveError(null); setReceivePreview(null); });
+
   // Tournament search by code
   const [tournamentSearch, setTournamentSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -806,6 +826,88 @@ export default function TournamentsTab() {
     }, 300);
     return () => clearTimeout(timer);
   }, [tournamentSearch]);
+
+  // ─── Tournament Transfer Handlers ─────────────────────────────────
+  const handleGenerateTransfer = useCallback(async (tournament: Tournament) => {
+    setTransferTournament(tournament);
+    setTransferDialogOpen(true);
+    setTransferCode(null);
+    setGeneratingTransfer(true);
+    try {
+      const res = await fetch('/api/tournament-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournamentId: tournament.id,
+          organizerUserId: currentUser?.id,
+          organizerName: currentUser?.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Error', description: data.error || 'Failed to generate code', variant: 'destructive' });
+        setTransferDialogOpen(false);
+        return;
+      }
+      setTransferCode(data.transferCode);
+      setTransferExpiry(new Date(data.expiresAt));
+    } catch {
+      toast({ title: 'Error', description: 'Failed to generate transfer code', variant: 'destructive' });
+      setTransferDialogOpen(false);
+    } finally {
+      setGeneratingTransfer(false);
+    }
+  }, [currentUser, toast]);
+
+  const handleValidateReceiveCode = useCallback(async () => {
+    if (!receiveCode.trim()) return;
+    setReceiveValidating(true);
+    setReceiveError(null);
+    setReceivePreview(null);
+    try {
+      const res = await fetch(`/api/tournament-transfer?code=${receiveCode.trim().toUpperCase()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setReceiveError(data.error || 'Invalid code');
+        return;
+      }
+      setReceivePreview(data);
+    } catch {
+      setReceiveError('Failed to validate code');
+    } finally {
+      setReceiveValidating(false);
+    }
+  }, [receiveCode]);
+
+  const handleClaimTournament = useCallback(async () => {
+    if (!receivePreview || !currentUser?.id) return;
+    setReceiveClaiming(true);
+    try {
+      const res = await fetch('/api/tournament-transfer/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transferCode: receivePreview.transferCode,
+          newOrganizerId: currentUser.id,
+          newOrganizerName: currentUser.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReceiveError(data.error || 'Failed to claim tournament');
+        return;
+      }
+      toast({ title: 'Tournament Received!', description: `You now manage "${data.tournament?.name || 'the tournament'}"` });
+      setReceiveDialogOpen(false);
+      setReceiveCode('');
+      setReceivePreview(null);
+      fetchTournaments();
+    } catch {
+      setReceiveError('Failed to claim tournament');
+    } finally {
+      setReceiveClaiming(false);
+    }
+  }, [receivePreview, currentUser, toast, fetchTournaments]);
 
   const handleCreateClick = () => {
     if (!isPremium) {
@@ -1174,6 +1276,13 @@ export default function TournamentsTab() {
             </p>
           </div>
           <motion.div whileTap={{ scale: 0.95 }}>
+            <Button
+              onClick={() => setReceiveDialogOpen(true)}
+              className="rounded-xl h-11 px-4 font-bold text-sm bg-white/15 backdrop-blur-sm hover:bg-white/25 text-white border border-white/20 shadow-lg"
+            >
+              <ArrowRightLeft className="w-4 h-4 mr-1.5" />
+              Receive
+            </Button>
             <Button
               onClick={handleCreateClick}
               className={`rounded-xl h-11 px-5 font-bold text-sm ${
@@ -2065,6 +2174,17 @@ export default function TournamentsTab() {
                                 <Plus className="w-3 h-3 mr-1" />
                                 Add Team
                               </Button>
+                              {tournament.organizerId === currentUser?.id && (
+                                <Button
+                                  onClick={() => handleGenerateTransfer(tournament)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="rounded-lg h-7 px-2.5 text-[10px] font-bold border-brand-gold text-brand-gold hover:bg-brand-gold/10"
+                                >
+                                  <ArrowRightLeft className="w-3 h-3 mr-1" />
+                                  Handoff
+                                </Button>
+                              )}
                             </div>
                             <div className="space-y-1.5 max-h-64 overflow-y-auto">
                               {tournament.teams.map((team) => (
@@ -2595,6 +2715,121 @@ export default function TournamentsTab() {
                 'Remove'
               )}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Tournament Transfer (Handoff) Dialog ═══ */}
+      <Dialog open={transferDialogOpen} onOpenChange={(open) => { if (!open) { setTransferDialogOpen(false); setTransferCode(null); } }}>
+        <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+              <ArrowRightLeft className="w-4 h-4 text-brand-gold" />
+              Tournament Handoff
+            </DialogTitle>
+            <DialogDescription className="text-warm-500 dark:text-warm-400">
+              Share this code with the new organizer. They enter it via "Receive" to take over management of "{transferTournament?.name}".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {generatingTransfer ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
+              </div>
+            ) : transferCode ? (
+              <>
+                <div className="text-center bg-gradient-to-br from-brand-gold/10 to-amber-500/10 rounded-xl p-6 border border-brand-gold/20">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-warm-400 mb-2">Transfer Code</p>
+                  <p className="text-4xl font-black font-mono text-brand-gold tracking-[0.15em]">{transferCode}</p>
+                  {transferExpiry && (
+                    <p className="text-[10px] text-warm-400 mt-2">Expires at {transferExpiry.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                  )}
+                </div>
+                <Button
+                  onClick={() => {
+                    navigator.clipboard.writeText(transferCode);
+                    toast({ title: 'Copied!', description: 'Transfer code copied to clipboard' });
+                  }}
+                  className="w-full bg-gradient-to-r from-brand-gold to-amber-500 text-white rounded-xl font-bold"
+                >
+                  <Copy className="w-4 h-4 mr-1.5" />
+                  Copy Code
+                </Button>
+              </>
+            ) : (
+              <p className="text-center text-warm-400 text-sm py-4">Failed to generate code. Please try again.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Receive Tournament Dialog ═══ */}
+      <Dialog open={receiveDialogOpen} onOpenChange={(open) => { if (!open) { setReceiveDialogOpen(false); setReceiveCode(''); setReceiveError(null); setReceivePreview(null); } }}>
+        <DialogContent className="bg-warm-50 dark:bg-warm-900 border-warm-300 dark:border-warm-700 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-warm-800 dark:text-warm-100 flex items-center gap-2">
+              <ArrowRightLeft className="w-4 h-4 text-brand-teal" />
+              Receive Tournament
+            </DialogTitle>
+            <DialogDescription className="text-warm-500 dark:text-warm-400">
+              Enter the transfer code shared by the current organizer to take over tournament management.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="Enter 6-char code (e.g. AB3XY9)"
+              value={receiveCode}
+              onChange={(e) => { setReceiveCode(e.target.value.toUpperCase()); setReceiveError(null); setReceivePreview(null); }}
+              maxLength={6}
+              className="text-center text-lg font-mono font-bold tracking-[0.2em] h-12 bg-white dark:bg-warm-800 border-warm-300 dark:border-warm-600 rounded-xl"
+            />
+            {receiveError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <p className="text-xs text-red-600 dark:text-red-400 font-medium">{receiveError}</p>
+              </div>
+            )}
+            {receivePreview && (
+              <div className="bg-brand-teal/5 dark:bg-brand-teal/10 border border-brand-teal/20 rounded-xl p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-brand-teal" />
+                  <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{receivePreview.tournament?.name}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[10px] text-warm-500 dark:text-warm-400">
+                  {receivePreview.tournament?.type && <span className="bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-full capitalize">{receivePreview.tournament.type}</span>}
+                  {receivePreview.tournament?.status && <span className="bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-full capitalize">{receivePreview.tournament.status}</span>}
+                  {receivePreview.tournament?.venue && <span className="bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-full">{receivePreview.tournament.venue}</span>}
+                </div>
+                {receivePreview.organizerName && (
+                  <p className="text-[10px] text-warm-400">Currently managed by: {receivePreview.organizerName}</p>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => { setReceiveDialogOpen(false); setReceiveCode(''); setReceiveError(null); setReceivePreview(null); }}
+                className="flex-1 rounded-xl"
+              >
+                Cancel
+              </Button>
+              {!receivePreview ? (
+                <Button
+                  onClick={handleValidateReceiveCode}
+                  disabled={!receiveCode.trim() || receiveValidating}
+                  className="flex-1 bg-brand-teal hover:bg-brand-teal/90 text-white rounded-xl font-bold"
+                >
+                  {receiveValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Validate'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleClaimTournament}
+                  disabled={receiveClaiming}
+                  className="flex-1 bg-gradient-to-r from-brand-teal to-emerald-500 text-white rounded-xl font-bold"
+                >
+                  {receiveClaiming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Claim Tournament'}
+                </Button>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
