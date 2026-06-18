@@ -209,15 +209,61 @@ router.get('/scorecard-pdf', async (req, res) => {
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 
+/**
+ * POST /api/upload
+ *
+ * Accepts a JSON body: { fileData, fileName, fileType, userId }
+ * - fileData: a base64 data URL (e.g. "data:image/jpeg;base64,...")
+ * - userId: the user uploading the avatar
+ *
+ * Stores the data URL directly in the user's `avatar` field in the database.
+ * This approach:
+ *   - Doesn't require a file system (works on ephemeral containers like Railway)
+ *   - Survives restarts/redeploys
+ *   - Works on all devices (Vercel, Railway, Play Store WebView)
+ *
+ * Returns: { url: "<data URL>" }
+ */
 router.post('/upload', async (req, res) => {
   try {
-    return res.json({ message: 'File upload endpoint - configure storage provider', url: null });
+    const { fileData, fileName, fileType, userId } = req.body;
+
+    if (!fileData || typeof fileData !== 'string') {
+      return res.status(400).json({ error: 'fileData is required' });
+    }
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Validate that fileData is a base64 data URL
+    const match = fileData.match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i);
+    if (!match) {
+      return res.status(400).json({ error: 'fileData must be a base64 data URL' });
+    }
+
+    // Limit size to ~2MB (base64 encoded = ~2.67MB). Avatars don't need to be huge.
+    const base64Data = match[2];
+    const buffer = Buffer.from(base64Data, 'base64');
+    if (buffer.length > 2 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Image too large (max 2MB)' });
+    }
+
+    // Store the data URL directly in the user's avatar field
+    const updatedUser = await db.user.update({
+      where: { id: userId },
+      data: { avatar: fileData },
+      select: { id: true, avatar: true },
+    });
+
+    return res.json({ url: fileData, user: updatedUser });
   } catch (error) {
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Upload error:', error);
+    return res.status(500).json({ error: 'Failed to upload file' });
   }
 });
 
-// Serve uploaded files if any exist
+// Serve uploaded files (kept for backward compatibility, but avatars are now
+// stored as data URLs in the database, so this route is rarely needed)
 router.get('/uploads/avatars/:filename', (req, res) => {
   const uploadDir = path.join(process.cwd(), 'uploads', 'avatars');
   const filePath = path.join(uploadDir, req.params['filename']);

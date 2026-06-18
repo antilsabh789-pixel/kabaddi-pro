@@ -526,8 +526,21 @@ export default function ProfileTab() {
 
       if (res.ok) {
         const data = await res.json();
-        const avatarUrl = data.url;
+        const avatarUrl = data.url || croppedDataUrl; // fallback to local data URL
+        // Update both the local store AND verify the backend saved it
         updateUser({ avatar: avatarUrl });
+        // Also fetch the updated user from the backend to sync the avatar
+        try {
+          const userRes = await fetch(`/api/players/${currentUser.id}`);
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            if (userData.player?.avatar) {
+              updateUser({ avatar: userData.player.avatar });
+            }
+          }
+        } catch {
+          // The local update is sufficient if the fetch fails
+        }
         toast({ title: 'Profile picture updated!' });
       } else {
         const data = await res.json();
