@@ -3009,18 +3009,18 @@ export default function HomeTab() {
           <Badge className="bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-[9px] border-0 font-bold px-1.5 py-0">NEW</Badge>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {/* Find Teams & Grounds */}
+          {/* Find Grounds */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-blue-50/80 to-warm-50 dark:from-blue-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowFindTeams(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-500/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <div className="flex items-center gap-3 relative z-10">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/30 to-blue-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-blue-500/20 transition-shadow">
-                  <Users className="w-4.5 h-4.5 text-blue-500" />
+                  <MapPin className="w-4.5 h-4.5 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Teams & Grounds</p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Nearby teams & venues</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Find Grounds</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Nearby venues & arenas</p>
                 </div>
               </div>
             </Card>

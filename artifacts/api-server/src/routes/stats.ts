@@ -184,39 +184,217 @@ router.get('/nearby-players', async (req, res) => {
 
 router.get('/nearby-teams', async (req, res) => {
   try {
-    const limit = parseInt((req.query['limit'] as string) || '10');
-    const teams = await db.team.findMany({ take: limit, include: { _count: { select: { members: true } } } });
-    return res.json({ teams });
+    const radiusRaw = (req.query['radius'] as string) || 'everywhere';
+    const isEverywhere = radiusRaw === 'everywhere' || radiusRaw === 'all';
+    const radiusKm = isEverywhere ? Infinity : parseFloat(radiusRaw) || 50;
+    const userLat = parseFloat((req.query['lat'] as string) || '0');
+    const userLng = parseFloat((req.query['lng'] as string) || '0');
+    const excludeUserId = (req.query['excludeUserId'] as string) || '';
+
+    const where: Record<string, unknown> = {};
+    if (excludeUserId) {
+      where.members = { none: { userId: excludeUserId } };
+    }
+
+    const teams = await db.team.findMany({
+      where,
+      include: {
+        _count: { select: { members: true } },
+        members: { take: 1, select: { user: { select: { id: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    const formatted = teams.map((t) => ({
+      id: t.id,
+      name: t.name,
+      shortName: t.shortName,
+      teamCode: t.teamCode,
+      logo: t.logo,
+      color: t.color,
+      memberCount: t._count.members,
+      distance: 0,
+      city: null,
+      area: null,
+      groundName: null,
+      isMember: false,
+    }));
+
+    return res.json({ teams: formatted });
   } catch (error) {
+    console.error('nearby-teams error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+// Haversine distance (km) between two lat/lng points
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 router.get('/nearby-tournaments', async (req, res) => {
   try {
-    const limit = parseInt((req.query['limit'] as string) || '10');
-    const tournaments = await db.tournament.findMany({ where: { status: { in: ['upcoming', 'ongoing'] } }, take: limit, include: { organizer: { select: { id: true, name: true } } } });
-    return res.json({ tournaments });
+    const radiusRaw = (req.query['radius'] as string) || 'everywhere';
+    const status = (req.query['status'] as string) || '';
+    const isEverywhere = radiusRaw === 'everywhere' || radiusRaw === 'all';
+    const radiusKm = isEverywhere ? Infinity : parseFloat(radiusRaw) || 50;
+    const userLat = parseFloat((req.query['lat'] as string) || '0');
+    const userLng = parseFloat((req.query['lng'] as string) || '0');
+
+    // Build where clause for status filter
+    const where: Record<string, unknown> = {};
+    if (status === 'upcoming') where.status = 'upcoming';
+    else if (status === 'ongoing') where.status = 'ongoing';
+    else where.status = { in: ['upcoming', 'ongoing', 'completed'] };
+
+    // Fetch all matching tournaments — no take limit so "everywhere" really shows everything.
+    // Limit to 500 to avoid pathological cases.
+    const tournaments = await db.tournament.findMany({
+      where,
+      include: {
+        organizer: { select: { id: true, name: true } },
+        entries: { select: { id: true } },
+      },
+      orderBy: { startDate: 'asc' },
+      take: 500,
+    });
+
+    const formatted = tournaments.map((t) => ({
+      id: t.id,
+      name: t.name,
+      tournamentCode: t.tournamentCode,
+      status: t.status,
+      type: t.type,
+      gender: t.gender,
+      weightCategory: t.weightCategory,
+      startDate: t.startDate,
+      endDate: t.endDate,
+      venue: t.venue,
+      groundName: t.venue || null,
+      groundCity: null,
+      teamCount: t.entries.length,
+      // Tournaments don't carry lat/lng in the schema, so we can't compute real distance.
+      distance: null as number | null,
+    }));
+
+    return res.json({ tournaments: formatted });
   } catch (error) {
+    console.error('nearby-tournaments error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 router.get('/nearby-grounds', async (req, res) => {
   try {
-    const limit = parseInt((req.query['limit'] as string) || '10');
-    const grounds = await db.ground.findMany({ take: limit });
-    return res.json({ grounds });
+    const radiusRaw = (req.query['radius'] as string) || 'everywhere';
+    const isEverywhere = radiusRaw === 'everywhere' || radiusRaw === 'all';
+    const radiusKm = isEverywhere ? Infinity : parseFloat(radiusRaw) || 50;
+    const userLat = parseFloat((req.query['lat'] as string) || '0');
+    const userLng = parseFloat((req.query['lng'] as string) || '0');
+
+    const grounds = await db.ground.findMany({
+      include: { _count: { select: { matches: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    const withDistance = grounds
+      .map((g) => {
+        const distance = (g.lat !== null && g.lng !== null)
+          ? haversineKm(userLat, userLng, g.lat, g.lng)
+          : 0;
+        return {
+          id: g.id,
+          name: g.name,
+          address: g.address,
+          city: g.city,
+          state: g.state,
+          surface: g.surface,
+          amenities: g.amenities,
+          lat: g.lat,
+          lng: g.lng,
+          matchCount: g._count.matches,
+          distance: Math.round(distance * 10) / 10,
+        };
+      })
+      .filter((g) => isEverywhere || g.distance <= radiusKm)
+      .sort((a, b) => a.distance - b.distance);
+
+    return res.json({ grounds: withDistance });
   } catch (error) {
+    console.error('nearby-grounds error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 router.get('/grounds', async (req, res) => {
   try {
-    const grounds = await db.ground.findMany({ orderBy: { createdAt: 'desc' } });
-    return res.json({ grounds });
+    const search = (req.query['search'] as string) || '';
+    const surface = (req.query['surface'] as string) || '';
+    const amenity = (req.query['amenity'] as string) || '';
+    const sort = (req.query['sort'] as string) || 'newest';
+    const userLat = parseFloat((req.query['lat'] as string) || '0');
+    const userLng = parseFloat((req.query['lng'] as string) || '0');
+
+    const where: Record<string, unknown> = {};
+    if (surface && surface !== 'all') where.surface = surface;
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+        { state: { contains: search, mode: 'insensitive' } },
+        { address: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (amenity) {
+      // amenities is a JSON array stored as text — use contains match
+      where.amenities = { contains: amenity };
+    }
+
+    const grounds = await db.ground.findMany({
+      where,
+      include: {
+        _count: { select: { matches: true } },
+        matches: {
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            homeTeam: { select: { name: true, shortName: true, color: true } },
+            awayTeam: { select: { name: true, shortName: true, color: true } },
+            tournament: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: sort === 'popular'
+        ? { matches: { _count: 'desc' } }
+        : { createdAt: 'desc' },
+      take: 500,
+    });
+
+    const withDistance = grounds.map((g) => ({
+      ...g,
+      _count: g._count,
+      distance: (g.lat !== null && g.lng !== null)
+        ? Math.round(haversineKm(userLat, userLng, g.lat, g.lng) * 10) / 10
+        : null,
+    }));
+
+    if (sort === 'nearest') {
+      withDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    }
+
+    return res.json({ grounds: withDistance });
   } catch (error) {
+    console.error('grounds fetch error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

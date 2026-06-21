@@ -441,6 +441,9 @@ export const translations: TranslationMap = {
   // ─── Find Teams (Feature #64) ───
   'findTeams.title': { en: 'Teams & Grounds', hi: 'टीमें और मैदान' },
   'findTeams.subtitle': { en: 'Discover kabaddi teams & grounds near you', hi: 'अपने पास कबड्डी टीमें और मैदान खोजें' },
+  'findTeams.groundsTitle': { en: 'Find Grounds', hi: 'मैदान खोजें' },
+  'findTeams.groundsSubtitle': { en: 'Discover kabaddi grounds & venues', hi: 'कबड्डी मैदान और स्थल खोजें' },
+  'findTeams.everywhere': { en: 'Everywhere', hi: 'हर जगह' },
   'findTeams.gpsNotSupported': { en: 'GPS is not supported on this device', hi: 'इस डिवाइस पर GPS समर्थित नहीं है' },
   'findTeams.gpsDenied': { en: 'Location access denied. Please enable GPS.', hi: 'स्थान एक्सेस अस्वीकृत। कृपया GPS चालू करें।' },
   'findTeams.locationActive': { en: 'Location detected', hi: 'स्थान पहचाना गया' },
@@ -472,6 +475,7 @@ export const translations: TranslationMap = {
   'tournamentMap.noTournaments': { en: 'No tournaments found nearby', hi: 'आस-पास कोई टूर्नामेंट नहीं मिला' },
   'tournamentMap.tryLargerRadius': { en: 'Try increasing the search radius', hi: 'खोज त्रिज्या बढ़ाकर देखें' },
   'tournamentMap.fetchError': { en: 'Failed to find tournaments', hi: 'टूर्नामेंट खोजने में विफल' },
+  'tournamentMap.everywhere': { en: 'Everywhere', hi: 'हर जगह' },
 
   // ─── Smart Team Suggestions (Feature #68) ───
   'teamSuggestions.title': { en: 'Team Suggestions', hi: 'टीम सुझाव' },

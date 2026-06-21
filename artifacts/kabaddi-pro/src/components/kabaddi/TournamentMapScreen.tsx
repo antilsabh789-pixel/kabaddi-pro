@@ -31,7 +31,7 @@ interface TournamentMapScreenProps {
 }
 
 type StatusFilter = 'all' | 'upcoming' | 'ongoing';
-type RadiusFilter = '5' | '10' | '25' | '50' | '100';
+type RadiusFilter = '5' | '10' | '25' | '50' | '100' | 'everywhere';
 type ViewMode = 'list' | 'grid';
 
 interface NearbyTournament {
@@ -145,7 +145,7 @@ export default function TournamentMapScreen({ onBack }: TournamentMapScreenProps
   const [tournaments, setTournaments] = useState<NearbyTournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [radiusFilter, setRadiusFilter] = useState<RadiusFilter>('50');
+  const [radiusFilter, setRadiusFilter] = useState<RadiusFilter>('everywhere');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -154,11 +154,9 @@ export default function TournamentMapScreen({ onBack }: TournamentMapScreenProps
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError(t('tournamentMap.gpsNotSupported', language as 'en' | 'hi'));
-      setLoading(false);
       return;
     }
 
-    setLoading(true);
     setLocationError(null);
 
     navigator.geolocation.getCurrentPosition(
@@ -168,7 +166,6 @@ export default function TournamentMapScreen({ onBack }: TournamentMapScreenProps
       (err) => {
         console.error('Geolocation error:', err);
         setLocationError(t('tournamentMap.gpsDenied', language as 'en' | 'hi'));
-        setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -178,18 +175,18 @@ export default function TournamentMapScreen({ onBack }: TournamentMapScreenProps
     requestLocation();
   }, [requestLocation]);
 
-  // Fetch nearby tournaments
+  // Fetch nearby tournaments — works with or without geolocation
   useEffect(() => {
-    if (!userLocation) return;
-
     const fetchTournaments = async () => {
       setLoading(true);
       try {
         const params = new URLSearchParams({
-          lat: userLocation.lat.toString(),
-          lng: userLocation.lng.toString(),
           radius: radiusFilter,
         });
+        if (userLocation) {
+          params.set('lat', userLocation.lat.toString());
+          params.set('lng', userLocation.lng.toString());
+        }
         if (statusFilter !== 'all') {
           params.set('status', statusFilter);
         }
@@ -216,6 +213,7 @@ export default function TournamentMapScreen({ onBack }: TournamentMapScreenProps
   ];
 
   const radiusOptions: { key: RadiusFilter; label: string }[] = [
+    { key: 'everywhere', label: t('tournamentMap.everywhere', language as 'en' | 'hi') },
     { key: '5', label: '5km' },
     { key: '10', label: '10km' },
     { key: '25', label: '25km' },
@@ -361,7 +359,9 @@ export default function TournamentMapScreen({ onBack }: TournamentMapScreenProps
               {t('tournamentMap.noTournaments', language as 'en' | 'hi')}
             </p>
             <p className="text-warm-400 dark:text-warm-500 text-xs mt-1">
-              {t('tournamentMap.tryLargerRadius', language as 'en' | 'hi')}
+              {radiusFilter === 'everywhere'
+                ? (language === 'hi' ? 'अभी कोई टूर्नामेंट उपलब्ध नहीं है' : 'No tournaments available right now')
+                : t('tournamentMap.tryLargerRadius', language as 'en' | 'hi')}
             </p>
           </motion.div>
         ) : viewMode === 'grid' ? (
@@ -413,7 +413,7 @@ export default function TournamentMapScreen({ onBack }: TournamentMapScreenProps
                             <Users className="w-3 h-3 text-warm-400" />
                             <span className="text-[10px] text-warm-500">{tournament.teamCount}</span>
                           </div>
-                          {tournament.distance !== null && (
+                          {typeof tournament.distance === 'number' && tournament.distance > 0 && (
                             <span className="text-[10px] font-medium text-brand-gold-dark dark:text-brand-gold">
                               {formatDistance(tournament.distance)}
                             </span>
@@ -494,7 +494,7 @@ export default function TournamentMapScreen({ onBack }: TournamentMapScreenProps
                           </div>
 
                           {/* Distance */}
-                          {tournament.distance !== null && (
+                          {typeof tournament.distance === 'number' && tournament.distance > 0 && (
                             <Badge
                               variant="secondary"
                               className="bg-brand-gold/10 text-brand-gold-dark dark:bg-brand-gold/20 dark:text-brand-gold text-xs shrink-0"
