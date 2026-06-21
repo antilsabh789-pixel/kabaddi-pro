@@ -27,7 +27,7 @@ interface FollowScreenProps {
   onClose: () => void;
 }
 
-type TabId = 'followers' | 'following';
+type TabId = 'followers' | 'following' | 'search';
 
 interface PlayerResult {
   id: string;
@@ -301,6 +301,12 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
   const [suggested, setSuggested] = useState<PlayerResult[]>([]);
   const [suggestedLoading, setSuggestedLoading] = useState(false);
 
+  // Search players (by phone or name)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<PlayerResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+
   // Follow/Unfollow action loading per player
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -422,6 +428,71 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
     }
   }, [currentUser]);
 
+  // ─── Search players by phone or name ─────────────────────────
+
+  const handleSearch = useCallback(async (query: string) => {
+    if (!query.trim() || query.trim().length < 3) {
+      setSearchResults([]);
+      setSearched(false);
+      return;
+    }
+    setSearchLoading(true);
+    setSearched(true);
+    try {
+      // Normalize the query — if it's all digits, treat as phone number
+      const trimmed = query.trim();
+      const isPhoneSearch = /^\+?\d{6,}$/.test(trimmed);
+
+      const params = new URLSearchParams();
+      params.set('search', trimmed);
+      params.set('limit', '20');
+      if (currentUser?.id) params.set('userId', currentUser.id);
+
+      const res = await fetch(`/api/players?${params.toString()}`);
+      if (!res.ok) throw new Error('Search failed');
+      const data = await res.json();
+      let players: PlayerResult[] = data.players || [];
+
+      // If searching by phone, also try exact phone match
+      if (isPhoneSearch) {
+        const phoneVal = trimmed.replace(/\D/g, '');
+        const phoneVariants = [phoneVal, `+91${phoneVal}`, `+${phoneVal}`];
+        const exact = players.find(p => phoneVariants.includes(p.phone));
+        if (exact) {
+          // Move exact match to top
+          players = [exact, ...players.filter(p => p.id !== exact.id)];
+        }
+      }
+
+      // Mark isFollowing based on followedIds
+      const followingSet = new Set(following.map(f => f.id));
+      players = players.map(p => ({
+        ...p,
+        isFollowing: followingSet.has(p.id),
+      }));
+
+      setSearchResults(players);
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [currentUser?.id, following]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim()) {
+        handleSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+        setSearched(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, handleSearch]);
+
   // ─── Follow / Unfollow action ───────────────────────────────
 
   const handleFollowAction = async (
@@ -532,9 +603,10 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
 
   // ─── Tab config ─────────────────────────────────────────────
 
-  const TABS: { id: TabId; label: string; icon: typeof Users; count: number }[] = [
+  const TABS: { id: TabId; label: string; icon: typeof Users; count: number | undefined }[] = [
     { id: 'followers', label: 'Followers', icon: Users, count: followerCount },
     { id: 'following', label: 'Following', icon: UserCheck, count: followingCount },
+    { id: 'search', label: 'Search', icon: Search, count: undefined },
   ];
 
   // ─── Render ─────────────────────────────────────────────────
@@ -935,6 +1007,117 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                   </div>
                 )}
               </div>
+            </motion.div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════
+              SEARCH TAB — Search players by phone or name
+              ═══════════════════════════════════════════════════ */}
+          {activeTab === 'search' && (
+            <motion.div
+              key="search-tab"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-3"
+            >
+              {/* Search input */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400 dark:text-warm-500" />
+                <Input
+                  placeholder="Search by name or phone number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-11 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100"
+                />
+              </div>
+
+              {/* Search results */}
+              {searchLoading ? (
+                <div className="space-y-1">
+                  {[1, 2, 3].map((i) => (
+                    <PlayerSkeleton key={i} />
+                  ))}
+                </div>
+              ) : searched && searchResults.length > 0 ? (
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="px-3 py-2 border-b border-warm-100 dark:border-warm-700/50">
+                      <p className="text-[10px] font-bold text-warm-400 uppercase tracking-wider">
+                        {searchResults.length} player{searchResults.length > 1 ? 's' : ''} found
+                      </p>
+                    </div>
+                    {searchResults.map((player, index) => (
+                      <motion.div
+                        key={player.id}
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.04, duration: 0.25 }}
+                        className="flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors"
+                      >
+                        <PlayerAvatar
+                          name={player.name}
+                          avatar={player.avatar}
+                          userId={player.id}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-semibold text-sm text-warm-800 dark:text-warm-700 truncate">
+                              {getDisplayName(player.name)}
+                            </p>
+                            <GenderIcon gender={player.gender} />
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-warm-400 dark:text-warm-500">
+                            {player.playerCode && (
+                              <span className="font-mono">{player.playerCode}</span>
+                            )}
+                            {player.profile?.position && (
+                              <>
+                                <span>•</span>
+                                <span>{getPositionLabel(player.profile.position)}</span>
+                              </>
+                            )}
+                            {player.profile?.overallRating ? (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center gap-0.5">
+                                  <Star className="w-2.5 h-2.5 text-brand-gold" />
+                                  {player.profile.overallRating.toFixed(1)}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                        <FollowButton
+                          isFollowing={!!player.isFollowing}
+                          onToggle={() =>
+                            handleFollowAction(player.id, !!player.isFollowing)
+                          }
+                          loading={actionLoadingId === player.id}
+                        />
+                      </motion.div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ) : searched && searchResults.length === 0 ? (
+                <EmptyState
+                  icon={UserX}
+                  title="No players found"
+                  description="Try searching with a different name or phone number. Make sure the player has registered on Kabaddi Pro."
+                />
+              ) : (
+                <div className="text-center py-12 px-4">
+                  <div className="w-16 h-16 rounded-2xl bg-brand-teal/10 flex items-center justify-center mx-auto mb-3">
+                    <Search className="w-8 h-8 text-brand-teal" />
+                  </div>
+                  <p className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-1">
+                    Find Players to Follow
+                  </p>
+                  <p className="text-xs text-warm-400 dark:text-warm-500 max-w-[250px] mx-auto">
+                    Search by name (e.g. "Arjun") or phone number (e.g. "9876543210") to find and follow kabaddi players.
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

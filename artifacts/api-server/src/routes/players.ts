@@ -12,7 +12,7 @@ router.get('/players', async (req, res) => {
     const searchConditions = search ? (
       searchBy === 'phone_code'
         ? { OR: [{ phone: { contains: search } }, { playerCode: { contains: search } }] }
-        : { OR: [{ name: { contains: search } }, { phone: { contains: search } }, { playerCode: { contains: search } }] }
+        : { OR: [{ name: { contains: search, mode: 'insensitive' as const } }, { phone: { contains: search } }, { playerCode: { contains: search, mode: 'insensitive' as const } }] }
     ) : undefined;
 
     const users = await db.user.findMany({
