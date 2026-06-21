@@ -204,6 +204,18 @@ function BrandedLoadingScreen() {
   );
 }
 
+// ─── Lightweight Tab Loading Spinner ─────────────────────────────────
+// Used when switching between tabs — NOT a full splash screen.
+// Just a minimal spinner so the user knows something is loading.
+
+function TabLoadingSpinner() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 rounded-full border-3 border-brand-red/20 border-t-brand-red animate-spin" />
+    </div>
+  );
+}
+
 // ─── Main Page Component ────────────────────────────────────────────
 
 export default function Home() {
@@ -434,10 +446,12 @@ export default function Home() {
           )}
 
           <main className="flex-1 overflow-y-auto pb-20">
-            {activeTab === 'home' && <HomeTab />}
-            {activeTab === 'tournaments' && <TournamentsTab />}
-            {activeTab === 'quick-score' && <QuickScoreTab />}
-            {activeTab === 'profile' && <ProfileTab />}
+            <Suspense fallback={<TabLoadingSpinner />}>
+              {activeTab === 'home' && <HomeTab />}
+              {activeTab === 'tournaments' && <TournamentsTab />}
+              {activeTab === 'quick-score' && <QuickScoreTab />}
+              {activeTab === 'profile' && <ProfileTab />}
+            </Suspense>
           </main>
 
           <BottomNav
