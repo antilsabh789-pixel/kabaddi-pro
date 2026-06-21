@@ -285,7 +285,7 @@ export default function ProfileTab() {
   // Member since date - use createdAt timestamp, fallback to 30 days ago
   const memberSince = currentUser?.createdAt ? new Date(currentUser.createdAt) : new Date(Date.now() - 30 * 86400000);
 
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
 
   const handleCopyCode = () => {
     const code = profileData.playerCode || currentUser?.playerCode;

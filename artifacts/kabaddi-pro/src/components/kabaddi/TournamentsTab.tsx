@@ -605,7 +605,7 @@ function EmptyState({ content, onCta, isPremium }: { content: { icon: string; ti
 export default function TournamentsTab() {
   const { currentUser } = useKabaddiStore();
   const { toast } = useToast();
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
 
   const [statusFilter, setStatusFilter] = useState<'ongoing' | 'upcoming' | 'past'>('ongoing');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');

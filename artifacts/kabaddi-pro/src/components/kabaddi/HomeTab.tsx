@@ -579,7 +579,7 @@ export default function HomeTab() {
   const language = useKabaddiStore((s) => s.language);
   const { toast } = useToast();
 
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
   const [recentMatches, setRecentMatches] = useState<CompletedMatch[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingMatch[]>([]);
