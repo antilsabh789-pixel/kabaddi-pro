@@ -39,6 +39,7 @@ interface PlayerResult {
   isFollowing?: boolean;
   profile?: {
     position: string | null;
+    jerseyNumber?: number | null;
     overallRating: number;
     totalPoints: number;
     totalMatches: number;
@@ -55,6 +56,7 @@ interface FollowerEntry {
   playerCode?: string;
   profile?: {
     position: string | null;
+    jerseyNumber?: number | null;
     overallRating: number;
     totalPoints: number;
     totalMatches: number;
@@ -428,10 +430,12 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
     }
   }, [currentUser]);
 
-  // ─── Search players by phone or name ─────────────────────────
+  // ─── Search players by phone number only (privacy) ─────────────────────────
 
   const handleSearch = useCallback(async (query: string) => {
-    if (!query.trim() || query.trim().length < 3) {
+    // PRIVACY: Only search when full phone number (10+ digits) is typed
+    const digitsOnly = query.replace(/\D/g, '');
+    if (digitsOnly.length < 10) {
       setSearchResults([]);
       setSearched(false);
       return;
@@ -439,13 +443,9 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
     setSearchLoading(true);
     setSearched(true);
     try {
-      // Normalize the query — if it's all digits, treat as phone number
-      const trimmed = query.trim();
-      const isPhoneSearch = /^\+?\d{6,}$/.test(trimmed);
-
       const params = new URLSearchParams();
-      params.set('search', trimmed);
-      params.set('limit', '20');
+      params.set('search', digitsOnly);
+      params.set('limit', '5');
       if (currentUser?.id) params.set('userId', currentUser.id);
 
       const res = await fetch(`/api/players?${params.toString()}`);
@@ -453,18 +453,10 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
       const data = await res.json();
       let players: PlayerResult[] = data.players || [];
 
-      // If searching by phone, also try exact phone match
-      if (isPhoneSearch) {
-        const phoneVal = trimmed.replace(/\D/g, '');
-        const phoneVariants = [phoneVal, `+91${phoneVal}`, `+${phoneVal}`];
-        const exact = players.find(p => phoneVariants.includes(p.phone));
-        if (exact) {
-          // Move exact match to top
-          players = [exact, ...players.filter(p => p.id !== exact.id)];
-        }
-      }
+      // Exclude self from results
+      players = players.filter(p => p.id !== currentUser?.id);
 
-      // Mark isFollowing based on followedIds
+      // Mark isFollowing based on following list
       const followingSet = new Set(following.map(f => f.id));
       players = players.map(p => ({
         ...p,
@@ -483,13 +475,14 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchQuery.trim()) {
+      const digitsOnly = searchQuery.replace(/\D/g, '');
+      if (digitsOnly.length >= 10) {
         handleSearch(searchQuery);
       } else {
         setSearchResults([]);
         setSearched(false);
       }
-    }, 400);
+    }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery, handleSearch]);
 
@@ -744,7 +737,17 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                               <GenderIcon gender={follower.gender} />
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-warm-400 dark:text-warm-500">
-                              <span>Followed you {timeAgo(follower.followedAt)}</span>
+                              {follower.playerCode && (
+                                <span className="font-mono">{follower.playerCode}</span>
+                              )}
+                              {follower.profile?.jerseyNumber && (
+                                <>
+                                  <span>•</span>
+                                  <span>#{follower.profile.jerseyNumber}</span>
+                                </>
+                              )}
+                              <span>•</span>
+                              {follower.playerCode && (<span className="font-mono">{follower.playerCode}</span>)}{follower.profile?.jerseyNumber && (<><span>•</span><span>#{follower.profile.jerseyNumber}</span></>)}<span>•</span><span>Followed you {timeAgo(follower.followedAt)}</span>
                             </div>
                           </div>
                           <FollowButton
@@ -907,7 +910,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                             <GenderIcon gender={person.gender} />
                           </div>
                           <div className="flex items-center gap-1.5 text-xs text-warm-400 dark:text-warm-500">
-                            <span>Following since {timeAgo(person.followedAt)}</span>
+                            {person.playerCode && (<span className="font-mono">{person.playerCode}</span>)}{person.profile?.jerseyNumber && (<><span>•</span><span>#{person.profile.jerseyNumber}</span></>)}<span>•</span><span>Following since {timeAgo(person.followedAt)}</span>
                           </div>
                         </div>
                         <FollowButton
@@ -1011,7 +1014,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
           )}
 
           {/* ═══════════════════════════════════════════════════
-              SEARCH TAB — Search players by phone or name
+              SEARCH TAB — Search players by phone number only (privacy)
               ═══════════════════════════════════════════════════ */}
           {activeTab === 'search' && (
             <motion.div
@@ -1021,16 +1024,32 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-3"
             >
-              {/* Search input */}
+              {/* Phone number search input */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400 dark:text-warm-500" />
                 <Input
-                  placeholder="Search by name or phone number..."
+                  type="tel"
+                  placeholder="Enter full phone number..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 h-11 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100"
                 />
               </div>
+
+              {/* Privacy notice */}
+              {!searched && (
+                <div className="text-center py-12 px-4">
+                  <div className="w-16 h-16 rounded-2xl bg-brand-teal/10 flex items-center justify-center mx-auto mb-3">
+                    <Search className="w-8 h-8 text-brand-teal" />
+                  </div>
+                  <p className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-1">
+                    Find Players by Phone Number
+                  </p>
+                  <p className="text-xs text-warm-400 dark:text-warm-500 max-w-[250px] mx-auto">
+                    Enter the player's full 10-digit phone number to find them. Privacy is protected — no name search, no partial matches.
+                  </p>
+                </div>
+              )}
 
               {/* Search results */}
               {searchLoading ? (
@@ -1071,21 +1090,18 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                             {player.playerCode && (
                               <span className="font-mono">{player.playerCode}</span>
                             )}
+                            {player.profile?.jerseyNumber && (
+                              <>
+                                <span>•</span>
+                                <span>#{player.profile.jerseyNumber}</span>
+                              </>
+                            )}
                             {player.profile?.position && (
                               <>
                                 <span>•</span>
                                 <span>{getPositionLabel(player.profile.position)}</span>
                               </>
                             )}
-                            {player.profile?.overallRating ? (
-                              <>
-                                <span>•</span>
-                                <span className="flex items-center gap-0.5">
-                                  <Star className="w-2.5 h-2.5 text-brand-gold" />
-                                  {player.profile.overallRating.toFixed(1)}
-                                </span>
-                              </>
-                            ) : null}
                           </div>
                         </div>
                         <FollowButton
@@ -1103,21 +1119,9 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                 <EmptyState
                   icon={UserX}
                   title="No players found"
-                  description="Try searching with a different name or phone number. Make sure the player has registered on Kabaddi Pro."
+                  description="Make sure you've entered the full 10-digit phone number and the player has registered on Kabaddi Pro."
                 />
-              ) : (
-                <div className="text-center py-12 px-4">
-                  <div className="w-16 h-16 rounded-2xl bg-brand-teal/10 flex items-center justify-center mx-auto mb-3">
-                    <Search className="w-8 h-8 text-brand-teal" />
-                  </div>
-                  <p className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-1">
-                    Find Players to Follow
-                  </p>
-                  <p className="text-xs text-warm-400 dark:text-warm-500 max-w-[250px] mx-auto">
-                    Search by name (e.g. "Arjun") or phone number (e.g. "9876543210") to find and follow kabaddi players.
-                  </p>
-                </div>
-              )}
+              ) : null}
             </motion.div>
           )}
         </AnimatePresence>

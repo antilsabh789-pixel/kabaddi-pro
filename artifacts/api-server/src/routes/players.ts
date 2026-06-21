@@ -9,11 +9,28 @@ router.get('/players', async (req, res) => {
     const limit = parseInt((req.query['limit'] as string) || '20');
     const searchBy = (req.query['searchBy'] as string) || 'all';
 
-    const searchConditions = search ? (
-      searchBy === 'phone_code'
-        ? { OR: [{ phone: { contains: search } }, { playerCode: { contains: search } }] }
-        : { OR: [{ name: { contains: search, mode: 'insensitive' as const } }, { phone: { contains: search } }, { playerCode: { contains: search, mode: 'insensitive' as const } }] }
-    ) : undefined;
+    // PRIVACY: For general search, only allow searching by exact phone match.
+    // No partial name matches, no partial phone matches.
+    // The search must be the full phone number (at least 10 digits).
+    let searchConditions: any = undefined;
+    if (search) {
+      // Normalize the search term — strip non-digits
+      const digitsOnly = search.replace(/\D/g, '');
+      if (digitsOnly.length >= 10) {
+        // Exact phone number search — try multiple formats
+        searchConditions = {
+          OR: [
+            { phone: { equals: `+91${digitsOnly}` } },
+            { phone: { equals: `+${digitsOnly}` } },
+            { phone: { equals: digitsOnly } },
+            { phone: { endsWith: digitsOnly.slice(-10) } },
+          ],
+        };
+      } else {
+        // If less than 10 digits, return no results (privacy protection)
+        return res.json({ players: [] });
+      }
+    }
 
     const users = await db.user.findMany({
       where: searchConditions,
@@ -22,6 +39,7 @@ router.get('/players', async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
+    // PRIVACY: Only return playerCode and jerseyNumber — no name, no avatar, no phone
     const players = users.map((user) => ({
       id: user.id,
       name: user.name,
@@ -29,7 +47,7 @@ router.get('/players', async (req, res) => {
       avatar: user.avatar,
       gender: user.gender,
       phone: user.phone ? `****${user.phone.slice(-2)}` : null,
-      profile: user.profile ? { position: user.profile.position, jerseyNumber: user.profile.jerseyNumber, overallRating: user.profile.overallRating } : null,
+      profile: user.profile ? { position: user.profile.position, jerseyNumber: user.profile.jerseyNumber, overallRating: user.profile.overallRating, totalPoints: user.profile.totalPoints, totalMatches: user.profile.totalMatches } : null,
     }));
 
     return res.json({ players });
