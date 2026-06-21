@@ -115,6 +115,7 @@ import ScorecardPDFScreen from './ScorecardPDFScreen';
 import TotalPlayersBanner from './TotalPlayersBanner';
 import PopularPlayersSection from './PopularPlayersSection';
 import PlayerProfileScreen from './PlayerProfileScreen';
+import GiveawayScreen from './GiveawayScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -652,6 +653,7 @@ export default function HomeTab() {
   const [scorecardMatchId, setScorecardMatchId] = useState<string | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
+  const [showGiveaway, setShowGiveaway] = useState(false);
 
   // ─── Android Back Button Support ──────────────────────────────────
   // Each overlay pushes a browser history entry so the Android back button
@@ -702,6 +704,7 @@ export default function HomeTab() {
   useBackButton(showBroadcast, () => setShowBroadcast(false));
   useBackButton(showGrounds, () => setShowGrounds(false));
   useBackButton(showComparison, () => setShowComparison(false));
+  useBackButton(showGiveaway, () => setShowGiveaway(false));
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);
@@ -1342,6 +1345,9 @@ export default function HomeTab() {
       )}
       {showPlayerProfile && playerProfileUserId && (
         <PlayerProfileScreen userId={playerProfileUserId} onBack={() => { setShowPlayerProfile(false); setPlayerProfileUserId(null); }} />
+      )}
+      {showGiveaway && (
+        <GiveawayScreen onClose={() => setShowGiveaway(false)} />
       )}
       </Portal>
 
@@ -2594,6 +2600,31 @@ export default function HomeTab() {
             </motion.button>
           </div>
         )}
+      </section>
+
+      {/* ─── Giveaway Banner ─── */}
+      <section className="px-4 mt-6">
+        <motion.button
+          onClick={() => setShowGiveaway(true)}
+          whileTap={{ scale: 0.97 }}
+          className="w-full relative overflow-hidden rounded-2xl p-4 text-left shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #DC2626, #F59E0B)' }}
+        >
+          <div className="absolute inset-0 bg-black/10" />
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+              <Gift className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-white font-black text-sm">🎁 Kabaddi Pro Giveaway!</p>
+              <p className="text-white/80 text-[11px] mt-0.5">Win Protein, Kabaddi Kit & more</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-white/70 text-[9px] uppercase font-bold">Ends in</p>
+              <p className="text-white font-black text-lg">15 Days</p>
+            </div>
+          </div>
+        </motion.button>
       </section>
 
       {/* ─── Popular Players ─── */}

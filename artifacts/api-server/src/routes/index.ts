@@ -11,6 +11,7 @@ import socialRouter from "./social";
 import statsRouter from "./stats";
 import coachRouter from "./coach";
 import miscRouter from "./misc";
+import giveawayRouter from "./giveaway";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(socialRouter);
 router.use(statsRouter);
 router.use(coachRouter);
 router.use(miscRouter);
+router.use(giveawayRouter);
 
 export default router;

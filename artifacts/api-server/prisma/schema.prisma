@@ -57,6 +57,7 @@ model User {
   quizAttempts      QuizAttempt[]
   playerLocation    PlayerLocation?
   leaderboardEntries LeaderboardSeasonEntry[]
+  giveawayParticipations GiveawayParticipant[]
 }
 
 model PlayerProfile {
@@ -719,4 +720,35 @@ model LeaderboardSeasonEntry {
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([leaderboardSeasonId, userId])
+}
+
+// ─── Giveaway System ─────────────────────────────────────────────────
+
+model GiveawayRound {
+  id              String   @id @default(cuid())
+  roundNumber     Int      @unique
+  startDate       DateTime
+  endDate         DateTime // 15 days after start
+  status          String   @default("active") // active, completed
+  // Winners are stored as a JSON string of user IDs: '["userId1","userId2","userId3"]'
+  winnersJson     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  participants GiveawayParticipant[]
+}
+
+model GiveawayParticipant {
+  id              String   @id @default(cuid())
+  giveawayRoundId String
+  userId          String
+  phone           String
+  name            String?
+  isPremium       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  giveawayRound GiveawayRound @relation(fields: [giveawayRoundId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([giveawayRoundId, userId]) // One entry per user per round
 }
