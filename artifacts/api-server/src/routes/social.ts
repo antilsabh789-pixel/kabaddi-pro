@@ -229,20 +229,214 @@ router.get('/referrals', async (req, res) => {
   try {
     const userId = req.query['userId'] as string;
     if (!userId) return res.status(400).json({ error: 'userId is required' });
-    const referrals = await db.referral.findMany({ where: { referrerId: userId }, include: { referred: { select: { id: true, name: true, createdAt: true } } } });
-    return res.json({ referrals, count: referrals.length });
+
+    const referrals = await db.referral.findMany({
+      where: { referrerId: userId },
+      include: {
+        referred: { select: { id: true, name: true, avatar: true, createdAt: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Successful referral = someone actually signed up using the code (referredId is not null)
+    const successfulReferrals = referrals.filter(r => r.referredId !== null).length;
+    const totalPremiumDaysEarned = referrals
+      .filter(r => r.referredId !== null)
+      .reduce((sum, r) => sum + (r.premiumDays || 0), 0);
+
+    // The user's "current" shareable code = the most recent unused code.
+    // If they don't have any unused code (all previous ones were successfully used),
+    // auto-generate a new one so they can keep referring.
+    let referralCode = referrals.find(r => r.referredId === null)?.referralCode || '';
+    if (!referralCode) {
+      // Generate a fresh unused code for the user
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      const newCode = `KABADDI-${code}`;
+      try {
+        await db.referral.create({
+          data: { referrerId: userId, referralCode: newCode, premiumDays: 7 },
+        });
+        referralCode = newCode;
+      } catch {
+        // unique constraint collision — try once more with a different suffix
+        const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+        const retry = `KABADDI-${suffix}`;
+        await db.referral.create({
+          data: { referrerId: userId, referralCode: retry, premiumDays: 7 },
+        });
+        referralCode = retry;
+      }
+    }
+
+    const formattedReferrals = referrals.map(r => ({
+      id: r.id,
+      status: r.referredId ? 'signed_up' : r.status,
+      premiumDays: r.premiumDays,
+      referredName: r.referred?.name || 'Pending signup',
+      referredAvatar: r.referred?.avatar || null,
+      createdAt: r.createdAt,
+      completedAt: r.completedAt,
+    }));
+
+    return res.json({
+      referralCode,
+      successfulReferrals,
+      totalReferrals: referrals.length,
+      totalPremiumDaysEarned,
+      referrals: formattedReferrals,
+      // Keep `count` for backward compat with any old callers
+      count: referrals.length,
+    });
   } catch (error) {
+    console.error('Referrals fetch error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * POST /api/referrals
+ * Apply a referral code — the current user (userId) is "claiming" the code shared by someone else.
+ *
+ * Body: { referralCode, userId }
+ *   - referralCode: the code shared by the referrer (e.g. "KABADDI-ABC123")
+ *   - userId: the user who is applying the code (the referred person)
+ *
+ * Behavior:
+ *   1. Look up the Referral record by referralCode where referredId is null (an unused code)
+ *   2. Make sure the applier is NOT the referrer (can't refer yourself)
+ *   3. Set referredId = userId, status = 'signed_up', completedAt = now
+ *   4. Grant premiumDays (default 7) to BOTH the referrer and the referred user
+ *
+ * Returns: { success, premiumDaysGranted }
+ */
 router.post('/referrals', async (req, res) => {
   try {
-    const { referrerId, referredId, referralCode } = req.body;
-    if (!referrerId || !referralCode) return res.status(400).json({ error: 'referrerId and referralCode required' });
-    const referral = await db.referral.create({ data: { referrerId, referredId: referredId || null, referralCode } });
-    return res.json({ referral });
+    const { referralCode, userId } = req.body;
+    if (!referralCode || !userId) {
+      return res.status(400).json({ error: 'referralCode and userId are required' });
+    }
+
+    const code = String(referralCode).toUpperCase().trim();
+
+    // Find the unused referral record matching this code
+    const referral = await db.referral.findFirst({
+      where: { referralCode: code, referredId: null },
+    });
+
+    if (!referral) {
+      return res.status(404).json({
+        error: 'Invalid or already-used referral code',
+      });
+    }
+
+    // Can't refer yourself
+    if (referral.referrerId === userId) {
+      return res.status(400).json({ error: 'You cannot use your own referral code' });
+    }
+
+    // Check if this user has already been referred by someone else (one referral per user)
+    const existingReferred = await db.referral.findFirst({
+      where: { referredId: userId },
+    });
+    if (existingReferred) {
+      return res.status(409).json({ error: 'You have already used a referral code' });
+    }
+
+    // Mark the referral as completed
+    await db.referral.update({
+      where: { id: referral.id },
+      data: {
+        referredId: userId,
+        status: 'signed_up',
+        completedAt: new Date(),
+      },
+    });
+
+    // Grant premium days to BOTH the referrer and the referred user
+    const premiumDays = referral.premiumDays || 7;
+    const now = new Date();
+    const premiumExpiry = new Date(now.getTime() + premiumDays * 24 * 60 * 60 * 1000);
+
+    await Promise.all([
+      // Referrer gets premium
+      db.user.update({
+        where: { id: referral.referrerId },
+        data: {
+          isPremium: true,
+          premiumExpiry,
+          premiumPlan: 'referral',
+        },
+      }),
+      // Referred user gets premium too
+      db.user.update({
+        where: { id: userId },
+        data: {
+          isPremium: true,
+          premiumExpiry,
+          premiumPlan: 'referral',
+        },
+      }),
+    ]);
+
+    return res.json({
+      success: true,
+      premiumDaysGranted: premiumDays,
+    });
   } catch (error) {
+    console.error('Referral apply error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/referrals/generate-code
+ * Generate (or return existing) referral code for the current user.
+ * Creates a new Referral record with referredId=null (an unused code the user can share).
+ *
+ * Body: { userId }
+ * Returns: { referralCode }
+ */
+router.post('/referrals/generate-code', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    // Look for an existing unused code first (so the user doesn't end up with many unused codes)
+    const existing = await db.referral.findFirst({
+      where: { referrerId: userId, referredId: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) {
+      return res.json({ referralCode: existing.referralCode });
+    }
+
+    // Generate a new unique code: KABADDI-<6 random chars>
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    const referralCode = `KABADDI-${code}`;
+
+    // Ensure uniqueness (extremely unlikely to collide, but be safe)
+    const collision = await db.referral.findUnique({ where: { referralCode } });
+    if (collision) {
+      // Retry once with a longer suffix
+      const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const retryCode = `KABADDI-${suffix}`;
+      await db.referral.create({
+        data: { referrerId: userId, referralCode: retryCode, premiumDays: 7 },
+      });
+      return res.json({ referralCode: retryCode });
+    }
+
+    await db.referral.create({
+      data: { referrerId: userId, referralCode, premiumDays: 7 },
+    });
+
+    return res.json({ referralCode });
+  } catch (error) {
+    console.error('Generate referral code error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -44,8 +44,31 @@ async function getOrCreateActiveRound() {
 }
 
 /**
+ * Count a user's SUCCESSFUL referrals (where someone actually signed up using their code).
+ * Each successful referral = 1 giveaway participation entry for non-premium users.
+ */
+async function countSuccessfulReferrals(userId: string): Promise<number> {
+  // A referral is "successful" when referredId is not null (someone signed up using the code)
+  return db.referral.count({
+    where: { referrerId: userId, referredId: { not: null } },
+  });
+}
+
+/**
+ * Count how many giveaway rounds a non-premium user has ALREADY used their referral entries on.
+ * This is across ALL rounds (past + current), so a user with 3 referrals who has participated
+ * in 2 rounds has 1 entry remaining.
+ */
+async function countPastParticipations(userId: string): Promise<number> {
+  return db.giveawayParticipant.count({
+    where: { userId, isPremium: false },
+  });
+}
+
+/**
  * GET /api/giveaway/status
- * Returns the current active round, time remaining, participant count, and prizes.
+ * Returns the current active round, time remaining, participant count, prizes,
+ * and the user's eligibility info (premium status, referral entries, remaining entries).
  */
 router.get('/giveaway/status', async (req, res) => {
   try {
@@ -56,11 +79,46 @@ router.get('/giveaway/status', async (req, res) => {
     });
 
     let hasParticipated = false;
+    let isPremiumActive = false;
+    let successfulReferrals = 0;
+    let participationsUsed = 0;
+    let entriesRemaining = 0;
+    let canParticipate = false;
+    let blockReason = '';
+
     if (userId) {
       const existing = await db.giveawayParticipant.findUnique({
         where: { giveawayRoundId_userId: { giveawayRoundId: round.id, userId } },
       });
       hasParticipated = !!existing;
+
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { isPremium: true, premiumExpiry: true },
+      });
+      isPremiumActive = !!(user?.isPremium && (!user.premiumExpiry || new Date(user.premiumExpiry) > new Date()));
+
+      successfulReferrals = await countSuccessfulReferrals(userId);
+      participationsUsed = await countPastParticipations(userId);
+      entriesRemaining = Math.max(0, successfulReferrals - participationsUsed);
+
+      // Participation rules:
+      // - Premium members: can participate in every round (no referral required)
+      // - Non-premium members: each successful referral = 1 participation entry
+      //   (used across all rounds, not per-round)
+      if (hasParticipated) {
+        canParticipate = false;
+        blockReason = 'already_participated';
+      } else if (isPremiumActive) {
+        canParticipate = true;
+        blockReason = '';
+      } else if (entriesRemaining > 0) {
+        canParticipate = true;
+        blockReason = '';
+      } else {
+        canParticipate = false;
+        blockReason = successfulReferrals === 0 ? 'no_referrals' : 'no_entries_remaining';
+      }
     }
 
     // Get past winners (player codes only)
@@ -103,6 +161,13 @@ router.get('/giveaway/status', async (req, res) => {
       prizes: PRIZES,
       participantCount,
       hasParticipated,
+      // Eligibility info for the current user
+      isPremiumActive,
+      successfulReferrals,
+      participationsUsed,
+      entriesRemaining,
+      canParticipate,
+      blockReason, // '', 'already_participated', 'no_referrals', 'no_entries_remaining'
       pastWinners,
     });
   } catch (error) {
@@ -114,6 +179,11 @@ router.get('/giveaway/status', async (req, res) => {
 /**
  * POST /api/giveaway/participate
  * User joins the current giveaway round.
+ *
+ * Rules:
+ * - Premium members: free entry, every round
+ * - Non-premium members: must have at least 1 successful referral that hasn't been "used" yet.
+ *   Each successful referral = 1 participation entry (across all rounds, not per-round).
  */
 router.post('/giveaway/participate', async (req, res) => {
   try {
@@ -128,33 +198,36 @@ router.post('/giveaway/participate', async (req, res) => {
 
     const round = await getOrCreateActiveRound();
 
-    // Check if already participating
+    // Check if already participating in this round
     const existing = await db.giveawayParticipant.findUnique({
       where: { giveawayRoundId_userId: { giveawayRoundId: round.id, userId } },
     });
     if (existing) return res.status(409).json({ error: 'Already participating in this round' });
 
-    // Check cooldown for non-premium users who won before
-    const isPremiumActive = user.isPremium && (!user.premiumExpiry || new Date(user.premiumExpiry) > new Date());
+    const isPremiumActive = !!(user.isPremium && (!user.premiumExpiry || new Date(user.premiumExpiry) > new Date()));
+
+    // Enforce the new participation rule
     if (!isPremiumActive) {
-      // Find if user won in any previous round
-      const completedRounds = await db.giveawayRound.findMany({
-        where: { status: 'completed', winnersJson: { not: null } },
-      });
-      for (const cr of completedRounds) {
-        try {
-          const winnerIds: string[] = JSON.parse(cr.winnersJson || '[]');
-          if (winnerIds.includes(userId)) {
-            // Check if 15 days have passed since that round ended
-            const cooldownEnd = new Date(cr.endDate.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
-            if (cooldownEnd > new Date()) {
-              return res.status(403).json({
-                error: 'You won recently! Premium members can participate every round. Upgrade to Premium for instant entry.',
-                cooldownEnds: cooldownEnd,
-              });
-            }
-          }
-        } catch { /* skip */ }
+      const successfulReferrals = await countSuccessfulReferrals(userId);
+      const participationsUsed = await countPastParticipations(userId);
+      const entriesRemaining = Math.max(0, successfulReferrals - participationsUsed);
+
+      if (entriesRemaining <= 0) {
+        if (successfulReferrals === 0) {
+          return res.status(403).json({
+            error: 'Premium membership OR at least 1 successful referral is required to participate. Share your referral code with friends — when they sign up, you earn 1 giveaway entry!',
+            blockReason: 'no_referrals',
+            successfulReferrals,
+            entriesRemaining: 0,
+          });
+        } else {
+          return res.status(403).json({
+            error: `You've used all ${successfulReferrals} of your referral entries. Refer more friends to earn more entries, or upgrade to Premium for unlimited participation.`,
+            blockReason: 'no_entries_remaining',
+            successfulReferrals,
+            entriesRemaining: 0,
+          });
+        }
       }
     }
 
@@ -172,7 +245,13 @@ router.post('/giveaway/participate', async (req, res) => {
       where: { giveawayRoundId: round.id },
     });
 
-    return res.json({ success: true, participantCount });
+    return res.json({
+      success: true,
+      participantCount,
+      // Return updated eligibility so frontend can refresh state without a separate fetch
+      isPremiumActive,
+      entriesRemaining: isPremiumActive ? null : Math.max(0, (await countSuccessfulReferrals(userId)) - (await countPastParticipations(userId)) - 1),
+    });
   } catch (error) {
     console.error('Giveaway participate error:', error);
     return res.status(500).json({ error: 'Internal server error' });

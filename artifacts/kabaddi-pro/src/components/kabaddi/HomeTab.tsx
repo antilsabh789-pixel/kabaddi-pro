@@ -1347,7 +1347,21 @@ export default function HomeTab() {
         <PlayerProfileScreen userId={playerProfileUserId} onBack={() => { setShowPlayerProfile(false); setPlayerProfileUserId(null); }} />
       )}
       {showGiveaway && (
-        <GiveawayScreen onClose={() => setShowGiveaway(false)} />
+        <GiveawayScreen
+          onClose={() => setShowGiveaway(false)}
+          onUpgradeToPremium={() => {
+            setShowGiveaway(false);
+            setShowUpgrade(true);
+          }}
+          onOpenReferral={() => {
+            setShowGiveaway(false);
+            // Referral screen is in Profile tab — switch to Profile so user can tap "Refer & Earn"
+            toast({
+              title: 'Refer & Earn',
+              description: 'Open Profile tab → tap "Refer & Earn" to get your referral code.',
+            });
+          }}
+        />
       )}
       </Portal>
 

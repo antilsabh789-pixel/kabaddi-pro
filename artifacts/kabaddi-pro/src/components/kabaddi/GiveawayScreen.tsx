@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gift, Trophy, Users, Clock, Check, Loader2, X, Sparkles, Crown } from 'lucide-react';
+import { Gift, Trophy, Users, Clock, Check, Loader2, X, Sparkles, Crown, UserPlus, Lock, Zap } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import { useBackButton } from '@/hooks/use-back-button';
 
 interface GiveawayScreenProps {
   onClose: () => void;
+  onUpgradeToPremium?: () => void;
+  onOpenReferral?: () => void;
 }
 
 interface Prize {
@@ -31,6 +33,13 @@ interface GiveawayStatus {
   prizes: Prize[];
   participantCount: number;
   hasParticipated: boolean;
+  // Eligibility info
+  isPremiumActive?: boolean;
+  successfulReferrals?: number;
+  participationsUsed?: number;
+  entriesRemaining?: number;
+  canParticipate?: boolean;
+  blockReason?: '' | 'already_participated' | 'no_referrals' | 'no_entries_remaining';
   pastWinners: Array<{
     roundNumber: number;
     rank: number;
@@ -39,7 +48,7 @@ interface GiveawayStatus {
   }>;
 }
 
-export default function GiveawayScreen({ onClose }: GiveawayScreenProps) {
+export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenReferral }: GiveawayScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
   const [status, setStatus] = useState<GiveawayStatus | null>(null);
@@ -104,7 +113,16 @@ export default function GiveawayScreen({ onClose }: GiveawayScreenProps) {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast({ title: 'Cannot participate', description: data.error, variant: 'destructive' });
+        // Show a more helpful toast with action button when user is blocked
+        if (data.blockReason === 'no_referrals' || data.blockReason === 'no_entries_remaining') {
+          toast({
+            title: '⚠️ Premium or Referral Required',
+            description: data.error,
+            variant: 'destructive',
+          });
+        } else {
+          toast({ title: 'Cannot participate', description: data.error, variant: 'destructive' });
+        }
         return;
       }
       toast({ title: '🎉 You\'re in!', description: 'Good luck! Winners announced when the timer ends.' });
@@ -268,19 +286,107 @@ export default function GiveawayScreen({ onClose }: GiveawayScreenProps) {
           ))}
         </div>
 
+        {/* Eligibility Card — Premium or Referral Required */}
+        {currentUser && (
+          <Card className={`p-4 ${
+            status?.isPremiumActive
+              ? 'bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-300/50'
+              : status?.entriesRemaining && status.entriesRemaining > 0
+              ? 'bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/10 border-emerald-300/50'
+              : 'bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/10 border-red-300/50'
+          }`}>
+            {/* Premium members — free entry */}
+            {status?.isPremiumActive ? (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shrink-0">
+                  <Crown className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                    Premium Member
+                    <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[8px] font-bold px-1.5">PRO</Badge>
+                  </p>
+                  <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+                    Free entry every round — no referral needed.
+                  </p>
+                </div>
+              </div>
+            ) : status?.entriesRemaining && status.entriesRemaining > 0 ? (
+              /* Non-premium WITH remaining referral entries */
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shrink-0">
+                  <UserPlus className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                    {status.entriesRemaining} giveaway {status.entriesRemaining === 1 ? 'entry' : 'entries'} remaining
+                  </p>
+                  <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">
+                    Earned from {status.successfulReferrals} successful {status.successfulReferrals === 1 ? 'referral' : 'referrals'} · {status.participationsUsed} used
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Non-premium WITH NO entries remaining — show upgrade/refer CTA */
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-400 to-orange-500 flex items-center justify-center shrink-0">
+                    <Lock className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-red-700 dark:text-red-300">
+                      {status?.blockReason === 'no_referrals'
+                        ? 'Refer a friend to participate'
+                        : 'All referral entries used'}
+                    </p>
+                    <p className="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">
+                      {status?.blockReason === 'no_referrals'
+                        ? '1 successful referral = 1 giveaway entry. Share your code with friends!'
+                        : `You've used all ${status?.successfulReferrals || 0} of your referral entries. Refer more friends or upgrade to Premium.`}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => onOpenReferral?.()}
+                    className="bg-gradient-to-r from-brand-teal to-brand-teal-dark hover:opacity-90 text-white h-9 text-xs"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 mr-1" />
+                    Refer a Friend
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => onUpgradeToPremium?.()}
+                    className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:opacity-90 text-white h-9 text-xs"
+                  >
+                    <Crown className="w-3.5 h-3.5 mr-1" />
+                    Go Premium
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
+
         {/* Participate Button */}
         {!status?.hasParticipated ? (
           <Button
             onClick={handleParticipate}
-            disabled={participating}
-            className="w-full h-14 bg-gradient-to-r from-brand-red to-brand-red-dark hover:opacity-90 text-white font-black text-base rounded-2xl shadow-lg shadow-brand-red/25"
+            disabled={participating || status?.canParticipate === false}
+            className="w-full h-14 bg-gradient-to-r from-brand-red to-brand-red-dark hover:opacity-90 text-white font-black text-base rounded-2xl shadow-lg shadow-brand-red/25 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {participating ? (
               <Loader2 className="w-5 h-5 animate-spin" />
+            ) : status?.canParticipate === false ? (
+              <>
+                <Lock className="w-5 h-5 mr-2" />
+                {status?.isPremiumActive ? 'Already Participated' : 'Premium or Referral Required'}
+              </>
             ) : (
               <>
                 <Gift className="w-5 h-5 mr-2" />
-                Participate Now — It's Free!
+                {status?.isPremiumActive ? 'Participate Now — Free for Premium!' : 'Use 1 Referral Entry & Participate'}
               </>
             )}
           </Button>
@@ -301,11 +407,11 @@ export default function GiveawayScreen({ onClose }: GiveawayScreenProps) {
             How It Works
           </h4>
           <div className="space-y-1.5 text-[11px] text-warm-500 dark:text-warm-400">
-            <p>✅ Everyone can participate — Free & Premium users</p>
+            <p>👑 <span className="font-semibold text-warm-700 dark:text-warm-300">Premium members:</span> free entry, every round</p>
+            <p>🤝 <span className="font-semibold text-warm-700 dark:text-warm-300">Free users:</span> 1 successful referral = 1 giveaway entry</p>
             <p>✅ 3 winners selected randomly every 15 days</p>
-            <p>✅ Premium members can participate every round</p>
-            <p>✅ Free users who won must wait 15 days before next participation</p>
-            <p>✅ Only player IDs are shown for winners — privacy protected</p>
+            <p>🔄 Referral entries are used across all rounds — refer more friends to enter more rounds!</p>
+            <p>🔒 Only player IDs are shown for winners — privacy protected</p>
           </div>
         </Card>
 
