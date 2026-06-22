@@ -398,6 +398,17 @@ export default function LiveScoringScreen() {
   const [showTimeoutOverlay, setShowTimeoutOverlay] = useState(false);
   const [showTimeoutTypeSelector, setShowTimeoutTypeSelector] = useState(false);
   const [showActionsPanel, setShowActionsPanel] = useState(false);
+  // Card selection: user picks team → player → card type
+  const [cardSelection, setCardSelection] = useState<{
+    step: 'team' | 'player' | 'type';
+    team?: 'home' | 'away';
+    player?: MatchPlayer;
+    cardType?: 'green_card' | 'yellow_card' | 'red_card';
+  } | null>(null);
+  // Tech point selection: user picks which team gets the point
+  const [techPointSelection, setTechPointSelection] = useState<'home' | 'away' | null>(null);
+  // Self-out selection (from raid screen): raider or which defender
+  const [selfOutSelection, setSelfOutSelection] = useState<'raider' | 'defender' | null>(null);
   const [timeoutCountdown, setTimeoutCountdown] = useState(TIMEOUT_DURATION);
   const [timeoutTeam, setTimeoutTeam] = useState<'home' | 'away' | 'official'>('home');
   const timeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1237,30 +1248,28 @@ export default function LiveScoringScreen() {
     setEventConfirm({ message: `All Out! +${match.allOutBonusPoints}`, teamColor: raidingTeamColor });
   };
 
-  const handleCard = (cardType: 'green_card' | 'yellow_card' | 'red_card') => {
+  // New handleCardWithPlayer — takes explicit team + player + cardType
+  // Used by the Actions panel flow (team → player → card type)
+  const handleCardWithPlayer = (side: 'home' | 'away', player: MatchPlayer, cardType: 'green_card' | 'yellow_card' | 'red_card') => {
     if (!match) return;
-    if (!raider) {
-      toast({ title: 'Select a raider first', description: 'Tap a player to issue a card', duration: 2000 });
-      return;
-    }
-    const side = raidingTeam;
-    const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    const teamId = side === 'home' ? match.homeTeamId : match.awayTeamId;
+    const teamColor = side === 'home' ? match.homeTeamColor : match.awayTeamColor;
     // Log the card event for match history
     addEvent({
       matchId: match.id, eventType: cardType, teamId,
       half: match.currentHalf, value: 0,
-      playerId: raider?.id, playerName: raider?.name,
+      playerId: player.id, playerName: player.name,
     });
     // Apply card-specific effects via store actions
     if (cardType === 'green_card') {
-      issueGreenCard(side, raider.id, raider.name);
-      setEventConfirm({ message: `🟩 Green Card — Warning to ${raider.name}`, teamColor: raidingTeamColor });
+      issueGreenCard(side, player.id, player.name);
+      setEventConfirm({ message: `🟩 Green Card — Warning to ${player.name}`, teamColor });
     } else if (cardType === 'yellow_card') {
-      issueYellowCard(side, raider.id, raider.name);
-      setEventConfirm({ message: `🟨 Yellow Card — ${raider.name} suspended 2 min`, teamColor: raidingTeamColor });
+      issueYellowCard(side, player.id, player.name);
+      setEventConfirm({ message: `🟨 Yellow Card — ${player.name} suspended 2 min`, teamColor });
     } else if (cardType === 'red_card') {
-      issueRedCard(side, raider.id, raider.name);
-      setEventConfirm({ message: `🟥 Red Card — ${raider.name} expelled`, teamColor: raidingTeamColor });
+      issueRedCard(side, player.id, player.name);
+      setEventConfirm({ message: `🟥 Red Card — ${player.name} expelled`, teamColor });
     }
   };
 
@@ -1286,36 +1295,74 @@ export default function LiveScoringScreen() {
     setEventConfirm({ message: `${defendingTeamName} +1 Super Tackle!`, teamColor: defendingTeamColor });
   };
 
-  // Self-out handler
+  // Self-out handler — handles BOTH raider and defender self-out
+  // Key rules:
+  //   - Raider self-out → defending team gets +1, raider goes to out queue
+  //   - Defender self-out → raiding team gets +1, defender goes to out queue,
+  //     raider returns safe (valid empty raid, no points for raider but team gets +1)
+  //   - In both cases, check for all-out
   const handleSelfOut = (selfOutPlayer: MatchPlayer) => {
     if (!match || !raider) return;
     const raidingTeamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    const defendingTeamId = defendingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
 
+    // Determine if the self-out player is the raider or a defender
+    const isRaiderSelfOut = selfOutPlayer.id === raider.id;
     const events: Omit<MatchEvent, 'id' | 'timestamp'>[] = [];
 
-    events.push({
-      matchId: match.id, eventType: 'self_out', teamId: raidingTeamId,
-      half: match.currentHalf,
-      value: 1,
-      playerId: selfOutPlayer.id,
-      playerName: selfOutPlayer.name,
-      details: JSON.stringify({ selfOutPlayerId: selfOutPlayer.id, raiderId: raider?.id }),
-    });
-
-    // Check if self-out triggers an all-out
-    const { onCourt } = splitLineup(fullDefendingLineup, defendingOutIds);
-    const defendingOnCourtOut = onCourt.filter(p => [...defendingOutIds, selfOutPlayer.id].includes(p.id)).length;
-    if (defendingOnCourtOut >= onCourt.length) {
+    if (isRaiderSelfOut) {
+      // Raider stepped out → defending team gets the point
       events.push({
-        matchId: match.id, eventType: 'all_out', teamId: raidingTeamId,
-        half: match.currentHalf, value: match.allOutBonusPoints,
+        matchId: match.id, eventType: 'self_out', teamId: defendingTeamId,
+        half: match.currentHalf,
+        value: 1,
+        playerId: selfOutPlayer.id,
+        playerName: selfOutPlayer.name,
+        details: JSON.stringify({ selfOutPlayerId: selfOutPlayer.id, selfOutRole: 'raider', raiderId: raider.id }),
       });
-      setAllOutCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor });
+      // Check if raider's team is now all-out (raider was last player)
+      const raidingOnCourtActive = splitLineup(fullRaidingLineup, raidingOutIds).onCourtActive;
+      if (raidingOnCourtActive.length <= 1) {
+        events.push({
+          matchId: match.id, eventType: 'all_out', teamId: defendingTeamId,
+          half: match.currentHalf, value: match.allOutBonusPoints,
+        });
+        setAllOutCelebration({ teamName: defendingTeamName, teamColor: defendingTeamColor });
+      }
+      addBatchEvents(events);
+      triggerFeedback(SoundType.WHISTLE);
+      setEventConfirm({ message: `Raider ${selfOutPlayer.name} self-out! +1 ${defendingTeamName}`, teamColor: defendingTeamColor });
+    } else {
+      // Defender stepped out → raiding team gets the point, raider returns safe
+      events.push({
+        matchId: match.id, eventType: 'self_out', teamId: raidingTeamId,
+        half: match.currentHalf,
+        value: 1,
+        playerId: selfOutPlayer.id,
+        playerName: selfOutPlayer.name,
+        details: JSON.stringify({ selfOutPlayerId: selfOutPlayer.id, selfOutRole: 'defender', raiderId: raider.id }),
+      });
+      // Check if defending team is now all-out
+      const { onCourt } = splitLineup(fullDefendingLineup, defendingOutIds);
+      const defendingOnCourtOut = onCourt.filter(p => [...defendingOutIds, selfOutPlayer.id].includes(p.id)).length;
+      if (defendingOnCourtOut >= onCourt.length) {
+        events.push({
+          matchId: match.id, eventType: 'all_out', teamId: raidingTeamId,
+          half: match.currentHalf, value: match.allOutBonusPoints,
+        });
+        setAllOutCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor });
+      }
+      addBatchEvents(events);
+      triggerFeedback(SoundType.WHISTLE);
+      setEventConfirm({ message: `Defender ${selfOutPlayer.name} self-out! +1 ${raidingTeamName}`, teamColor: raidingTeamColor });
     }
 
-    addBatchEvents(events);
-    triggerFeedback(SoundType.WHISTLE);
-    setEventConfirm({ message: `${selfOutPlayer.name} self-out! +1 ${raidingTeamName}`, teamColor: raidingTeamColor });
+    // End the raid (turn swaps to other team)
+    setRaidPhase('idle');
+    setRaider(null);
+    setRaidResult(null);
+    setSelectedDefenders(new Set());
+    setBonusPoint(false);
     setSelfOutConfirm(null);
   };
 
@@ -1656,7 +1703,7 @@ export default function LiveScoringScreen() {
           </div>
         </div>
 
-        {/* On Court players (vertical list of cards) */}
+        {/* On Court players (vertical list of cards) — substitutes NOT shown here */}
         <div className="flex-1 overflow-y-auto min-h-0 px-1.5 py-1">
           <div className="flex flex-col gap-1">
             {onCourt.map(player => (
@@ -1674,39 +1721,22 @@ export default function LiveScoringScreen() {
           </div>
         </div>
 
-        {/* Substitutes section - compact at bottom */}
+        {/* Substitutes tab — tap to open substitution modal (not shown inline) */}
         {substitutes.length > 0 && (
-          <div className="px-1 pb-0.5 shrink-0">
-            <div className="border-t border-dashed border-gray-700/50 pt-1">
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[6px] font-bold text-gray-500 uppercase tracking-wider">
-                  Subs ({substitutes.length})
-                </span>
-                <button
-                  onClick={() => setShowSubMode(side)}
-                  className="flex items-center gap-0.5 text-[6px] font-bold px-1 py-0.5 rounded-md transition-colors"
-                  style={{
-                    backgroundColor: `${teamColor}25`,
-                    color: teamColor,
-                  }}
-                >
-                  <ArrowLeftRight className="w-2 h-2" />
-                  SUB
-                </button>
-              </div>
-              <div className="flex flex-wrap justify-center gap-x-0.5 gap-y-0">
-                {substitutes.map(player => (
-                  <PlayerCard
-                    key={player.id}
-                    player={player}
-                    isOut={false}
-                    isSelectable={false}
-                    teamColor={teamColor}
-                    size="small"
-                  />
-                ))}
-              </div>
-            </div>
+          <div className="px-1.5 pb-1 shrink-0">
+            <button
+              onClick={() => setShowSubMode(side)}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-colors"
+              style={{
+                backgroundColor: `${teamColor}15`,
+                border: `1px dashed ${teamColor}40`,
+              }}
+            >
+              <ArrowLeftRight className="w-3 h-3" style={{ color: teamColor }} />
+              <span className="text-[9px] font-bold" style={{ color: teamColor }}>
+                SUBSTITUTES ({substitutes.length})
+              </span>
+            </button>
           </div>
         )}
 
@@ -2546,7 +2576,14 @@ export default function LiveScoringScreen() {
                 </motion.button>
               </div>
 
-              {/* Quick actions removed — use the permanent Actions button at the top of the scoring screen */}
+              {/* Self-Out button — present on the raid result screen so the
+                  scorer can quickly log a self-out without going to Actions */}
+              <button
+                onClick={() => setSelfOutSelection('raider')}
+                className="w-full mt-2 py-2.5 rounded-xl bg-gray-800 border border-gray-600 text-gray-300 font-bold text-sm flex items-center justify-center gap-2"
+              >
+                🚫 Self-Out (Raider or Defender stepped out)
+              </button>
             </div>
           </motion.div>
         )}
@@ -2818,6 +2855,221 @@ export default function LiveScoringScreen() {
         </div>
       )}
 
+      {/* ═══ CARD SELECTION MODAL (team → player → confirm) ═══ */}
+      <AnimatePresence>
+        {cardSelection && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[56] bg-black/70 flex items-end justify-center"
+            onClick={(e) => { if (e.target === e.currentTarget) setCardSelection(null); }}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-black text-white">
+                  {cardSelection.step === 'team' ? 'Select Team' : 'Select Player'}
+                  {cardSelection.cardType === 'green_card' && ' 🟩'}
+                  {cardSelection.cardType === 'yellow_card' && ' 🟨'}
+                  {cardSelection.cardType === 'red_card' && ' 🟥'}
+                </h3>
+                <button onClick={() => setCardSelection(null)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Step 1: Pick team */}
+              {cardSelection.step === 'team' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setCardSelection({ ...cardSelection, step: 'player', team: 'home' })}
+                    className="p-4 rounded-xl flex flex-col items-center gap-2 text-white font-bold"
+                    style={{ backgroundColor: `${match.homeTeamColor}30`, border: `2px solid ${match.homeTeamColor}` }}
+                  >
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-black" style={{ backgroundColor: match.homeTeamColor }}>
+                      {match.homeTeam.charAt(0)}
+                    </div>
+                    {match.homeTeam}
+                  </button>
+                  <button
+                    onClick={() => setCardSelection({ ...cardSelection, step: 'player', team: 'away' })}
+                    className="p-4 rounded-xl flex flex-col items-center gap-2 text-white font-bold"
+                    style={{ backgroundColor: `${match.awayTeamColor}30`, border: `2px solid ${match.awayTeamColor}` }}
+                  >
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-black" style={{ backgroundColor: match.awayTeamColor }}>
+                      {match.awayTeam.charAt(0)}
+                    </div>
+                    {match.awayTeam}
+                  </button>
+                </div>
+              )}
+
+              {/* Step 2: Pick player from the selected team */}
+              {cardSelection.step === 'player' && cardSelection.team && (
+                <div className="space-y-1.5">
+                  {(cardSelection.team === 'home' ? match.homeLineup : match.awayLineup).map(player => {
+                    const teamColor = cardSelection.team === 'home' ? match.homeTeamColor : match.awayTeamColor;
+                    return (
+                      <button
+                        key={player.id}
+                        onClick={() => {
+                          if (cardSelection.cardType) {
+                            handleCardWithPlayer(cardSelection.team!, player, cardSelection.cardType);
+                          }
+                          setCardSelection(null);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-800 dark:bg-warm-700/50 hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: teamColor }}>
+                          {player.jerseyNumber || '?'}
+                        </div>
+                        <span className="text-sm font-bold text-white flex-1 text-left">{player.name}</span>
+                        <span className="text-[9px] text-gray-400">{cardSelection.cardType === 'green_card' ? '🟩' : cardSelection.cardType === 'yellow_card' ? '🟨' : '🟥'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ TECH POINT SELECTION MODAL (which team gets the point) ═══ */}
+      <AnimatePresence>
+        {techPointSelection !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[56] bg-black/70 flex items-end justify-center"
+            onClick={(e) => { if (e.target === e.currentTarget) setTechPointSelection(null); }}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-black text-white">⚖️ Technical Point — Award to which team?</h3>
+                <button onClick={() => setTechPointSelection(null)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    const teamId = match.homeTeamId;
+                    addEvent({ matchId: match.id, eventType: 'technical_point', teamId, half: match.currentHalf, value: 1, details: JSON.stringify({ reason: 'Umpire decision' }) });
+                    toast({ title: 'Tech point awarded', description: `${match.homeTeam} +1`, duration: 2000 });
+                    setTechPointSelection(null);
+                  }}
+                  className="p-4 rounded-xl flex flex-col items-center gap-2 text-white font-bold"
+                  style={{ backgroundColor: `${match.homeTeamColor}30`, border: `2px solid ${match.homeTeamColor}` }}
+                >
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-black" style={{ backgroundColor: match.homeTeamColor }}>
+                    {match.homeTeam.charAt(0)}
+                  </div>
+                  {match.homeTeam} +1
+                </button>
+                <button
+                  onClick={() => {
+                    const teamId = match.awayTeamId;
+                    addEvent({ matchId: match.id, eventType: 'technical_point', teamId, half: match.currentHalf, value: 1, details: JSON.stringify({ reason: 'Umpire decision' }) });
+                    toast({ title: 'Tech point awarded', description: `${match.awayTeam} +1`, duration: 2000 });
+                    setTechPointSelection(null);
+                  }}
+                  className="p-4 rounded-xl flex flex-col items-center gap-2 text-white font-bold"
+                  style={{ backgroundColor: `${match.awayTeamColor}30`, border: `2px solid ${match.awayTeamColor}` }}
+                >
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-black" style={{ backgroundColor: match.awayTeamColor }}>
+                    {match.awayTeam.charAt(0)}
+                  </div>
+                  {match.awayTeam} +1
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ SELF-OUT SELECTION MODAL (raider or which defender) ═══ */}
+      <AnimatePresence>
+        {selfOutSelection !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[56] bg-black/70 flex items-end justify-center"
+            onClick={(e) => { if (e.target === e.currentTarget) setSelfOutSelection(null); }}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-black text-white">🚫 Self-Out — Who stepped out?</h3>
+                <button onClick={() => setSelfOutSelection(null)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Option 1: Raider self-out */}
+              {raider && (
+                <button
+                  onClick={() => {
+                    handleSelfOut(raider);
+                    setSelfOutSelection(null);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-800 dark:bg-warm-700/50 hover:bg-gray-700 transition-colors mb-2"
+                >
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: raidingTeamColor }}>
+                    {raider.jerseyNumber || '?'}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-bold text-white">{raider.name}</p>
+                    <p className="text-[9px] text-gray-400">RAIDER — steps out, defending team gets +1</p>
+                  </div>
+                </button>
+              )}
+
+              {/* Option 2: Defender self-out — show all defenders */}
+              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-3 mb-1">Defenders (self-out = raider team gets +1, valid empty raid)</div>
+              {splitLineup(fullDefendingLineup, defendingOutIds).onCourtActive.map(player => (
+                <button
+                  key={player.id}
+                  onClick={() => {
+                    handleSelfOut(player);
+                    setSelfOutSelection(null);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-800 dark:bg-warm-700/50 hover:bg-gray-700 transition-colors mb-1.5"
+                >
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: defendingTeamColor }}>
+                    {player.jerseyNumber || '?'}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-bold text-white">{player.name}</p>
+                    <p className="text-[9px] text-gray-400">DEFENDER — self-out, raider team +1, raider returns safe</p>
+                  </div>
+                </button>
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ═══ PERMANENT ACTIONS PANEL ═══ */}
       {/* Always-accessible panel with Cards, Timeout, Tech Point, Self-Out, Bonus */}
       <AnimatePresence>
@@ -2844,11 +3096,11 @@ export default function LiveScoringScreen() {
                 </button>
               </div>
 
-              {/* Action buttons grid */}
+              {/* Action buttons grid — Self-Out removed (now on raid screen) */}
               <div className="grid grid-cols-3 gap-2">
                 {/* Green Card */}
                 <button
-                  onClick={() => { setShowActionsPanel(false); handleCard('green_card'); }}
+                  onClick={() => { setShowActionsPanel(false); setCardSelection({ step: 'team', cardType: 'green_card' }); }}
                   className="flex flex-col items-center gap-1 p-3 rounded-xl bg-green-900/30 border border-green-700/40 hover:bg-green-900/50 transition-colors"
                 >
                   <span className="text-2xl">🟩</span>
@@ -2857,7 +3109,7 @@ export default function LiveScoringScreen() {
                 </button>
                 {/* Yellow Card */}
                 <button
-                  onClick={() => { setShowActionsPanel(false); handleCard('yellow_card'); }}
+                  onClick={() => { setShowActionsPanel(false); setCardSelection({ step: 'team', cardType: 'yellow_card' }); }}
                   className="flex flex-col items-center gap-1 p-3 rounded-xl bg-yellow-900/30 border border-yellow-700/40 hover:bg-yellow-900/50 transition-colors"
                 >
                   <span className="text-2xl">🟨</span>
@@ -2866,7 +3118,7 @@ export default function LiveScoringScreen() {
                 </button>
                 {/* Red Card */}
                 <button
-                  onClick={() => { setShowActionsPanel(false); handleCard('red_card'); }}
+                  onClick={() => { setShowActionsPanel(false); setCardSelection({ step: 'team', cardType: 'red_card' }); }}
                   className="flex flex-col items-center gap-1 p-3 rounded-xl bg-red-900/30 border border-red-700/40 hover:bg-red-900/50 transition-colors"
                 >
                   <span className="text-2xl">🟥</span>
@@ -2882,40 +3134,14 @@ export default function LiveScoringScreen() {
                   <span className="text-[9px] font-bold text-orange-400">Timeout</span>
                   <span className="text-[7px] text-gray-400">2 min break</span>
                 </button>
-                {/* Tech Point */}
+                {/* Tech Point — asks which team first */}
                 <button
-                  onClick={() => {
-                    setShowActionsPanel(false);
-                    const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
-                    addEvent({
-                      matchId: match.id, eventType: 'technical_point', teamId,
-                      half: match.currentHalf, value: 1,
-                      details: JSON.stringify({ reason: 'Umpire decision' }),
-                    });
-                    toast({ title: 'Technical point awarded', description: `${raidingTeamName} +1`, duration: 2000 });
-                  }}
+                  onClick={() => { setShowActionsPanel(false); setTechPointSelection('home'); }}
                   className="flex flex-col items-center gap-1 p-3 rounded-xl bg-purple-900/30 border border-purple-700/40 hover:bg-purple-900/50 transition-colors"
                 >
                   <span className="text-2xl">⚖️</span>
                   <span className="text-[9px] font-bold text-purple-400">Tech Point</span>
                   <span className="text-[7px] text-gray-400">Umpire decision</span>
-                </button>
-                {/* Self-Out */}
-                <button
-                  onClick={() => {
-                    setShowActionsPanel(false);
-                    const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-                    if (activeDefenders.length > 0) {
-                      setSelfOutConfirm(activeDefenders[0]);
-                    } else {
-                      toast({ title: 'No defenders on court', duration: 1500 });
-                    }
-                  }}
-                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-gray-800 border border-gray-600 hover:bg-gray-700 transition-colors"
-                >
-                  <span className="text-2xl">🚫</span>
-                  <span className="text-[9px] font-bold text-gray-300">Self-Out</span>
-                  <span className="text-[7px] text-gray-400">Player stepped out</span>
                 </button>
               </div>
 
