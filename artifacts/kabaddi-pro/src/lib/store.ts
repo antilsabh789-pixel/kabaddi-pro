@@ -346,8 +346,10 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
     let details: Record<string, unknown> = {};
     try { details = evt.details ? JSON.parse(evt.details) : {}; } catch { /* skip */ }
 
-    // ─── RAID POINT (includes SUPER RAID) ───
-    if (evt.eventType === 'raid_point' || evt.eventType === 'super_raid') {
+    // ─── RAID POINT ───
+    // NOTE: super_raid is a LABEL only (value=0) — it does NOT add points.
+    // The points come from the raid_point event itself (1 per defender touched).
+    if (evt.eventType === 'raid_point') {
       addPoints(side, evt.value);
       const touchedIds: string[] = (details.touchedPlayerIds as string[]) || [];
       const defendingSide = side === 'home' ? 'away' : 'home';
@@ -358,6 +360,12 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
       // pushes an explicit 'all_out' event when all defenders are eliminated,
       // and that event's handler below adds the bonus + clears the queue.
       // Auto-adding here would double-count the all-out bonus.
+    }
+
+    // ─── SUPER RAID (label only, value=0, no points) ───
+    else if (evt.eventType === 'super_raid') {
+      // Do nothing — super_raid is just a label for match history.
+      // Points were already counted by the raid_point event.
     }
 
     // ─── BONUS POINT ───
@@ -502,6 +510,24 @@ function getRaidQueueFromEvents(match: ActiveMatch, events: MatchEvent[]): 'home
   const lastRaidEvent = [...events].reverse().find(e => RAID_ENDING_EVENT_TYPES.includes(e.eventType));
   if (lastRaidEvent) {
     const side = getTeamSide(match, lastRaidEvent.teamId);
+
+    // Self-out is special — the scoring team depends on WHO stepped out:
+    //   - Raider self-out → defending team scored (teamId = defending) → they raid next
+    //   - Defender self-out → raiding team scored (teamId = raiding) → defending team raids next
+    // We check selfOutRole in the event details to determine this.
+    if (lastRaidEvent.eventType === 'self_out') {
+      let details: Record<string, unknown> = {};
+      try { details = lastRaidEvent.details ? JSON.parse(lastRaidEvent.details) : {}; } catch { /* skip */ }
+      const selfOutRole = details.selfOutRole as string;
+      if (selfOutRole === 'raider') {
+        // Defender team scored → they raid next
+        return side;
+      } else {
+        // Raider team scored → defending team raids next
+        return side === 'home' ? 'away' : 'home';
+      }
+    }
+
     // If the defending team scored (tackle/super_tackle/do_or_die_raid),
     // THEY raid next — return the SAME side as the scoring team.
     if (DEFENDING_TEAM_SCORES.has(lastRaidEvent.eventType)) {
