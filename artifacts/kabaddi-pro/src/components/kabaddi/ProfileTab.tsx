@@ -238,6 +238,7 @@ export default function ProfileTab() {
     recentRevenueINR: number;
     recentPaymentsCount: number;
   } | null>(null);
+  const [totalPlayers, setTotalPlayers] = useState<number>(0);
 
   const [profileData, setProfileData] = useState({
     totalRaids: 0,
@@ -453,6 +454,15 @@ export default function ProfileTab() {
       .then(data => {
         if (!cancelled && data.summary) {
           setEarnings(data.summary);
+        }
+      })
+      .catch(() => {});
+    // Fetch total players for the admin dashboard tile
+    fetch('/api/stats')
+      .then(res => res.json())
+      .then(data => {
+        if (!cancelled && typeof data.totalPlayers === 'number') {
+          setTotalPlayers(data.totalPlayers);
         }
       })
       .catch(() => {});
@@ -2722,11 +2732,11 @@ export default function ProfileTab() {
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div className="p-3 rounded-xl bg-white/80 dark:bg-warm-100/50 border border-emerald-100 dark:border-emerald-800/20">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wide">Total Revenue</span>
+                  <Users className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wide">Total Players</span>
                 </div>
                 <p className="text-xl font-black text-emerald-700 dark:text-emerald-400">
-                  ₹{earnings?.totalRevenueINR?.toLocaleString() || '0'}
+                  {totalPlayers.toLocaleString()}
                 </p>
               </div>
               <div className="p-3 rounded-xl bg-white/80 dark:bg-warm-100/50 border border-emerald-100 dark:border-emerald-800/20">
