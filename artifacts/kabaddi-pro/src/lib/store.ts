@@ -126,7 +126,7 @@ export interface OnboardingProfile {
 }
 
 // Team management types
-export type TeamFilter = 'my' | 'all';
+export type TeamFilter = 'my' | 'search';
 
 export interface TeamManagementState {
   teamFilter: TeamFilter;

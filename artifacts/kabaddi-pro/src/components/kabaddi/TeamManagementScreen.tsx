@@ -204,9 +204,16 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
     setTeamsLoading(true);
     try {
       const params = new URLSearchParams();
-      if (teamSearch) params.set('search', teamSearch);
-      if (teamFilter === 'my') params.set('userId', currentUser.id);
-      params.set('filter', teamFilter);
+      // Always send userId so the backend can scope results to the user's teams
+      params.set('userId', currentUser.id);
+      if (teamSearch) {
+        // When searching, the backend uses the search query to find teams by name/code
+        params.set('search', teamSearch);
+        params.set('filter', 'search');
+      } else {
+        // Default: only show teams the user is a member of
+        params.set('filter', 'my');
+      }
 
       const res = await fetch(`/api/teams?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch teams');
@@ -222,7 +229,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
     } finally {
       setTeamsLoading(false);
     }
-  }, [currentUser, teamFilter, teamSearch, toast]);
+  }, [currentUser, teamSearch, toast]);
 
   useEffect(() => {
     fetchTeams();
@@ -392,6 +399,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          captainUserId: currentUser?.id,
           addMemberId: playerId,
         }),
       });
@@ -609,21 +617,11 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
         {/* Filter tabs & search (only on list view) */}
         {view === 'list' && (
           <div className="px-4 pb-3 space-y-3">
-            {/* Filter Tabs */}
-            <div className="flex gap-2">
-              {(['my', 'all'] as TeamFilter[]).map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setTeamFilter(filter)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${
-                    teamFilter === filter
-                      ? 'bg-brand-red text-white shadow-md'
-                      : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-600'
-                  }`}
-                >
-                  {filter === 'my' ? 'My Teams' : 'All Teams'}
-                </button>
-              ))}
+            {/* My Teams indicator + team count limit */}
+            <div className="flex items-center gap-2">
+              <div className="px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide bg-brand-red text-white shadow-md">
+                My Teams
+              </div>
               {isFreeUser && (
                 <div className="ml-auto flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400">
                   <Lock className="w-3 h-3" />
@@ -638,11 +636,11 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
               )}
             </div>
 
-            {/* Search */}
+            {/* Search — only finds other teams when explicitly searching */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
               <Input
-                placeholder="Search by name or code..."
+                placeholder="Search teams by name or code..."
                 value={teamSearch}
                 onChange={(e) => setTeamSearch(e.target.value)}
                 className="pl-9 h-9 bg-white dark:bg-warm-700 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 text-sm"
@@ -656,6 +654,11 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                 </button>
               )}
             </div>
+            {teamSearch && (
+              <p className="text-[10px] text-warm-500 dark:text-warm-400 px-1">
+                Showing search results for &quot;{teamSearch}&quot; · clear search to see your teams
+              </p>
+            )}
           </div>
         )}
       </header>

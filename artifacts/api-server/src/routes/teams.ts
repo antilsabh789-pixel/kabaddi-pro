@@ -17,25 +17,69 @@ function generateShortName(name: string): string {
   return name.slice(0, 3).toUpperCase();
 }
 
+/**
+ * Verify that the given userId is the captain of the team.
+ * Returns true if yes, false otherwise. Used for captain-only operations.
+ */
+async function isCaptain(teamId: string, userId: string): Promise<boolean> {
+  const member = await db.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { isCaptain: true },
+  });
+  return !!member?.isCaptain;
+}
+
+/**
+ * GET /api/teams
+ * Returns teams based on the filter:
+ *   - filter=my (DEFAULT): teams where the user is a member
+ *   - filter=search: teams whose name or teamCode matches the search query
+ *
+ * IMPORTANT: There is NO "all" filter anymore. We never return every team in the
+ * database. Users see only teams they're in, or teams they explicitly search for
+ * by name/code. This protects team privacy and prevents scraping.
+ */
 router.get('/teams', async (req, res) => {
   try {
-    const search = (req.query['search'] as string) || '';
+    const search = ((req.query['search'] as string) || '').trim();
     const userId = (req.query['userId'] as string) || '';
-    const filter = (req.query['filter'] as string) || 'all';
+    const filter = (req.query['filter'] as string) || 'my';
     const limit = parseInt((req.query['limit'] as string) || '20');
 
+    // Determine the effective filter:
+    // - If user explicitly searches, treat as 'search' filter
+    // - Otherwise default to 'my' (user's own teams)
+    const effectiveFilter = search ? 'search' : (filter === 'search' ? 'search' : 'my');
+
     const where: Record<string, unknown> = {};
-    if (search) where.OR = [{ name: { contains: search } }, { teamCode: { contains: search } }];
-    if (filter === 'my' && userId) where.members = { some: { userId } };
+
+    if (effectiveFilter === 'my') {
+      // Only return teams the user is a member of
+      if (!userId) return res.json({ teams: [] });
+      where.members = { some: { userId } };
+    } else {
+      // Search mode: require a non-empty search query
+      if (!search) return res.json({ teams: [] });
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { teamCode: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const teams = await db.team.findMany({
       where,
       take: limit,
-      include: { members: { include: { user: { select: { id: true, name: true, avatar: true, profile: true } } } }, _count: { select: { members: true } } },
+      include: {
+        members: {
+          include: { user: { select: { id: true, name: true, avatar: true, profile: true } } },
+        },
+        _count: { select: { members: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return res.json({ teams });
   } catch (error) {
+    console.error('Teams list error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -63,7 +107,7 @@ router.get('/teams/search', async (req, res) => {
     const limit = parseInt((req.query['limit'] as string) || '10');
     if (!q) return res.json({ teams: [] });
     const teams = await db.team.findMany({
-      where: { OR: [{ name: { contains: q } }, { teamCode: { contains: q } }] },
+      where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { teamCode: { contains: q, mode: 'insensitive' } }] },
       take: limit,
       include: { _count: { select: { members: true } } },
     });
@@ -115,22 +159,185 @@ router.get('/teams/:id', async (req, res) => {
   }
 });
 
-router.put('/teams/:id', async (req, res) => {
+/**
+ * PATCH /api/teams/:id
+ *
+ * Captain-only endpoint for managing a team. Supports 3 modes (checked in order):
+ *
+ *   1. Member management (when addMemberId / removeMemberId / captainId is in body):
+ *      - addMemberId: add a user to the team as a regular member
+ *      - removeMemberId: remove a member from the team (captain can remove anyone;
+ *        a member can remove themselves = "leave team")
+ *      - captainId: transfer captaincy to another existing member (current captain
+ *        becomes a regular member)
+ *
+ *   2. Team info edit (when name / logo / color / shortName is in body):
+ *      - Captain can edit the team's name, logo, color, or shortName
+ *
+ * The `captainUserId` field in the body is REQUIRED for all operations — the
+ * backend verifies this user is the captain before applying any change.
+ */
+router.patch('/teams/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, color, logo, shortName } = req.body;
-    const team = await db.team.update({ where: { id }, data: { name, color, logo, shortName } });
-    return res.json({ team });
+    const {
+      captainUserId,
+      addMemberId,
+      removeMemberId,
+      captainId,
+      name,
+      logo,
+      color,
+      shortName,
+    } = req.body;
+
+    if (!captainUserId) {
+      return res.status(400).json({ error: 'captainUserId is required' });
+    }
+
+    // Special case: a member removing THEMSELF is always allowed (it's "leave team")
+    const isSelfRemove = removeMemberId && removeMemberId === captainUserId;
+
+    // For all other operations, verify the requester is the captain
+    if (!isSelfRemove) {
+      const captainCheck = await isCaptain(id, captainUserId);
+      if (!captainCheck) {
+        return res.status(403).json({ error: 'Only the team captain can perform this action' });
+      }
+    }
+
+    // ─── Mode 1: Member management ─────────────────────────────
+    if (addMemberId) {
+      // Check if already a member
+      const existing = await db.teamMember.findUnique({
+        where: { teamId_userId: { teamId: id, userId: addMemberId } },
+      });
+      if (existing) {
+        return res.status(409).json({ error: 'User is already a member of this team' });
+      }
+      await db.teamMember.create({
+        data: { teamId: id, userId: addMemberId, isCaptain: false },
+      });
+      const updated = await db.team.findUnique({
+        where: { id },
+        include: { members: { include: { user: { select: { id: true, name: true, avatar: true, profile: true } } } } },
+      });
+      return res.json({ team: updated });
+    }
+
+    if (removeMemberId) {
+      // Prevent captain from removing themselves via this endpoint (use leave / transfer-captain first)
+      const targetMember = await db.teamMember.findUnique({
+        where: { teamId_userId: { teamId: id, userId: removeMemberId } },
+      });
+      if (!targetMember) {
+        return res.status(404).json({ error: 'Member not found in this team' });
+      }
+      if (targetMember.isCaptain && !isSelfRemove) {
+        return res.status(400).json({
+          error: 'Cannot remove the captain. Transfer captaincy to another member first, then remove.',
+        });
+      }
+      await db.teamMember.delete({
+        where: { id: targetMember.id },
+      });
+      const updated = await db.team.findUnique({
+        where: { id },
+        include: { members: { include: { user: { select: { id: true, name: true, avatar: true, profile: true } } } } },
+      });
+      return res.json({ team: updated });
+    }
+
+    if (captainId) {
+      // Transfer captaincy: current captain becomes regular member, target becomes captain
+      const targetMember = await db.teamMember.findUnique({
+        where: { teamId_userId: { teamId: id, userId: captainId } },
+      });
+      if (!targetMember) {
+        return res.status(404).json({ error: 'Target user is not a member of this team' });
+      }
+      if (targetMember.isCaptain) {
+        return res.status(400).json({ error: 'User is already the captain' });
+      }
+      // Demote all existing captains (should be just one) and promote the target
+      await db.teamMember.updateMany({
+        where: { teamId: id, isCaptain: true },
+        data: { isCaptain: false },
+      });
+      await db.teamMember.update({
+        where: { id: targetMember.id },
+        data: { isCaptain: true },
+      });
+      const updated = await db.team.findUnique({
+        where: { id },
+        include: { members: { include: { user: { select: { id: true, name: true, avatar: true, profile: true } } } } },
+      });
+      return res.json({ team: updated });
+    }
+
+    // ─── Mode 2: Team info edit ────────────────────────────────
+    const safeUpdate: Record<string, unknown> = {};
+    if (typeof name === 'string' && name.trim().length >= 3) {
+      safeUpdate.name = name.trim();
+      // Auto-regenerate shortName if it's not being explicitly set and the new name warrants a different short name
+      if (shortName === undefined) {
+        const newShort = generateShortName(name.trim());
+        // Only update if the current shortName is empty or differs from what the new name would generate
+        safeUpdate.shortName = newShort;
+      }
+    }
+    if (typeof shortName === 'string') {
+      const trimmed = shortName.trim().slice(0, 4).toUpperCase();
+      if (trimmed.length >= 1) safeUpdate.shortName = trimmed;
+    }
+    if (typeof color === 'string' && /^#[0-9a-f]{3,8}$/i.test(color)) {
+      safeUpdate.color = color;
+    }
+    // logo can be a URL/data-URL string OR null (to clear)
+    if (logo !== undefined) {
+      safeUpdate.logo = logo;
+    }
+
+    if (Object.keys(safeUpdate).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update. Provide name, logo, color, shortName, addMemberId, removeMemberId, or captainId.' });
+    }
+
+    const updated = await db.team.update({
+      where: { id },
+      data: safeUpdate,
+      include: { members: { include: { user: { select: { id: true, name: true, avatar: true, profile: true } } } } },
+    });
+
+    return res.json({ team: updated });
   } catch (error) {
+    console.error('Team update error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * DELETE /api/teams/:id
+ * Captain-only — deletes the team entirely (all members are removed, all
+ * tournament entries are orphaned). Requires captainUserId in body.
+ */
 router.delete('/teams/:id', async (req, res) => {
   try {
-    await db.team.delete({ where: { id: req.params['id'] } });
+    const { id } = req.params;
+    const captainUserId = (req.body?.captainUserId) || (req.query['captainUserId'] as string) || '';
+
+    if (!captainUserId) {
+      return res.status(400).json({ error: 'captainUserId is required' });
+    }
+
+    const captainCheck = await isCaptain(id, captainUserId);
+    if (!captainCheck) {
+      return res.status(403).json({ error: 'Only the team captain can delete the team' });
+    }
+
+    await db.team.delete({ where: { id } });
     return res.json({ message: 'Team deleted' });
   } catch (error) {
+    console.error('Team delete error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -161,9 +368,33 @@ router.post('/teams/leave', async (req, res) => {
   try {
     const { teamId, userId } = req.body;
     if (!teamId || !userId) return res.status(400).json({ error: 'teamId and userId required' });
-    await db.teamMember.deleteMany({ where: { teamId, userId } });
+
+    // If the user is the captain, leaving means either transferring captaincy or deleting the team.
+    // For safety: if captain tries to leave without transferring, block them with a helpful message.
+    const leavingMember = await db.teamMember.findUnique({
+      where: { teamId_userId: { teamId, userId } },
+    });
+    if (!leavingMember) {
+      return res.status(404).json({ error: 'You are not a member of this team' });
+    }
+    if (leavingMember.isCaptain) {
+      const otherMembers = await db.teamMember.count({
+        where: { teamId, userId: { not: userId } },
+      });
+      if (otherMembers > 0) {
+        return res.status(400).json({
+          error: 'You are the captain. Transfer captaincy to another member before leaving, or delete the team instead.',
+        });
+      }
+      // Captain is the only member — leaving = deleting the team
+      await db.team.delete({ where: { id: teamId } });
+      return res.json({ message: 'Left team', teamDeleted: true });
+    }
+
+    await db.teamMember.delete({ where: { id: leavingMember.id } });
     return res.json({ message: 'Left team' });
   } catch (error) {
+    console.error('Team leave error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -22,6 +22,9 @@ import {
   UserMinus,
   ArrowLeftRight,
   Swords,
+  Pencil,
+  Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -189,6 +192,14 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
   // Copied state
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // ─── Edit team name/logo dialog ───────────────────────────────
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editShortName, setEditShortName] = useState('');
+  const [editLogo, setEditLogo] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+
   // ─── Fetch team detail ────────────────────────────────────────
 
   const fetchTeamDetail = useCallback(async () => {
@@ -271,7 +282,10 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
       const res = await fetch(`/api/teams/${team.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addMemberId: playerId }),
+        body: JSON.stringify({
+          captainUserId: currentUser?.id,
+          addMemberId: playerId,
+        }),
       });
       if (!res.ok) throw new Error('Failed to add player');
       toast({
@@ -301,7 +315,10 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
       const res = await fetch(`/api/teams/${team.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ removeMemberId: userId }),
+        body: JSON.stringify({
+          captainUserId: currentUser?.id,
+          removeMemberId: userId,
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -333,7 +350,10 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
       const res = await fetch(`/api/teams/${team.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ captainId: userId }),
+        body: JSON.stringify({
+          captainUserId: currentUser?.id,
+          captainId: userId,
+        }),
       });
       if (!res.ok) throw new Error('Failed to transfer captaincy');
       toast({
@@ -352,6 +372,110 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
       });
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // ─── Edit team name / logo ─────────────────────────────────────
+
+  const openEditDialog = () => {
+    if (!team) return;
+    setEditName(team.name);
+    setEditShortName(team.shortName || '');
+    setEditLogo(team.logo || null);
+    setEditDialogOpen(true);
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    if (!currentUser) return;
+    setLogoUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const fileData = e.target?.result as string;
+        try {
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileData,
+              fileName: file.name,
+              fileType: file.type,
+              userId: currentUser.id,
+            }),
+          });
+          if (!res.ok) throw new Error('Upload failed');
+          const data = await res.json();
+          if (data.url) {
+            setEditLogo(data.url);
+          }
+        } catch (err) {
+          console.error('Logo upload error:', err);
+          toast({
+            title: 'Upload Failed',
+            description: 'Could not upload image. Try a smaller file.',
+            variant: 'destructive',
+          });
+        } finally {
+          setLogoUploading(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Logo upload error:', err);
+      setLogoUploading(false);
+      toast({
+        title: 'Upload Failed',
+        description: 'Could not read image file.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!team || !currentUser) return;
+    if (!editName.trim() || editName.trim().length < 3) {
+      toast({
+        title: 'Name too short',
+        description: 'Team name must be at least 3 characters.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        captainUserId: currentUser.id,
+        name: editName.trim(),
+        logo: editLogo, // can be null to clear, or a URL/data-URL string
+      };
+      if (editShortName.trim()) {
+        body.shortName = editShortName.trim().slice(0, 4).toUpperCase();
+      }
+      const res = await fetch(`/api/teams/${team.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update team');
+      }
+      toast({
+        title: 'Team Updated',
+        description: 'Team details have been saved.',
+      });
+      setEditDialogOpen(false);
+      fetchTeamDetail();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update team';
+      console.error('Team edit error:', err);
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -394,7 +518,11 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
     if (!team) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/teams/${team.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/teams/${team.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ captainUserId: currentUser?.id }),
+      });
       if (!res.ok) throw new Error('Failed to delete team');
       toast({
         title: 'Team Deleted',
@@ -542,6 +670,16 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
             </h1>
           </div>
           <div className="flex items-center gap-2">
+            {isCurrentUserCaptain && (
+              <button
+                onClick={openEditDialog}
+                disabled={actionLoading}
+                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40 transition-colors"
+                title="Edit Team Name / Logo"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
             {isCurrentUserCaptain && (
               <button
                 onClick={handleDeleteTeam}
@@ -1232,6 +1370,130 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ═══ Edit Team Name / Logo Dialog (Captain only) ═══ */}
+      <AnimatePresence>
+        {editDialogOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] bg-black/60 flex items-end sm:items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setEditDialogOpen(false); }}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              className="bg-white dark:bg-warm-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
+            >
+              {/* Dialog Header */}
+              <div className="p-4 border-b border-warm-200 dark:border-warm-700 flex items-center justify-between">
+                <h3 className="font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2">
+                  <Pencil className="w-4 h-4 text-brand-teal" />
+                  Edit Team
+                </h3>
+                <button
+                  onClick={() => setEditDialogOpen(false)}
+                  className="w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center hover:bg-warm-200 dark:hover:bg-warm-600 transition-colors"
+                >
+                  <X className="w-4 h-4 text-warm-500" />
+                </button>
+              </div>
+
+              {/* Dialog Body */}
+              <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                {/* Team Logo */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-warm-100 dark:bg-warm-700 border-2 border-warm-200 dark:border-warm-600 flex items-center justify-center">
+                    {editLogo ? (
+                      <img src={editLogo} alt="Team logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="w-8 h-8 text-warm-400" />
+                    )}
+                  </div>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleLogoUpload(file);
+                      }}
+                    />
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      logoUploading
+                        ? 'bg-warm-100 dark:bg-warm-700 text-warm-400 cursor-wait'
+                        : 'bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20'
+                    }`}>
+                      {logoUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+                      {logoUploading ? 'Uploading...' : (editLogo ? 'Change Logo' : 'Upload Logo')}
+                    </span>
+                  </label>
+                  {editLogo && (
+                    <button
+                      onClick={() => setEditLogo(null)}
+                      className="text-[10px] text-red-500 hover:text-red-600 underline"
+                    >
+                      Remove logo
+                    </button>
+                  )}
+                </div>
+
+                {/* Team Name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 uppercase tracking-wide">
+                    Team Name *
+                  </label>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Enter team name (min 3 chars)"
+                    maxLength={50}
+                    className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-warm-800 dark:text-warm-100"
+                  />
+                </div>
+
+                {/* Short Name (optional) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-warm-600 dark:text-warm-300 uppercase tracking-wide">
+                    Short Name (optional)
+                  </label>
+                  <Input
+                    value={editShortName}
+                    onChange={(e) => setEditShortName(e.target.value.toUpperCase().slice(0, 4))}
+                    placeholder="e.g. TIG"
+                    maxLength={4}
+                    className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-warm-800 dark:text-warm-100 font-mono uppercase"
+                  />
+                  <p className="text-[10px] text-warm-400">2-4 characters, shown as a badge</p>
+                </div>
+              </div>
+
+              {/* Dialog Footer */}
+              <div className="p-4 border-t border-warm-200 dark:border-warm-700 flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditDialogOpen(false)}
+                  disabled={editSaving}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveEdit}
+                  disabled={editSaving || editName.trim().length < 3}
+                  className="flex-1 bg-brand-teal hover:bg-brand-teal-dark text-white"
+                >
+                  {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 mr-1.5" />}
+                  {editSaving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
