@@ -58,6 +58,10 @@ async function countSuccessfulReferrals(userId: string): Promise<number> {
  * Count how many giveaway rounds a non-premium user has ALREADY used their referral entries on.
  * This is across ALL rounds (past + current), so a user with 3 referrals who has participated
  * in 2 rounds has 1 entry remaining.
+ *
+ * IMPORTANT: Only counts participations where isPremium=FALSE (i.e. referral-funded entries).
+ * Participations where the user was premium at entry time (e.g. they bought a ₹2 daily premium)
+ * do NOT consume referral entries — those were "free" entries earned by being premium that day.
  */
 async function countPastParticipations(userId: string): Promise<number> {
   return db.giveawayParticipant.count({
@@ -181,9 +185,18 @@ router.get('/giveaway/status', async (req, res) => {
  * User joins the current giveaway round.
  *
  * Rules:
- * - Premium members: free entry, every round
+ * - Premium members (ANY active plan: daily ₹2, weekly, monthly, yearly, lifetime):
+ *   free entry, every round. The premium status is checked AT THE MOMENT of participation.
+ *   Once the GiveawayParticipant record is created, it is PERMANENT — even if the user's
+ *   premium expires minutes later, they remain a participant in this round and can win.
+ *   This ensures users who buy a ₹2 daily premium specifically to enter the giveaway
+ *   are not penalized if the daily plan expires before the round ends (15 days later).
+ *
  * - Non-premium members: must have at least 1 successful referral that hasn't been "used" yet.
  *   Each successful referral = 1 participation entry (across all rounds, not per-round).
+ *
+ * The `isPremium` field on the GiveawayParticipant record is a SNAPSHOT of the user's
+ * premium status at participation time. It is NOT updated when premium expires.
  */
 router.post('/giveaway/participate', async (req, res) => {
   try {
@@ -192,7 +205,7 @@ router.post('/giveaway/participate', async (req, res) => {
 
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { id: true, phone: true, name: true, isPremium: true, premiumExpiry: true },
+      select: { id: true, phone: true, name: true, isPremium: true, premiumExpiry: true, premiumPlan: true },
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -204,9 +217,13 @@ router.post('/giveaway/participate', async (req, res) => {
     });
     if (existing) return res.status(409).json({ error: 'Already participating in this round' });
 
+    // Premium is "active" if the user has isPremium=true AND (no expiry OR expiry is in the future).
+    // This covers ALL premium plans — daily ₹2, weekly, monthly, yearly, lifetime.
+    // The check happens HERE, at participation time. The result is snapshotted into the
+    // GiveawayParticipant record (isPremium field) and never changes after that.
     const isPremiumActive = !!(user.isPremium && (!user.premiumExpiry || new Date(user.premiumExpiry) > new Date()));
 
-    // Enforce the new participation rule
+    // Enforce the participation rule
     if (!isPremiumActive) {
       const successfulReferrals = await countSuccessfulReferrals(userId);
       const participationsUsed = await countPastParticipations(userId);
@@ -215,14 +232,14 @@ router.post('/giveaway/participate', async (req, res) => {
       if (entriesRemaining <= 0) {
         if (successfulReferrals === 0) {
           return res.status(403).json({
-            error: 'Premium membership OR at least 1 successful referral is required to participate. Share your referral code with friends — when they sign up, you earn 1 giveaway entry!',
+            error: 'Premium membership OR at least 1 successful referral is required to participate. Buy a ₹2 daily premium or share your referral code with friends!',
             blockReason: 'no_referrals',
             successfulReferrals,
             entriesRemaining: 0,
           });
         } else {
           return res.status(403).json({
-            error: `You've used all ${successfulReferrals} of your referral entries. Refer more friends to earn more entries, or upgrade to Premium for unlimited participation.`,
+            error: `You've used all ${successfulReferrals} of your referral entries. Refer more friends, or buy a ₹2 daily premium to participate in this round.`,
             blockReason: 'no_entries_remaining',
             successfulReferrals,
             entriesRemaining: 0,
@@ -231,13 +248,16 @@ router.post('/giveaway/participate', async (req, res) => {
       }
     }
 
+    // Create the participant record — isPremium is a SNAPSHOT at this moment.
+    // Even if the user's premium expires 1 minute later, this record stays
+    // and they remain eligible to win when the round ends.
     await db.giveawayParticipant.create({
       data: {
         giveawayRoundId: round.id,
         userId: user.id,
         phone: user.phone,
         name: user.name,
-        isPremium: isPremiumActive,
+        isPremium: isPremiumActive, // snapshot — permanent
       },
     });
 
@@ -250,6 +270,7 @@ router.post('/giveaway/participate', async (req, res) => {
       participantCount,
       // Return updated eligibility so frontend can refresh state without a separate fetch
       isPremiumActive,
+      premiumPlan: user.premiumPlan,
       entriesRemaining: isPremiumActive ? null : Math.max(0, (await countSuccessfulReferrals(userId)) - (await countPastParticipations(userId)) - 1),
     });
   } catch (error) {
@@ -300,6 +321,11 @@ router.get('/giveaway/admin/participants', async (req, res) => {
 /**
  * POST /api/giveaway/admin/select-winners
  * ADMIN ONLY — Randomly selects 3 winners from the current round.
+ *
+ * IMPORTANT: Winners are selected from ALL participants of the round, regardless of
+ * their CURRENT premium status. A user who bought a ₹2 daily premium, participated,
+ * and then had their premium expire is STILL eligible to win — their participation
+ * was locked in at the moment they entered. We do NOT re-check premium status here.
  */
 router.post('/giveaway/admin/select-winners', async (req, res) => {
   try {
@@ -310,6 +336,7 @@ router.post('/giveaway/admin/select-winners', async (req, res) => {
     }
 
     const round = await getOrCreateActiveRound();
+    // Fetch ALL participants — no premium-status filter. Once a user is in, they're in.
     const participants = await db.giveawayParticipant.findMany({
       where: { giveawayRoundId: round.id },
       include: { user: { select: { id: true, playerCode: true, name: true, phone: true } } },

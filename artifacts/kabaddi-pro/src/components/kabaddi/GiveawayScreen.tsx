@@ -407,9 +407,10 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
             How It Works
           </h4>
           <div className="space-y-1.5 text-[11px] text-warm-500 dark:text-warm-400">
-            <p>👑 <span className="font-semibold text-warm-700 dark:text-warm-300">Premium members:</span> free entry, every round</p>
+            <p>👑 <span className="font-semibold text-warm-700 dark:text-warm-300">Premium members:</span> free entry, every round (₹2 daily plan works!)</p>
             <p>🤝 <span className="font-semibold text-warm-700 dark:text-warm-300">Free users:</span> 1 successful referral = 1 giveaway entry</p>
             <p>✅ 3 winners selected randomly every 15 days</p>
+            <p>🔒 <span className="font-semibold text-warm-700 dark:text-warm-300">Entry is locked in</span> — even if your premium expires after participating, you stay in the draw</p>
             <p>🔄 Referral entries are used across all rounds — refer more friends to enter more rounds!</p>
             <p>🔒 Only player IDs are shown for winners — privacy protected</p>
           </div>
