@@ -1561,15 +1561,15 @@ export default function LiveScoringScreen() {
             : 'bg-gray-900/95'
       }`} style={{ borderRight: side === 'home' ? `2px solid ${teamColor}30` : undefined, borderLeft: side === 'away' ? `2px solid ${teamColor}30` : undefined }}>
         {/* Team header with name, score, turn indicator */}
-        <div className="flex items-center justify-between px-2 py-1 border-b" style={{ borderColor: `${teamColor}30`, backgroundColor: `${teamColor}10` }}>
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between px-2 py-1.5 border-b" style={{ borderColor: `${teamColor}30`, backgroundColor: `${teamColor}10` }}>
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <div
-              className="w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[8px]"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] shrink-0"
               style={{ backgroundColor: teamColor }}
             >
               {teamName.charAt(0)}
             </div>
-            <span className="text-[9px] font-bold text-gray-200 truncate max-w-[50px]">
+            <span className="text-xs font-black text-white truncate" style={{ color: teamColor }}>
               {teamName}
             </span>
             {/* Turn indicator badge */}
