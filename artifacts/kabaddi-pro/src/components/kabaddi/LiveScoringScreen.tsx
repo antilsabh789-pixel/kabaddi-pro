@@ -397,6 +397,7 @@ export default function LiveScoringScreen() {
   const [eventConfirm, setEventConfirm] = useState<{ message: string; teamColor: string } | null>(null);
   const [showTimeoutOverlay, setShowTimeoutOverlay] = useState(false);
   const [showTimeoutTypeSelector, setShowTimeoutTypeSelector] = useState(false);
+  const [showActionsPanel, setShowActionsPanel] = useState(false);
   const [timeoutCountdown, setTimeoutCountdown] = useState(TIMEOUT_DURATION);
   const [timeoutTeam, setTimeoutTeam] = useState<'home' | 'away' | 'official'>('home');
   const timeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -2191,6 +2192,13 @@ export default function LiveScoringScreen() {
                 <Radio className="w-2 h-2" />LIVE
               </button>
             )}
+            {/* Permanent Actions button — always visible during the match */}
+            <button
+              onClick={() => setShowActionsPanel(true)}
+              className="ml-1 px-2 py-0.5 rounded bg-white/10 text-white text-[8px] font-bold flex items-center gap-0.5 hover:bg-white/20 transition-colors"
+            >
+              ⚡ Actions
+            </button>
           </div>
         </div>
 
@@ -2538,99 +2546,7 @@ export default function LiveScoringScreen() {
                 </motion.button>
               </div>
 
-              {/* Quick actions row — small buttons for less common events */}
-              <div className="border-t border-gray-700 dark:border-warm-700 pt-2.5">
-                <div className="text-[8px] font-bold text-gray-500 dark:text-warm-500 uppercase tracking-wider mb-1.5 text-center">Quick Actions</div>
-                <div className="flex gap-1.5 flex-wrap justify-center">
-                  {/* Self-Out */}
-                  <motion.button
-                    whileTap={{ scale: 0.92 }}
-                    onClick={() => {
-                      const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-                      if (activeDefenders.length > 0) {
-                        setSelfOutConfirm(activeDefenders[0]);
-                      }
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
-                    style={{ background: 'linear-gradient(135deg, #f9731620, #f9731608)', border: '1px solid #f9731640' }}
-                  >
-                    🚫 Self-Out
-                  </motion.button>
-                  {/* Bonus Point */}
-                  <motion.button
-                    whileTap={{ scale: 0.92 }}
-                    onClick={() => {
-                      const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-                      if (!match.bonusEnabled) {
-                        toast({ title: 'Bonus disabled for this format', duration: 1500 });
-                      } else if (activeDefenders.length >= match.bonusLineThreshold) {
-                        handleBonusPoint();
-                      } else {
-                        toast({ title: `Bonus needs ${match.bonusLineThreshold}+ defenders`, duration: 1500 });
-                      }
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all disabled:opacity-40"
-                    disabled={!match.bonusEnabled}
-                    style={{ background: 'linear-gradient(135deg, #eab30820, #eab30808)', border: '1px solid #eab30840' }}
-                  >
-                    🎯 Bonus
-                  </motion.button>
-                  {/* Technical Point */}
-                  <motion.button
-                    whileTap={{ scale: 0.92 }}
-                    onClick={() => {
-                      const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
-                      addEvent({
-                        matchId: match.id, eventType: 'technical_point', teamId,
-                        half: match.currentHalf, value: 1,
-                        details: JSON.stringify({ reason: 'Umpire decision' }),
-                      });
-                      toast({ title: 'Technical point awarded', description: `${raidingTeamName} +1`, duration: 2000 });
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
-                    style={{ background: 'linear-gradient(135deg, #a855f720, #a855f708)', border: '1px solid #a855f740' }}
-                  >
-                    ⚖️ Tech Point
-                  </motion.button>
-                  {/* Timeout */}
-                  <motion.button
-                    whileTap={{ scale: 0.92 }}
-                    onClick={() => handleTimeout()}
-                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
-                    style={{ background: 'linear-gradient(135deg, #f9731620, #f9731608)', border: '1px solid #f9731640' }}
-                  >
-                    📋 Timeout
-                  </motion.button>
-                  {/* Cards — Green (warning), Yellow (2-min suspension), Red (expulsion) */}
-                  <motion.button
-                    whileTap={{ scale: 0.92 }}
-                    onClick={() => handleCard('green_card')}
-                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
-                    style={{ background: 'linear-gradient(135deg, #22c55e20, #22c55e08)', border: '1px solid #22c55e40' }}
-                    title="Green Card — Formal warning (no penalty)"
-                  >
-                    🟩 Warn
-                  </motion.button>
-                  <motion.button
-                    whileTap={{ scale: 0.92 }}
-                    onClick={() => handleCard('yellow_card')}
-                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
-                    style={{ background: 'linear-gradient(135deg, #eab30820, #eab30808)', border: '1px solid #eab30840' }}
-                    title="Yellow Card — 2 minute suspension"
-                  >
-                    🟨 Yellow
-                  </motion.button>
-                  <motion.button
-                    whileTap={{ scale: 0.92 }}
-                    onClick={() => handleCard('red_card')}
-                    className="px-2.5 py-1.5 rounded-lg flex items-center gap-1 text-[9px] font-bold transition-all"
-                    style={{ background: 'linear-gradient(135deg, #ef444420, #ef444408)', border: '1px solid #ef444440' }}
-                    title="Red Card — Expulsion (rest of match)"
-                  >
-                    🟥 Red
-                  </motion.button>
-                </div>
-              </div>
+              {/* Quick actions removed — use the permanent Actions button at the top of the scoring screen */}
             </div>
           </motion.div>
         )}
@@ -2901,6 +2817,137 @@ export default function LiveScoringScreen() {
           </div>
         </div>
       )}
+
+      {/* ═══ PERMANENT ACTIONS PANEL ═══ */}
+      {/* Always-accessible panel with Cards, Timeout, Tech Point, Self-Out, Bonus */}
+      <AnimatePresence>
+        {showActionsPanel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[55] bg-black/70 flex items-end justify-center"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowActionsPanel(false); }}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4 space-y-3"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-white">Match Actions</h3>
+                <button onClick={() => setShowActionsPanel(false)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Action buttons grid */}
+              <div className="grid grid-cols-3 gap-2">
+                {/* Green Card */}
+                <button
+                  onClick={() => { setShowActionsPanel(false); handleCard('green_card'); }}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-green-900/30 border border-green-700/40 hover:bg-green-900/50 transition-colors"
+                >
+                  <span className="text-2xl">🟩</span>
+                  <span className="text-[9px] font-bold text-green-400">Green Card</span>
+                  <span className="text-[7px] text-gray-400">Warning</span>
+                </button>
+                {/* Yellow Card */}
+                <button
+                  onClick={() => { setShowActionsPanel(false); handleCard('yellow_card'); }}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-yellow-900/30 border border-yellow-700/40 hover:bg-yellow-900/50 transition-colors"
+                >
+                  <span className="text-2xl">🟨</span>
+                  <span className="text-[9px] font-bold text-yellow-400">Yellow Card</span>
+                  <span className="text-[7px] text-gray-400">2 min suspend</span>
+                </button>
+                {/* Red Card */}
+                <button
+                  onClick={() => { setShowActionsPanel(false); handleCard('red_card'); }}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-red-900/30 border border-red-700/40 hover:bg-red-900/50 transition-colors"
+                >
+                  <span className="text-2xl">🟥</span>
+                  <span className="text-[9px] font-bold text-red-400">Red Card</span>
+                  <span className="text-[7px] text-gray-400">Expulsion</span>
+                </button>
+                {/* Timeout */}
+                <button
+                  onClick={() => { setShowActionsPanel(false); handleTimeout(); }}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-orange-900/30 border border-orange-700/40 hover:bg-orange-900/50 transition-colors"
+                >
+                  <span className="text-2xl">📋</span>
+                  <span className="text-[9px] font-bold text-orange-400">Timeout</span>
+                  <span className="text-[7px] text-gray-400">2 min break</span>
+                </button>
+                {/* Tech Point */}
+                <button
+                  onClick={() => {
+                    setShowActionsPanel(false);
+                    const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+                    addEvent({
+                      matchId: match.id, eventType: 'technical_point', teamId,
+                      half: match.currentHalf, value: 1,
+                      details: JSON.stringify({ reason: 'Umpire decision' }),
+                    });
+                    toast({ title: 'Technical point awarded', description: `${raidingTeamName} +1`, duration: 2000 });
+                  }}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-purple-900/30 border border-purple-700/40 hover:bg-purple-900/50 transition-colors"
+                >
+                  <span className="text-2xl">⚖️</span>
+                  <span className="text-[9px] font-bold text-purple-400">Tech Point</span>
+                  <span className="text-[7px] text-gray-400">Umpire decision</span>
+                </button>
+                {/* Self-Out */}
+                <button
+                  onClick={() => {
+                    setShowActionsPanel(false);
+                    const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
+                    if (activeDefenders.length > 0) {
+                      setSelfOutConfirm(activeDefenders[0]);
+                    } else {
+                      toast({ title: 'No defenders on court', duration: 1500 });
+                    }
+                  }}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-gray-800 border border-gray-600 hover:bg-gray-700 transition-colors"
+                >
+                  <span className="text-2xl">🚫</span>
+                  <span className="text-[9px] font-bold text-gray-300">Self-Out</span>
+                  <span className="text-[7px] text-gray-400">Player stepped out</span>
+                </button>
+              </div>
+
+              {/* Bonus point (if enabled) */}
+              {match.bonusEnabled && (
+                <button
+                  onClick={() => {
+                    setShowActionsPanel(false);
+                    const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
+                    if (activeDefenders.length >= match.bonusLineThreshold) {
+                      handleBonusPoint();
+                    } else {
+                      toast({ title: `Bonus needs ${match.bonusLineThreshold}+ defenders`, duration: 1500 });
+                    }
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-yellow-900/30 border border-yellow-700/40 text-yellow-400 font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  🎯 Bonus Point ({match.bonusLineThreshold}+ defenders needed)
+                </button>
+              )}
+
+              {/* Close button */}
+              <button
+                onClick={() => setShowActionsPanel(false)}
+                className="w-full py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -354,7 +354,10 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
       for (const tid of touchedIds) { sendOut(defendingSide, tid); }
       revive(side, evt.value);
       emptyRaidCount[evt.teamId] = 0;
-      if (checkAllOut(defendingSide)) { addPoints(side, 2); }
+      // NOTE: All-out bonus is NOT auto-added here. The LiveScoringScreen
+      // pushes an explicit 'all_out' event when all defenders are eliminated,
+      // and that event's handler below adds the bonus + clears the queue.
+      // Auto-adding here would double-count the all-out bonus.
     }
 
     // ─── BONUS POINT ───
@@ -372,7 +375,8 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
       sendOut(raiderSide, raiderId || '');
       revive(side, evt.value);
       emptyRaidCount[evt.teamId] = 0;
-      if (checkAllOut(raiderSide)) { addPoints(side, 2); }
+      // NOTE: All-out bonus is handled by the explicit 'all_out' event
+      // pushed by LiveScoringScreen — NOT auto-added here to avoid double-counting.
     }
 
     // ─── SELF-OUT (raider or defender steps out of court) ───
@@ -406,8 +410,8 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
         revive(side, 1);
         // Reset empty raid counter for the raiding team (they scored)
         emptyRaidCount[evt.teamId] = 0;
-        // Auto All-Out check
-        if (checkAllOut(defendingSide)) { addPoints(side, 2); }
+        // NOTE: All-out bonus is handled by the explicit 'all_out' event
+        // pushed by LiveScoringScreen — NOT auto-added here to avoid double-counting.
       }
     }
 
@@ -1062,6 +1066,10 @@ export const useKabaddiStore = create<KabaddiState>()(
         hasCompletedOnboarding: state.hasCompletedOnboarding,
         onboardingProfile: state.onboardingProfile,
         coachAcademies: state.coachAcademies,
+        // CRITICAL: Persist the active match so closing the app doesn't lose
+        // all scoring data. When the app reopens, the match is restored from
+        // localStorage and the user sees a "Continue Match" prompt.
+        activeMatch: state.activeMatch,
       }),
     }
   )

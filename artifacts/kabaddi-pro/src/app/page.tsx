@@ -240,6 +240,17 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
+  // ─── Auto-restore live match on app open ──────────────────────────
+  // If the app was closed while a match was in progress (activeMatch.isLive=true),
+  // the persisted state is restored by zustand. We auto-switch to the quick-score
+  // tab so the user sees the scoring screen immediately — no "Continue Match"
+  // button needed, the match just resumes where it left off.
+  useEffect(() => {
+    if (activeMatch?.isLive && activeTab !== 'quick-score') {
+      setActiveTab('quick-score');
+    }
+  }, [activeMatch?.isLive, activeTab, setActiveTab]);
+
   // Handle payment return from Cashfree redirect
   useEffect(() => {
     if (!isAuthenticated || !currentUser?.id) return;
