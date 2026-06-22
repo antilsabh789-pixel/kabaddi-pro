@@ -1502,10 +1502,10 @@ export default function LiveScoringScreen() {
           borderLeft: `3px solid ${isOut ? '#4b5563' : teamColor}`,
         }}
       >
-        <div className={`flex items-center gap-2 ${isSmall ? 'px-1.5 py-1' : 'px-2.5 py-2'}`}>
-          {/* Avatar circle — bigger for better identification */}
+        <div className={`flex items-center gap-2.5 ${isSmall ? 'px-1.5 py-1' : 'px-3 py-2.5'}`}>
+          {/* Avatar circle — MUCH bigger for clear player identification */}
           <div
-            className={`relative flex-shrink-0 rounded-full overflow-hidden ${isSmall ? 'w-7 h-7' : 'w-10 h-10'}`}
+            className={`relative flex-shrink-0 rounded-full overflow-hidden ${isSmall ? 'w-8 h-8' : 'w-14 h-14'}`}
             style={{
               borderWidth: '2px',
               borderStyle: isOut ? 'dashed' : 'solid',
@@ -1524,7 +1524,7 @@ export default function LiveScoringScreen() {
                 className="w-full h-full flex items-center justify-center"
                 style={{ backgroundColor: `${teamColor}30` }}
               >
-                <span className={`${isSmall ? 'text-[8px]' : 'text-[11px]'} font-bold`} style={{ color: isOut ? '#6b7280' : teamColor }}>
+                <span className={`${isSmall ? 'text-[8px]' : 'text-base'} font-black`} style={{ color: isOut ? '#6b7280' : teamColor }}>
                   {initials}
                 </span>
               </div>
@@ -1533,30 +1533,30 @@ export default function LiveScoringScreen() {
             {/* OUT overlay */}
             {isOut && (
               <div className="absolute inset-0 bg-red-900/60 flex items-center justify-center">
-                <X className={`${isSmall ? 'w-3 h-3' : 'w-4 h-4'} text-red-400`} strokeWidth={3} />
+                <X className={`${isSmall ? 'w-3 h-3' : 'w-5 h-5'} text-red-400`} strokeWidth={3} />
               </div>
             )}
 
             {/* Selected checkmark */}
             {isSelected && showCheck && (
-              <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 flex items-center justify-center border border-white">
-                <Check className="w-1.5 h-1.5 text-white" />
+              <div className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center border border-white">
+                <Check className="w-2 h-2 text-white" />
               </div>
             )}
           </div>
 
           {/* Player info — bigger and bolder for better readability */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {player.jerseyNumber && (
                 <span
-                  className={`${isSmall ? 'text-[8px]' : 'text-[10px]'} font-black leading-none`}
-                  style={{ color: isOut ? '#6b7280' : teamColor }}
+                  className={`${isSmall ? 'text-[8px]' : 'text-sm`} font-black leading-none px-1.5 py-0.5 rounded-md`}
+                  style={{ color: isOut ? '#6b7280' : '#fff', backgroundColor: isOut ? 'transparent' : `${teamColor}40` }}
                 >
                   #{player.jerseyNumber}
                 </span>
               )}
-              <span className={`${isSmall ? 'text-[8px]' : 'text-[11px]'} font-bold text-gray-100 truncate leading-tight`}>
+              <span className={`${isSmall ? 'text-[8px]' : 'text-sm'} font-bold text-gray-100 truncate leading-tight`}>
                 {player.name.split(' ').length > 1
                   ? `${player.name.split(' ')[0]} ${player.name.split(' ')[1][0]}.`
                   : player.name.split(' ')[0]
