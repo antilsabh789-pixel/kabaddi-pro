@@ -273,10 +273,6 @@ export default function QuickScoreTab() {
   const [weightInput, setWeightInput] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
   const [activeLineupTeam, setActiveLineupTeam] = useState<'home' | 'away'>('home');
-  // Sub-step within the Lineup step:
-  //   0 = Select Squad (tap all players who will play — they turn green)
-  //   1 = Mark Playing vs Subs (tap to toggle which selected players are starting 7 vs substitutes)
-  const [lineupSubStep, setLineupSubStep] = useState<0 | 1>(0);
   const [searchResults, setSearchResults] = useState<DbPlayer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -292,7 +288,6 @@ export default function QuickScoreTab() {
   const [awayTeamId, setAwayTeamId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<DbPlayer[]>([]);
   const teamInputRef = useRef<HTMLDivElement>(null);
-  const [suggestingLineup, setSuggestingLineup] = useState(false);
   const [hoveredPlayer, setHoveredPlayer] = useState<string | null>(null);
   const [homePlaying7, setHomePlaying7] = useState<Set<string>>(new Set());
   const [awayPlaying7, setAwayPlaying7] = useState<Set<string>>(new Set());
@@ -526,8 +521,6 @@ export default function QuickScoreTab() {
           setAwayPlaying7(new Set());
           setAwayCaptain(null);
         }
-        // Reset lineup sub-step to 0 (Select Squad) since the lineup changed
-        setLineupSubStep(0);
       }
     } catch { /* ignore */ }
   };
@@ -782,89 +775,6 @@ export default function QuickScoreTab() {
     setSearchResults([]);
     setShowSuggestions(false);
   };
-
-  // ─── Smart Lineup Suggestion ────────────────────────────────────
-
-  const handleSuggestLineup = useCallback(() => {
-    setSuggestingLineup(true);
-
-    const targetCount = config.playersPerSide;
-    const balance = POSITION_BALANCE[targetCount] || POSITION_BALANCE[7];
-    const lineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
-    const otherLineup = activeLineupTeam === 'home' ? config.awayLineup : config.homeLineup;
-    const alreadyAdded = new Set([...lineup, ...otherLineup].map(p => p.id));
-
-    // Use only team members (not all players in DB)
-    const available = teamMembers.filter(p => !alreadyAdded.has(p.id));
-    const raiders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'raider');
-    const defenders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'defender');
-    const allRounders = available.filter(p => getPositionCategory(p.profile?.position || null) === 'all-rounder');
-    const unknowns = available.filter(p => getPositionCategory(p.profile?.position || null) === 'unknown');
-
-    // Sort each category by overall rating descending
-    const sortByRating = (arr: DbPlayer[]) => [...arr].sort((a, b) =>
-      (b.profile?.overallRating || 0) - (a.profile?.overallRating || 0)
-    );
-
-    const sortedRaiders = sortByRating(raiders);
-    const sortedDefenders = sortByRating(defenders);
-    const sortedAllRounders = sortByRating(allRounders);
-    const sortedUnknowns = sortByRating(unknowns);
-
-    const suggested: MatchPlayer[] = [];
-
-    // Pick from each category based on balance
-    const pickFrom = (pool: DbPlayer[], count: number) => {
-      const picked = pool.slice(0, count);
-      picked.forEach(p => {
-        suggested.push({
-          id: p.id,
-          name: p.name || 'Unknown',
-          jerseyNumber: p.profile?.jerseyNumber || suggested.length + 1,
-          playerCode: p.playerCode || undefined,
-          team: activeLineupTeam,
-        });
-      });
-      return picked.length;
-    };
-
-    let needRaiders = balance.raiders;
-    let needDefenders = balance.defenders;
-    let needAllRounders = balance.allRounders;
-
-    // First pick from known positions
-    const pickedRaiders = pickFrom(sortedRaiders, needRaiders);
-    needRaiders -= pickedRaiders;
-    const pickedDefenders = pickFrom(sortedDefenders, needDefenders);
-    needDefenders -= pickedDefenders;
-    const pickedAllRounders = pickFrom(sortedAllRounders, needAllRounders);
-    needAllRounders -= pickedAllRounders;
-
-    // Fill remaining slots with unknowns
-    const remaining = needRaiders + needDefenders + needAllRounders;
-    if (remaining > 0) {
-      pickFrom(sortedUnknowns, remaining);
-    }
-
-    // If still not enough, just add from the remaining sorted by rating
-    if (suggested.length < targetCount) {
-      const allRemaining = [...sortedRaiders.slice(pickedRaiders), ...sortedDefenders.slice(pickedDefenders), ...sortedAllRounders.slice(pickedAllRounders), ...sortedUnknowns.slice(remaining)]
-        .filter(p => !suggested.some(s => s.id === p.id) && !alreadyAdded.has(p.id));
-      const sortedRemaining = sortByRating(allRemaining);
-      pickFrom(sortedRemaining, targetCount - suggested.length);
-    }
-
-    // Apply the suggestion (merge with existing)
-    const mergedLineup = [...lineup, ...suggested].slice(0, targetCount);
-
-    setTimeout(() => {
-      setConfig({
-        ...config,
-        [activeLineupTeam === 'home' ? 'homeLineup' : 'awayLineup']: mergedLineup,
-      });
-      setSuggestingLineup(false);
-    }, 600);
-  }, [activeLineupTeam, config, teamMembers]);
 
   // ─── Lineup validation summary ──────────────────────────────────
 
@@ -2118,23 +2028,12 @@ export default function QuickScoreTab() {
 
           {step === 3 && (
             <div className="space-y-4 pb-6">
-              {/* Header changes based on sub-step */}
+              {/* Header */}
               <div className="text-center">
-                {lineupSubStep === 0 ? (
-                  <>
-                    <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Select Squad</h2>
-                    <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">
-                      Tap all players who will play in this match — selected players turn green
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Playing vs Substitutes</h2>
-                    <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">
-                      Tap to mark {config.playersPerSide} starting players (green) — rest are substitutes
-                    </p>
-                  </>
-                )}
+                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Select Playing Players</h2>
+                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">
+                  Tap players from your team roster to add them to the playing lineup
+                </p>
               </div>
 
               {/* Team Toggle */}
@@ -2163,296 +2062,204 @@ export default function QuickScoreTab() {
                 </button>
               </div>
 
-              {/* ═══ SUB-STEP 0: Select Squad (tap to add/remove from squad) ═══ */}
-              {lineupSubStep === 0 && (
-                <div className="space-y-3">
-                  {/* Roster from team members */}
-                  {(() => {
-                    const teamColor = activeLineupTeam === 'home' ? config.homeTeamColor : config.awayTeamColor;
-                    const lineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
-                    const lineupIds = new Set(lineup.map(p => p.id));
-                    // Filter teamMembers to only show players on the active team
-                    // (teamMembers contains members from BOTH teams)
-                    const roster = teamMembers.filter(m => {
-                      // A player belongs to the active team if they're in the team's roster
-                      // Since teamMembers is a combined list, we need to check which team they belong to
-                      // by refetching per-team. For simplicity, show ALL teamMembers and let user pick.
-                      return true;
+              {/* Player Selection — CricHeroes style */}
+              {(() => {
+                const teamColor = activeLineupTeam === 'home' ? config.homeTeamColor : config.awayTeamColor;
+                const roster = activeLineupTeam === 'home' ? homeTeamRoster : awayTeamRoster;
+                const lineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
+                const lineupIds = new Set(lineup.map(p => p.id));
+                const playingSet = activeLineupTeam === 'home' ? homePlaying7 : awayPlaying7;
+
+                // Toggle a player in/out of the lineup
+                const togglePlayer = (player: DbPlayer) => {
+                  const currentLineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
+                  const alreadyIn = currentLineup.some(p => p.id === player.id);
+
+                  if (alreadyIn) {
+                    // Remove from lineup
+                    const newLineup = currentLineup.filter(p => p.id !== player.id);
+                    setConfig({
+                      ...config,
+                      [activeLineupTeam === 'home' ? 'homeLineup' : 'awayLineup']: newLineup,
                     });
-
-                    const toggleSquadPlayer = (player: DbPlayer) => {
-                      const currentLineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
-                      const alreadyIn = currentLineup.some(p => p.id === player.id);
-                      if (alreadyIn) {
-                        // Remove from squad
-                        const newLineup = currentLineup.filter(p => p.id !== player.id);
-                        setConfig({
-                          ...config,
-                          [activeLineupTeam === 'home' ? 'homeLineup' : 'awayLineup']: newLineup,
-                        });
-                        // Also remove from playing7 if they were in it
-                        if (activeLineupTeam === 'home') {
-                          const newPlaying = new Set(homePlaying7);
-                          newPlaying.delete(player.id);
-                          setHomePlaying7(newPlaying);
-                        } else {
-                          const newPlaying = new Set(awayPlaying7);
-                          newPlaying.delete(player.id);
-                          setAwayPlaying7(newPlaying);
-                        }
-                      } else {
-                        // Add to squad
-                        const newPlayer: MatchPlayer = {
-                          id: player.id,
-                          name: player.name || 'Unknown',
-                          phone: player.phone || undefined,
-                          jerseyNumber: player.profile?.jerseyNumber || currentLineup.length + 1,
-                          playerCode: player.playerCode || undefined,
-                          team: activeLineupTeam,
-                        };
-                        const newLineup = [...currentLineup, newPlayer];
-                        setConfig({
-                          ...config,
-                          [activeLineupTeam === 'home' ? 'homeLineup' : 'awayLineup']: newLineup,
-                        });
-                      }
-                    };
-
-                    if (roster.length === 0) {
-                      return (
-                        <div className="w-full text-center py-10">
-                          <div className="w-14 h-14 rounded-2xl bg-warm-100 dark:bg-warm-800 mx-auto flex items-center justify-center mb-3">
-                            <UserPlus className="w-6 h-6 text-warm-300 dark:text-warm-600" />
-                          </div>
-                          <p className="text-warm-400 dark:text-warm-500 text-sm font-medium">No team members found</p>
-                          <p className="text-warm-300 dark:text-warm-600 text-xs mt-0.5">
-                            Make sure you selected a team with registered players, or add players manually below
-                          </p>
-                        </div>
-                      );
+                    // Also remove from playing7
+                    if (activeLineupTeam === 'home') {
+                      const newPlaying = new Set(homePlaying7);
+                      newPlaying.delete(player.id);
+                      setHomePlaying7(newPlaying);
+                    } else {
+                      const newPlaying = new Set(awayPlaying7);
+                      newPlaying.delete(player.id);
+                      setAwayPlaying7(newPlaying);
                     }
+                  } else {
+                    // Add to lineup
+                    const newPlayer: MatchPlayer = {
+                      id: player.id,
+                      name: player.name || 'Unknown',
+                      phone: player.phone || undefined,
+                      jerseyNumber: player.profile?.jerseyNumber || currentLineup.length + 1,
+                      playerCode: player.playerCode || undefined,
+                      team: activeLineupTeam,
+                    };
+                    const newLineup = [...currentLineup, newPlayer];
+                    setConfig({
+                      ...config,
+                      [activeLineupTeam === 'home' ? 'homeLineup' : 'awayLineup']: newLineup,
+                    });
+                    // Auto-mark as playing if we still need starting players
+                    const currentPlaying = activeLineupTeam === 'home' ? homePlaying7 : awayPlaying7;
+                    if (currentPlaying.size < config.playersPerSide) {
+                      if (activeLineupTeam === 'home') {
+                        const newPlaying = new Set(homePlaying7);
+                        newPlaying.add(player.id);
+                        setHomePlaying7(newPlaying);
+                      } else {
+                        const newPlaying = new Set(awayPlaying7);
+                        newPlaying.add(player.id);
+                        setAwayPlaying7(newPlaying);
+                      }
+                    }
+                  }
+                };
 
-                    return (
-                      <>
-                        {/* Squad counter */}
-                        <div className="flex items-center justify-between px-3 py-2 bg-warm-50 dark:bg-warm-800/50 rounded-xl">
-                          <span className="text-xs font-bold text-warm-600 dark:text-warm-300">
-                            Squad Selected: {lineup.length}
-                          </span>
-                          <span className="text-[10px] text-warm-400">
-                            Need at least {config.playersPerSide} per team
-                          </span>
-                        </div>
+                if (roster.length === 0) {
+                  return (
+                    <div className="w-full text-center py-10">
+                      <div className="w-14 h-14 rounded-2xl bg-warm-100 dark:bg-warm-800 mx-auto flex items-center justify-center mb-3">
+                        <UserPlus className="w-6 h-6 text-warm-300 dark:text-warm-600" />
+                      </div>
+                      <p className="text-warm-400 dark:text-warm-500 text-sm font-medium">No team members found</p>
+                      <p className="text-warm-300 dark:text-warm-600 text-xs mt-0.5">
+                        Go back to Step 2 and select a team with registered players
+                      </p>
+                    </div>
+                  );
+                }
 
-                        {/* Player grid — tap to toggle green */}
-                        <div className="grid grid-cols-1 gap-2">
-                          {roster.map((player) => {
-                            const isSelected = lineupIds.has(player.id);
-                            const position = player.profile?.position || null;
-                            return (
-                              <motion.button
-                                key={player.id}
-                                whileTap={{ scale: 0.97 }}
-                                onClick={() => toggleSquadPlayer(player)}
-                                className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 text-left ${
-                                  isSelected
-                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 dark:border-emerald-600 shadow-sm'
-                                    : 'bg-white dark:bg-warm-800/70 border-warm-200 dark:border-warm-700 hover:border-warm-300 dark:hover:border-warm-600'
+                return (
+                  <>
+                    {/* Playing counter */}
+                    <div className="flex items-center justify-between px-3 py-2 bg-warm-50 dark:bg-warm-800/50 rounded-xl">
+                      <span className="text-xs font-bold text-warm-600 dark:text-warm-300">
+                        Playing: {playingSet.size}/{config.playersPerSide} · Squad: {lineup.length}
+                      </span>
+                      <span className="text-[10px] text-warm-400">
+                        {playingSet.size >= config.playersPerSide ? 'Ready!' : `Need ${config.playersPerSide - playingSet.size} more`}
+                      </span>
+                    </div>
+
+                    {/* Selected players first (green cards) */}
+                    {lineup.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider px-1">
+                          Selected ({lineup.length})
+                        </span>
+                        {lineup.map((player) => {
+                          const isPlaying = playingSet.has(player.id);
+                          return (
+                            <motion.button
+                              key={player.id}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => {
+                                const rosterPlayer = roster.find(p => p.id === player.id);
+                                if (rosterPlayer) togglePlayer(rosterPlayer);
+                              }}
+                              className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 text-left w-full ${
+                                isPlaying
+                                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 dark:border-emerald-600 shadow-sm'
+                                  : 'bg-amber-50 dark:bg-amber-900/20 border-amber-400 dark:border-amber-600'
+                              }`}
+                            >
+                              <div
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm ${
+                                  isPlaying ? 'bg-emerald-500' : 'bg-amber-500'
                                 }`}
                               >
-                                {/* Jersey number / checkmark circle */}
-                                <div
-                                  className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm transition-colors ${
-                                    isSelected ? 'bg-emerald-500' : ''
-                                  }`}
-                                  style={!isSelected ? { backgroundColor: teamColor } : {}}
-                                >
-                                  {isSelected ? (
-                                    <Check className="w-5 h-5" />
-                                  ) : (
-                                    player.profile?.jerseyNumber || '?'
-                                  )}
-                                </div>
-                                {/* Player info */}
-                                <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-bold truncate ${
-                                    isSelected ? 'text-emerald-700 dark:text-emerald-300' : 'text-warm-800 dark:text-warm-100'
-                                  }`}>
-                                    {player.name || 'Unknown'}
-                                  </p>
-                                  <div className="flex items-center gap-1.5 mt-0.5">
-                                    {player.playerCode && (
-                                      <span className="text-[10px] text-warm-400 font-mono">{player.playerCode}</span>
-                                    )}
-                                    {position && (
-                                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${
-                                        position === 'raider' ? 'bg-brand-red/10 text-brand-red' :
-                                        position === 'defender' ? 'bg-brand-teal/10 text-brand-teal' :
-                                        position === 'all-rounder' ? 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold' :
-                                        'bg-warm-100 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
-                                      }`}>
-                                        {position}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                {/* Selected indicator */}
-                                {isSelected && (
-                                  <motion.div
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"
-                                  >
-                                    <Check className="w-4 h-4 text-white" />
-                                  </motion.div>
-                                )}
-                              </motion.button>
-                            );
-                          })}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* ═══ SUB-STEP 1: Mark Playing vs Substitutes ═══ */}
-              {lineupSubStep === 1 && (
-                <div className="space-y-3">
-                  {(() => {
-                    const teamColor = activeLineupTeam === 'home' ? config.homeTeamColor : config.awayTeamColor;
-                    const lineup = activeLineupTeam === 'home' ? config.homeLineup : config.awayLineup;
-                    const playingSet = activeLineupTeam === 'home' ? homePlaying7 : awayPlaying7;
-                    const setPlayingSet = activeLineupTeam === 'home' ? setHomePlaying7 : setAwayPlaying7;
-                    const playingCount = playingSet.size;
-
-                    const togglePlaying = (playerId: string) => {
-                      const newSet = new Set(playingSet);
-                      if (newSet.has(playerId)) {
-                        newSet.delete(playerId);
-                      } else {
-                        if (playingCount >= config.playersPerSide) {
-                          // Can't add more than playersPerSide starting players
-                          return;
-                        }
-                        newSet.add(playerId);
-                      }
-                      setPlayingSet(newSet);
-                    };
-
-                    if (lineup.length === 0) {
-                      return (
-                        <div className="w-full text-center py-10">
-                          <p className="text-warm-400 text-sm">No players in squad yet. Go back and select squad first.</p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <>
-                        {/* Playing counter */}
-                        <div className="flex items-center justify-between px-3 py-2 bg-warm-50 dark:bg-warm-800/50 rounded-xl">
-                          <span className="text-xs font-bold text-warm-600 dark:text-warm-300">
-                            Starting: {playingCount}/{config.playersPerSide}
-                          </span>
-                          <span className="text-[10px] text-warm-400">
-                            Substitutes: {lineup.length - playingCount}
-                          </span>
-                        </div>
-
-                        {/* Selected squad players — tap to toggle Playing (green) vs Substitute (gray) */}
-                        <div className="grid grid-cols-1 gap-2">
-                          {lineup.map((player) => {
-                            const isPlaying = playingSet.has(player.id);
-                            return (
-                              <motion.button
-                                key={player.id}
-                                whileTap={{ scale: 0.97 }}
-                                onClick={() => togglePlaying(player.id)}
-                                className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 text-left ${
-                                  isPlaying
-                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 dark:border-emerald-600 shadow-sm'
-                                    : 'bg-warm-50 dark:bg-warm-800/50 border-warm-200 dark:border-warm-700'
-                                }`}
-                              >
-                                {/* Jersey number / status circle */}
-                                <div
-                                  className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm transition-colors ${
-                                    isPlaying ? 'bg-emerald-500' : 'bg-warm-400 dark:bg-warm-600'
-                                  }`}
-                                >
-                                  {isPlaying ? (
-                                    <Swords className="w-5 h-5" />
-                                  ) : (
-                                    player.jerseyNumber || '?'
-                                  )}
-                                </div>
-                                {/* Player info */}
-                                <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-bold truncate ${
-                                    isPlaying ? 'text-emerald-700 dark:text-emerald-300' : 'text-warm-600 dark:text-warm-300'
-                                  }`}>
-                                    {player.name}
-                                  </p>
-                                  <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                                    isPlaying ? 'text-emerald-500' : 'text-warm-400'
-                                  }`}>
-                                    {isPlaying ? 'PLAYING' : 'SUBSTITUTE'}
-                                  </span>
-                                </div>
-                                {/* Status badge */}
-                                <div className={`px-2 py-1 rounded-full text-[8px] font-black uppercase ${
-                                  isPlaying
-                                    ? 'bg-emerald-500 text-white'
-                                    : 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+                                {player.jerseyNumber || '?'}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-bold truncate ${
+                                  isPlaying ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'
                                 }`}>
-                                  {isPlaying ? 'START' : 'SUB'}
-                                </div>
-                              </motion.button>
-                            );
-                          })}
-                        </div>
+                                  {player.name}
+                                </p>
+                                <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                                  isPlaying ? 'text-emerald-500' : 'text-amber-500'
+                                }`}>
+                                  {isPlaying ? 'PLAYING' : 'SUBSTITUTE'}
+                                </span>
+                              </div>
+                              {/* Tap to remove — shows X when selected */}
+                              <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+                                <X className="w-3.5 h-3.5 text-red-500" />
+                              </div>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    )}
 
-                        {/* Helper text */}
-                        <p className="text-[10px] text-center text-warm-400 dark:text-warm-500 px-4">
-                          Tap a player to toggle between Starting (green) and Substitute (gray).
-                          You need exactly {config.playersPerSide} starting players.
-                        </p>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
+                    {/* Available players from roster (not yet selected) */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-warm-400 uppercase tracking-wider px-1">
+                        Available ({roster.filter(p => !lineupIds.has(p.id)).length})
+                      </span>
+                      {roster.filter(p => !lineupIds.has(p.id)).map((player) => {
+                        const position = player.profile?.position || null;
+                        return (
+                          <motion.button
+                            key={player.id}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => togglePlayer(player)}
+                            className="flex items-center gap-3 p-3 rounded-xl border-2 border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/70 hover:border-warm-300 dark:hover:border-warm-600 transition-all duration-200 text-left w-full"
+                          >
+                            <div
+                              className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm"
+                              style={{ backgroundColor: teamColor }}
+                            >
+                              {player.profile?.jerseyNumber || '+'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">
+                                {player.name || 'Unknown'}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {player.playerCode && (
+                                  <span className="text-[10px] text-warm-400 font-mono">{player.playerCode}</span>
+                                )}
+                                {position && (
+                                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${
+                                    position === 'raider' ? 'bg-brand-red/10 text-brand-red' :
+                                    position === 'defender' ? 'bg-brand-teal/10 text-brand-teal' :
+                                    position === 'all-rounder' ? 'bg-brand-gold/10 text-brand-gold-dark dark:text-brand-gold' :
+                                    'bg-warm-100 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
+                                  }`}>
+                                    {position}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {/* Plus icon — tap to add */}
+                            <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                              <Plus className="w-3.5 h-3.5 text-emerald-500" />
+                            </div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
 
-              {/* Sub-step navigation buttons */}
-              <div className="flex gap-2 pt-2">
-                {lineupSubStep === 1 && (
-                  <Button
-                    onClick={() => setLineupSubStep(0)}
-                    variant="outline"
-                    className="flex-1 h-11 border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300"
-                  >
-                    <ChevronLeft className="w-4 h-4 mr-1" />
-                    Back to Squad
-                  </Button>
-                )}
-                {lineupSubStep === 0 && (
-                  <Button
-                    onClick={() => setLineupSubStep(1)}
-                    disabled={
-                      (activeLineupTeam === 'home' ? config.homeLineup.length : config.awayLineup.length) < config.playersPerSide
-                    }
-                    className="flex-1 h-11 bg-brand-teal hover:bg-brand-teal-dark text-white"
-                  >
-                    Next: Mark Playing vs Subs
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
-                )}
-              </div>
+                    {roster.filter(p => !lineupIds.has(p.id)).length === 0 && lineup.length > 0 && (
+                      <p className="text-center text-[10px] text-warm-400 py-2">
+                        All team members selected! Tap any selected player above to remove them.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 
-          )}
 
           {step === 4 && (
             <div className="space-y-5 pb-6">
