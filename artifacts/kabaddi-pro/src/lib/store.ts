@@ -175,6 +175,11 @@ interface KabaddiState {
   // Language
   language: Language;
 
+  // Dark mode (persisted in localStorage so the user's choice survives reloads)
+  darkMode: boolean;
+  setDarkMode: (dark: boolean) => void;
+  toggleDarkMode: () => void;
+
   // Onboarding
   hasCompletedOnboarding: boolean;
   onboardingProfile: OnboardingProfile;
@@ -488,6 +493,38 @@ export const useKabaddiStore = create<KabaddiState>()(
 
       // Language
       language: 'en' as Language,
+
+      // Dark mode — defaults to false (light). The persisted value (if any) is
+      // restored by zustand persist, and a useEffect in App.tsx applies the
+      // `.dark` class to document.documentElement whenever darkMode changes.
+      // We ALSO write a standalone localStorage key 'theme-mode' as a backup
+      // in case zustand persist fails to hydrate correctly.
+      darkMode: typeof localStorage !== 'undefined' && localStorage.getItem('theme-mode') === 'dark',
+      setDarkMode: (dark) => {
+        set({ darkMode: dark });
+        // Apply the class immediately so the UI updates without waiting for re-render
+        if (typeof document !== 'undefined') {
+          if (dark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        }
+        // ALSO write a standalone localStorage key as a backup — this is
+        // read by the inline script in index.html and eliminates any
+        // dependency on zustand persist working correctly.
+        if (typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem('theme-mode', dark ? 'dark' : 'light');
+          } catch (e) {
+            // localStorage might be full or disabled — ignore
+          }
+        }
+      },
+      toggleDarkMode: () => {
+        const next = !get().darkMode;
+        get().setDarkMode(next);
+      },
 
       // Onboarding
       hasCompletedOnboarding: false,
@@ -906,6 +943,7 @@ export const useKabaddiStore = create<KabaddiState>()(
         hasSeenSplash: state.hasSeenSplash,
         notifications: state.notifications,
         language: state.language,
+        darkMode: state.darkMode,
         hasCompletedOnboarding: state.hasCompletedOnboarding,
         onboardingProfile: state.onboardingProfile,
         coachAcademies: state.coachAcademies,

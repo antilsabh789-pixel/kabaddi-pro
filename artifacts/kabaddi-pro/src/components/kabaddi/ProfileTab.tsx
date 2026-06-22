@@ -217,7 +217,8 @@ export default function ProfileTab() {
   useBackButton(showDailyChallenge, () => setShowDailyChallenge(false));
   useBackButton(editOpen, () => setEditOpen(false));
 
-  const darkMode = document.documentElement.classList.contains('dark');
+  const darkMode = useKabaddiStore((s) => s.darkMode);
+  const toggleDarkMode = useKabaddiStore((s) => s.toggleDarkMode);
   const [editForm, setEditForm] = useState({
     gender: currentUser?.gender || '',
     weight: currentUser?.weight || '',
@@ -469,14 +470,7 @@ export default function ProfileTab() {
     return () => { cancelled = true; };
   }, [currentUser?.isAdmin]);
 
-  const toggleDarkMode = () => {
-    const root = document.documentElement;
-    if (root.classList.contains('dark')) {
-      root.classList.remove('dark');
-    } else {
-      root.classList.add('dark');
-    }
-  };
+  // toggleDarkMode is now provided by useKabaddiStore (persists to localStorage)
 
   useEffect(() => {
     setEditForm({
@@ -2725,8 +2719,8 @@ export default function ProfileTab() {
           transition={{ delay: 0.28 }}
         >
           <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
-            <IndianRupee className="w-4 h-4 text-emerald-500" />
-            Earnings Dashboard
+            <Users className="w-4 h-4 text-emerald-500" />
+            Users Data
           </h3>
           <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30">
             <div className="grid grid-cols-2 gap-3 mb-3">
