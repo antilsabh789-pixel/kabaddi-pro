@@ -96,6 +96,45 @@ export interface ActiveMatch {
   homeOutPlayerIds: string[];
   awayOutPlayerIds: string[];
   liveStreamUrl?: string;
+
+  // ─── Card & Disciplinary Module ─────────────────────────────────
+  // Yellow-card suspensions: each entry tracks the player + the match-time
+  // (in seconds) when they were suspended. The UI computes the 2-minute
+  // countdown from this. When the countdown hits zero, the player can
+  // re-enter at the next dead ball.
+  yellowCardSuspensions: Array<{
+    playerId: string;
+    playerName: string;
+    side: 'home' | 'away';
+    suspendedAtMatchTime: number; // match.timer value when suspended
+    released: boolean; // true once the scorer releases them back
+  }>;
+  // Red-card expulsions: player is permanently removed. The team's
+  // max-on-court drops by 1 for the rest of the match.
+  redCardExpulsions: Array<{
+    playerId: string;
+    playerName: string;
+    side: 'home' | 'away';
+  }>;
+  // Green-card warnings: just logged, no point/suspension impact.
+  greenCardWarnings: Array<{
+    playerId: string;
+    playerName: string;
+    side: 'home' | 'away';
+  }>;
+
+  // ─── Dynamic Rule Scaling (P-based math) ────────────────────────
+  // These are set at match creation based on the chosen format.
+  // Defaults assume standard 7v7 rules but scale for custom formats.
+  bonusEnabled: boolean;          // master toggle — false for small formats (2v2, 3v3)
+  revivalEnabled: boolean;        // false = "No-Revival Mode" (points only, players stay on mat)
+  allOutBonusPoints: number;      // default 2, customizable
+  superTackleThreshold: number;   // default floor(P/2) — super tackle activates when defenders <= this
+  bonusLineThreshold: number;     // default P-1 — bonus activates when defenders >= this
+  // Asymmetric team support: each team can have a different starting P.
+  // Defaults to playersPerSide for both teams when symmetry is used.
+  homeStartingP: number;          // Team A's starting player count
+  awayStartingP: number;          // Team B's starting player count
 }
 
 export type TabId = 'home' | 'tournaments' | 'quick-score' | 'profile';
@@ -200,9 +239,9 @@ interface KabaddiState {
   updateUser: (data: Partial<CurrentUser>) => void;
   setActiveTab: (tab: TabId) => void;
   setHasSeenSplash: (value: boolean) => void;
-  initiateToss: (matchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'>) => void;
+  initiateToss: (matchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds' | 'yellowCardSuspensions' | 'redCardExpulsions' | 'greenCardWarnings'>) => void;
   cancelToss: () => void;
-  startMatch: (match: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'>, firstRaidTeam?: 'home' | 'away') => void;
+  startMatch: (match: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds' | 'yellowCardSuspensions' | 'redCardExpulsions' | 'greenCardWarnings'>, firstRaidTeam?: 'home' | 'away') => void;
   endMatch: () => void;
   updateScore: (team: 'home' | 'away', delta: number) => void;
   addEvent: (event: Omit<MatchEvent, 'id' | 'timestamp'>) => void;
@@ -216,6 +255,11 @@ interface KabaddiState {
   switchRaidQueue: () => void;
   callTimeout: (team: 'home' | 'away') => void;
   setOutPlayers: (team: 'home' | 'away', count: number) => void;
+  // Card & Disciplinary actions
+  issueGreenCard: (side: 'home' | 'away', playerId: string, playerName: string) => void;
+  issueYellowCard: (side: 'home' | 'away', playerId: string, playerName: string) => void;
+  releaseYellowCard: (playerId: string) => void;
+  issueRedCard: (side: 'home' | 'away', playerId: string, playerName: string) => void;
   fetchHomeData: () => Promise<HomeData>;
 
   // Notification actions
@@ -625,6 +669,18 @@ export const useKabaddiStore = create<KabaddiState>()(
             awayOutPlayers: 0,
             homeOutPlayerIds: [],
             awayOutPlayerIds: [],
+            // Card & Disciplinary Module — start with empty arrays
+            yellowCardSuspensions: [],
+            redCardExpulsions: [],
+            greenCardWarnings: [],
+            // Dynamic Rule Scaling — use match-provided values or sensible defaults
+            bonusEnabled: match.bonusEnabled ?? true,
+            revivalEnabled: match.revivalEnabled ?? true,
+            allOutBonusPoints: match.allOutBonusPoints ?? 2,
+            superTackleThreshold: match.superTackleThreshold ?? Math.floor(match.playersPerSide / 2),
+            bonusLineThreshold: match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1),
+            homeStartingP: match.homeStartingP ?? match.playersPerSide,
+            awayStartingP: match.awayStartingP ?? match.playersPerSide,
           },
           activeTab: 'quick-score',
           showToss: false,
@@ -834,6 +890,65 @@ export const useKabaddiStore = create<KabaddiState>()(
               ...state.activeMatch,
               homeOutPlayers: team === 'home' ? count : state.activeMatch.homeOutPlayers,
               awayOutPlayers: team === 'away' ? count : state.activeMatch.awayOutPlayers,
+            },
+          };
+        }),
+
+      // ─── Card & Disciplinary Module actions ─────────────────────────
+      // Green card = formal warning, logged only, no game impact
+      issueGreenCard: (side, playerId, playerName) =>
+        set((state) => {
+          if (!state.activeMatch) return {};
+          return {
+            activeMatch: {
+              ...state.activeMatch,
+              greenCardWarnings: [...state.activeMatch.greenCardWarnings, { playerId, playerName, side }],
+            },
+          };
+        }),
+
+      // Yellow card = 2-minute suspension. Player removed from mat, can't be revived,
+      // 2-min countdown starts. Scorer releases them back when timer expires.
+      issueYellowCard: (side, playerId, playerName) =>
+        set((state) => {
+          if (!state.activeMatch) return {};
+          return {
+            activeMatch: {
+              ...state.activeMatch,
+              yellowCardSuspensions: [...state.activeMatch.yellowCardSuspensions, {
+                playerId,
+                playerName,
+                side,
+                suspendedAtMatchTime: state.activeMatch.timer,
+                released: false,
+              }],
+            },
+          };
+        }),
+
+      // Release a yellow-carded player back onto the mat (after 2-min timer expires)
+      releaseYellowCard: (playerId) =>
+        set((state) => {
+          if (!state.activeMatch) return {};
+          return {
+            activeMatch: {
+              ...state.activeMatch,
+              yellowCardSuspensions: state.activeMatch.yellowCardSuspensions.map(s =>
+                s.playerId === playerId ? { ...s, released: true } : s
+              ),
+            },
+          };
+        }),
+
+      // Red card = permanent expulsion. Player removed for rest of match.
+      // Team's max-on-court drops by 1 (handled in UI by checking redCardExpulsions length).
+      issueRedCard: (side, playerId, playerName) =>
+        set((state) => {
+          if (!state.activeMatch) return {};
+          return {
+            activeMatch: {
+              ...state.activeMatch,
+              redCardExpulsions: [...state.activeMatch.redCardExpulsions, { playerId, playerName, side }],
             },
           };
         }),

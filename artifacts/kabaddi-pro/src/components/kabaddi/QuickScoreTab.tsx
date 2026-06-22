@@ -615,6 +615,18 @@ export default function QuickScoreTab() {
       homeLineup: markLineup(config.homeLineup, homePlaying7, homeCaptain),
       awayLineup: markLineup(config.awayLineup, awayPlaying7, awayCaptain),
       liveStreamUrl: config.liveStreamUrl || undefined,
+      // Dynamic Rule Scaling — defaults based on playersPerSide (P)
+      // For 7v7: bonusEnabled=true, revivalEnabled=true, allOutBonusPoints=2,
+      //          superTackleThreshold=3 (floor(7/2)), bonusLineThreshold=6 (7-1)
+      // For 4v4: superTackleThreshold=2, bonusLineThreshold=3
+      // For 3v3: bonusEnabled=false (court too empty for bonus line)
+      bonusEnabled: config.playersPerSide >= 4,
+      revivalEnabled: true,
+      allOutBonusPoints: 2,
+      superTackleThreshold: Math.floor(config.playersPerSide / 2),
+      bonusLineThreshold: Math.max(1, config.playersPerSide - 1),
+      homeStartingP: config.playersPerSide,
+      awayStartingP: config.playersPerSide,
     });
   };
 
