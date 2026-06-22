@@ -1524,7 +1524,7 @@ export default function LiveScoringScreen() {
                 className="w-full h-full flex items-center justify-center"
                 style={{ backgroundColor: `${teamColor}30` }}
               >
-                <span className={`${isSmall ? 'text-[8px]' : 'text-base'} font-black`} style={{ color: isOut ? '#6b7280' : teamColor }}>
+                <span className={(isSmall ? 'text-[8px] ' : 'text-base ') + 'font-black'} style={{ color: isOut ? '#6b7280' : teamColor }}>
                   {initials}
                 </span>
               </div>
@@ -1550,13 +1550,13 @@ export default function LiveScoringScreen() {
             <div className="flex items-center gap-1.5">
               {player.jerseyNumber && (
                 <span
-                  className={`${isSmall ? 'text-[8px]' : 'text-sm`} font-black leading-none px-1.5 py-0.5 rounded-md`}
-                  style={{ color: isOut ? '#6b7280' : '#fff', backgroundColor: isOut ? 'transparent' : `${teamColor}40` }}
+                  className={(isSmall ? 'text-[8px] ' : 'text-sm ') + 'font-black leading-none px-1.5 py-0.5 rounded-md'}
+                  style={{ color: isOut ? '#6b7280' : '#fff', backgroundColor: isOut ? 'transparent' : (teamColor + '40') }}
                 >
                   #{player.jerseyNumber}
                 </span>
               )}
-              <span className={`${isSmall ? 'text-[8px]' : 'text-sm'} font-bold text-gray-100 truncate leading-tight`}>
+              <span className={(isSmall ? 'text-[8px] ' : 'text-sm ') + 'font-bold text-gray-100 truncate leading-tight'}>
                 {player.name.split(' ').length > 1
                   ? `${player.name.split(' ')[0]} ${player.name.split(' ')[1][0]}.`
                   : player.name.split(' ')[0]
@@ -1568,7 +1568,7 @@ export default function LiveScoringScreen() {
               <div className="flex items-center gap-1 mt-0.5">
                 {positionLabel && !isOut && (
                   <span
-                    className={`${isSmall ? 'text-[5px]' : 'text-[6px]'} font-bold uppercase tracking-wider px-1 py-0 rounded-sm`}
+                    className={(isSmall ? 'text-[5px] ' : 'text-[6px] ') + 'font-bold uppercase tracking-wider px-1 py-0 rounded-sm'}
                     style={{ backgroundColor: `${teamColor}30`, color: teamColor }}
                   >
                     {positionLabel}
