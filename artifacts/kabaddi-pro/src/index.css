@@ -117,6 +117,9 @@
   --sidebar-accent-foreground: #FFFFFF;
   --sidebar-border: #E2E8F0;
   --sidebar-ring: #DC2626;
+  /* Tell the browser this is a light theme — affects native scrollbars,
+     form controls, and the address bar color on mobile */
+  color-scheme: light;
 }
 
 .dark {
@@ -182,6 +185,10 @@
   --color-brand-teal: #2DD4BF;
   --color-brand-teal-light: #5EEAD4;
   --color-brand-teal-dark: #14B8A6;
+
+  /* Tell the browser this is a dark theme — affects native scrollbars,
+     form controls, and the address bar color on mobile */
+  color-scheme: dark;
 }
 
 @layer base {

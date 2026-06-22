@@ -30,6 +30,40 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // ─── Theme bootstrap — runs BEFORE any CSS/React loads ───────────
+      // Reads the persisted darkMode value from localStorage and applies the
+      // `.dark` class to <html> immediately. This eliminates:
+      //   - Flash of wrong theme on app open
+      //   - Race condition between zustand persist hydration and React's first paint
+      //   - Any chance of the OS's dark mode bleeding through before the app's
+      //     saved preference is applied
+      //
+      // The zustand store key is 'kabaddi-pro-storage' and the persisted shape is:
+      //   { state: { darkMode: true|false, ... }, version: 0 }
+      //
+      // If localStorage doesn't have the key yet (first visit), default to light mode.
+      (function() {
+        try {
+          var raw = localStorage.getItem('kabaddi-pro-storage');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            var darkMode = parsed && parsed.state && parsed.state.darkMode;
+            if (darkMode === true) {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          } else {
+            // First visit — default to light mode (no .dark class)
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {
+          // If localStorage parse fails, default to light mode
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
