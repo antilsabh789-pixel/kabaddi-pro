@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
@@ -197,21 +197,37 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
   ).length;
   const isFreeUser = !currentUser?.isPremium;
 
-  // ─── Fetch teams ─────────────────────────────────────────────
+  // ─── Refs for stable fetchTeams callback ──────────────────────
+  // We use refs so that fetchTeams has NO dependencies and is created
+  // exactly once. This prevents the useEffect below from firing on
+  // every re-render (which was causing the keyboard to drop on every
+  // keystroke when typing in the create-team form).
+  const currentUserRef = useRef(currentUser);
+  const teamSearchRef = useRef(teamSearch);
+  const toastRef = useRef(toast);
 
+  // Keep refs in sync with the latest values on every render
+  currentUserRef.current = currentUser;
+  teamSearchRef.current = teamSearch;
+  toastRef.current = toast;
+
+  // ─── Fetch teams ─────────────────────────────────────────────
+  // NOTE: fetchTeams has an EMPTY dependency array — it's created once
+  // and never changes. It reads the latest values from refs. This is
+  // critical for preventing unnecessary re-renders that cause the
+  // mobile keyboard to drop on every keystroke.
   const fetchTeams = useCallback(async () => {
-    if (!currentUser) return;
+    const user = currentUserRef.current;
+    if (!user) return;
+    const search = teamSearchRef.current;
     setTeamsLoading(true);
     try {
       const params = new URLSearchParams();
-      // Always send userId so the backend can scope results to the user's teams
-      params.set('userId', currentUser.id);
-      if (teamSearch) {
-        // When searching, the backend uses the search query to find teams by name/code
-        params.set('search', teamSearch);
+      params.set('userId', user.id);
+      if (search) {
+        params.set('search', search);
         params.set('filter', 'search');
       } else {
-        // Default: only show teams the user is a member of
         params.set('filter', 'my');
       }
 
@@ -221,7 +237,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
       setTeams(data.teams || []);
     } catch (err) {
       console.error('Fetch teams error:', err);
-      toast({
+      toastRef.current({
         title: 'Error',
         description: 'Failed to load teams',
         variant: 'destructive',
@@ -229,11 +245,20 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
     } finally {
       setTeamsLoading(false);
     }
-  }, [currentUser, teamSearch, toast]);
+  }, []); // ← EMPTY deps — stable forever
 
+  // Fetch teams on mount and when teamSearch changes (debounced)
   useEffect(() => {
     fetchTeams();
-  }, [fetchTeams]);
+  }, [fetchTeams]); // fetchTeams is stable, so this only fires once on mount
+
+  // Debounced search — re-fetches teams 400ms after the user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchTeams();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [teamSearch, fetchTeams]);
 
   // ─── Auto-generate short name ──────────────────────────────
 
@@ -986,7 +1011,17 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center"
-            onClick={() => { setCreateDialogOpen(false); setShortNameManuallySet(false); }}
+            // NOTE: We do NOT close on overlay click. On mobile, the keyboard
+            // opening/closing can cause the viewport to resize and a tap can
+            // land on the overlay accidentally, dismissing the dialog and
+            // losing the user's input. Force the user to use the X button.
+            onClick={(e) => {
+              // Only close if the click target is the overlay itself (not a child)
+              if (e.target === e.currentTarget) {
+                setCreateDialogOpen(false);
+                setShortNameManuallySet(false);
+              }
+            }}
           >
             <motion.div
               initial={{ y: '100%' }}
