@@ -351,19 +351,16 @@ export default function QuickScoreTab() {
     if (!currentUser?.id) return;
     const fetchUserTeams = async () => {
       try {
-        const res = await fetch('/api/teams');
+        // Pass userId + filter=my so the backend returns ONLY teams this user is a member of
+        const res = await fetch(`/api/teams?userId=${encodeURIComponent(currentUser.id)}&filter=my`);
         if (res.ok) {
           const data = await res.json();
-          const teams: UserTeam[] = (data.teams || [])
-            .filter((team: Record<string, unknown>) =>
-              (team.members as Array<Record<string, unknown>>)?.some((m) => m.userId === currentUser.id)
-            )
-            .map((team: Record<string, unknown>) => ({
-              id: team.id as string,
-              name: team.name as string,
-              shortName: team.shortName as string | null,
-              color: team.color as string | null,
-            }));
+          const teams: UserTeam[] = (data.teams || []).map((team: Record<string, unknown>) => ({
+            id: team.id as string,
+            name: team.name as string,
+            shortName: team.shortName as string | null,
+            color: team.color as string | null,
+          }));
           setUserTeams(teams);
         }
       } catch {

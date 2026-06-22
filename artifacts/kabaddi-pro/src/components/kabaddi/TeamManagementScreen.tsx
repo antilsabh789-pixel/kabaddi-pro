@@ -355,10 +355,10 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
       });
       return;
     }
-    if (isFreeUser && myTeamCount >= 1) {
+    if (isFreeUser && myTeamCount >= 2) {
       toast({
         title: 'Team Limit Reached',
-        description: 'Free users can create only 1 team. Upgrade to Premium for unlimited teams.',
+        description: 'Free users can create up to 2 teams. Upgrade to Premium for unlimited teams.',
         variant: 'destructive',
       });
       return;
@@ -609,10 +609,10 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                 </button>
                 <button
                   onClick={() => {
-                    if (isFreeUser && myTeamCount >= 1) {
+                    if (isFreeUser && myTeamCount >= 2) {
                       toast({
                         title: 'Team Limit Reached',
-                        description: 'Free users can create only 1 team. Upgrade to Premium for unlimited teams.',
+                        description: 'Free users can create up to 2 teams. Upgrade to Premium for unlimited teams.',
                         variant: 'destructive',
                       });
                       return;
@@ -620,13 +620,13 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                     setCreateDialogOpen(true);
                   }}
                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                    isFreeUser && myTeamCount >= 1
+                    isFreeUser && myTeamCount >= 2
                       ? 'bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400 cursor-not-allowed'
                       : 'bg-brand-red text-white hover:bg-brand-red-dark'
                   }`}
-                  title={isFreeUser && myTeamCount >= 1 ? 'Upgrade to Premium to create more teams' : 'Create Team'}
+                  title={isFreeUser && myTeamCount >= 2 ? 'Upgrade to Premium for unlimited teams' : 'Create Team'}
                 >
-                  {isFreeUser && myTeamCount >= 1 ? <Lock className="w-3.5 h-3.5" /> : <Plus className="w-4 h-4" />}
+                  {isFreeUser && myTeamCount >= 2 ? <Lock className="w-3.5 h-3.5" /> : <Plus className="w-4 h-4" />}
                 </button>
               </>
             )}
@@ -650,7 +650,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
               {isFreeUser && (
                 <div className="ml-auto flex items-center gap-1 text-xs text-warm-500 dark:text-warm-400">
                   <Lock className="w-3 h-3" />
-                  {myTeamCount}/1
+                  {myTeamCount}/2
                 </div>
               )}
               {!isFreeUser && (
@@ -979,10 +979,10 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                   </p>
                   <Button
                     onClick={() => {
-                      if (isFreeUser && myTeamCount >= 1) {
+                      if (isFreeUser && myTeamCount >= 2) {
                         toast({
                           title: 'Team Limit Reached',
-                          description: 'Free users can create only 1 team. Upgrade to Premium for unlimited teams.',
+                          description: 'Free users can create up to 2 teams. Upgrade to Premium for unlimited teams.',
                           variant: 'destructive',
                         });
                         return;
@@ -1257,11 +1257,11 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                 </div>
 
                 {/* Free tier limit notice */}
-                {isFreeUser && myTeamCount >= 4 && (
+                {isFreeUser && myTeamCount >= 1 && (
                   <div className="flex items-center gap-2 p-2.5 bg-brand-gold/10 rounded-xl border border-brand-gold/20">
                     <Lock className="w-3.5 h-3.5 text-brand-gold shrink-0" />
                     <p className="text-[10px] text-brand-gold-dark dark:text-brand-gold-light">
-                      Free users can create up to 4 teams. Upgrade for unlimited.
+                      Free users can create up to 2 teams. Upgrade for unlimited.
                     </p>
                   </div>
                 )}
@@ -1285,7 +1285,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
                     !newTeamName.trim() ||
                     newTeamName.trim().length < 3 ||
                     actionLoading ||
-                    (isFreeUser && myTeamCount >= 1)
+                    (isFreeUser && myTeamCount >= 2)
                   }
                   className="flex-1 bg-brand-red hover:bg-brand-red-dark text-white rounded-xl font-semibold h-10"
                 >

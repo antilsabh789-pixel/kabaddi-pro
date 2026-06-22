@@ -103,7 +103,9 @@ router.post('/teams', async (req, res) => {
 
 router.get('/teams/search', async (req, res) => {
   try {
-    const q = (req.query['q'] as string) || '';
+    // Accept both 'q' and 'teamCode' query params for backward compat
+    // (QuickScoreTab uses ?teamCode=KT2001, other callers use ?q=...)
+    const q = ((req.query['q'] as string) || (req.query['teamCode'] as string) || '').trim();
     const limit = parseInt((req.query['limit'] as string) || '10');
     if (!q) return res.json({ teams: [] });
     const teams = await db.team.findMany({

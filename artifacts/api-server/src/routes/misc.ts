@@ -256,9 +256,15 @@ router.post('/upload', async (req, res) => {
     });
 
     return res.json({ url: fileData, user: updatedUser });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Upload error:', error);
-    return res.status(500).json({ error: 'Failed to upload file' });
+    // Surface the actual error message so the frontend can show a helpful toast
+    const message = error?.message || 'Unknown error';
+    return res.status(500).json({
+      error: `Failed to upload file: ${message}`,
+      // Include the error code so the frontend can handle specific cases
+      code: error?.code || 'UPLOAD_FAILED',
+    });
   }
 });
 
