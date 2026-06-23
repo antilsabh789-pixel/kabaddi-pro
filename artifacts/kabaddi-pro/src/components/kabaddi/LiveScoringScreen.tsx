@@ -1080,7 +1080,7 @@ export default function LiveScoringScreen() {
         homeTeam: match.homeTeam, awayTeam: match.awayTeam,
         homeScore: match.homeScore, awayScore: match.awayScore,
         homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
-        gender: match.gender, topRaider, topDefender, motm,
+         topRaider, topDefender, motm,
       });
 
       try {
@@ -1091,7 +1091,7 @@ export default function LiveScoringScreen() {
             homeTeamName: match.homeTeam, awayTeamName: match.awayTeam,
             homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
             homeScore: match.homeScore, awayScore: match.awayScore,
-            gender: match.gender, isPractice: match.isPractice,
+             isPractice: match.isPractice,
             weightCategory: match.weightCategory,
             liveStreamUrl: match.liveStreamUrl,
             halfDuration: match.halfDuration, playersPerSide: match.playersPerSide,
@@ -2229,7 +2229,7 @@ export default function LiveScoringScreen() {
             </motion.div>
           </div>
           <div className="text-[8px] text-warm-500 dark:text-gray-400 font-medium flex items-center gap-1">
-            <span>{match.gender === 'male' ? '♂' : '♀'}</span>
+            
             {match.weightCategory && (
               <span className="text-amber-400/80">⚖️{match.weightCategory === 'open' ? 'Open' : match.weightCategory}</span>
             )}

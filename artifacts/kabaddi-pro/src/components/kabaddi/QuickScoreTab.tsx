@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronLeft, ChevronRight, Plus, X, Search, UserPlus, Database, Check, Clock, Users, Swords, Play, GripVertical, Shield, Zap,
+  ChevronLeft, ChevronRight, Plus, X, Search, UserPlus, Database, Check, Clock, Users, Swords, Play, GripVertical, Shield, Zap, Settings,
   AlertTriangle, Sparkles, Eye, Info, ChevronDown, ArrowLeftRight, Crown, Radio,
 } from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer } from '@/lib/store';
@@ -21,7 +21,6 @@ interface UserTeam {
 }
 
 interface MatchConfig {
-  gender: string;
   weightCategory: string;
   halfDuration: number;
   playersPerSide: number;
@@ -38,8 +37,8 @@ interface MatchConfig {
 // Only 2 options: "Open" (no restriction) or "Weight" (enter manually)
 // Weight values are stored as-is (e.g. "65kg", "70kg")
 
-const STEPS = ['Category', 'Teams', 'Settings', 'Lineup', 'Start'];
-const STEP_ICONS = [Users, Swords, Clock, Shield, Play];
+const STEPS = ['Settings', 'Teams', 'Lineup', 'Start'];
+const STEP_ICONS = [Settings, Swords, Shield, Play];
 
 const MAX_SQUAD_SIZE = 12; // 7 starting + 5 substitutes
 
@@ -385,8 +384,7 @@ export default function QuickScoreTab() {
   const { initiateToss, currentUser } = useKabaddiStore();
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<MatchConfig>({
-    gender: '',
-    weightCategory: '',
+        weightCategory: '',
     halfDuration: 10,
     playersPerSide: 7,
     homeTeam: '',
@@ -690,11 +688,10 @@ export default function QuickScoreTab() {
 
   const canNext = () => {
     switch (step) {
-      case 0: return config.gender !== '' && (weightType === 'open' || (weightType === 'weight' && weightInput.trim() !== ''));
+      case 0: return (weightType === 'open' || (weightType === 'weight' && weightInput.trim() !== '')) && config.halfDuration >= 1 && config.playersPerSide >= 1;
       case 1: return config.homeTeam !== '' && config.awayTeam !== '';
-      case 2: return config.halfDuration >= 1 && config.playersPerSide >= 1;
-      case 3: return config.homeLineup.length >= config.playersPerSide && config.awayLineup.length >= config.playersPerSide && homePlaying7.size >= config.playersPerSide && awayPlaying7.size >= config.playersPerSide;
-      case 4: return true;
+      case 2: return config.homeLineup.length >= config.playersPerSide && config.awayLineup.length >= config.playersPerSide && homePlaying7.size >= config.playersPerSide && awayPlaying7.size >= config.playersPerSide;
+      case 3: return true;
       default: return false;
     }
   };
@@ -730,8 +727,7 @@ export default function QuickScoreTab() {
       homeTeamColor: config.homeTeamColor,
       awayTeamColor: config.awayTeamColor,
       isPractice: true,
-      gender: config.gender,
-      weightCategory: weightType === 'open' ? 'open' : weightInput.trim(),
+            weightCategory: weightType === 'open' ? 'open' : weightInput.trim(),
       halfDuration: config.halfDuration,
       playersPerSide: config.playersPerSide,
       homeLineup: markLineup(config.homeLineup, homePlaying7, homeCaptain),
@@ -1111,600 +1107,88 @@ export default function QuickScoreTab() {
           {step === 0 && (
             <div className="space-y-5">
               <div className="text-center">
-                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Select Category</h2>
-                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Choose the match category to get started</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <motion.button
-                  onClick={() => setConfig({ ...config, gender: 'male' })}
-                  whileTap={{ scale: 0.95 }}
-                  whileHover={{ scale: 1.02 }}
-                  className={`relative p-6 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-3 overflow-hidden group ${
-                    config.gender === 'male'
-                      ? 'border-blue-500 bg-gradient-to-br from-blue-600/20 via-blue-500/10 to-red-500/5 shadow-xl shadow-blue-500/30'
-                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-blue-300 hover:shadow-md'
-                  }`}
-                >
-                  {config.gender === 'male' && (
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-br from-blue-500/15 via-blue-400/5 to-red-400/5"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.4 }}
-                    />
-                  )}
-                  {/* Floating kabaddi silhouette behind card */}
-                  <motion.div
-                    className="absolute -bottom-2 -right-2 text-7xl opacity-[0.06] dark:opacity-[0.08] select-none pointer-events-none z-0"
-                    animate={config.gender === 'male' ? { y: [0, -8, 0], rotate: [-2, 2, -2] } : {}}
-                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                  >
-                    🤼
-                  </motion.div>
-                  {/* Animated background circles */}
-                  {config.gender === 'male' && (
-                    <>
-                      <motion.div
-                        className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-blue-400/10"
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                      />
-                      <motion.div
-                        className="absolute -bottom-6 -left-6 w-16 h-16 rounded-full bg-red-400/8"
-                        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
-                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-                      />
-                    </>
-                  )}
-                  {/* Hover glow effect */}
-                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-blue-500/5 via-transparent to-red-500/5 pointer-events-none" />
-                  <motion.div
-                    className={`w-20 h-20 rounded-2xl flex items-center justify-center relative z-10 ${
-                      config.gender === 'male'
-                        ? 'bg-gradient-to-br from-blue-400 via-blue-500 to-red-500 shadow-lg shadow-blue-500/40'
-                        : 'bg-blue-50 dark:bg-blue-900/30 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40'
-                    }`}
-                    animate={config.gender === 'male' ? {
-                      boxShadow: [
-                        '0 4px 14px rgba(59, 130, 246, 0.4)',
-                        '0 4px 20px rgba(59, 130, 246, 0.6)',
-                        '0 4px 14px rgba(59, 130, 246, 0.4)',
-                      ],
-                    } : {}}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  >
-                    <span className="text-4xl">♂</span>
-                  </motion.div>
-                  <span className={`font-bold text-lg relative z-10 ${config.gender === 'male' ? 'text-blue-600 dark:text-blue-400' : 'text-warm-600 dark:text-warm-300'}`}>
-                    Boys
-                  </span>
-                  {config.gender === 'male' && (
-                    <>
-                      {/* Selection ring animation */}
-                      <motion.div
-                        className="absolute inset-0 rounded-2xl border-2 border-blue-400/30"
-                        initial={{ scale: 1.2, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 0.4, ease: 'easeOut' }}
-                      />
-                      <motion.div
-                        className="absolute top-2.5 right-2.5 z-20"
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                      >
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-red-500 flex items-center justify-center shadow-md">
-                          <Check className="w-3.5 h-3.5 text-white" />
-                        </div>
-                      </motion.div>
-                    </>
-                  )}
-                </motion.button>
-                <motion.button
-                  onClick={() => setConfig({ ...config, gender: 'female' })}
-                  whileTap={{ scale: 0.95 }}
-                  whileHover={{ scale: 1.02 }}
-                  className={`relative p-6 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-3 overflow-hidden group ${
-                    config.gender === 'female'
-                      ? 'border-pink-500 bg-gradient-to-br from-pink-500/20 via-purple-500/10 to-pink-600/5 shadow-xl shadow-pink-500/30'
-                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-pink-300 hover:shadow-md'
-                  }`}
-                >
-                  {config.gender === 'female' && (
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-br from-pink-500/15 via-purple-400/5 to-transparent"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.4 }}
-                    />
-                  )}
-                  {/* Floating kabaddi silhouette behind card */}
-                  <motion.div
-                    className="absolute -bottom-2 -left-2 text-7xl opacity-[0.06] dark:opacity-[0.08] select-none pointer-events-none z-0 scale-x-[-1]"
-                    animate={config.gender === 'female' ? { y: [0, -6, 0], rotate: [2, -2, 2] } : {}}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-                  >
-                    🤼
-                  </motion.div>
-                  {/* Animated background circles */}
-                  {config.gender === 'female' && (
-                    <>
-                      <motion.div
-                        className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-pink-400/10"
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                      />
-                      <motion.div
-                        className="absolute -bottom-6 -left-6 w-16 h-16 rounded-full bg-purple-400/8"
-                        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
-                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
-                      />
-                    </>
-                  )}
-                  {/* Hover glow effect */}
-                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-pink-500/5 via-transparent to-purple-500/5 pointer-events-none" />
-                  <motion.div
-                    className={`w-20 h-20 rounded-2xl flex items-center justify-center relative z-10 ${
-                      config.gender === 'female'
-                        ? 'bg-gradient-to-br from-pink-400 via-purple-500 to-pink-600 shadow-lg shadow-pink-500/40'
-                        : 'bg-pink-50 dark:bg-pink-900/30 group-hover:bg-pink-100 dark:group-hover:bg-pink-900/40'
-                    }`}
-                    animate={config.gender === 'female' ? {
-                      boxShadow: [
-                        '0 4px 14px rgba(236, 72, 153, 0.4)',
-                        '0 4px 20px rgba(236, 72, 153, 0.6)',
-                        '0 4px 14px rgba(236, 72, 153, 0.4)',
-                      ],
-                    } : {}}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  >
-                    <span className="text-4xl">♀</span>
-                  </motion.div>
-                  <span className={`font-bold text-lg relative z-10 ${config.gender === 'female' ? 'text-pink-600 dark:text-pink-400' : 'text-warm-600 dark:text-warm-300'}`}>
-                    Girls
-                  </span>
-                  {config.gender === 'female' && (
-                    <>
-                      {/* Selection ring animation */}
-                      <motion.div
-                        className="absolute inset-0 rounded-2xl border-2 border-pink-400/30"
-                        initial={{ scale: 1.2, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 0.4, ease: 'easeOut' }}
-                      />
-                      <motion.div
-                        className="absolute top-2.5 right-2.5 z-20"
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                      >
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-400 to-purple-600 flex items-center justify-center shadow-md">
-                          <Check className="w-3.5 h-3.5 text-white" />
-                        </div>
-                      </motion.div>
-                    </>
-                  )}
-                </motion.button>
-              </div>
-
-              {/* Weight Category Selection */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="space-y-3"
-              >
-                <div className="text-center">
-                  <h3 className="text-base font-bold text-warm-800 dark:text-warm-100 flex items-center justify-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-sm">⚖️</span>
-                    Weight Category
-                  </h3>
-                  <p className="text-xs text-warm-500 dark:text-warm-400 mt-1">Choose Open or enter a specific weight</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Open Option */}
-                  <motion.button
-                    onClick={() => { setWeightType('open'); setWeightInput(''); }}
-                    whileTap={{ scale: 0.95 }}
-                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 overflow-hidden group ${
-                      weightType === 'open'
-                        ? 'border-amber-500 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/5 shadow-lg shadow-amber-500/20'
-                        : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-amber-300 hover:shadow-sm'
-                    }`}
-                  >
-                    {weightType === 'open' && (
-                      <motion.div
-                        className="absolute top-1.5 right-1.5 z-10"
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                      >
-                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 text-white" />
-                        </div>
-                      </motion.div>
-                    )}
-                    <span className="text-2xl leading-none">♾️</span>
-                    <span className={`text-xs font-bold leading-tight text-center ${
-                      weightType === 'open'
-                        ? 'text-amber-700 dark:text-amber-300'
-                        : 'text-warm-600 dark:text-warm-300'
-                    }`}>
-                      Open
-                    </span>
-                    <span className={`text-[9px] leading-tight text-center ${
-                      weightType === 'open'
-                        ? 'text-amber-600 dark:text-amber-400'
-                        : 'text-warm-400 dark:text-warm-500'
-                    }`}>
-                      No weight restriction
-                    </span>
-                  </motion.button>
-
-                  {/* Weight Option */}
-                  <motion.button
-                    onClick={() => setWeightType('weight')}
-                    whileTap={{ scale: 0.95 }}
-                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 overflow-hidden group ${
-                      weightType === 'weight'
-                        ? 'border-amber-500 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/5 shadow-lg shadow-amber-500/20'
-                        : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800/50 hover:border-amber-300 hover:shadow-sm'
-                    }`}
-                  >
-                    {weightType === 'weight' && (
-                      <motion.div
-                        className="absolute top-1.5 right-1.5 z-10"
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                      >
-                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 text-white" />
-                        </div>
-                      </motion.div>
-                    )}
-                    <span className="text-2xl leading-none">⚖️</span>
-                    <span className={`text-xs font-bold leading-tight text-center ${
-                      weightType === 'weight'
-                        ? 'text-amber-700 dark:text-amber-300'
-                        : 'text-warm-600 dark:text-warm-300'
-                    }`}>
-                      Weight
-                    </span>
-                    <span className={`text-[9px] leading-tight text-center ${
-                      weightType === 'weight'
-                        ? 'text-amber-600 dark:text-amber-400'
-                        : 'text-warm-400 dark:text-warm-500'
-                    }`}>
-                      Enter specific weight
-                    </span>
-                  </motion.button>
-                </div>
-
-                {/* Weight Input — shown when "Weight" is selected */}
-                {weightType === 'weight' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="space-y-2"
-                  >
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="e.g. 65kg, 70kg, Below 80kg..."
-                        value={weightInput}
-                        onChange={(e) => setWeightInput(e.target.value)}
-                        className="h-11 text-sm font-semibold bg-white dark:bg-warm-800/50 border-2 border-amber-200 dark:border-amber-800/40 focus:border-amber-500 rounded-xl pl-4 pr-12"
-                        maxLength={30}
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 text-sm">⚖️</span>
-                    </div>
-                    {weightInput.trim() && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-2.5 flex items-center gap-2"
-                      >
-                        <span className="text-sm">⚖️</span>
-                        <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">
-                          Weight category: <strong>{weightInput.trim()}</strong>
-                        </span>
-                      </motion.div>
-                    )}
-                  </motion.div>
-                )}
-
-                {weightType === 'open' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-800/30 rounded-xl p-2.5 flex items-center gap-2"
-                  >
-                    <span className="text-sm">♾️</span>
-                    <span className="text-[10px] text-gray-600 dark:text-gray-400 font-medium">
-                      No weight restriction — players of any weight can participate
-                    </span>
-                  </motion.div>
-                )}
-              </motion.div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-6">
-              <div className="text-center">
                 <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Match Settings</h2>
-                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Configure your practice match settings</p>
+                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Set up your match format</p>
               </div>
 
-              {/* Practice Match Banner */}
-              <motion.div
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800/30 rounded-2xl p-4 flex items-center gap-3"
-              >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-500/10">
-                  <span className="text-xl">🏋️</span>
+              {/* Weight Category */}
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-warm-700 dark:text-warm-300">Weight Category</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setWeightType('open'); setWeightInput(''); }}
+                    className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
+                      weightType === 'open'
+                        ? 'bg-brand-teal text-white shadow-md'
+                        : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                    }`}
+                  >
+                    ♾️ Open
+                  </button>
+                  <button
+                    onClick={() => setWeightType('weight')}
+                    className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
+                      weightType === 'weight'
+                        ? 'bg-brand-teal text-white shadow-md'
+                        : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                    }`}
+                  >
+                    ⚖️ Custom
+                  </button>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                    Practice Match
-                  </p>
-                  <p className="text-[11px] text-warm-500/70 dark:text-warm-400/60">
-                    Fully flexible — configure players, duration & scoring as you need
-                  </p>
-                </div>
-              </motion.div>
-
-              {/* Visual Timer Preview */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-gradient-to-br from-brand-navy/5 via-brand-red/5 to-brand-gold/5 dark:from-brand-navy/20 dark:via-brand-red/10 dark:to-brand-gold/10 rounded-2xl p-5 border border-warm-200/50 dark:border-warm-700/50"
-              >
-                <div className="text-center">
-                  <p className="text-[10px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-widest mb-2">Total Match Time</p>
-                  <div className="flex items-center justify-center gap-2">
-                    <motion.span
-                      key={`h1-${config.halfDuration}`}
-                      initial={{ scale: 1.3, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="text-4xl font-black text-brand-red tabular-nums"
-                    >
-                      {config.halfDuration * 2}
-                    </motion.span>
-                    <span className="text-lg text-warm-400 dark:text-warm-500 font-medium">min</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-3 mt-1">
-                    <span className="text-[10px] text-warm-500 dark:text-warm-400 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-red inline-block" />
-                      1st Half: {config.halfDuration}m
-                    </span>
-                    <span className="text-[10px] text-warm-400">|</span>
-                    <span className="text-[10px] text-warm-500 dark:text-warm-400 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-teal inline-block" />
-                      2nd Half: {config.halfDuration}m
-                    </span>
-                  </div>
-                  {/* Mini progress bar showing half split */}
-                  <div className="flex gap-1 mt-3 h-1.5">
-                    <div className="flex-1 bg-brand-red rounded-full" />
-                    <div className="flex-1 bg-brand-teal rounded-full" />
-                  </div>
-                </div>
-              </motion.div>
+                {weightType === 'weight' && (
+                  <input
+                    type="text"
+                    placeholder="e.g. 65kg, Below 70kg"
+                    value={weightInput}
+                    onChange={(e) => setWeightInput(e.target.value)}
+                    className="w-full h-12 px-4 rounded-xl bg-warm-50 dark:bg-warm-800 border border-warm-200 dark:border-warm-600 text-sm text-warm-800 dark:text-warm-100"
+                  />
+                )}
+              </div>
 
               {/* Half Duration */}
-              <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700 rounded-2xl p-5"
-              >
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-red/15 to-brand-red/5 flex items-center justify-center">
-                    <Clock className="w-4.5 h-4.5 text-brand-red" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-sm font-bold text-warm-800 dark:text-warm-100">
-                      Half Duration
-                    </label>
-                    <p className="text-[10px] text-warm-400 dark:text-warm-500">Each half lasts this many minutes</p>
-                  </div>
-                  <motion.div
-                    key={`dur-${config.halfDuration}`}
-                    initial={{ scale: 1.3, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="flex items-baseline"
-                  >
-                    <span className="text-3xl font-black text-brand-red tabular-nums">{config.halfDuration}</span>
-                    <span className="text-sm text-warm-400 dark:text-warm-500 ml-1">min</span>
-                  </motion.div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <motion.button
-                    whileTap={{ scale: 0.85 }}
-                    onClick={() => setConfig({ ...config, halfDuration: Math.max(1, config.halfDuration - 1) })}
-                    className="w-11 h-11 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-warm-700 dark:text-warm-200 active:bg-warm-200 dark:active:bg-warm-600 transition-colors font-bold text-xl shadow-sm hover:shadow-md"
-                  >
-                    −
-                  </motion.button>
-                  <div className="flex-1 relative">
-                    {/* Custom track */}
-                    <div className="h-3 bg-warm-100 dark:bg-warm-700 rounded-full relative overflow-hidden">
-                      <motion.div
-                        className="absolute left-0 top-0 h-full bg-gradient-to-r from-brand-red via-brand-red-light to-brand-gold rounded-full"
-                        animate={{ width: `${((config.halfDuration - 1) / 19) * 100}%` }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                      />
-                      {/* Shine effect */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
-                    </div>
-                    {/* Custom thumb indicator */}
-                    <motion.div
-                      className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white dark:bg-warm-100 border-2 border-brand-red shadow-lg"
-                      animate={{ left: `calc(${((config.halfDuration - 1) / 19) * 100}% - 10px)` }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    />
-                  </div>
-                  <motion.button
-                    whileTap={{ scale: 0.85 }}
-                    onClick={() => setConfig({ ...config, halfDuration: Math.min(20, config.halfDuration + 1) })}
-                    className="w-11 h-11 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-warm-700 dark:text-warm-200 active:bg-warm-200 dark:active:bg-warm-600 transition-colors font-bold text-xl shadow-sm hover:shadow-md"
-                  >
-                    +
-                  </motion.button>
-                </div>
-                <div className="flex justify-between text-[10px] text-warm-400 dark:text-warm-500 mt-2 px-1">
-                  <span>1 min</span>
-                  <span>10 min</span>
-                  <span>20 min</span>
-                </div>
-              </motion.div>
-
-              {/* Players Per Side */}
-              <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700 rounded-2xl p-5 relative"
-              >
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-teal/15 to-brand-teal/5 flex items-center justify-center">
-                    <Users className="w-4.5 h-4.5 text-brand-teal" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-sm font-bold text-warm-800 dark:text-warm-100">
-                      Players Per Side
-                    </label>
-                    <p className="text-[10px] text-warm-400 dark:text-warm-500">Standard kabaddi is 7 players</p>
-                  </div>
-                  <motion.div
-                    key={`pps-${config.playersPerSide}`}
-                    initial={{ scale: 1.3, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="flex items-baseline"
-                  >
-                    <span className="text-3xl font-black text-brand-teal tabular-nums">{config.playersPerSide}</span>
-                  </motion.div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <motion.button
-                    whileTap={{ scale: 0.85 }}
-                    onClick={() => setConfig({ ...config, playersPerSide: Math.max(1, config.playersPerSide - 1) })}
-                    className="w-11 h-11 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-warm-700 dark:text-warm-200 active:bg-warm-200 dark:active:bg-warm-600 transition-colors font-bold text-xl shadow-sm hover:shadow-md"
-                  >
-                    −
-                  </motion.button>
-                  <div className="flex-1 relative">
-                    {/* Custom track */}
-                    <div className="h-3 bg-warm-100 dark:bg-warm-700 rounded-full relative overflow-hidden">
-                      <motion.div
-                        className="absolute left-0 top-0 h-full bg-gradient-to-r from-brand-teal via-teal-400 to-emerald-400 rounded-full"
-                        animate={{ width: `${((config.playersPerSide - 1) / 11) * 100}%` }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                      />
-                      {/* Shine effect */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
-                    </div>
-                    {/* Custom thumb indicator */}
-                    <motion.div
-                      className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white dark:bg-warm-100 border-2 border-brand-teal shadow-lg"
-                      animate={{ left: `calc(${((config.playersPerSide - 1) / 11) * 100}% - 10px)` }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    />
-                  </div>
-                  <motion.button
-                    whileTap={{ scale: 0.85 }}
-                    onClick={() => setConfig({ ...config, playersPerSide: Math.min(12, config.playersPerSide + 1) })}
-                    className="w-11 h-11 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center text-warm-700 dark:text-warm-200 active:bg-warm-200 dark:active:bg-warm-600 transition-colors font-bold text-xl shadow-sm hover:shadow-md"
-                  >
-                    +
-                  </motion.button>
-                </div>
-                <div className="flex justify-between text-[10px] text-warm-400 dark:text-warm-500 mt-2 px-1">
-                  <span>1</span>
-                  <span>7 (Standard)</span>
-                  <span>12</span>
-                </div>
-
-                {/* Player count visual indicators */}
-                <div className="flex gap-1.5 mt-3 flex-wrap justify-center">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <motion.div
-                      key={i}
-                      initial={false}
-                      animate={{
-                        scale: i < config.playersPerSide ? 1 : 0.7,
-                        opacity: i < config.playersPerSide ? 1 : 0.3,
-                      }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 20, delay: i * 0.03 }}
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${
-                        i < config.playersPerSide
-                          ? 'bg-brand-teal text-white shadow-sm'
-                          : 'bg-warm-100 dark:bg-warm-700 text-warm-300 dark:text-warm-600 border border-dashed border-warm-200 dark:border-warm-600'
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-warm-700 dark:text-warm-300">Half Duration (minutes)</label>
+                <div className="flex gap-2">
+                  {[10, 15, 20, 25, 30].map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setConfig(prev => ({ ...prev, halfDuration: d }))}
+                      className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${
+                        config.halfDuration === d
+                          ? 'bg-brand-red text-white shadow-md'
+                          : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
                       }`}
                     >
-                      {i + 1}
-                    </motion.div>
+                      {d}
+                    </button>
                   ))}
                 </div>
+              </div>
 
-                {/* Recommended formation hint */}
-                {POSITION_BALANCE[config.playersPerSide] && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="mt-3 flex items-center gap-2 px-3 py-2 bg-brand-navy/5 dark:bg-brand-navy/10 rounded-lg"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-brand-navy dark:text-brand-navy-light shrink-0" />
-                    <span className="text-[10px] text-warm-600 dark:text-warm-300">
-                      Recommended: {POSITION_BALANCE[config.playersPerSide].raiders} Raiders · {POSITION_BALANCE[config.playersPerSide].defenders} Defenders · {POSITION_BALANCE[config.playersPerSide].allRounders} All-rounders
-                    </span>
-                  </motion.div>
-                )}
-              </motion.div>
-
-              {/* Live Stream URL */}
-              <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white dark:bg-warm-800/50 border border-warm-200 dark:border-warm-700 rounded-2xl p-5"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500/15 to-red-500/5 flex items-center justify-center">
-                    <Radio className="w-4.5 h-4.5 text-red-500" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-bold text-warm-800 dark:text-warm-100">
-                      Live Stream
-                    </label>
-                    <p className="text-[10px] text-warm-400 dark:text-warm-500">Add YouTube or Twitch link (optional)</p>
-                  </div>
+              {/* Players Per Side */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-warm-700 dark:text-warm-300">Players Per Side</label>
+                <div className="flex gap-2">
+                  {[3, 5, 7].map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setConfig(prev => ({ ...prev, playersPerSide: p }))}
+                      className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${
+                        config.playersPerSide === p
+                          ? 'bg-brand-red text-white shadow-md'
+                          : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                      }`}
+                    >
+                      {p}v{p}
+                    </button>
+                  ))}
                 </div>
-                <input
-                  type="url"
-                  value={config.liveStreamUrl}
-                  onChange={(e) => setConfig({ ...config, liveStreamUrl: e.target.value })}
-                  placeholder="https://youtube.com/watch?v=..."
-                  className="w-full px-4 py-3 rounded-xl bg-warm-50 dark:bg-warm-900/50 border border-warm-200 dark:border-warm-700 text-sm text-warm-800 dark:text-warm-100 placeholder:text-warm-300 dark:placeholder:text-warm-600 focus:outline-none focus:ring-2 focus:ring-brand-red/30 focus:border-brand-red/50 transition-all"
-                />
-                {config.liveStreamUrl && (
-                  <motion.p
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="mt-2 text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1"
-                  >
-                    <Check className="w-3 h-3" />
-                    Stream link will be shown on match screen
-                  </motion.p>
-                )}
-              </motion.div>
+              </div>
             </div>
           )}
+
 
           {step === 1 && (
             <div className="flex flex-col items-center justify-center min-h-[60vh] py-6">
@@ -1864,7 +1348,7 @@ export default function QuickScoreTab() {
           )}
 
 
-          {step === 3 && (
+          {step === 2 && (
             <div className="space-y-4 pb-6">
               {/* Header */}
               <div className="text-center">
@@ -2099,7 +1583,7 @@ export default function QuickScoreTab() {
           )}
 
 
-          {step === 4 && (
+          {step === 3 && (
             <div className="space-y-3 pb-6">
               <div className="text-center">
                 <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Match Formation</h2>
