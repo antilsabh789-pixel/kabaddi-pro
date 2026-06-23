@@ -355,6 +355,7 @@ export default function LiveScoringScreen() {
   const [superRaidCelebration, setSuperRaidCelebration] = useState<{ teamName: string; teamColor: string; playerName: string } | null>(null);
   // Track if 5-min warning has fired for current half
   const fiveMinWarningFiredRef = useRef<boolean>(false);
+  const pendingHalfEndRef = useRef<boolean>(false);
 
   // Raid flow state
   const [raidPhase, setRaidPhase] = useState<RaidPhase>('idle');
@@ -521,14 +522,23 @@ export default function LiveScoringScreen() {
     }
 
     if (timer === 0 && hasStartedRaiding) {
-      if (match.currentHalf === 1) {
-        triggerFeedback(SoundType.HALF_END);
-        setShowHalfTimeTransition(true);
+      // Don't end half/match if a raid is in progress — wait for it to finish
+      if (raidPhase !== 'idle' && raider) {
+        // Raid is in progress — wait for it to complete, then end half/match
+        // The processRaidResult function will handle the transition after raid ends
+        // We set a flag to end half/match after the current raid completes
+        pendingHalfEndRef.current = true;
       } else {
-        triggerFeedback(SoundType.HALF_END);
-        setTimeout(() => {
-          triggerFeedback(SoundType.MATCH_END);
-        }, 800);
+        // No raid in progress — end half/match immediately
+        if (match.currentHalf === 1) {
+          triggerFeedback(SoundType.HALF_END);
+          setShowHalfTimeTransition(true);
+        } else {
+          triggerFeedback(SoundType.HALF_END);
+          setTimeout(() => {
+            triggerFeedback(SoundType.MATCH_END);
+          }, 800);
+        }
       }
     }
   }, [match?.timer, match?.isLive, match?.currentHalf, match?.halfDuration, hasStartedRaiding, toast]);
@@ -1056,6 +1066,22 @@ export default function LiveScoringScreen() {
 
     // Start 5-second raid gap timer
     setRaidGapTimer(RAID_GAP_TIMEOUT);
+
+    // If half/match end was pending (timer hit 0 during a raid), trigger it now
+    if (pendingHalfEndRef.current) {
+      pendingHalfEndRef.current = false;
+      setTimeout(() => {
+        if (match.currentHalf === 1) {
+          triggerFeedback(SoundType.HALF_END);
+          setShowHalfTimeTransition(true);
+        } else {
+          triggerFeedback(SoundType.HALF_END);
+          setTimeout(() => {
+            triggerFeedback(SoundType.MATCH_END);
+          }, 800);
+        }
+      }, 500);
+    }
   };
 
   // Keep ref in sync with latest processRaidResult
@@ -3041,7 +3067,7 @@ export default function LiveScoringScreen() {
 
       {/* ═══ SAVE / DISCARD MATCH PROMPT ═══ */}
       <AnimatePresence>
-        {showSavePrompt && (
+        {showSavePrompt && match && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
