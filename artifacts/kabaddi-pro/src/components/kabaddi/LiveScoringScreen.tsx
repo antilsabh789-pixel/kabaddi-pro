@@ -1342,11 +1342,26 @@ export default function LiveScoringScreen() {
       triggerFeedback(SoundType.WHISTLE);
       setEventConfirm({ message: `Raider ${selfOutPlayer.name} self-out! +1 ${defendingTeamName}`, teamColor: defendingTeamColor });
     } else {
-      // Defender stepped out → raiding team gets the point, raider returns safe
+      // Defender stepped out → raiding team gets +1 as a technical point
+      // (labeled 'self_out_point'). The raid CONTINUES — raider can still
+      // score more points or come back empty. We do NOT end the raid.
+      events.push({
+        matchId: match.id, eventType: 'technical_point', teamId: raidingTeamId,
+        half: match.currentHalf,
+        value: 1,
+        playerId: selfOutPlayer.id,
+        playerName: selfOutPlayer.name,
+        details: JSON.stringify({ selfOutPlayerId: selfOutPlayer.id, selfOutRole: 'defender', raiderId: raider.id, reason: 'Defender self-out' }),
+      });
+      // Send the defender to the out queue
+      // (We need to add a self_out event with value=0 so the store knows to
+      //  send the defender out, but it won't end the raid since it's a
+      //  defender self-out — the raider's team already got the point via
+      //  the technical_point event above)
       events.push({
         matchId: match.id, eventType: 'self_out', teamId: raidingTeamId,
         half: match.currentHalf,
-        value: 1,
+        value: 0, // 0 points — the point was already given via technical_point
         playerId: selfOutPlayer.id,
         playerName: selfOutPlayer.name,
         details: JSON.stringify({ selfOutPlayerId: selfOutPlayer.id, selfOutRole: 'defender', raiderId: raider.id }),
@@ -1363,10 +1378,15 @@ export default function LiveScoringScreen() {
       }
       addBatchEvents(events);
       triggerFeedback(SoundType.WHISTLE);
-      setEventConfirm({ message: `Defender ${selfOutPlayer.name} self-out! +1 ${raidingTeamName}`, teamColor: raidingTeamColor });
+      setEventConfirm({ message: `Defender ${selfOutPlayer.name} self-out! +1 ${raidingTeamName} (raid continues)`, teamColor: raidingTeamColor });
+      // Do NOT reset raid state — raid continues!
+      // Just close the self-out modal
+      setSelfOutConfirm(null);
+      setSelfOutSelection(null);
+      return; // Skip the raid-ending logic below
     }
 
-    // End the raid (turn swaps to other team)
+    // End the raid (turn swaps to other team) — ONLY for raider self-out
     setRaidPhase('idle');
     setRaider(null);
     setRaidResult(null);

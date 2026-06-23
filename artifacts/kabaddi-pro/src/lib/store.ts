@@ -408,18 +408,19 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
         const raiderTeamId = side === 'home' ? match.awayTeamId : match.homeTeamId;
         emptyRaidCount[raiderTeamId] = 0;
       } else {
-        // Defender stepped out → raiding team scores
-        // 'side' is the raiding team (they get the point)
-        addPoints(side, evt.value);
+        // Defender stepped out → raiding team scores (point already given
+        // via technical_point event, so self_out has value=0 here).
+        // We just send the defender to the out queue and revive a player.
+        // 'side' is the raiding team.
+        addPoints(side, evt.value); // value=0, no-op — point already given
         // Defender goes to out queue (defender is from the OPPOSING team)
         const defendingSide = side === 'home' ? 'away' : 'home';
         sendOut(defendingSide, selfOutPlayerId);
         // Raiding team revives 1 player
         revive(side, 1);
-        // Reset empty raid counter for the raiding team (they scored)
-        emptyRaidCount[evt.teamId] = 0;
-        // NOTE: All-out bonus is handled by the explicit 'all_out' event
-        // pushed by LiveScoringScreen — NOT auto-added here to avoid double-counting.
+        // Do NOT reset empty raid counter — the raid CONTINUES.
+        // The raider can still score more points or come back empty.
+        // NOTE: All-out bonus is handled by the explicit 'all_out' event.
       }
     }
 
@@ -520,11 +521,13 @@ function getRaidQueueFromEvents(match: ActiveMatch, events: MatchEvent[]): 'home
       try { details = lastRaidEvent.details ? JSON.parse(lastRaidEvent.details) : {}; } catch { /* skip */ }
       const selfOutRole = details.selfOutRole as string;
       if (selfOutRole === 'raider') {
-        // Defender team scored → they raid next
+        // Raider self-out → defending team scored → they raid next
         return side;
       } else {
-        // Raider team scored → defending team raids next
-        return side === 'home' ? 'away' : 'home';
+        // Defender self-out → raiding team scored BUT the raid CONTINUES.
+        // The raider can still score more or come back empty.
+        // Do NOT swap the turn — return the current raidQueue unchanged.
+        return match.raidQueue;
       }
     }
 
