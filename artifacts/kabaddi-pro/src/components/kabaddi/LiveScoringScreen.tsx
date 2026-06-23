@@ -913,7 +913,7 @@ export default function LiveScoringScreen() {
       if (remainingDefenders <= 0) {
         events.push({
           matchId: match.id, eventType: 'all_out', teamId: raidingTeamId,
-          half: match.currentHalf, value: match.allOutBonusPoints,
+          half: match.currentHalf, value: (match.allOutBonusPoints ?? 2),
         });
         // Trigger all-out celebration
         setAllOutCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor });
@@ -934,10 +934,10 @@ export default function LiveScoringScreen() {
       });
 
       const { onCourtActive } = splitLineup(fullDefendingLineup, defendingOutIds);
-      // Super Tackle — P-based dynamic rule scaling:
-      //   Activates when defenders <= superTackleThreshold (default floor(P/2))
-      //   e.g. 7v7 → threshold 3, 4v4 → threshold 2, 3v3 → threshold 1
-      if (onCourtActive.length <= match.superTackleThreshold) {
+      // Super Tackle: when defending team has 3 or fewer active players on court
+      // Use match.superTackleThreshold with fallback to floor(P/2) for old matches
+      const superTackleThreshold = match.superTackleThreshold ?? Math.floor(match.playersPerSide / 2);
+      if (onCourtActive.length <= superTackleThreshold) {
         events.push({
           matchId: match.id, eventType: 'super_tackle', teamId: defendingTeamId,
           half: match.currentHalf,
@@ -953,7 +953,7 @@ export default function LiveScoringScreen() {
         // This was the last raider → All Out for the raiding team
         events.push({
           matchId: match.id, eventType: 'all_out', teamId: defendingTeamId,
-          half: match.currentHalf, value: match.allOutBonusPoints,
+          half: match.currentHalf, value: (match.allOutBonusPoints ?? 2),
         });
         setAllOutCelebration({ teamName: defendingTeamName, teamColor: defendingTeamColor });
         triggerFeedback(SoundType.ALL_OUT);
@@ -977,7 +977,7 @@ export default function LiveScoringScreen() {
         if (raidingOnCourtActive.length <= 1) {
           events.push({
             matchId: match.id, eventType: 'all_out', teamId: defendingTeamId,
-            half: match.currentHalf, value: match.allOutBonusPoints,
+            half: match.currentHalf, value: (match.allOutBonusPoints ?? 2),
           });
           setAllOutCelebration({ teamName: defendingTeamName, teamColor: defendingTeamColor });
           triggerFeedback(SoundType.ALL_OUT);
@@ -1223,16 +1223,16 @@ export default function LiveScoringScreen() {
   // Quick action handlers for special events
   const handleBonusPoint = () => {
     if (!match) return;
-    // Bonus point validation — P-based dynamic rule scaling:
-    //   - Master toggle: match.bonusEnabled (false for small formats like 2v2/3v3)
-    //   - Threshold: match.bonusLineThreshold (default P-1, e.g. 6 for 7v7, 3 for 4v4)
+    // Bonus point validation — P-based dynamic rule scaling with fallbacks for old matches
+    const bonusEnabled = match.bonusEnabled ?? true;
+    const bonusLineThreshold = match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1);
     const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-    if (!match.bonusEnabled) {
+    if (!bonusEnabled) {
       toast({ title: 'Bonus disabled', description: 'Bonus line is turned off for this match format', duration: 2000 });
       return;
     }
-    if (activeDefenders.length < match.bonusLineThreshold) {
-      toast({ title: 'Bonus not available', description: `Bonus needs ${match.bonusLineThreshold}+ defenders on court (currently ${activeDefenders.length})`, duration: 2000 });
+    if (activeDefenders.length < bonusLineThreshold) {
+      toast({ title: 'Bonus not available', description: `Bonus needs ${bonusLineThreshold}+ defenders on court (currently ${activeDefenders.length})`, duration: 2000 });
       return;
     }
     const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
@@ -1250,11 +1250,11 @@ export default function LiveScoringScreen() {
     const teamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
     addEvent({
       matchId: match.id, eventType: 'all_out', teamId,
-      half: match.currentHalf, value: match.allOutBonusPoints,
+      half: match.currentHalf, value: (match.allOutBonusPoints ?? 2),
     });
     triggerFeedback(SoundType.WHISTLE);
     setAllOutCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor });
-    setEventConfirm({ message: `All Out! +${match.allOutBonusPoints}`, teamColor: raidingTeamColor });
+    setEventConfirm({ message: `All Out! +${(match.allOutBonusPoints ?? 2)}`, teamColor: raidingTeamColor });
   };
 
   // New handleCardWithPlayer — takes explicit team + player + cardType
@@ -1334,7 +1334,7 @@ export default function LiveScoringScreen() {
       if (raidingOnCourtActive.length <= 1) {
         events.push({
           matchId: match.id, eventType: 'all_out', teamId: defendingTeamId,
-          half: match.currentHalf, value: match.allOutBonusPoints,
+          half: match.currentHalf, value: (match.allOutBonusPoints ?? 2),
         });
         setAllOutCelebration({ teamName: defendingTeamName, teamColor: defendingTeamColor });
       }
@@ -1372,7 +1372,7 @@ export default function LiveScoringScreen() {
       if (defendingOnCourtOut >= onCourt.length) {
         events.push({
           matchId: match.id, eventType: 'all_out', teamId: raidingTeamId,
-          half: match.currentHalf, value: match.allOutBonusPoints,
+          half: match.currentHalf, value: (match.allOutBonusPoints ?? 2),
         });
         setAllOutCelebration({ teamName: raidingTeamName, teamColor: raidingTeamColor });
       }
@@ -2660,7 +2660,7 @@ export default function LiveScoringScreen() {
 
               {raidResult === 'success' && (() => {
                 const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-                const canGetBonus = match.bonusEnabled && activeDefenders.length >= match.bonusLineThreshold;
+                const canGetBonus = (match.bonusEnabled ?? true) && activeDefenders.length >= (match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1));
                 return (
                   <button
                     onClick={() => canGetBonus && setBonusPoint(!bonusPoint)}
@@ -2668,10 +2668,10 @@ export default function LiveScoringScreen() {
                     className={`mt-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                       bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : canGetBonus ? 'bg-warm-100 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-warm-500 dark:text-warm-400' : 'bg-warm-100/50 dark:bg-warm-700/50 border-2 border-gray-700 dark:border-warm-600 text-gray-600 dark:text-warm-600 cursor-not-allowed opacity-50'
                     }`}
-                    title={canGetBonus ? 'Toggle Bonus Point' : !match.bonusEnabled ? 'Bonus disabled for this format' : `Bonus only with ${match.bonusLineThreshold}+ defenders on court`}
+                    title={canGetBonus ? 'Toggle Bonus Point' : !(match.bonusEnabled ?? true) ? 'Bonus disabled for this format' : `Bonus only with ${match.bonusLineThreshold}+ defenders on court`}
                   >
                     <span className="text-lg">⭐</span>Bonus Point {bonusPoint ? 'ON' : 'OFF'}
-                    {!canGetBonus && <span className="text-[8px] ml-1">{!match.bonusEnabled ? '(disabled)' : `(${match.bonusLineThreshold}+ needed)`}</span>}
+                    {!canGetBonus && <span className="text-[8px] ml-1">{!(match.bonusEnabled ?? true) ? '(disabled)' : `(${match.bonusLineThreshold}+ needed)`}</span>}
                   </button>
                 );
               })()}
@@ -2688,7 +2688,7 @@ export default function LiveScoringScreen() {
                     return (
                       <div className="text-xs text-gray-400">
                         <span className="font-bold text-red-400">+1</span> tackle point for {defendingTeamName}
-                        {onCourtActive.length <= match.superTackleThreshold && <span className="ml-1 text-purple-400 font-bold">(+1 super tackle!)</span>}
+                        {onCourtActive.length <= (match.superTackleThreshold ?? Math.floor(match.playersPerSide / 2)) && <span className="ml-1 text-purple-400 font-bold">(+1 super tackle!)</span>}
                       </div>
                     );
                   })()}
@@ -3303,20 +3303,20 @@ export default function LiveScoringScreen() {
               </div>
 
               {/* Bonus point (if enabled) */}
-              {match.bonusEnabled && (
+              {(match.bonusEnabled ?? true) && (
                 <button
                   onClick={() => {
                     setShowActionsPanel(false);
                     const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-                    if (activeDefenders.length >= match.bonusLineThreshold) {
+                    if (activeDefenders.length >= (match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1))) {
                       handleBonusPoint();
                     } else {
-                      toast({ title: `Bonus needs ${match.bonusLineThreshold}+ defenders`, duration: 1500 });
+                      toast({ title: `Bonus needs ${match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1)}+ defenders`, duration: 1500 });
                     }
                   }}
                   className="w-full py-2.5 rounded-xl bg-yellow-900/30 border border-yellow-700/40 text-yellow-400 font-bold text-sm flex items-center justify-center gap-2"
                 >
-                  🎯 Bonus Point ({match.bonusLineThreshold}+ defenders needed)
+                  🎯 Bonus Point ({match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1)}+ defenders needed)
                 </button>
               )}
 
