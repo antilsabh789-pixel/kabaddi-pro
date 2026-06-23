@@ -380,6 +380,7 @@ export default function LiveScoringScreen() {
 
   // Match end state
   const [showEndMatchConfirm, setShowEndMatchConfirm] = useState(false);
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [showEndHalfConfirm, setShowEndHalfConfirm] = useState(false);
   const [showMotmOverlay, setShowMotmOverlay] = useState(false);
   const [motmPlayer, setMotmPlayer] = useState<{ name: string; points: number } | null>(null);
@@ -934,9 +935,12 @@ export default function LiveScoringScreen() {
       });
 
       const { onCourtActive } = splitLineup(fullDefendingLineup, defendingOutIds);
-      // Super Tackle: when defending team has 3 or fewer active players on court
-      // Use match.superTackleThreshold with fallback to floor(P/2) for old matches
-      const superTackleThreshold = match.superTackleThreshold ?? Math.floor(match.playersPerSide / 2);
+      // Super Tackle: when defending team has floor(P/2) or fewer active players on court
+      // For 7v7: triggers at 3 or fewer defenders
+      // For 5v5: triggers at 2 or fewer
+      // For 3v3: triggers at 1 or fewer
+      // For 2v2: triggers at 1 or fewer
+      const superTackleThreshold = Math.max(1, Math.floor((match.playersPerSide || 7) / 2));
       if (onCourtActive.length <= superTackleThreshold) {
         events.push({
           matchId: match.id, eventType: 'super_tackle', teamId: defendingTeamId,
@@ -1073,52 +1077,65 @@ export default function LiveScoringScreen() {
 
   const handleEndMatch = async () => {
     if (showEndMatchConfirm) {
-      const motm = calculateMotm();
-      const { topRaider, topDefender } = calculateTopRaiderDefender();
-
-      setSavedMatchData({
-        homeTeam: match.homeTeam, awayTeam: match.awayTeam,
-        homeScore: match.homeScore, awayScore: match.awayScore,
-        homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
-         topRaider, topDefender, motm,
-      });
-
-      try {
-        await fetch('/api/matches', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            homeTeamName: match.homeTeam, awayTeamName: match.awayTeam,
-            homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
-            homeScore: match.homeScore, awayScore: match.awayScore,
-             isPractice: match.isPractice,
-            weightCategory: match.weightCategory,
-            liveStreamUrl: match.liveStreamUrl,
-            halfDuration: match.halfDuration, playersPerSide: match.playersPerSide,
-            events: match.events.map(e => ({
-              eventType: e.eventType, teamId: e.teamId, half: e.half,
-              playerId: e.playerId, value: e.value, details: e.details,
-            })),
-          }),
-        });
-      } catch (err) {
-        console.error('Failed to save match:', err);
-      }
-
-      addNotification(matchNotification(match.homeTeam, match.awayTeam, match.homeScore, match.awayScore));
-
-      if (motm) {
-        setMotmPlayer(motm);
-      }
-
-      endMatch();
-      triggerFeedback(SoundType.MATCH_END);
+      // Show save/revoke prompt instead of immediately saving
       setShowEndMatchConfirm(false);
-      setShowMatchEndCelebration(true);
+      setShowSavePrompt(true);
     } else {
       setShowEndMatchConfirm(true);
       setTimeout(() => setShowEndMatchConfirm(false), 3000);
     }
+  };
+
+  // Save match to database + update player stats
+  const handleSaveMatch = async () => {
+    if (!match) return;
+    const motm = calculateMotm();
+    const { topRaider, topDefender } = calculateTopRaiderDefender();
+
+    setSavedMatchData({
+      homeTeam: match.homeTeam, awayTeam: match.awayTeam,
+      homeScore: match.homeScore, awayScore: match.awayScore,
+      homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
+      topRaider, topDefender, motm,
+    });
+
+    try {
+      await fetch('/api/matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          homeTeamName: match.homeTeam, awayTeamName: match.awayTeam,
+          homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
+          homeScore: match.homeScore, awayScore: match.awayScore,
+          isPractice: match.isPractice,
+          weightCategory: match.weightCategory,
+          liveStreamUrl: match.liveStreamUrl,
+          halfDuration: match.halfDuration, playersPerSide: match.playersPerSide,
+          events: match.events.map(e => ({
+            eventType: e.eventType, teamId: e.teamId, half: e.half,
+            playerId: e.playerId, value: e.value, details: e.details,
+          })),
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to save match:', err);
+    }
+
+    addNotification(matchNotification(match.homeTeam, match.awayTeam, match.homeScore, match.awayScore));
+    if (motm) setMotmPlayer(motm);
+
+    endMatch();
+    triggerFeedback(SoundType.MATCH_END);
+    setShowSavePrompt(false);
+    setShowMatchEndCelebration(true);
+  };
+
+  // Discard match — don't save, just end
+  const handleDiscardMatch = () => {
+    endMatch();
+    triggerFeedback(SoundType.MATCH_END);
+    setShowSavePrompt(false);
+    setShowEndMatchConfirm(false);
   };
 
   const handleEndHalf = () => {
@@ -2998,6 +3015,48 @@ export default function LiveScoringScreen() {
                   </div>
                   {match.awayTeam} +1
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ SAVE / DISCARD MATCH PROMPT ═══ */}
+      <AnimatePresence>
+        {showSavePrompt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-warm-800 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl"
+            >
+              <h3 className="text-lg font-black text-warm-800 dark:text-warm-100 mb-2">Save Match?</h3>
+              <p className="text-sm text-warm-500 dark:text-warm-400 mb-1">
+                {match.homeTeam} {match.homeScore} - {match.awayScore} {match.awayTeam}
+              </p>
+              <p className="text-xs text-warm-400 mb-5">
+                Save will record stats to player profiles. Discard will delete all match data.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleDiscardMatch}
+                  variant="outline"
+                  className="flex-1 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  Discard
+                </Button>
+                <Button
+                  onClick={handleSaveMatch}
+                  className="flex-1 bg-brand-teal hover:bg-brand-teal-dark text-white"
+                >
+                  Save Match
+                </Button>
               </div>
             </motion.div>
           </motion.div>

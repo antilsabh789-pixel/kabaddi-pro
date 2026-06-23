@@ -1,6 +1,6 @@
 'use client';
 
-import { lazy, Suspense, useState, useEffect, useCallback, ComponentType, ReactNode } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, ComponentType, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useKabaddiStore } from '@/lib/store';
 import Portal from '@/components/portal';
@@ -240,14 +240,19 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // ─── Auto-restore live match on app open ──────────────────────────
-  // If the app was closed while a match was in progress (activeMatch.isLive=true),
-  // the persisted state is restored by zustand. We auto-switch to the quick-score
-  // tab so the user sees the scoring screen immediately — no "Continue Match"
-  // button needed, the match just resumes where it left off.
+  // ─── Auto-restore live match on app OPEN (not on every tab switch) ──
+  // Only auto-switch to scoring screen when the app FIRST opens with a live match.
+  // After that, the user can freely navigate to Home/Profile/etc and come back
+  // to scoring via the Quick Score tab — the match stays live in the background.
+  const hasRestoredMatch = useRef(false);
   useEffect(() => {
-    if (activeMatch?.isLive && activeTab !== 'quick-score') {
+    if (activeMatch?.isLive && !hasRestoredMatch.current && activeTab !== 'quick-score') {
+      hasRestoredMatch.current = true;
       setActiveTab('quick-score');
+    }
+    // Reset the flag when no match is live so the next match can auto-restore
+    if (!activeMatch?.isLive) {
+      hasRestoredMatch.current = false;
     }
   }, [activeMatch?.isLive, activeTab, setActiveTab]);
 
