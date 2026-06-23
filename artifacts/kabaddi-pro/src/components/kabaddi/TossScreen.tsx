@@ -84,72 +84,41 @@ function TeamAvatar({ name, color, size = 'md', glow = false }: { name: string; 
 }
 
 // ─── Coin Face: Heads (KABADDI PRO side) ────────────────────────────
-
+// ─── Coin Face: Heads (big H) ─────────────────────────────────────
 function CoinHeadsFace() {
   return (
     <div
-      className="absolute inset-0 rounded-full flex flex-col items-center justify-center shadow-2xl border-[3px] overflow-hidden"
+      className="absolute inset-0 rounded-full flex items-center justify-center shadow-2xl border-[3px] overflow-hidden"
       style={{
         backfaceVisibility: 'hidden',
-        background: 'linear-gradient(145deg, #FFD700 0%, #DAA520 25%, #B8860B 50%, #DAA520 75%, #FFD700 100%)',
+        background: 'linear-gradient(145deg, #FFD700 0%, #DAA520 50%, #FFD700 100%)',
         borderColor: '#FFD700',
-        boxShadow: `
-          0 0 40px rgba(255,215,0,0.2),
-          0 0 80px rgba(255,215,0,0.1),
-          inset 0 2px 4px rgba(255,255,255,0.3),
-          inset 0 -2px 4px rgba(0,0,0,0.2)
-        `,
+        boxShadow: '0 0 30px rgba(255,215,0,0.3), inset 0 2px 4px rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.2)',
       }}
     >
-      {/* Ornamental outer ring */}
-      <div className="absolute inset-[6px] rounded-full border-2 border-dashed" style={{ borderColor: 'rgba(139,101,8,0.5)' }} />
-      {/* Inner decorative ring */}
-      <div className="absolute inset-[14px] rounded-full border" style={{ borderColor: 'rgba(139,101,8,0.4)' }} />
+      <span className="text-6xl font-black" style={{ color: '#8B6508', textShadow: '0 2px 0 rgba(255,255,255,0.3), 0 -1px 0 rgba(0,0,0,0.2)' }}>
+        H
+      </span>
+    </div>
+  );
+}
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center">
-        <span
-          className="text-[8px] font-black tracking-[0.4em] opacity-70 mb-1"
-          style={{ color: '#8B6508', textShadow: '0 1px 0 rgba(255,255,255,0.3)' }}
-        >
-          ★ KABADDI ★
-        </span>
-        <span
-          className="text-3xl font-black tracking-[0.2em] leading-none"
-          style={{ color: '#8B6508', textShadow: '0 2px 0 rgba(255,255,255,0.2), 0 -1px 0 rgba(0,0,0,0.3)' }}
-        >
-          PRO
-        </span>
-        {/* Decorative divider with raider icon */}
-        <div className="flex items-center gap-1 my-1.5">
-          <div className="w-8 h-[1px] bg-amber-800/50" />
-          <svg width="18" height="18" viewBox="0 0 32 32" fill="none" className="opacity-50">
-            <path d="M16 4 C14 4 13 5.5 13 7 C13 8.5 14 10 16 10 C18 10 19 8.5 19 7 C19 5.5 18 4 16 4Z" fill="#8B6508" />
-            <path d="M14 10.5 C12 11 11 12.5 11 14 L11 20 C11 20.5 11.5 21 12 21 C12.5 21 13 20.5 13 20 L13 15 L14 15 L14 22 C14 22.5 14.5 23 15 23 L15 28 C15 28.5 15.5 29 16 29 C16.5 29 17 28.5 17 28 L17 23 L18 23 L18 28 C18 28.5 18.5 29 19 29 C19.5 29 20 28.5 20 28 L20 23 C20.5 23 21 22.5 21 22 L21 15 L22 15 L22 20 C22 20.5 22.5 21 23 21 C23.5 21 24 20.5 24 20 L24 14 C24 12.5 23 11 21 10.5 Z" fill="#8B6508" />
-            <path d="M22 12 L28 9 C28.5 8.8 29 9 29 9.5 C29 10 28.8 10.5 28.3 10.6 L22 13.5 Z" fill="#8B6508" />
-          </svg>
-          <div className="w-8 h-[1px] bg-amber-800/50" />
-        </div>
-        <span className="text-[9px] font-black tracking-[0.3em] opacity-60" style={{ color: '#8B6508' }}>HEADS</span>
-      </div>
-
-      {/* Corner decorative dots */}
-      {[0, 90, 180, 270].map((angle) => (
-        <div
-          key={angle}
-          className="absolute w-2 h-2 rounded-full"
-          style={{
-            background: 'rgba(139,101,8,0.4)',
-            top: angle === 0 || angle === 90 ? '8px' : undefined,
-            bottom: angle === 180 || angle === 270 ? '8px' : undefined,
-            left: angle === 0 || angle === 270 ? '8px' : undefined,
-            right: angle === 90 || angle === 180 ? '8px' : undefined,
-          }}
-        />
-      ))}
-
-      {/* Emboss overlay */}
-      <div className="absolute inset-0 rounded-full" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)' }} />
+// ─── Coin Face: Tails (big T) ─────────────────────────────────────
+function CoinTailsFace() {
+  return (
+    <div
+      className="absolute inset-0 rounded-full flex items-center justify-center shadow-2xl border-[3px] overflow-hidden"
+      style={{
+        backfaceVisibility: 'hidden',
+        transform: 'rotateX(180deg)',
+        background: 'linear-gradient(145deg, #E8E8E8 0%, #B0B0B0 50%, #E8E8E8 100%)',
+        borderColor: '#C0C0C0',
+        boxShadow: '0 0 30px rgba(192,192,192,0.3), inset 0 2px 4px rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.2)',
+      }}
+    >
+      <span className="text-6xl font-black" style={{ color: '#404040', textShadow: '0 2px 0 rgba(255,255,255,0.3), 0 -1px 0 rgba(0,0,0,0.2)' }}>
+        T
+      </span>
     </div>
   );
 }
@@ -473,10 +442,10 @@ export default function TossScreen({
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.3 }}
         onClick={onBack}
-        className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/10 hover:bg-white/20 transition-colors"
+        className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/10 hover:bg-warm-300 dark:hover:bg-white/20 transition-colors"
         aria-label="Close toss"
       >
-        <X className="w-5 h-5 text-white/70" />
+        <X className="w-5 h-5 text-warm-500 dark:text-white/70" />
       </motion.button>
 
       {/* ═══ Skip Toss button ═══ */}
@@ -486,10 +455,10 @@ export default function TossScreen({
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.4 }}
           onClick={() => setPhase('skip-toss')}
-          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-colors"
+          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-warm-200 dark:bg-white/10 backdrop-blur-sm border border-warm-300 dark:border-white/10 hover:bg-warm-300 dark:hover:bg-white/20 transition-colors"
         >
-          <FastForward className="w-4 h-4 text-white/70" />
-          <span className="text-xs font-bold text-white/70">Skip Toss</span>
+          <FastForward className="w-4 h-4 text-warm-500 dark:text-white/70" />
+          <span className="text-xs font-bold text-warm-500 dark:text-white/70">Skip Toss</span>
         </motion.button>
       )}
 
@@ -529,7 +498,7 @@ export default function TossScreen({
           {/* Home team */}
           <div className="flex items-center gap-2">
             <TeamAvatar name={homeTeam} color={homeTeamColor} size="sm" glow={tossWinner === 'home'} />
-            <span className="text-sm font-bold text-white max-w-[80px] sm:max-w-[120px] truncate">{homeTeam}</span>
+            <span className="text-sm font-bold text-warm-800 dark:text-white max-w-[80px] sm:max-w-[120px] truncate">{homeTeam}</span>
           </div>
 
           {/* VS */}
@@ -543,7 +512,7 @@ export default function TossScreen({
 
           {/* Away team */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white max-w-[80px] sm:max-w-[120px] truncate">{awayTeam}</span>
+            <span className="text-sm font-bold text-warm-800 dark:text-white max-w-[80px] sm:max-w-[120px] truncate">{awayTeam}</span>
             <TeamAvatar name={awayTeam} color={awayTeamColor} size="sm" glow={tossWinner === 'away'} />
           </div>
         </motion.div>
@@ -653,7 +622,7 @@ export default function TossScreen({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-xl font-black text-white mb-2"
+              className="text-xl font-black text-warm-800 dark:text-white mb-2"
             >
               Who Calls the Toss?
             </motion.h2>
@@ -746,7 +715,7 @@ export default function TossScreen({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="text-xl font-black text-white mb-2"
+              className="text-xl font-black text-warm-800 dark:text-white mb-2"
             >
               Heads or Tails?
             </motion.h2>
@@ -1037,7 +1006,7 @@ export default function TossScreen({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-lg font-black text-white mb-2"
+              className="text-lg font-black text-warm-800 dark:text-white mb-2"
             >
               Choose Your Advantage
             </motion.h2>
@@ -1103,7 +1072,7 @@ export default function TossScreen({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.5, opacity: 0 }}
               transition={{ type: 'spring', damping: 15, stiffness: 200 }}
-              className="text-8xl font-black text-white mb-3"
+              className="text-8xl font-black text-warm-800 dark:text-white mb-3"
               style={{ textShadow: `0 0 40px ${winnerColor}40` }}
             >
               {countdown}
@@ -1148,7 +1117,7 @@ export default function TossScreen({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="text-xl font-black text-white mb-2"
+              className="text-xl font-black text-warm-800 dark:text-white mb-2"
             >
               Who Won the Toss?
             </motion.h2>
