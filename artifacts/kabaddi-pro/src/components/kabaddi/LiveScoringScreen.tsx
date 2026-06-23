@@ -1567,13 +1567,18 @@ export default function LiveScoringScreen() {
 
           {/* Player info — bigger and bolder for better readability */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               {player.jerseyNumber && (
                 <span
-                  className={(isSmall ? 'text-[8px] ' : 'text-sm ') + 'font-black leading-none px-1.5 py-0.5 rounded-md'}
-                  style={{ color: isOut ? '#6b7280' : '#fff', backgroundColor: isOut ? 'transparent' : (teamColor + '40') }}
+                  className={(isSmall ? 'text-[9px] ' : 'text-base ') + 'font-black leading-none px-2 py-1 rounded-lg shrink-0'}
+                  style={{
+                    color: isOut ? '#9ca3af' : '#fff',
+                    backgroundColor: isOut ? 'rgba(156,163,175,0.2)' : teamColor,
+                    minWidth: isSmall ? '18px' : '28px',
+                    textAlign: 'center',
+                  }}
                 >
-                  #{player.jerseyNumber}
+                  {player.jerseyNumber}
                 </span>
               )}
               <span className={(isSmall ? 'text-[8px] ' : 'text-sm ') + 'font-bold text-warm-800 dark:text-gray-100 truncate leading-tight'}>
@@ -1706,20 +1711,7 @@ export default function LiveScoringScreen() {
             <span className="text-[7px] text-orange-400/70">
               ⏱{timeoutsLeft}
             </span>
-            {/* Substitute button */}
-            {substitutes.length > 0 && (
-              <button
-                onClick={() => setShowSubMode(side)}
-                className="flex items-center gap-0.5 text-[7px] font-bold px-1.5 py-0.5 rounded-md transition-colors"
-                style={{
-                  backgroundColor: `${teamColor}20`,
-                  color: teamColor,
-                }}
-              >
-                <ArrowLeftRight className="w-2.5 h-2.5" />
-                SUB
-              </button>
-            )}
+            {/* Substitute button in header — removed, use the prominent one at bottom */}
           </div>
         </div>
 
@@ -1750,20 +1742,21 @@ export default function LiveScoringScreen() {
           </div>
         </div>
 
-        {/* Substitutes tab — tap to open substitution modal (not shown inline) */}
+        {/* Substitutes button — prominent, always visible at bottom of team panel */}
         {substitutes.length > 0 && (
-          <div className="px-1.5 pb-1 shrink-0">
+          <div className="px-1.5 pb-1.5 shrink-0">
             <button
               onClick={() => setShowSubMode(side)}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg transition-colors font-bold"
               style={{
-                backgroundColor: `${teamColor}15`,
-                border: `1px dashed ${teamColor}40`,
+                backgroundColor: `${teamColor}20`,
+                border: `1.5px solid ${teamColor}50`,
+                color: teamColor,
               }}
             >
-              <ArrowLeftRight className="w-3 h-3" style={{ color: teamColor }} />
-              <span className="text-[9px] font-bold" style={{ color: teamColor }}>
-                SUBSTITUTES ({substitutes.length})
+              <ArrowLeftRight className="w-4 h-4" />
+              <span className="text-xs font-bold" style={{ color: teamColor }}>
+                + SUBSTITUTES ({substitutes.length})
               </span>
             </button>
           </div>
