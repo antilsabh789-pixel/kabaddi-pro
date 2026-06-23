@@ -778,10 +778,10 @@ export default function LiveScoringScreen() {
 
   const isTimerPulsing = match.timer > 0 && match.timer < 60 && hasStartedRaiding && !isPaused;
 
-  // Split lineup: first 7 = on court, rest = substitutes
+  // Split lineup: first playersPerSide = on court, rest = substitutes
   const splitLineup = (lineup: MatchPlayer[], outIds: string[]) => {
-    const onCourt = lineup.slice(0, ON_COURT_MAX);
-    const substitutes = lineup.slice(ON_COURT_MAX);
+    const onCourt = lineup.slice(0, match.playersPerSide || 7);
+    const substitutes = lineup.slice(match.playersPerSide || 7);
     const onCourtActive = onCourt.filter(p => !outIds.includes(p.id));
     const onCourtOut = onCourt.filter(p => outIds.includes(p.id));
     return { onCourt, substitutes, onCourtActive, onCourtOut };
