@@ -1718,13 +1718,6 @@ export default function QuickScoreTab() {
 
               {/* Match info badges */}
               <div className="flex items-center justify-center gap-2 flex-wrap">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  config.gender === 'male'
-                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
-                    : 'bg-red-500/15 text-red-600 dark:text-red-400'
-                }`}>
-                  {config.gender === 'male' ? '♂ Boys' : '♀ Girls'}
-                </span>
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
                   {weightType === 'open' ? '♾️ Open' : `⚖️ ${weightInput}`}
                 </span>
