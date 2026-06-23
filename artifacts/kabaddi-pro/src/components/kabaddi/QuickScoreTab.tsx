@@ -2100,33 +2100,167 @@ export default function QuickScoreTab() {
 
 
           {step === 4 && (
-            <div className="space-y-5 pb-6">
+            <div className="space-y-3 pb-6">
               <div className="text-center">
-                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Match Preview</h2>
-                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Review your match setup before starting</p>
+                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Match Formation</h2>
+                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Review your teams before starting</p>
               </div>
 
-              {/* Match Preview Card - Enhanced */}
-              <div className="bg-white dark:bg-warm-800/50 rounded-2xl border border-warm-200 dark:border-warm-700 overflow-hidden shadow-lg">
-                {/* Gender Badge Header with enhanced gradient */}
-                <div className={`py-3 px-4 text-center relative overflow-hidden ${
-                  config.gender === 'male'
-                    ? 'bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-blue-600/10 dark:from-blue-500/20 dark:via-blue-500/10 dark:to-blue-600/20'
-                    : 'bg-gradient-to-r from-red-500/10 via-red-500/5 to-red-600/10 dark:from-red-500/20 dark:via-red-500/10 dark:to-red-600/20'
-                }`}>
-                  <div className="flex items-center justify-center gap-2 flex-wrap">
-                    <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold ${
-                      config.gender === 'male'
-                        ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                        : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                    }`}>
-                      {config.gender === 'male' ? '♂ Boys Match' : '♀ Girls Match'}
-                    </span>
-                    {weightType === 'open' && (
-                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
-                        ♾️ Open
+              {/* ═══ VERTICAL KABADDI COURT ═══ */}
+              <div className="relative mx-auto max-w-sm">
+                {/* Court container */}
+                <div
+                  className="relative rounded-xl overflow-hidden border-2"
+                  style={{ borderColor: '#3b82f6', aspectRatio: '0.6' }}
+                >
+                  {/* Team A (Home) — top half */}
+                  <div
+                    className="absolute top-0 left-0 right-0 h-1/2 flex flex-col items-center justify-around py-3"
+                    style={{ backgroundColor: `${config.homeTeamColor}15` }}
+                  >
+                    {/* Team A name */}
+                    <div className="text-center mb-1">
+                      <span className="text-xs font-black" style={{ color: config.homeTeamColor }}>
+                        {config.homeTeam || 'Team A'}
                       </span>
-                    )}
+                    </div>
+                    {/* Players row 1 (3 players) */}
+                    <div className="flex justify-around w-full px-4">
+                      {config.homeLineup.slice(0, 3).map((player, i) => (
+                        <div key={player.id} className="flex flex-col items-center gap-0.5">
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-[10px] border-2 border-white shadow-sm"
+                            style={{ backgroundColor: config.homeTeamColor }}
+                          >
+                            {player.jerseyNumber || '?'}
+                          </div>
+                          <span className="text-[7px] font-bold text-warm-700 dark:text-warm-300 truncate max-w-[40px]">
+                            {player.name?.split(' ')[0]}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Players row 2 (4 players) */}
+                    <div className="flex justify-around w-full px-6">
+                      {config.homeLineup.slice(3, 7).map((player, i) => (
+                        <div key={player.id} className="flex flex-col items-center gap-0.5">
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-[10px] border-2 border-white shadow-sm"
+                            style={{ backgroundColor: config.homeTeamColor }}
+                          >
+                            {player.jerseyNumber || '?'}
+                          </div>
+                          <span className="text-[7px] font-bold text-warm-700 dark:text-warm-300 truncate max-w-[36px]">
+                            {player.name?.split(' ')[0]}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Center line */}
+                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 z-10" />
+                  {/* Center circle */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-blue-500 z-10" />
+
+                  {/* Team B (Away) — bottom half */}
+                  <div
+                    className="absolute bottom-0 left-0 right-0 h-1/2 flex flex-col items-center justify-around py-3"
+                    style={{ backgroundColor: `${config.awayTeamColor}15` }}
+                  >
+                    {/* Players row 2 (4 players) */}
+                    <div className="flex justify-around w-full px-6">
+                      {config.awayLineup.slice(3, 7).map((player, i) => (
+                        <div key={player.id} className="flex flex-col items-center gap-0.5">
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-[10px] border-2 border-white shadow-sm"
+                            style={{ backgroundColor: config.awayTeamColor }}
+                          >
+                            {player.jerseyNumber || '?'}
+                          </div>
+                          <span className="text-[7px] font-bold text-warm-700 dark:text-warm-300 truncate max-w-[36px]">
+                            {player.name?.split(' ')[0]}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Players row 1 (3 players) */}
+                    <div className="flex justify-around w-full px-4">
+                      {config.awayLineup.slice(0, 3).map((player, i) => (
+                        <div key={player.id} className="flex flex-col items-center gap-0.5">
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-[10px] border-2 border-white shadow-sm"
+                            style={{ backgroundColor: config.awayTeamColor }}
+                          >
+                            {player.jerseyNumber || '?'}
+                          </div>
+                          <span className="text-[7px] font-bold text-warm-700 dark:text-warm-300 truncate max-w-[40px]">
+                            {player.name?.split(' ')[0]}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Team B name */}
+                    <div className="text-center mt-1">
+                      <span className="text-xs font-black" style={{ color: config.awayTeamColor }}>
+                        {config.awayTeam || 'Team B'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Lobby strips (left and right) */}
+                  <div className="absolute top-0 bottom-0 left-0 w-3 border-r border-blue-400/50 bg-warm-100/30 dark:bg-warm-700/30" />
+                  <div className="absolute top-0 bottom-0 right-0 w-3 border-l border-blue-400/50 bg-warm-100/30 dark:bg-warm-700/30" />
+                </div>
+
+                {/* Substitutes below court */}
+                <div className="flex justify-between mt-2 px-2">
+                  <div className="text-center">
+                    <span className="text-[9px] font-bold text-warm-500">
+                      {config.homeLineup.length > 7 ? `${config.homeLineup.length - 7} subs` : 'No subs'}
+                    </span>
+                  </div>
+                  <div className="text-center">
+                    <span className="text-[9px] font-bold text-warm-500">
+                      {config.awayLineup.length > 7 ? `${config.awayLineup.length - 7} subs` : 'No subs'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Match info badges */}
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                  config.gender === 'male'
+                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                    : 'bg-red-500/15 text-red-600 dark:text-red-400'
+                }`}>
+                  {config.gender === 'male' ? '♂ Boys' : '♀ Girls'}
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                  {weightType === 'open' ? '♾️ Open' : `⚖️ ${weightInput}`}
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand-teal/15 text-brand-teal">
+                  ⏱ {config.halfDuration} min halves
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand-red/15 text-brand-red">
+                  {config.playersPerSide}v{config.playersPerSide}
+                </span>
+              </div>
+
+              {/* Start Match Button */}
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="relative">
+                <Button
+                  onClick={handleStartToss}
+                  className="w-full h-14 bg-gradient-to-r from-brand-red to-brand-red-dark hover:opacity-90 text-white font-black text-base rounded-2xl shadow-lg shadow-brand-red/25 flex items-center justify-center gap-2"
+                >
+                  <Shield className="w-5 h-5" />
+                  Start Match — Go to Toss
+                </Button>
+              </motion.div>
+            </div>
+          )}
+
                     {weightType === 'weight' && weightInput.trim() && (
                       <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
                         ⚖️ {weightInput.trim()}
