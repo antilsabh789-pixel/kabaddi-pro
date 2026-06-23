@@ -58,14 +58,135 @@ router.get('/matches', async (req, res) => {
 
 router.post('/matches', async (req, res) => {
   try {
-    const { homeTeamId, awayTeamId, tournamentId, date, venue, type } = req.body;
-    if (!homeTeamId || !awayTeamId) return res.status(400).json({ error: 'homeTeamId and awayTeamId are required' });
+    const {
+      homeTeamName, awayTeamName, homeTeamColor, awayTeamColor,
+      homeScore, awayScore, gender, isPractice, weightCategory,
+      liveStreamUrl, halfDuration, playersPerSide, events,
+    } = req.body;
 
+    // Create the match record
     const match = await db.match.create({
-      data: { homeTeamId, awayTeamId, tournamentId: tournamentId || null, venue: venue || null, isPractice: type === 'practice', status: 'upcoming', homeScore: 0, awayScore: 0 },
-      include: { homeTeam: true, awayTeam: true },
+      data: {
+        homeTeamId: homeTeamName || 'home',
+        awayTeamId: awayTeamName || 'away',
+        homeScore: homeScore || 0,
+        awayScore: awayScore || 0,
+        isPractice: isPractice ?? true,
+        status: 'completed',
+        gender: gender || null,
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
     });
-    return res.json({ match });
+
+    // ─── Update player stats from events ──────────────────────────
+    // For each event with a playerId, update the player's profile stats.
+    // If isPractice=true, update practice fields. If false, update tournament fields.
+    const isPracticeMatch = isPractice ?? true;
+    const prefix = isPracticeMatch ? 'practice' : 'tournament';
+
+    // Aggregate stats per player from events
+    const playerStats: Record<string, {
+      raidPoints: number;
+      tacklePoints: number;
+      bonusPoints: number;
+      superTackles: number;
+      totalRaids: number;
+      successfulRaids: number;
+      totalTackles: number;
+      successfulTackles: number;
+      totalPoints: number;
+    }> = {};
+
+    for (const evt of (events || [])) {
+      if (!evt.playerId) continue;
+      if (!playerStats[evt.playerId]) {
+        playerStats[evt.playerId] = {
+          raidPoints: 0, tacklePoints: 0, bonusPoints: 0, superTackles: 0,
+          totalRaids: 0, successfulRaids: 0, totalTackles: 0, successfulTackles: 0,
+          totalPoints: 0,
+        };
+      }
+      const ps = playerStats[evt.playerId];
+      const val = evt.value || 0;
+
+      switch (evt.eventType) {
+        case 'raid_point':
+          ps.raidPoints += val;
+          ps.totalRaids += 1;
+          ps.successfulRaids += 1;
+          ps.totalPoints += val;
+          break;
+        case 'bonus_point':
+          ps.bonusPoints += val;
+          ps.totalPoints += val;
+          break;
+        case 'tackle_point':
+          ps.tacklePoints += val;
+          ps.totalTackles += 1;
+          ps.successfulTackles += 1;
+          ps.totalPoints += val;
+          break;
+        case 'super_tackle':
+          ps.tacklePoints += val;
+          ps.superTackles += 1;
+          ps.totalPoints += val;
+          break;
+        case 'do_or_die_raid':
+          // Failed do-or-die raid — raider is out, defending team gets point
+          // This doesn't add to the raider's stats
+          break;
+        case 'empty_raid':
+          ps.totalRaids += 1;
+          break;
+      }
+    }
+
+    // Save events to DB and update player profiles
+    for (const evt of (events || [])) {
+      // Save event to match events table
+      await db.matchEvent.create({
+        data: {
+          matchId: match.id,
+          eventType: evt.eventType,
+          teamId: evt.teamId || '',
+          playerId: evt.playerId || null,
+          value: evt.value || 0,
+          details: evt.details || null,
+          half: evt.half || 1,
+        },
+      });
+    }
+
+    // Update player profiles with aggregated stats
+    for (const [playerId, stats] of Object.entries(playerStats)) {
+      // Ensure profile exists
+      await db.playerProfile.upsert({
+        where: { userId: playerId },
+        update: {},
+        create: { userId: playerId },
+      });
+
+      // Update the appropriate stats (practice or tournament)
+      const updateData: Record<string, number> = {};
+      updateData[`${prefix}Matches`] = { increment: 1 };
+      if (stats.totalRaids > 0) updateData[`${prefix}TotalRaids`] = { increment: stats.totalRaids };
+      if (stats.successfulRaids > 0) updateData[`${prefix}SuccessfulRaids`] = { increment: stats.successfulRaids };
+      if (stats.totalTackles > 0) updateData[`${prefix}TotalTackles`] = { increment: stats.totalTackles };
+      if (stats.successfulTackles > 0) updateData[`${prefix}SuccessfulTackles`] = { increment: stats.successfulTackles };
+      if (stats.raidPoints > 0) updateData[`${prefix}RaidPoints`] = { increment: stats.raidPoints };
+      if (stats.tacklePoints > 0) updateData[`${prefix}TacklePoints`] = { increment: stats.tacklePoints };
+      if (stats.bonusPoints > 0) updateData[`${prefix}BonusPoints`] = { increment: stats.bonusPoints };
+      if (stats.superTackles > 0) updateData[`${prefix}SuperTackles`] = { increment: stats.superTackles };
+      if (stats.totalPoints > 0) updateData[`${prefix}TotalPoints`] = { increment: stats.totalPoints };
+
+      await db.playerProfile.update({
+        where: { userId: playerId },
+        data: updateData,
+      });
+    }
+
+    return res.json({ match, playerStatsUpdated: Object.keys(playerStats).length });
   } catch (error) {
     console.error('Match create error:', error);
     return res.status(500).json({ error: 'Internal server error' });
