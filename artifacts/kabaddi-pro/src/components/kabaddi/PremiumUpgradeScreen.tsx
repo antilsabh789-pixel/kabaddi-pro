@@ -482,7 +482,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl shadow-2xl"
+          className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-white dark:bg-warm-900 rounded-t-3xl sm:rounded-3xl shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header with gold gradient */}

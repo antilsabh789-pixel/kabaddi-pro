@@ -266,8 +266,8 @@ function EmptyState({
       <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-warm-100 to-warm-200/50 dark:from-warm-200/20 dark:to-warm-200/10 flex items-center justify-center mb-4">
         <Icon className="w-10 h-10 text-warm-300 dark:text-warm-400" />
       </div>
-      <p className="text-warm-700 dark:text-warm-600 font-bold text-sm">{title}</p>
-      <p className="text-warm-400 dark:text-warm-500 text-xs mt-1 text-center max-w-[240px]">
+      <p className="text-warm-700 dark:text-warm-300 font-bold text-sm">{title}</p>
+      <p className="text-warm-500 dark:text-warm-400 text-xs mt-1 text-center max-w-[240px]">
         {description}
       </p>
     </motion.div>
@@ -610,15 +610,15 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-50 flex flex-col"
+      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col"
     >
       {/* ═══ Header ═══ */}
-      <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-200/20">
+      <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-200/20">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-200/50 flex items-center justify-center text-warm-600 dark:text-warm-500 hover:bg-warm-300 dark:hover:bg-warm-200/60 transition-colors"
+              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 dark:hover:bg-warm-200/60 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -626,7 +626,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-700">
+              <h1 className="text-base font-black tracking-wider text-warm-800 dark:text-warm-100">
                 CONNECT
               </h1>
             </div>
@@ -635,12 +635,12 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
             {!countsLoading && (
               <>
                 <span className="text-warm-500 dark:text-warm-400">
-                  <span className="text-warm-800 dark:text-warm-700">{followerCount}</span>{' '}
+                  <span className="text-warm-800 dark:text-warm-100">{followerCount}</span>{' '}
                   {followerCount === 1 ? 'follower' : 'followers'}
                 </span>
                 <span className="text-warm-300 dark:text-warm-400">·</span>
                 <span className="text-warm-500 dark:text-warm-400">
-                  <span className="text-warm-800 dark:text-warm-700">{followingCount}</span>{' '}
+                  <span className="text-warm-800 dark:text-warm-100">{followingCount}</span>{' '}
                   following
                 </span>
               </>
@@ -696,12 +696,12 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
             >
               {/* Search within followers */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400 dark:text-warm-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-500 dark:text-warm-400" />
                 <Input
                   placeholder="Search followers..."
                   value={filterQuery}
                   onChange={(e) => setFilterQuery(e.target.value)}
-                  className="h-10 pl-10 pr-4 bg-white dark:bg-warm-100 border-warm-200 dark:border-warm-200/20 rounded-xl text-warm-800 dark:text-warm-700 placeholder:text-warm-400 dark:placeholder:text-warm-500 focus:ring-brand-red/20 focus:border-brand-red/40"
+                  className="h-10 pl-10 pr-4 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 focus:ring-brand-red/20 focus:border-brand-red/40"
                 />
               </div>
 
@@ -731,12 +731,12 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-700 truncate">
+                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
                                 {getDisplayName(follower.name)}
                               </p>
                               <GenderIcon gender={follower.gender} />
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs text-warm-400 dark:text-warm-500">
+                            <div className="flex items-center gap-1.5 text-xs text-warm-500 dark:text-warm-400">
                               {follower.playerCode && (
                                 <span className="font-mono">{follower.playerCode}</span>
                               )}
@@ -778,7 +778,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
               <div className="pt-2">
                 <div className="flex items-center gap-2 mb-3">
                   <Star className="w-4 h-4 text-brand-gold" />
-                  <h3 className="font-bold text-sm text-warm-800 dark:text-warm-700">
+                  <h3 className="font-bold text-sm text-warm-800 dark:text-warm-100">
                     Suggested for You
                   </h3>
                 </div>
@@ -807,7 +807,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-700 truncate">
+                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
                                 {getDisplayName(player.name)}
                               </p>
                               {player.playerCode && (
@@ -816,7 +816,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                                 </Badge>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 text-[10px] text-warm-400 dark:text-warm-500">
+                            <div className="flex items-center gap-2 text-[10px] text-warm-500 dark:text-warm-400">
                               {player.profile?.position && (
                                 <span className="flex items-center gap-0.5">
                                   <Shield className="w-2.5 h-2.5" />
@@ -844,7 +844,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                   </Card>
                 ) : (
                   <div className="text-center py-6">
-                    <p className="text-xs text-warm-400 dark:text-warm-500">No suggestions available</p>
+                    <p className="text-xs text-warm-500 dark:text-warm-400">No suggestions available</p>
                   </div>
                 )}
               </div>
@@ -863,18 +863,18 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
             >
               {/* Search within following */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400 dark:text-warm-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-500 dark:text-warm-400" />
                 <Input
                   placeholder="Search following..."
                   value={filterQuery}
                   onChange={(e) => setFilterQuery(e.target.value)}
-                  className="h-10 pl-10 pr-4 bg-white dark:bg-warm-100 border-warm-200 dark:border-warm-200/20 rounded-xl text-warm-800 dark:text-warm-700 placeholder:text-warm-400 dark:placeholder:text-warm-500 focus:ring-brand-teal/20 focus:border-brand-teal/40"
+                  className="h-10 pl-10 pr-4 bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-600 rounded-xl text-warm-800 dark:text-warm-100 placeholder:text-warm-400 dark:placeholder:text-warm-500 focus:ring-brand-teal/20 focus:border-brand-teal/40"
                 />
               </div>
 
               {/* Following count header */}
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-warm-800 dark:text-warm-700 flex items-center gap-2 text-sm">
+                <h3 className="font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2 text-sm">
                   <UserCheck className="w-4 h-4 text-brand-teal" />
                   {followingCount} Following
                 </h3>
@@ -904,12 +904,12 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <p className="font-semibold text-sm text-warm-800 dark:text-warm-700 truncate">
+                            <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
                               {getDisplayName(person.name)}
                             </p>
                             <GenderIcon gender={person.gender} />
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-warm-400 dark:text-warm-500">
+                          <div className="flex items-center gap-1.5 text-xs text-warm-500 dark:text-warm-400">
                             {person.playerCode && (<span className="font-mono">{person.playerCode}</span>)}{person.profile?.jerseyNumber && (<><span>•</span><span>#{person.profile.jerseyNumber}</span></>)}<span>•</span><span>Following since {timeAgo(person.followedAt)}</span>
                           </div>
                         </div>
@@ -940,7 +940,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
               <div className="pt-2">
                 <div className="flex items-center gap-2 mb-3">
                   <Star className="w-4 h-4 text-brand-gold" />
-                  <h3 className="font-bold text-sm text-warm-800 dark:text-warm-700">
+                  <h3 className="font-bold text-sm text-warm-800 dark:text-warm-100">
                     Suggested for You
                   </h3>
                 </div>
@@ -969,7 +969,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-700 truncate">
+                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
                                 {getDisplayName(player.name)}
                               </p>
                               {player.playerCode && (
@@ -978,7 +978,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                                 </Badge>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 text-[10px] text-warm-400 dark:text-warm-500">
+                            <div className="flex items-center gap-2 text-[10px] text-warm-500 dark:text-warm-400">
                               {player.profile?.position && (
                                 <span className="flex items-center gap-0.5">
                                   <Shield className="w-2.5 h-2.5" />
@@ -1006,7 +1006,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                   </Card>
                 ) : (
                   <div className="text-center py-6">
-                    <p className="text-xs text-warm-400 dark:text-warm-500">No suggestions available</p>
+                    <p className="text-xs text-warm-500 dark:text-warm-400">No suggestions available</p>
                   </div>
                 )}
               </div>
@@ -1026,7 +1026,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
             >
               {/* Phone number search input */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400 dark:text-warm-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-500 dark:text-warm-400" />
                 <Input
                   type="tel"
                   placeholder="Enter full phone number..."
@@ -1045,7 +1045,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                   <p className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-1">
                     Find Players by Phone Number
                   </p>
-                  <p className="text-xs text-warm-400 dark:text-warm-500 max-w-[250px] mx-auto">
+                  <p className="text-xs text-warm-500 dark:text-warm-400 max-w-[250px] mx-auto">
                     Enter the player's full 10-digit phone number to find them. Privacy is protected — no name search, no partial matches.
                   </p>
                 </div>
@@ -1081,12 +1081,12 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <p className="font-semibold text-sm text-warm-800 dark:text-warm-700 truncate">
+                            <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
                               {getDisplayName(player.name)}
                             </p>
                             <GenderIcon gender={player.gender} />
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-warm-400 dark:text-warm-500">
+                          <div className="flex items-center gap-1.5 text-xs text-warm-500 dark:text-warm-400">
                             {player.playerCode && (
                               <span className="font-mono">{player.playerCode}</span>
                             )}

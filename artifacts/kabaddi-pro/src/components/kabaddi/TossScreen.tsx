@@ -275,7 +275,7 @@ function AdvantageCard({
       </div>
 
       <div className="font-black text-base relative z-10" style={{ color }}>{title}</div>
-      <div className="text-[11px] text-gray-400 relative z-10 leading-tight text-center max-w-[140px]">{subtitle}</div>
+      <div className="text-[11px] text-warm-500 dark:text-gray-400 relative z-10 leading-tight text-center max-w-[140px]">{subtitle}</div>
     </motion.button>
   );
 }
@@ -414,7 +414,7 @@ export default function TossScreen({
   // ─── Render ──────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden">
       {/* ═══ Background — Team color spotlights ═══ */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Home spotlight */}
@@ -503,17 +503,17 @@ export default function TossScreen({
         <AnimatePresence mode="wait">
           {phase === 'choose-caller' && (
             <motion.div key="label-caller" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}>
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.3em]">Step 1 — Choose Caller</span>
+              <span className="text-[10px] font-bold text-warm-500 dark:text-gray-500 uppercase tracking-[0.3em]">Step 1 — Choose Caller</span>
             </motion.div>
           )}
           {(phase === 'choose-side' || phase === 'ready' || phase === 'flipping') && (
             <motion.div key="label-side" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}>
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.3em]">Step 2 — Call the Toss</span>
+              <span className="text-[10px] font-bold text-warm-500 dark:text-gray-500 uppercase tracking-[0.3em]">Step 2 — Call the Toss</span>
             </motion.div>
           )}
           {(phase === 'result' || phase === 'choose-advantage' || phase === 'countdown') && (
             <motion.div key="label-adv" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}>
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.3em]">Step 3 — Choose Advantage</span>
+              <span className="text-[10px] font-bold text-warm-500 dark:text-gray-500 uppercase tracking-[0.3em]">Step 3 — Choose Advantage</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -604,7 +604,7 @@ export default function TossScreen({
                   />
                 ))}
               </div>
-              <span className="text-xs text-gray-400 font-mono mt-1 block">FLIPPING...</span>
+              <span className="text-xs text-warm-500 dark:text-gray-400 font-mono mt-1 block">FLIPPING...</span>
             </motion.div>
           )}
           {(phase === 'result' || phase === 'choose-advantage') && (
@@ -661,7 +661,7 @@ export default function TossScreen({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-xs text-gray-400 mb-6"
+              className="text-xs text-warm-500 dark:text-gray-400 mb-6"
             >
               Select which team will call Heads or Tails before the flip
             </motion.p>
@@ -687,7 +687,7 @@ export default function TossScreen({
                 />
                 <TeamAvatar name={homeTeam} color={homeTeamColor} size="md" />
                 <span className="font-black text-sm relative z-10" style={{ color: homeTeamColor }}>{homeTeam}</span>
-                <span className="text-[10px] text-gray-500 relative z-10">Call the toss</span>
+                <span className="text-[10px] text-warm-500 dark:text-gray-500 relative z-10">Call the toss</span>
               </motion.button>
 
               {/* Away team button */}
@@ -710,7 +710,7 @@ export default function TossScreen({
                 />
                 <TeamAvatar name={awayTeam} color={awayTeamColor} size="md" />
                 <span className="font-black text-sm relative z-10" style={{ color: awayTeamColor }}>{awayTeam}</span>
-                <span className="text-[10px] text-gray-500 relative z-10">Call the toss</span>
+                <span className="text-[10px] text-warm-500 dark:text-gray-500 relative z-10">Call the toss</span>
               </motion.button>
             </div>
           </motion.div>
@@ -754,7 +754,7 @@ export default function TossScreen({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-xs text-gray-400 mb-6"
+              className="text-xs text-warm-500 dark:text-gray-400 mb-6"
             >
               Choose the side {callingTeamName} is calling for this toss
             </motion.p>
@@ -791,9 +791,9 @@ export default function TossScreen({
 
               {/* OR divider */}
               <div className="flex flex-col items-center gap-1">
-                <div className="w-[1px] h-6 bg-gray-700" />
+                <div className="w-[1px] h-6 bg-warm-200 dark:bg-warm-700" />
                 <span className="text-gray-600 font-black text-xs">OR</span>
-                <div className="w-[1px] h-6 bg-gray-700" />
+                <div className="w-[1px] h-6 bg-warm-200 dark:bg-warm-700" />
               </div>
 
               {/* TAILS button */}
@@ -832,7 +832,7 @@ export default function TossScreen({
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
               onClick={() => { setPhase('choose-caller'); setCallingTeam(null); }}
-              className="mt-6 text-gray-500 text-xs underline underline-offset-2 hover:text-gray-300 transition-colors"
+              className="mt-6 text-warm-500 dark:text-gray-500 text-xs underline underline-offset-2 hover:text-warm-600 dark:text-gray-300 transition-colors"
             >
               Change caller
             </motion.button>
@@ -869,7 +869,7 @@ export default function TossScreen({
               </div>
 
               {/* The other team's side */}
-              <div className="text-[11px] text-gray-500">
+              <div className="text-[11px] text-warm-500 dark:text-gray-500">
                 The other team automatically gets {chosenSide === 'heads' ? 'TAILS' : 'HEADS'}
               </div>
             </motion.div>
@@ -893,12 +893,12 @@ export default function TossScreen({
             </motion.button>
 
             <div className="mt-4 flex flex-col items-center gap-2">
-              <p className="text-gray-500 text-xs">
+              <p className="text-warm-500 dark:text-gray-500 text-xs">
                 {callingTeamName} called {chosenSide === 'heads' ? 'HEADS' : 'TAILS'} — flip to reveal!
               </p>
               <button
                 onClick={() => { setPhase('choose-side'); setChosenSide(null); }}
-                className="text-gray-500 text-xs underline underline-offset-2 hover:text-gray-300 transition-colors"
+                className="text-warm-500 dark:text-gray-500 text-xs underline underline-offset-2 hover:text-warm-600 dark:text-gray-300 transition-colors"
               >
                 Change choice
               </button>
@@ -916,7 +916,7 @@ export default function TossScreen({
             exit={{ opacity: 0 }}
             className="relative z-10 text-center"
           >
-            <div className="w-48 h-1.5 bg-gray-800 rounded-full overflow-hidden mx-auto">
+            <div className="w-48 h-1.5 bg-warm-100 dark:bg-warm-700 rounded-full overflow-hidden mx-auto">
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-yellow-500 to-amber-500"
                 initial={{ width: '0%' }}
@@ -924,7 +924,7 @@ export default function TossScreen({
                 transition={{ duration: 2, ease: 'easeInOut' }}
               />
             </div>
-            <p className="text-gray-400 text-xs mt-3">
+            <p className="text-warm-500 dark:text-gray-400 text-xs mt-3">
               {callingTeamName} called {chosenSide === 'heads' ? 'HEADS' : 'TAILS'}...
             </p>
           </motion.div>
@@ -945,7 +945,7 @@ export default function TossScreen({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.1 }}
-              className="mb-2 text-xs text-gray-500"
+              className="mb-2 text-xs text-warm-500 dark:text-gray-500"
             >
               {callingTeamName} called {chosenSide === 'heads' ? 'HEADS' : 'TAILS'} — It&apos;s {coinResult === 'heads' ? 'HEADS' : 'TAILS'}!
             </motion.div>
@@ -957,7 +957,7 @@ export default function TossScreen({
               transition={{ type: 'spring', damping: 12, stiffness: 150, delay: 0.2 }}
               className="mb-6"
             >
-              <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider font-bold">Toss Won By</div>
+              <div className="text-xs text-warm-500 dark:text-gray-400 mb-2 uppercase tracking-wider font-bold">Toss Won By</div>
               <motion.div
                 animate={{
                   boxShadow: [
@@ -1045,7 +1045,7 @@ export default function TossScreen({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="text-xs text-gray-400 mb-5"
+              className="text-xs text-warm-500 dark:text-gray-400 mb-5"
             >
               {winnerName} must choose between raiding first or choosing court side
             </motion.p>
@@ -1077,7 +1077,7 @@ export default function TossScreen({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="mt-4 flex items-center justify-center gap-1.5 text-[10px] text-gray-500"
+              className="mt-4 flex items-center justify-center gap-1.5 text-[10px] text-warm-500 dark:text-gray-500"
             >
               <Sparkles className="w-3 h-3" />
               <span>Raid First: {winnerName} attacks first</span>
@@ -1117,7 +1117,7 @@ export default function TossScreen({
             >
               Match Starting!
             </motion.p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-warm-500 dark:text-gray-500">
               {winnerName} chose to {tossWinner === tossWinner ? 'raid' : 'defend'} first
             </p>
           </motion.div>
@@ -1140,8 +1140,8 @@ export default function TossScreen({
               transition={{ delay: 0.1 }}
               className="mb-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10"
             >
-              <FastForward className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-bold text-gray-300">Quick Toss Setup</span>
+              <FastForward className="w-4 h-4 text-warm-500 dark:text-gray-400" />
+              <span className="text-sm font-bold text-warm-600 dark:text-gray-300">Quick Toss Setup</span>
             </motion.div>
 
             <motion.h2
@@ -1156,7 +1156,7 @@ export default function TossScreen({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-xs text-gray-400 mb-5"
+              className="text-xs text-warm-500 dark:text-gray-400 mb-5"
             >
               Select the toss winner and their choice — skip the animation
             </motion.p>
@@ -1207,7 +1207,7 @@ export default function TossScreen({
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-2"
               >
-                <p className="text-xs text-gray-500 mb-2">What did they choose?</p>
+                <p className="text-xs text-warm-500 dark:text-gray-500 mb-2">What did they choose?</p>
                 <div className="flex gap-3">
                   <AdvantageCard
                     icon={<Swords className="w-6 h-6" style={{ color: skipTossWinner === 'home' ? homeTeamColor : awayTeamColor }} />}
@@ -1265,7 +1265,7 @@ export default function TossScreen({
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
               onClick={() => { setPhase('choose-caller'); setSkipTossWinner(null); setSkipTossChoice(null); }}
-              className="mt-5 text-gray-500 text-xs underline underline-offset-2 hover:text-gray-300 transition-colors"
+              className="mt-5 text-warm-500 dark:text-gray-500 text-xs underline underline-offset-2 hover:text-warm-600 dark:text-gray-300 transition-colors"
             >
               Do full toss instead
             </motion.button>

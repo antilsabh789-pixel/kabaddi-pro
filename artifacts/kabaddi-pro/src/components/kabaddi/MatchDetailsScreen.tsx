@@ -343,20 +343,20 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-50 flex flex-col"
+        className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col"
       >
         {/* ── Header bar ── */}
-        <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-50/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-200/60">
+        <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
                 <Swords className="w-4 h-4 text-white" />
               </div>
-              <h1 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-800">MATCH DETAILS</h1>
+              <h1 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">MATCH DETAILS</h1>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-200 flex items-center justify-center text-warm-600 dark:text-warm-600 hover:bg-warm-300 transition-colors"
+              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -374,7 +374,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
           ) : error || !match ? (
             <div className="flex flex-col items-center justify-center py-20 px-6">
               <Shield className="w-12 h-12 text-warm-300 dark:text-warm-300 mb-3" />
-              <p className="text-warm-600 dark:text-warm-600 text-sm font-medium">{error || 'Match not found'}</p>
+              <p className="text-warm-600 dark:text-warm-300 text-sm font-medium">{error || 'Match not found'}</p>
               <Button onClick={fetchMatch} variant="outline" className="mt-4 rounded-xl">
                 Retry
               </Button>
@@ -602,7 +602,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                                 className="w-full h-full object-cover"
                               />
                             ) : (
-                              <span className="text-xl font-bold text-warm-500 dark:text-warm-500">
+                              <span className="text-xl font-bold text-warm-500 dark:text-warm-400">
                                 {match.motmUser.name.charAt(0).toUpperCase()}
                               </span>
                             )}
@@ -624,7 +624,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                             Man of the Match
                           </Badge>
                           <p
-                            className="text-warm-800 dark:text-warm-800 font-bold text-sm truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
+                            className="text-warm-800 dark:text-warm-100 font-bold text-sm truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
                             onClick={() => onViewPlayer?.(match.motmUser!.id)}
                           >
                             {match.motmUser.name}
@@ -635,7 +635,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                             const teamName = teamId === match.homeTeamId ? match.homeTeam.name
                               : teamId === match.awayTeamId ? match.awayTeam.name : null;
                             return teamName ? (
-                              <p className="text-warm-500 dark:text-warm-500 text-xs">{teamName}</p>
+                              <p className="text-warm-500 dark:text-warm-400 text-xs">{teamName}</p>
                             ) : null;
                           })()}
                         </div>
@@ -667,9 +667,9 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 0.15 }}
                 >
-                  <Card className="border-warm-200/60 dark:border-warm-200/60 py-0 gap-0 overflow-hidden">
+                  <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
                     <div className="px-4 pt-4 pb-2">
-                      <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-700 flex items-center gap-2">
+                      <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
                         <Timer className="w-4 h-4 text-brand-red" />
                         MATCH TIMELINE
                       </h3>
@@ -677,7 +677,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                     <div ref={timelineRef} className="max-h-96 overflow-y-auto custom-scrollbar px-4 pb-4 scroll-smooth">
                       <div className="relative">
                         {/* Timeline vertical line */}
-                        <div className="absolute left-[18px] top-0 bottom-0 w-0.5 bg-warm-200 dark:bg-warm-200" />
+                        <div className="absolute left-[18px] top-0 bottom-0 w-0.5 bg-warm-200 dark:bg-warm-700" />
 
                         {sortedEvents.map((evt, idx) => {
                           const meta = EVENT_META[evt.eventType] || { lucideIcon: 'Zap', label: evt.eventType, isRaid: false, isTackle: false };
@@ -702,11 +702,11 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                               {/* Half divider - sticky */}
                               {showHalfSeparator && (
                                 <div className="sticky top-0 z-10 flex items-center gap-2 mb-2 mt-2 first:mt-0 bg-warm-50 dark:bg-warm-50 py-1">
-                                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-200" />
+                                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
                                   <Badge className="bg-brand-navy/10 dark:bg-brand-navy/10 text-brand-navy dark:text-brand-navy text-[10px] font-bold border-0 px-3 py-0.5 rounded-full">
                                     {evt.half === 1 ? '1st Half' : '2nd Half'}
                                   </Badge>
-                                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-200" />
+                                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
                                 </div>
                               )}
 
@@ -726,8 +726,8 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                                 {/* Event card */}
                                 <div className={`flex-1 max-w-[85%] rounded-xl px-3 py-2.5 transition-shadow hover:shadow-md ${
                                   isHome
-                                    ? 'bg-gradient-to-r from-warm-100 to-warm-100/60 dark:from-warm-100 dark:to-warm-100/60 border border-warm-200/60 dark:border-warm-200/60'
-                                    : 'bg-gradient-to-l from-warm-100 to-warm-100/60 dark:from-warm-100 dark:to-warm-100/60 border border-warm-200/60 dark:border-warm-200/60'
+                                    ? 'bg-gradient-to-r from-warm-100 to-warm-100/60 dark:from-warm-100 dark:to-warm-100/60 border border-warm-200/60 dark:border-warm-700/60'
+                                    : 'bg-gradient-to-l from-warm-100 to-warm-100/60 dark:from-warm-100 dark:to-warm-100/60 border border-warm-200/60 dark:border-warm-700/60'
                                 }`}>
                                   <div className={`flex items-center gap-1.5 ${!isHome ? 'flex-row-reverse' : ''}`}>
                                     <EventIcon
@@ -735,7 +735,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                                       className="w-3.5 h-3.5"
                                       // Use team color for the icon
                                     />
-                                    <span className="text-xs font-semibold text-warm-800 dark:text-warm-800">
+                                    <span className="text-xs font-semibold text-warm-800 dark:text-warm-100">
                                       {meta.label}
                                     </span>
                                     {evt.value > 0 && (
@@ -747,7 +747,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                                   <div className={`flex items-center gap-2 mt-0.5 ${!isHome ? 'flex-row-reverse' : ''}`}>
                                     {playerName && (
                                       <span
-                                        className="text-[11px] text-warm-600 dark:text-warm-600 font-medium cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
+                                        className="text-[11px] text-warm-600 dark:text-warm-300 font-medium cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
                                         onClick={() => evt.playerId && onViewPlayer?.(evt.playerId)}
                                       >
                                         {playerName}
@@ -781,9 +781,9 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 0.2 }}
                 >
-                  <Card className="border-warm-200/60 dark:border-warm-200/60 py-0 gap-0 overflow-hidden">
+                  <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
                     <div className="px-4 pt-4 pb-2">
-                      <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-700 flex items-center gap-2">
+                      <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
                         <Swords className="w-4 h-4 text-brand-red" />
                         TEAM COMPARISON
                       </h3>
@@ -798,10 +798,10 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                           >
                             {match.homeTeam.name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="text-xs font-bold text-warm-700 dark:text-warm-700 truncate max-w-[100px]">{match.homeTeam.name}</span>
+                          <span className="text-xs font-bold text-warm-700 dark:text-warm-200 truncate max-w-[100px]">{match.homeTeam.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-warm-700 dark:text-warm-700 truncate max-w-[100px]">{match.awayTeam.name}</span>
+                          <span className="text-xs font-bold text-warm-700 dark:text-warm-200 truncate max-w-[100px]">{match.awayTeam.name}</span>
                           <div
                             className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
                             style={{ backgroundColor: awayColor }}
@@ -833,13 +833,13 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                           >
                             <div className="flex items-center justify-between">
                               <span className={`text-sm font-black ${
-                                homeWin ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-warm-600 dark:text-warm-600'
+                                homeWin ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-warm-600 dark:text-warm-300'
                               }`}>
                                 {stat.home}
                               </span>
-                              <span className="text-[10px] font-bold text-warm-500 dark:text-warm-500 tracking-wide">{stat.label}</span>
+                              <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 tracking-wide">{stat.label}</span>
                               <span className={`text-sm font-black ${
-                                awayWin ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-warm-600 dark:text-warm-600'
+                                awayWin ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-warm-600 dark:text-warm-300'
                               }`}>
                                 {stat.away}
                               </span>
@@ -892,9 +892,9 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                 >
                   {/* Top Raiders */}
                   {topRaiders.length > 0 && (
-                    <Card className="border-warm-200/60 dark:border-warm-200/60 py-0 gap-0 overflow-hidden">
+                    <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
                       <div className="px-4 pt-4 pb-2">
-                        <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-700 flex items-center gap-2">
+                        <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
                           <Zap className="w-4 h-4 text-brand-red" />
                           TOP RAIDERS
                         </h3>
@@ -916,7 +916,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                             >
                               {/* Avatar with red raider ring */}
                               <div className="relative shrink-0">
-                                <div className="w-9 h-9 rounded-full bg-warm-200 dark:bg-warm-200 flex items-center justify-center ring-2 ring-brand-red/50 text-sm font-bold text-warm-600 dark:text-warm-600">
+                                <div className="w-9 h-9 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center ring-2 ring-brand-red/50 text-sm font-bold text-warm-600 dark:text-warm-300">
                                   {p.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black text-white ${
@@ -929,7 +929,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                               {/* Name & team */}
                               <div className="flex-1 min-w-0">
                                 <p
-                                  className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
+                                  className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
                                   onClick={() => onViewPlayer?.(p.id)}
                                 >
                                   {p.name}
@@ -961,9 +961,9 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
 
                   {/* Top Defenders */}
                   {topDefenders.length > 0 && (
-                    <Card className="border-warm-200/60 dark:border-warm-200/60 py-0 gap-0 overflow-hidden">
+                    <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
                       <div className="px-4 pt-4 pb-2">
-                        <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-700 flex items-center gap-2">
+                        <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
                           <Shield className="w-4 h-4 text-brand-blue" />
                           TOP DEFENDERS
                         </h3>
@@ -985,7 +985,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                             >
                               {/* Avatar with blue defender ring */}
                               <div className="relative shrink-0">
-                                <div className="w-9 h-9 rounded-full bg-warm-200 dark:bg-warm-200 flex items-center justify-center ring-2 ring-brand-blue/50 text-sm font-bold text-warm-600 dark:text-warm-600">
+                                <div className="w-9 h-9 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center ring-2 ring-brand-blue/50 text-sm font-bold text-warm-600 dark:text-warm-300">
                                   {p.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black text-white ${
@@ -998,7 +998,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                               {/* Name & team */}
                               <div className="flex-1 min-w-0">
                                 <p
-                                  className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
+                                  className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
                                   onClick={() => onViewPlayer?.(p.id)}
                                 >
                                   {p.name}
@@ -1038,9 +1038,9 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.3 }}
               >
-                <Card className="border-warm-200/60 dark:border-warm-200/60 py-0 gap-0 overflow-hidden">
+                <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
                   <div className="px-4 pt-4 pb-2">
-                    <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-700 flex items-center gap-2">
+                    <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
                       <Users className="w-4 h-4 text-warm-400 dark:text-warm-400" />
                       MATCH INFO
                     </h3>
@@ -1053,7 +1053,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">VENUE</p>
-                        <p className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate">
+                        <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
                           {match.venue || 'Not specified'}
                         </p>
                       </div>
@@ -1067,7 +1067,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">DATE & TIME</p>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-800">
+                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-100">
                             {formatDateTime(match.startedAt).date} · {formatDateTime(match.startedAt).time}
                           </p>
                         </div>
@@ -1082,7 +1082,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">DURATION</p>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-800">
+                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-100">
                             {formatDuration(match.startedAt, match.completedAt)}
                           </p>
                         </div>
@@ -1097,7 +1097,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">TOURNAMENT</p>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate">
+                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
                             {match.tournament.name}
                           </p>
                         </div>
@@ -1140,11 +1140,11 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                     {match.ground && (
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-warm-200/60 dark:bg-warm-200/60 flex items-center justify-center shrink-0">
-                          <MapPin className="w-4 h-4 text-warm-500 dark:text-warm-500" />
+                          <MapPin className="w-4 h-4 text-warm-500 dark:text-warm-400" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">GROUND</p>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-800 truncate">
+                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
                             {match.ground}
                           </p>
                         </div>
@@ -1160,7 +1160,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
 
         {/* ── Enhanced Bottom Action Bar ── */}
         {!loading && match && (
-          <div className="sticky bottom-0 bg-white/95 dark:bg-warm-50/95 backdrop-blur-md border-t border-warm-200/60 dark:border-warm-200/60 px-4 py-3 safe-bottom">
+          <div className="sticky bottom-0 bg-white/95 dark:bg-warm-50/95 backdrop-blur-md border-t border-warm-200/60 dark:border-warm-700/60 px-4 py-3 safe-bottom">
             <div className="flex gap-2">
               <Button
                 onClick={() => {

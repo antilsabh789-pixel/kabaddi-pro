@@ -84,7 +84,7 @@ function MatchEndScreen({
               <div>
                 <p className="text-[9px] font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider">Man of the Match</p>
                 <p className="text-sm font-black text-gray-800 dark:text-warm-100">{motm.name}</p>
-                <p className="text-xs text-yellow-600 dark:text-yellow-400 font-bold">{motm.points} points</p>
+                <p className="text-xs text-yellow-600 dark:text-yellow-700 dark:text-yellow-400 font-bold">{motm.points} points</p>
               </div>
             </div>
           </div>
@@ -1923,7 +1923,7 @@ export default function LiveScoringScreen() {
                   {match.homeTeam.charAt(0)}
                 </div>
                 <div className="text-left flex-1">
-                  <p className="text-sm font-bold text-white">{match.homeTeam}</p>
+                  <p className="text-sm font-bold text-warm-800 dark:text-white">{match.homeTeam}</p>
                   <p className="text-[10px] text-gray-400">{match.homeTimeouts}/{MAX_TIMEOUTS} used</p>
                 </div>
                 {match.homeTimeouts >= MAX_TIMEOUTS && (
@@ -1941,7 +1941,7 @@ export default function LiveScoringScreen() {
                   {match.awayTeam.charAt(0)}
                 </div>
                 <div className="text-left flex-1">
-                  <p className="text-sm font-bold text-white">{match.awayTeam}</p>
+                  <p className="text-sm font-bold text-warm-800 dark:text-white">{match.awayTeam}</p>
                   <p className="text-[10px] text-gray-400">{match.awayTimeouts}/{MAX_TIMEOUTS} used</p>
                 </div>
                 {match.awayTimeouts >= MAX_TIMEOUTS && (
@@ -1952,9 +1952,9 @@ export default function LiveScoringScreen() {
               {/* Official Timeout */}
               <button
                 onClick={() => handleTimeout('official')}
-                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-warm-300 dark:border-warm-600 hover:border-warm-400 dark:hover:border-warm-500 transition-colors bg-gray-800/50"
+                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-warm-300 dark:border-warm-600 hover:border-warm-400 dark:hover:border-warm-500 transition-colors bg-warm-100 dark:bg-warm-700/50"
               >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-600 text-white">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-warm-400 dark:bg-warm-700 text-white">
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div className="text-left flex-1">
@@ -1966,7 +1966,7 @@ export default function LiveScoringScreen() {
 
             <button
               onClick={() => setShowTimeoutTypeSelector(false)}
-              className="w-full mt-3 py-2.5 rounded-xl border border-gray-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
+              className="w-full mt-3 py-2.5 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
             >
               Cancel
             </button>
@@ -2089,10 +2089,10 @@ export default function LiveScoringScreen() {
                         </div>
                         <div className="flex-1">
                           <span className="text-[10px] font-bold text-green-400">COMING IN:</span>
-                          <span className="text-[11px] font-bold text-gray-200 ml-1">{subInPlayer.name}</span>
+                          <span className="text-[11px] font-bold text-warm-700 dark:text-gray-200 ml-1">{subInPlayer.name}</span>
                           {subInPlayer.jerseyNumber && <span className="text-[10px] text-gray-400 ml-1">#{subInPlayer.jerseyNumber}</span>}
                         </div>
-                        <button onClick={() => setSubInPlayer(null)} className="text-[9px] text-gray-400 hover:text-white">Change</button>
+                        <button onClick={() => setSubInPlayer(null)} className="text-[9px] text-warm-500 dark:text-gray-400 hover:text-warm-700 dark:hover:text-white">Change</button>
                       </div>
 
                       <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">
@@ -2155,7 +2155,7 @@ export default function LiveScoringScreen() {
                 <Crown className="w-3 h-3" /> MAN OF THE MATCH
               </div>
               <h3 className="text-xl font-black text-gray-800 dark:text-warm-100">{motmPlayer.name}</h3>
-              <p className="text-yellow-700 dark:text-yellow-400 font-bold text-lg mt-1">{motmPlayer.points} points</p>
+              <p className="text-yellow-700 dark:text-yellow-700 dark:text-yellow-400 font-bold text-lg mt-1">{motmPlayer.points} points</p>
               <p className="text-gray-500 dark:text-warm-400 text-sm mt-2">Top scorer in {match.homeTeam} vs {match.awayTeam}</p>
               <div className="flex gap-3 mt-5">
                 <button onClick={() => setShowShareScorecard(true)} className="flex-1 bg-brand-red hover:bg-red-700 text-white font-bold rounded-xl py-3 flex items-center justify-center gap-1">
@@ -2189,7 +2189,7 @@ export default function LiveScoringScreen() {
         {/* Top info row */}
         <div className="relative px-2 pt-1 pb-0.5 flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <span className="text-[8px] bg-gray-700/80 px-1.5 py-0.5 rounded font-medium text-gray-300">
+            <span className="text-[8px] bg-warm-200 dark:bg-warm-700 px-1.5 py-0.5 rounded font-medium text-warm-600 dark:text-gray-300">
               7v7
             </span>
             {match.isPractice && (
@@ -2229,14 +2229,14 @@ export default function LiveScoringScreen() {
                 halfLabel === 'HALF TIME' || halfLabel === 'FULL TIME'
                   ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                   : halfLabel === 'NOT STARTED'
-                    ? 'bg-gray-600/40 text-gray-400 border border-gray-500/30'
+                    ? 'bg-warm-200 dark:bg-gray-600/40 text-warm-500 dark:text-gray-400 border border-warm-300 dark:border-gray-500/30'
                     : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
               }`}
             >
               {halfLabel}
             </motion.div>
           </div>
-          <div className="text-[8px] text-gray-400 font-medium flex items-center gap-1">
+          <div className="text-[8px] text-warm-500 dark:text-gray-400 font-medium flex items-center gap-1">
             <span>{match.gender === 'male' ? '♂' : '♀'}</span>
             {match.weightCategory && (
               <span className="text-amber-400/80">⚖️{match.weightCategory === 'open' ? 'Open' : match.weightCategory}</span>
@@ -2252,7 +2252,7 @@ export default function LiveScoringScreen() {
             {/* Permanent Actions button — always visible during the match */}
             <button
               onClick={() => setShowActionsPanel(true)}
-              className="ml-1 px-2 py-0.5 rounded bg-white/10 text-white text-[8px] font-bold flex items-center gap-0.5 hover:bg-white/20 transition-colors"
+              className="ml-1 px-2 py-0.5 rounded bg-warm-200 dark:bg-white/10 text-warm-700 dark:text-white text-[8px] font-bold flex items-center gap-0.5 hover:bg-white/20 transition-colors"
             >
               ⚡ Actions
             </button>
@@ -2759,7 +2759,7 @@ export default function LiveScoringScreen() {
             {/* Handle bar */}
             <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-4" />
 
-            <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+            <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-1 flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-emerald-400" />
               Add Player
             </h3>
@@ -2779,7 +2779,7 @@ export default function LiveScoringScreen() {
                       {match.homeTeam.charAt(0)}
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-bold text-white">{match.homeTeam}</p>
+                      <p className="text-sm font-bold text-warm-800 dark:text-white">{match.homeTeam}</p>
                       <p className="text-[10px] text-gray-400">{match.homeLineup.length} players</p>
                     </div>
                   </button>
@@ -2792,7 +2792,7 @@ export default function LiveScoringScreen() {
                       {match.awayTeam.charAt(0)}
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-bold text-white">{match.awayTeam}</p>
+                      <p className="text-sm font-bold text-warm-800 dark:text-white">{match.awayTeam}</p>
                       <p className="text-[10px] text-gray-400">{match.awayLineup.length} players</p>
                     </div>
                   </button>
@@ -2806,7 +2806,7 @@ export default function LiveScoringScreen() {
                     {(addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam).charAt(0)}
                   </div>
                   <span className="text-sm font-semibold text-white">{addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam}</span>
-                  <button onClick={() => setAddPlayerTeam(null)} className="ml-auto text-[10px] text-gray-400 hover:text-white">Change</button>
+                  <button onClick={() => setAddPlayerTeam(null)} className="ml-auto text-[10px] text-warm-500 dark:text-gray-400 hover:text-warm-700 dark:hover:text-white">Change</button>
                 </div>
 
                 {/* Phone Number - Primary identifier */}
@@ -2819,7 +2819,7 @@ export default function LiveScoringScreen() {
                     value={addPlayerPhone}
                     onChange={(e) => setAddPlayerPhone(e.target.value.replace(/[^\d+\-() ]/g, ''))}
                     placeholder="Enter phone number"
-                    className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                    className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
                     autoFocus
                   />
                   <p className="text-[9px] text-gray-500 mt-1">This number links the player to their account. One number per player.</p>
@@ -2832,7 +2832,7 @@ export default function LiveScoringScreen() {
                     value={addPlayerName}
                     onChange={(e) => setAddPlayerName(e.target.value)}
                     placeholder="Enter player name"
-                    className="w-full mt-1 px-3 py-2.5 bg-gray-800 dark:bg-warm-700 border border-gray-600 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                    className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
                   />
                 </div>
 
@@ -2855,7 +2855,7 @@ export default function LiveScoringScreen() {
                             {p.name.charAt(0)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-white truncate">{p.name}</p>
+                            <p className="text-sm font-bold text-warm-800 dark:text-white truncate">{p.name}</p>
                             <p className="text-[9px] text-gray-400">
                               📱 {p.phone || 'No phone'} {p.jerseyNumber ? `• #${p.jerseyNumber}` : ''} {p.playerCode ? `• ${p.playerCode}` : ''}
                             </p>
@@ -2870,7 +2870,7 @@ export default function LiveScoringScreen() {
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerPhone(''); setAddPlayerSearchResults([]); }}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
+                    className="flex-1 py-2.5 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
                   >
                     Cancel
                   </button>
@@ -2906,8 +2906,8 @@ export default function LiveScoringScreen() {
               className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4 space-y-3"
             >
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-white">⚡ Specials</h3>
-                <button onClick={() => setShowSpecialsPanel(false)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                <h3 className="text-sm font-black text-warm-800 dark:text-white">⚡ Specials</h3>
+                <button onClick={() => setShowSpecialsPanel(false)} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 dark:text-gray-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -2919,7 +2919,7 @@ export default function LiveScoringScreen() {
                   setShowSpecialsPanel(false);
                   toast({ title: 'Raid changed', description: `Now ${raidingTeam === 'home' ? match.awayTeam : match.homeTeam} will raid`, duration: 2000 });
                 }}
-                className="w-full py-3 rounded-xl bg-blue-900/30 border border-blue-700/40 text-blue-400 font-bold text-sm flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/40 text-blue-700 dark:text-blue-400 font-bold text-sm flex items-center justify-center gap-2"
               >
                 <ArrowRightLeft className="w-4 h-4" />
                 Change Raid Team (other team raids)
@@ -2928,7 +2928,7 @@ export default function LiveScoringScreen() {
               {/* Add +1 Point to Team — asks which team */}
               <button
                 onClick={() => { setShowSpecialsPanel(false); setAddPointSelection('home'); }}
-                className="w-full py-3 rounded-xl bg-purple-900/30 border border-purple-700/40 text-purple-400 font-bold text-sm flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/40 text-purple-400 font-bold text-sm flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 Add +1 Point to Team (mistake correction)
@@ -2937,7 +2937,7 @@ export default function LiveScoringScreen() {
               {/* End Half */}
               <button
                 onClick={() => { setShowSpecialsPanel(false); handleEndHalf(); }}
-                className="w-full py-3 rounded-xl bg-yellow-900/30 border border-yellow-700/40 text-yellow-400 font-bold text-sm flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/40 text-yellow-700 dark:text-yellow-400 font-bold text-sm flex items-center justify-center gap-2"
               >
                 <Timer className="w-4 h-4" />
                 End Half {match.currentHalf}
@@ -2945,7 +2945,7 @@ export default function LiveScoringScreen() {
 
               <button
                 onClick={() => setShowSpecialsPanel(false)}
-                className="w-full py-2.5 rounded-xl border border-gray-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
+                className="w-full py-2.5 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
               >
                 Close
               </button>
@@ -2972,8 +2972,8 @@ export default function LiveScoringScreen() {
               className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4"
             >
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-black text-white">Add +1 Point to which team?</h3>
-                <button onClick={() => setAddPointSelection(null)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                <h3 className="text-sm font-black text-warm-800 dark:text-white">Add +1 Point to which team?</h3>
+                <button onClick={() => setAddPointSelection(null)} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 dark:text-gray-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3037,7 +3037,7 @@ export default function LiveScoringScreen() {
                   {cardSelection.cardType === 'yellow_card' && ' 🟨'}
                   {cardSelection.cardType === 'red_card' && ' 🟥'}
                 </h3>
-                <button onClick={() => setCardSelection(null)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                <button onClick={() => setCardSelection(null)} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 dark:text-gray-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3082,12 +3082,12 @@ export default function LiveScoringScreen() {
                           }
                           setCardSelection(null);
                         }}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-800 dark:bg-warm-700/50 hover:bg-gray-700 transition-colors"
+                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-warm-100 dark:bg-warm-700/50 hover:bg-warm-200 dark:hover:bg-warm-600 transition-colors"
                       >
                         <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: teamColor }}>
                           {player.jerseyNumber || '?'}
                         </div>
-                        <span className="text-sm font-bold text-white flex-1 text-left">{player.name}</span>
+                        <span className="text-sm font-bold text-warm-800 dark:text-white flex-1 text-left">{player.name}</span>
                         <span className="text-[9px] text-gray-400">{cardSelection.cardType === 'green_card' ? '🟩' : cardSelection.cardType === 'yellow_card' ? '🟨' : '🟥'}</span>
                       </button>
                     );
@@ -3117,8 +3117,8 @@ export default function LiveScoringScreen() {
               className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4"
             >
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-black text-white">⚖️ Technical Point — Award to which team?</h3>
-                <button onClick={() => setTechPointSelection(null)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                <h3 className="text-sm font-black text-warm-800 dark:text-white">⚖️ Technical Point — Award to which team?</h3>
+                <button onClick={() => setTechPointSelection(null)} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 dark:text-gray-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3177,8 +3177,8 @@ export default function LiveScoringScreen() {
               className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-black text-white">🚫 Self-Out — Who stepped out?</h3>
-                <button onClick={() => setSelfOutSelection(null)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                <h3 className="text-sm font-black text-warm-800 dark:text-white">🚫 Self-Out — Who stepped out?</h3>
+                <button onClick={() => setSelfOutSelection(null)} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 dark:text-gray-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3190,20 +3190,20 @@ export default function LiveScoringScreen() {
                     handleSelfOut(raider);
                     setSelfOutSelection(null);
                   }}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-800 dark:bg-warm-700/50 hover:bg-gray-700 transition-colors mb-2"
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-warm-100 dark:bg-warm-700/50 hover:bg-warm-200 dark:hover:bg-warm-600 transition-colors mb-2"
                 >
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: raidingTeamColor }}>
                     {raider.jerseyNumber || '?'}
                   </div>
                   <div className="flex-1 text-left">
                     <p className="text-sm font-bold text-white">{raider.name}</p>
-                    <p className="text-[9px] text-gray-400">RAIDER — steps out, defending team gets +1</p>
+                    <p className="text-[9px] text-warm-500 dark:text-gray-400">RAIDER — steps out, defending team gets +1</p>
                   </div>
                 </button>
               )}
 
               {/* Option 2: Defender self-out — show all defenders */}
-              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-3 mb-1">Defenders (self-out = raider team gets +1, valid empty raid)</div>
+              <div className="text-[9px] font-bold text-warm-500 dark:text-gray-400 uppercase tracking-wider mt-3 mb-1">Defenders (self-out = raider team gets +1, valid empty raid)</div>
               {splitLineup(fullDefendingLineup, defendingOutIds).onCourtActive.map(player => (
                 <button
                   key={player.id}
@@ -3211,14 +3211,14 @@ export default function LiveScoringScreen() {
                     handleSelfOut(player);
                     setSelfOutSelection(null);
                   }}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-800 dark:bg-warm-700/50 hover:bg-gray-700 transition-colors mb-1.5"
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-warm-100 dark:bg-warm-700/50 hover:bg-warm-200 dark:hover:bg-warm-600 transition-colors mb-1.5"
                 >
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: defendingTeamColor }}>
                     {player.jerseyNumber || '?'}
                   </div>
                   <div className="flex-1 text-left">
                     <p className="text-sm font-bold text-white">{player.name}</p>
-                    <p className="text-[9px] text-gray-400">DEFENDER — self-out, raider team +1, raider returns safe</p>
+                    <p className="text-[9px] text-warm-500 dark:text-gray-400">DEFENDER — self-out, raider team +1, raider returns safe</p>
                   </div>
                 </button>
               ))}
@@ -3247,8 +3247,8 @@ export default function LiveScoringScreen() {
             >
               {/* Header */}
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-white">Match Actions</h3>
-                <button onClick={() => setShowActionsPanel(false)} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center text-gray-400">
+                <h3 className="text-sm font-black text-warm-800 dark:text-white">Match Actions</h3>
+                <button onClick={() => setShowActionsPanel(false)} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-500 dark:text-gray-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3258,47 +3258,47 @@ export default function LiveScoringScreen() {
                 {/* Green Card */}
                 <button
                   onClick={() => { setShowActionsPanel(false); setCardSelection({ step: 'team', cardType: 'green_card' }); }}
-                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-green-900/30 border border-green-700/40 hover:bg-green-900/50 transition-colors"
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700/40 hover:bg-green-900/50 transition-colors"
                 >
                   <span className="text-2xl">🟩</span>
-                  <span className="text-[9px] font-bold text-green-400">Green Card</span>
-                  <span className="text-[7px] text-gray-400">Warning</span>
+                  <span className="text-[9px] font-bold text-green-700 dark:text-green-400">Green Card</span>
+                  <span className="text-[7px] text-warm-500 dark:text-gray-400">Warning</span>
                 </button>
                 {/* Yellow Card */}
                 <button
                   onClick={() => { setShowActionsPanel(false); setCardSelection({ step: 'team', cardType: 'yellow_card' }); }}
-                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-yellow-900/30 border border-yellow-700/40 hover:bg-yellow-900/50 transition-colors"
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/40 hover:bg-yellow-900/50 transition-colors"
                 >
                   <span className="text-2xl">🟨</span>
-                  <span className="text-[9px] font-bold text-yellow-400">Yellow Card</span>
-                  <span className="text-[7px] text-gray-400">2 min suspend</span>
+                  <span className="text-[9px] font-bold text-yellow-700 dark:text-yellow-400">Yellow Card</span>
+                  <span className="text-[7px] text-warm-500 dark:text-gray-400">2 min suspend</span>
                 </button>
                 {/* Red Card */}
                 <button
                   onClick={() => { setShowActionsPanel(false); setCardSelection({ step: 'team', cardType: 'red_card' }); }}
-                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-red-900/30 border border-red-700/40 hover:bg-red-900/50 transition-colors"
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/40 hover:bg-red-900/50 transition-colors"
                 >
                   <span className="text-2xl">🟥</span>
-                  <span className="text-[9px] font-bold text-red-400">Red Card</span>
-                  <span className="text-[7px] text-gray-400">Expulsion</span>
+                  <span className="text-[9px] font-bold text-red-700 dark:text-red-400">Red Card</span>
+                  <span className="text-[7px] text-warm-500 dark:text-gray-400">Expulsion</span>
                 </button>
                 {/* Timeout */}
                 <button
                   onClick={() => { setShowActionsPanel(false); handleTimeout(); }}
-                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-orange-900/30 border border-orange-700/40 hover:bg-orange-900/50 transition-colors"
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700/40 hover:bg-orange-900/50 transition-colors"
                 >
                   <span className="text-2xl">📋</span>
-                  <span className="text-[9px] font-bold text-orange-400">Timeout</span>
-                  <span className="text-[7px] text-gray-400">2 min break</span>
+                  <span className="text-[9px] font-bold text-orange-700 dark:text-orange-400">Timeout</span>
+                  <span className="text-[7px] text-warm-500 dark:text-gray-400">2 min break</span>
                 </button>
                 {/* Tech Point — asks which team first */}
                 <button
                   onClick={() => { setShowActionsPanel(false); setTechPointSelection('home'); }}
-                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-purple-900/30 border border-purple-700/40 hover:bg-purple-900/50 transition-colors"
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/40 hover:bg-purple-900/50 transition-colors"
                 >
                   <span className="text-2xl">⚖️</span>
-                  <span className="text-[9px] font-bold text-purple-400">Tech Point</span>
-                  <span className="text-[7px] text-gray-400">Umpire decision</span>
+                  <span className="text-[9px] font-bold text-purple-700 dark:text-purple-400">Tech Point</span>
+                  <span className="text-[7px] text-warm-500 dark:text-gray-400">Umpire decision</span>
                 </button>
               </div>
 
@@ -3314,7 +3314,7 @@ export default function LiveScoringScreen() {
                       toast({ title: `Bonus needs ${match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1)}+ defenders`, duration: 1500 });
                     }
                   }}
-                  className="w-full py-2.5 rounded-xl bg-yellow-900/30 border border-yellow-700/40 text-yellow-400 font-bold text-sm flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-xl bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/40 text-yellow-700 dark:text-yellow-400 font-bold text-sm flex items-center justify-center gap-2"
                 >
                   🎯 Bonus Point ({match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1)}+ defenders needed)
                 </button>
@@ -3323,7 +3323,7 @@ export default function LiveScoringScreen() {
               {/* Close button */}
               <button
                 onClick={() => setShowActionsPanel(false)}
-                className="w-full py-2.5 rounded-xl border border-gray-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
+                className="w-full py-2.5 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
               >
                 Close
               </button>

@@ -2194,7 +2194,7 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
 
           {/* ─── Scrolling Commentary Ticker Bar ────────────── */}
           {commentaryItems.length > 0 && (
-            <div className="flex-shrink-0 h-8 bg-gray-900 dark:bg-warm-950 flex items-center overflow-hidden">
+            <div className="flex-shrink-0 h-8 bg-warm-100 dark:bg-warm-950 flex items-center overflow-hidden">
               <div className="flex items-center gap-6 animate-marquee whitespace-nowrap px-4">
                 {commentaryItems.map((item, i) => (
                   <span key={i} className="flex items-center gap-2 text-[10px]">
