@@ -1341,23 +1341,7 @@ export default function HomeTab() {
       {showPlayerProfile && playerProfileUserId && (
         <PlayerProfileScreen userId={playerProfileUserId} onBack={() => { setShowPlayerProfile(false); setPlayerProfileUserId(null); }} />
       )}
-      {showGiveaway && (
-        <GiveawayScreen
-          onClose={() => setShowGiveaway(false)}
-          onUpgradeToPremium={() => {
-            setShowGiveaway(false);
-            setShowUpgrade(true);
-          }}
-          onOpenReferral={() => {
-            setShowGiveaway(false);
-            // Referral screen is in Profile tab — switch to Profile so user can tap "Refer & Earn"
-            toast({
-              title: 'Refer & Earn',
-              description: 'Open Profile tab → tap "Refer & Earn" to get your referral code.',
-            });
-          }}
-        />
-      )}
+      {/* Giveaway screen hidden — will re-enable later */}
       </Portal>
 
       {/* ─── Header ─── */}
@@ -2552,30 +2536,7 @@ export default function HomeTab() {
         )}
       </section>
 
-      {/* ─── Giveaway Banner ─── */}
-      <section className="px-4 mt-6">
-        <motion.button
-          onClick={() => setShowGiveaway(true)}
-          whileTap={{ scale: 0.97 }}
-          className="w-full relative overflow-hidden rounded-2xl p-4 text-left shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #DC2626, #F59E0B)' }}
-        >
-          <div className="absolute inset-0 bg-black/10" />
-          <div className="relative z-10 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-              <Gift className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1">
-              <p className="text-white font-black text-sm">🎁 Kabaddi Pro Giveaway!</p>
-              <p className="text-white/80 text-[11px] mt-0.5">Win Protein, Kabaddi Kit & more</p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-white/70 text-[9px] uppercase font-bold">Ends in</p>
-              <p className="text-white font-black text-lg">15 Days</p>
-            </div>
-          </div>
-        </motion.button>
-      </section>
+      {/* ─── Giveaway Banner (hidden — will re-enable later) ─── */}
 
       {/* ─── Popular Players ─── */}
       <PopularPlayersSection onViewProfile={openPlayerProfile} />
