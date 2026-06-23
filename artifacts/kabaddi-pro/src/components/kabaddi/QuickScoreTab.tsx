@@ -64,6 +64,10 @@ interface DbPlayer {
 // ─── Position Balance Config ────────────────────────────────────
 
 const POSITION_BALANCE: Record<number, { raiders: number; defenders: number; allRounders: number }> = {
+  1: { raiders: 1, defenders: 0, allRounders: 0 },
+  2: { raiders: 1, defenders: 1, allRounders: 0 },
+  3: { raiders: 1, defenders: 1, allRounders: 1 },
+  4: { raiders: 1, defenders: 2, allRounders: 1 },
   5: { raiders: 1, defenders: 3, allRounders: 1 },
   6: { raiders: 2, defenders: 3, allRounders: 1 },
   7: { raiders: 2, defenders: 3, allRounders: 2 },
@@ -107,7 +111,7 @@ function LineupValidation({ lineup, playersPerSide, teamName }: {
   }
 
   // Position balance check (only if we have position data from DB)
-  const balance = POSITION_BALANCE[playersPerSide];
+  const balance = POSITION_BALANCE[playersPerSide] || POSITION_BALANCE[7];
   // Note: position data might not be available for quick-added players
   // We check this based on the allPlayers data which is in parent scope
 
@@ -925,7 +929,7 @@ export default function QuickScoreTab() {
         return getPositionCategory(dbP?.profile?.position || null);
       });
 
-      const balance = POSITION_BALANCE[config.playersPerSide];
+      const balance = POSITION_BALANCE[config.playersPerSide] || POSITION_BALANCE[7];
       const raiderCount = positions.filter(p => p === 'raider').length;
       const defenderCount = positions.filter(p => p === 'defender').length;
 
