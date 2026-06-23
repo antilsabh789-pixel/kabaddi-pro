@@ -109,6 +109,7 @@ interface TeamDetailScreenProps {
   teamId: string;
   onBack: () => void;
   onClose: () => void;
+  onViewPlayer?: (userId: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -157,7 +158,7 @@ function getTeamAvatar(logo: string | null): string | null {
 
 // ─── Component ────────────────────────────────────────────────────
 
-export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetailScreenProps) {
+export default function TeamDetailScreen({ teamId, onBack, onClose, onViewPlayer }: TeamDetailScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
 
@@ -919,8 +920,11 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
                     >
                       <CardContent className="p-3">
                         <div className="flex items-center gap-3">
-                          {/* Avatar */}
-                          <div className="relative shrink-0">
+                          {/* Avatar — tap to view player profile */}
+                          <div
+                            className="relative shrink-0 cursor-pointer"
+                            onClick={() => onViewPlayer?.(member.userId)}
+                          >
                             <div
                               className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
                               style={{
@@ -948,10 +952,13 @@ export default function TeamDetailScreen({ teamId, onBack, onClose }: TeamDetail
                             )}
                           </div>
 
-                          {/* Name & Info */}
+                          {/* Name & Info — tap name to view player profile */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
+                              <span
+                                className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate cursor-pointer hover:text-brand-teal transition-colors"
+                                onClick={() => onViewPlayer?.(member.userId)}
+                              >
                                 {getDisplayName(member.user.name)}
                               </span>
                               {member.isCaptain && (

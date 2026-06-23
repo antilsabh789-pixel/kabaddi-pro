@@ -92,6 +92,7 @@ interface JoinPreviewTeam {
 
 interface TeamManagementScreenProps {
   onClose: () => void;
+  onViewPlayer?: (userId: string) => void;
 }
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -152,7 +153,7 @@ function generateShortName(name: string): string {
 
 // ─── Component ────────────────────────────────────────────────────
 
-export default function TeamManagementScreen({ onClose }: TeamManagementScreenProps) {
+export default function TeamManagementScreen({ onClose, onViewPlayer }: TeamManagementScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
 
@@ -564,6 +565,7 @@ export default function TeamManagementScreen({ onClose }: TeamManagementScreenPr
         teamId={selectedTeam.id}
         onBack={handleDetailBack}
         onClose={handleDetailClose}
+        onViewPlayer={onViewPlayer}
       />
     );
   }

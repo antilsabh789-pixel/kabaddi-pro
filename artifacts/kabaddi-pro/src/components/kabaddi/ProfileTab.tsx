@@ -25,6 +25,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, PieChart, Pie, 
 import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 import PremiumLock from './PremiumLock';
 import TeamManagementScreen from './TeamManagementScreen';
+import PlayerProfileScreen from './PlayerProfileScreen';
 import PlayerComparisonScreen from './PlayerComparisonScreen';
 import AdvancedStatsScreen from './AdvancedStatsScreen';
 import FollowScreen from './FollowScreen';
@@ -179,6 +180,8 @@ export default function ProfileTab() {
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
   const [showFollow, setShowFollow] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [showPlayerProfile, setShowPlayerProfile] = useState(false);
+  const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
   const [showChallenges, setShowChallenges] = useState(false);
   const [showGrounds, setShowGrounds] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
@@ -908,7 +911,14 @@ export default function ProfileTab() {
         />
       )}
       {showTeamManagement && (
-        <TeamManagementScreen onClose={() => setShowTeamManagement(false)} />
+        <TeamManagementScreen
+          onClose={() => setShowTeamManagement(false)}
+          onViewPlayer={(userId: string) => {
+            setShowTeamManagement(false);
+            setPlayerProfileUserId(userId);
+            setShowPlayerProfile(true);
+          }}
+        />
       )}
       {showPlayerComparison && (
         <PlayerComparisonScreen onClose={() => setShowPlayerComparison(false)} />
@@ -957,6 +967,12 @@ export default function ProfileTab() {
       )}
       {showDailyChallenge && (
         <DailyChallengeScreen onClose={() => setShowDailyChallenge(false)} />
+      )}
+      {showPlayerProfile && playerProfileUserId && (
+        <PlayerProfileScreen
+          userId={playerProfileUserId}
+          onBack={() => { setShowPlayerProfile(false); setPlayerProfileUserId(null); }}
+        />
       )}
       </Portal>
 
