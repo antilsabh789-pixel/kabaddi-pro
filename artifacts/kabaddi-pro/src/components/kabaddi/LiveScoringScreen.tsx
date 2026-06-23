@@ -2261,9 +2261,27 @@ export default function LiveScoringScreen() {
             {/* Permanent Actions button — always visible during the match */}
             <button
               onClick={() => setShowActionsPanel(true)}
-              className="ml-1 px-2 py-0.5 rounded bg-warm-200 dark:bg-white/10 text-warm-700 dark:text-white text-[8px] font-bold flex items-center gap-0.5 hover:bg-white/20 transition-colors"
+              className="ml-1 px-2 py-0.5 rounded bg-warm-200 dark:bg-white/10 text-warm-700 dark:text-white text-[8px] font-bold flex items-center gap-0.5 hover:bg-warm-300 dark:hover:bg-white/20 transition-colors"
             >
               ⚡ Actions
+            </button>
+            {/* Scorecard button — view match scorecard during the match */}
+            <button
+              onClick={() => {
+                // Build scorecard data from current live match state
+                const motm = calculateMotm();
+                const { topRaider, topDefender } = calculateTopRaiderDefender();
+                setSavedMatchData({
+                  homeTeam: match.homeTeam, awayTeam: match.awayTeam,
+                  homeScore: match.homeScore, awayScore: match.awayScore,
+                  homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
+                  topRaider, topDefender, motm,
+                });
+                setShowShareScorecard(true);
+              }}
+              className="ml-1 px-2 py-0.5 rounded bg-warm-200 dark:bg-white/10 text-warm-700 dark:text-white text-[8px] font-bold flex items-center gap-0.5 hover:bg-warm-300 dark:hover:bg-white/20 transition-colors"
+            >
+              📋 Scorecard
             </button>
           </div>
         </div>
@@ -2677,10 +2695,10 @@ export default function LiveScoringScreen() {
                     className={`mt-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                       bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : canGetBonus ? 'bg-warm-100 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-warm-500 dark:text-warm-400' : 'bg-warm-100/50 dark:bg-warm-700/50 border-2 border-gray-700 dark:border-warm-600 text-gray-600 dark:text-warm-600 cursor-not-allowed opacity-50'
                     }`}
-                    title={canGetBonus ? 'Toggle Bonus Point' : !(match.bonusEnabled ?? true) ? 'Bonus disabled for this format' : `Bonus only with ${match.bonusLineThreshold}+ defenders on court`}
+                    title={canGetBonus ? 'Toggle Bonus Point' : !(match.bonusEnabled ?? true) ? 'Bonus disabled for this format' : `Bonus only with ${match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1)}+ defenders on court`}
                   >
                     <span className="text-lg">⭐</span>Bonus Point {bonusPoint ? 'ON' : 'OFF'}
-                    {!canGetBonus && <span className="text-[8px] ml-1">{!(match.bonusEnabled ?? true) ? '(disabled)' : `(${match.bonusLineThreshold}+ needed)`}</span>}
+                    {!canGetBonus && <span className="text-[8px] ml-1">{!(match.bonusEnabled ?? true) ? '(disabled)' : `(${match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1)}+ needed)`}</span>}
                   </button>
                 );
               })()}
