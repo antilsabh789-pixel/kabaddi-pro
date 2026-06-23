@@ -1522,8 +1522,8 @@ export default function LiveScoringScreen() {
           borderLeft: `3px solid ${isOut ? '#4b5563' : teamColor}`,
         }}
       >
-        <div className={`flex items-center gap-2.5 ${isSmall ? 'px-1.5 py-1' : 'px-3 py-2.5'}`}>
-          {/* Avatar circle — MUCH bigger for clear player identification */}
+        <div className={`flex items-center gap-2 ${isSmall ? 'px-1.5 py-1' : 'px-2 py-1.5'}`}>
+          {/* Avatar circle — keep same size for clear player identification */}
           <div
             className={`relative flex-shrink-0 rounded-full overflow-hidden ${isSmall ? 'w-8 h-8' : 'w-14 h-14'}`}
             style={{
@@ -1565,27 +1565,26 @@ export default function LiveScoringScreen() {
             )}
           </div>
 
-          {/* Player info — bigger and bolder for better readability */}
+          {/* Player info — compact so full name fits */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {player.jerseyNumber && (
                 <span
-                  className={(isSmall ? 'text-[9px] ' : 'text-base ') + 'font-black leading-none px-2 py-1 rounded-lg shrink-0'}
+                  className={(isSmall ? 'text-[9px] ' : 'text-sm ') + 'font-black leading-none px-1.5 py-1 rounded-md shrink-0'}
                   style={{
                     color: isOut ? '#9ca3af' : '#fff',
                     backgroundColor: isOut ? 'rgba(156,163,175,0.2)' : teamColor,
-                    minWidth: isSmall ? '18px' : '28px',
+                    minWidth: isSmall ? '16px' : '22px',
                     textAlign: 'center',
+                    borderRadius: '6px',
+                    boxShadow: isOut ? 'none' : `inset 0 -2px 0 rgba(0,0,0,0.2)`,
                   }}
                 >
                   {player.jerseyNumber}
                 </span>
               )}
-              <span className={(isSmall ? 'text-[8px] ' : 'text-sm ') + 'font-bold text-warm-800 dark:text-gray-100 truncate leading-tight'}>
-                {player.name.split(' ').length > 1
-                  ? `${player.name.split(' ')[0]} ${player.name.split(' ')[1][0]}.`
-                  : player.name.split(' ')[0]
-                }
+              <span className={(isSmall ? 'text-[8px] ' : 'text-xs ') + 'font-bold text-warm-800 dark:text-gray-100 truncate leading-tight'}>
+                {player.name}
               </span>
             </div>
             {/* Position / Captain label */}
