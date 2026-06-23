@@ -74,7 +74,7 @@ export interface ActiveMatch {
   awayTeamColor: string;
   isLive: boolean;
   isPractice: boolean;
-  gender: string;
+  gender?: string; // optional — no longer required (removed from UI)
   weightCategory?: string;
   halfDuration: number;
   playersPerSide: number;
@@ -643,7 +643,7 @@ export const useKabaddiStore = create<KabaddiState>()(
       login: (user) =>
         set({
           isAuthenticated: true,
-          isOnboarded: !!(user.name && user.gender),
+          isOnboarded: !!(user.name),
           currentUser: { ...user, createdAt: user.createdAt || Date.now() },
         }),
 

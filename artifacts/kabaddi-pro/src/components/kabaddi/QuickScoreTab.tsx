@@ -1732,7 +1732,7 @@ export default function QuickScoreTab() {
               {/* Start Match Button */}
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="relative">
                 <Button
-                  onClick={handleStartToss}
+                  onClick={handleStart}
                   className="w-full h-14 bg-gradient-to-r from-brand-red to-brand-red-dark hover:opacity-90 text-white font-black text-base rounded-2xl shadow-lg shadow-brand-red/25 flex items-center justify-center gap-2"
                 >
                   <Shield className="w-5 h-5" />
