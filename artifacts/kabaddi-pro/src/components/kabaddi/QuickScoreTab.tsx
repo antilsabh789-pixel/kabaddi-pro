@@ -250,6 +250,135 @@ function FormationVisualization({ lineup, teamColor, teamName, side }: {
   );
 }
 
+// ─── Team Picker Modal ──────────────────────────────────────────
+function TeamPickerModal({
+  title,
+  userTeams,
+  onSelect,
+  onClose,
+  onSearch,
+}: {
+  title: string;
+  userTeams: UserTeam[];
+  onSelect: (team: UserTeam | { id: string; name: string; shortName: string | null; color: string | null; teamCode: string | null }) => void;
+  onClose: () => void;
+  onSearch: (query: string) => Promise<Array<{ id: string; name: string; shortName: string | null; color: string | null; teamCode: string | null; memberCount?: number }>>;
+}) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Array<{ id: string; name: string; shortName: string | null; color: string | null; teamCode: string | null; memberCount?: number }>>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const r = await onSearch(query);
+        setResults(r);
+      } catch { /* ignore */ }
+      finally { setSearching(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, onSearch]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl sm:rounded-2xl p-4 max-h-[80vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100">{title}</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center">
+            <X className="w-4 h-4 text-warm-500" />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+          <input
+            type="text"
+            placeholder="Search by name or team code..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full h-10 pl-10 pr-4 rounded-xl bg-warm-50 dark:bg-warm-700 border border-warm-200 dark:border-warm-600 text-sm text-warm-800 dark:text-warm-100"
+          />
+        </div>
+
+        {/* My Teams section (shown when no search query) */}
+        {!query.trim() && userTeams.length > 0 && (
+          <div className="mb-3">
+            <p className="text-xs font-bold text-warm-500 uppercase tracking-wider mb-2">My Teams</p>
+            {userTeams.map(team => (
+              <button
+                key={team.id}
+                onClick={() => onSelect(team)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl bg-warm-50 dark:bg-warm-700/50 hover:bg-warm-100 dark:hover:bg-warm-700 transition-colors mb-1.5"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: team.color || '#DC2626' }}>
+                  {team.shortName || team.name.charAt(0)}
+                </div>
+                <span className="flex-1 text-left text-sm font-bold text-warm-800 dark:text-warm-100">{team.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Search results */}
+        {query.trim() && (
+          <div>
+            <p className="text-xs font-bold text-warm-500 uppercase tracking-wider mb-2">
+              {searching ? 'Searching...' : `Results (${results.length})`}
+            </p>
+            {results.map(team => (
+              <button
+                key={team.id}
+                onClick={() => onSelect({
+                  id: team.id,
+                  name: team.name,
+                  shortName: team.shortName,
+                  color: team.color,
+                  teamCode: team.teamCode,
+                })}
+                className="w-full flex items-center gap-3 p-3 rounded-xl bg-warm-50 dark:bg-warm-700/50 hover:bg-warm-100 dark:hover:bg-warm-700 transition-colors mb-1.5"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: team.color || '#1E293B' }}>
+                  {team.shortName || team.name.charAt(0)}
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{team.name}</p>
+                  {team.teamCode && <p className="text-[10px] text-warm-400 font-mono">{team.teamCode}</p>}
+                </div>
+                {team.memberCount !== undefined && (
+                  <span className="text-[10px] text-warm-400">{team.memberCount} players</span>
+                )}
+              </button>
+            ))}
+            {!searching && results.length === 0 && (
+              <p className="text-center text-warm-400 text-sm py-4">No teams found</p>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────
 
 export default function QuickScoreTab() {
@@ -1578,453 +1707,162 @@ export default function QuickScoreTab() {
           )}
 
           {step === 1 && (
-            <div className="space-y-4" ref={teamInputRef}>
-              <div className="text-center">
-                <h2 className="text-xl font-bold text-warm-800 dark:text-warm-100">Team Setup</h2>
-                <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">Add both teams by team code or select from your teams</p>
-              </div>
+            <div className="flex flex-col items-center justify-center min-h-[60vh] py-6">
+              {/* Title */}
+              <h2 className="text-2xl font-black text-warm-800 dark:text-warm-100 mb-8">Select Teams</h2>
 
-              {/* ─── TEAM A ─── */}
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 }}
-                className="rounded-2xl border-2 overflow-hidden"
-                style={{ borderColor: config.homeTeam ? `${config.homeTeamColor}40` : 'var(--warm-200, #e5e5e5)' }}
-              >
-                {/* Team A header */}
-                <div
-                  className="px-4 py-3 flex items-center gap-3"
-                  style={{ background: config.homeTeam ? `linear-gradient(135deg, ${config.homeTeamColor}15, transparent)` : 'transparent' }}
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0"
+              {/* Team A */}
+              <div className="flex flex-col items-center gap-3 mb-4">
+                {config.homeTeam ? (
+                  <button
+                    onClick={() => {
+                      setConfig(prev => ({ ...prev, homeTeam: '', homeLineup: [], homeTeamColor: '#DC2626' }));
+                      setHomeTeamId(null);
+                      setHomeTeamCode('');
+                    }}
+                    className="w-24 h-24 rounded-2xl flex flex-col items-center justify-center shadow-lg relative overflow-hidden"
                     style={{ backgroundColor: config.homeTeamColor }}
                   >
-                    {config.homeTeam ? config.homeTeam.charAt(0).toUpperCase() : 'A'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider">Team A</p>
-                    {config.homeTeam && homeTeamId ? (
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{config.homeTeam}</p>
-                        <span className="text-[9px] text-emerald-600 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded-full">{config.homeLineup.length} players</span>
-                      </div>
-                    ) : (
-                      <p className="text-[10px] text-warm-400">Select or search for team</p>
-                    )}
-                  </div>
-                  {config.homeTeam && homeTeamId && (
-                    <button
-                      onClick={() => {
-                        setConfig(prev => ({ ...prev, homeTeam: '', homeLineup: [], homeTeamColor: '#DC2626' }));
-                        setHomeTeamId(null);
-                        setHomeTeamCode('');
-                        setHomeTeamRoster([]);
-                        setHomePlaying7(new Set());
-                        setHomeCaptain(null);
-                      }}
-                      className="text-[9px] text-warm-400 hover:text-brand-red font-semibold px-2 py-1 rounded-lg hover:bg-brand-red/5 transition-colors"
-                    >
-                      Change
-                    </button>
-                  )}
-                </div>
-
-                {/* Team A: Not selected yet - show search options */}
-                {!homeTeamId && (
-                  <div className="px-4 pb-4 space-y-3">
-                    {/* Team code search */}
-                    <div>
-                      <Input
-                        placeholder="Enter team code (e.g. KT2001)"
-                        value={homeTeamCode}
-                        onChange={(e) => setHomeTeamCode(e.target.value.toUpperCase())}
-                        className="h-11 bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-mono font-bold tracking-wider text-center uppercase"
-                        style={{ borderWidth: '2px' }}
-                      />
-                      <p className="text-[9px] text-warm-400 mt-1 text-center">Search by team code</p>
-                    </div>
-
-                    {/* Search loading */}
-                    {isSearchingHomeTeam && (
-                      <div className="flex items-center justify-center gap-2 py-2">
-                        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-brand-red border-t-transparent rounded-full" />
-                        <span className="text-xs text-warm-400">Searching...</span>
-                      </div>
-                    )}
-
-                    {/* Search results */}
-                    {homeTeamSearchResults.length > 0 && (
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-brand-red uppercase tracking-wider">Found Teams</label>
-                        {homeTeamSearchResults.filter(t => t.id !== awayTeamId).map((team) => (
-                          <motion.button
-                            key={team.id}
-                            initial={{ opacity: 0, x: 5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => selectTeam(team, 'home')}
-                            className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-warm-200 dark:border-warm-700 hover:border-brand-red dark:hover:border-brand-red bg-white dark:bg-warm-800/50 transition-all text-left"
-                          >
-                            <div
-                              className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0"
-                              style={{ background: `linear-gradient(135deg, ${team.color || '#DC2626'}, ${team.color || '#DC2626'}cc)` }}
-                            >
-                              {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{team.name}</p>
-                              <p className="text-[10px] text-warm-400">
-                                <span className="font-mono font-bold text-brand-red">{team.teamCode}</span> · {team.memberCount} players
-                              </p>
-                            </div>
-                            <Plus className="w-4 h-4 text-brand-red shrink-0" />
-                          </motion.button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Your teams suggestions */}
-                    {userTeams.length > 0 && (
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider">Your Teams</label>
-                        {userTeams.filter(t => t.id !== awayTeamId).map((team) => (
-                          <motion.button
-                            key={team.id}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => selectTeam(team, 'home')}
-                            className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-warm-200 dark:border-warm-700 hover:border-brand-red/50 bg-white dark:bg-warm-800/50 transition-all text-left"
-                          >
-                            <div
-                              className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0"
-                              style={{ backgroundColor: team.color || '#DC2626' }}
-                            >
-                              {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{team.name}</p>
-                              <p className="text-[10px] text-warm-400">
-                                {team.shortName && <span className="font-mono">{team.shortName} · </span>}You're a member
-                              </p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 shrink-0" />
-                          </motion.button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Create team */}
-                    {showCreateTeamFor === 'home' ? (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-3 bg-white dark:bg-warm-800 rounded-xl border border-brand-red/30 space-y-2"
-                      >
-                        <Input
-                          placeholder="Team name (min 3 chars)"
-                          value={newTeamName}
-                          onChange={(e) => setNewTeamName(e.target.value)}
-                          className="h-10 bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 rounded-xl text-sm"
-                          autoFocus
-                        />
-                        <div className="flex gap-1.5 flex-wrap">
-                          {teamColors.slice(0, 8).map((color) => (
-                            <button
-                              key={color}
-                              onClick={() => setNewTeamColor(color)}
-                              className={`w-7 h-7 rounded-lg transition-all ${newTeamColor === color ? 'ring-2 ring-offset-1 ring-brand-red scale-110' : 'hover:scale-110'}`}
-                              style={{ backgroundColor: color }}
-                            >
-                              {newTeamColor === color && <Check className="w-2.5 h-2.5 text-white mx-auto" />}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => { setShowCreateTeamFor(null); setNewTeamName(''); }} className="flex-1 py-2 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-500 font-semibold text-xs">Cancel</button>
-                          <button onClick={() => handleCreateTeam('home')} disabled={newTeamName.trim().length < 3 || isCreatingTeam} className="flex-1 py-2 rounded-xl bg-brand-red text-white font-bold text-xs disabled:opacity-40">Create</button>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <button
-                        onClick={() => setShowCreateTeamFor('home')}
-                        className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 border-dashed border-warm-300 dark:border-warm-600 hover:border-brand-red dark:hover:border-brand-red transition-colors text-warm-500 dark:text-warm-400 hover:text-brand-red"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span className="text-xs font-bold">Create New Team</span>
-                      </button>
-                    )}
-
-                    {/* Manual entry */}
-                    <div className="pt-2 border-t border-warm-100 dark:border-warm-700">
-                      <Input
-                        placeholder="Or type team name manually"
-                        value={homeTeamId ? '' : config.homeTeam}
-                        onChange={(e) => {
-                          setConfig(prev => ({ ...prev, homeTeam: e.target.value }));
-                          setHomeTeamId(null);
-                        }}
-                        className="h-9 bg-transparent border-0 border-b border-warm-200 dark:border-warm-700 rounded-none text-xs focus-visible:ring-0 focus-visible:border-brand-red px-0"
-                      />
-                      <div className="flex gap-1.5 mt-2 flex-wrap">
-                        {teamColors.slice(0, 6).map((color) => (
-                          <button
-                            key={`home-${color}`}
-                            onClick={() => setConfig(prev => ({ ...prev, homeTeamColor: color }))}
-                            className={`w-6 h-6 rounded-md transition-all ${config.homeTeamColor === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}`}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Team A: Selected confirmation */}
-                {config.homeTeam && homeTeamId && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="px-4 pb-3"
+                    <span className="text-white font-black text-lg text-center px-1 truncate max-w-full">{config.homeTeam}</span>
+                    <span className="text-white/60 text-[10px] mt-1">tap to change</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setShowHomeSuggestions(true);
+                      // Focus the search
+                    }}
+                    className="w-24 h-24 rounded-full bg-warm-800 dark:bg-warm-700 flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
                   >
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/5 border border-emerald-400/20">
-                      <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span className="text-[10px] text-emerald-600 font-medium">{config.homeLineup.length} players loaded</span>
-                    </div>
-                  </motion.div>
+                    <Plus className="w-10 h-10 text-white" />
+                  </button>
                 )}
-              </motion.div>
+                <button
+                  onClick={() => setShowHomeSuggestions(true)}
+                  className="px-6 py-2.5 rounded-xl bg-brand-teal text-white font-bold text-sm hover:bg-brand-teal-dark transition-colors"
+                >
+                  {config.homeTeam ? 'Team A Selected' : 'Select Team A'}
+                </button>
+              </div>
 
-              {/* ─── VS Divider ─── */}
-              <div className="flex items-center justify-center py-1">
-                <div className="flex items-center gap-3 w-full">
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
-                  <div className="w-10 h-10 rounded-full bg-warm-100 dark:bg-warm-800 flex items-center justify-center border-2 border-warm-300 dark:border-warm-600 shadow-md">
-                    <Swords className="w-4 h-4 text-warm-400" />
-                  </div>
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-warm-300 dark:via-warm-600 to-transparent" />
+              {/* VS Divider */}
+              <div className="my-2 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center">
+                  <span className="text-warm-500 dark:text-warm-300 font-black text-sm">VS</span>
                 </div>
               </div>
 
-              {/* ─── TEAM B ─── */}
-              <motion.div
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="rounded-2xl border-2 overflow-hidden"
-                style={{ borderColor: config.awayTeam ? `${config.awayTeamColor}40` : 'var(--warm-200, #e5e5e5)' }}
-              >
-                {/* Team B header */}
-                <div
-                  className="px-4 py-3 flex items-center gap-3"
-                  style={{ background: config.awayTeam ? `linear-gradient(135deg, ${config.awayTeamColor}15, transparent)` : 'transparent' }}
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0"
+              {/* Team B */}
+              <div className="flex flex-col items-center gap-3 mt-4">
+                {config.awayTeam ? (
+                  <button
+                    onClick={() => {
+                      setConfig(prev => ({ ...prev, awayTeam: '', awayLineup: [], awayTeamColor: '#1E293B' }));
+                      setAwayTeamId(null);
+                      setAwayTeamCode('');
+                    }}
+                    className="w-24 h-24 rounded-2xl flex flex-col items-center justify-center shadow-lg relative overflow-hidden"
                     style={{ backgroundColor: config.awayTeamColor }}
                   >
-                    {config.awayTeam ? config.awayTeam.charAt(0).toUpperCase() : 'B'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider">Team B</p>
-                    {config.awayTeam && awayTeamId ? (
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{config.awayTeam}</p>
-                        <span className="text-[9px] text-emerald-600 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded-full">{config.awayLineup.length} players</span>
-                      </div>
-                    ) : (
-                      <p className="text-[10px] text-warm-400">Select or search for team</p>
-                    )}
-                  </div>
-                  {config.awayTeam && awayTeamId && (
-                    <button
-                      onClick={() => {
-                        setConfig(prev => ({ ...prev, awayTeam: '', awayLineup: [], awayTeamColor: '#1E293B' }));
-                        setAwayTeamId(null);
-                        setAwayTeamCode('');
-                        setAwayTeamRoster([]);
-                        setAwayPlaying7(new Set());
-                        setAwayCaptain(null);
-                      }}
-                      className="text-[9px] text-warm-400 hover:text-brand-red font-semibold px-2 py-1 rounded-lg hover:bg-brand-red/5 transition-colors"
-                    >
-                      Change
-                    </button>
-                  )}
-                </div>
-
-                {/* Team B: Not selected yet - show search options */}
-                {!awayTeamId && (
-                  <div className="px-4 pb-4 space-y-3">
-                    {/* Team code search */}
-                    <div>
-                      <Input
-                        placeholder="Enter team code (e.g. KT2001)"
-                        value={awayTeamCode}
-                        onChange={(e) => setAwayTeamCode(e.target.value.toUpperCase())}
-                        className="h-11 bg-warm-50 dark:bg-warm-800 border-warm-200 dark:border-warm-700 rounded-xl text-sm font-mono font-bold tracking-wider text-center uppercase"
-                        style={{ borderWidth: '2px' }}
-                      />
-                      <p className="text-[9px] text-warm-400 mt-1 text-center">Search by team code</p>
-                    </div>
-
-                    {/* Search loading */}
-                    {isSearchingAwayTeam && (
-                      <div className="flex items-center justify-center gap-2 py-2">
-                        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-brand-teal border-t-transparent rounded-full" />
-                        <span className="text-xs text-warm-400">Searching...</span>
-                      </div>
-                    )}
-
-                    {/* Search results */}
-                    {awayTeamSearchResults.length > 0 && (
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-brand-teal uppercase tracking-wider">Found Teams</label>
-                        {awayTeamSearchResults.filter(t => t.id !== homeTeamId).map((team) => (
-                          <motion.button
-                            key={team.id}
-                            initial={{ opacity: 0, x: 5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => selectTeam(team, 'away')}
-                            className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-warm-200 dark:border-warm-700 hover:border-brand-teal dark:hover:border-brand-teal bg-white dark:bg-warm-800/50 transition-all text-left"
-                          >
-                            <div
-                              className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0"
-                              style={{ background: `linear-gradient(135deg, ${team.color || '#1E293B'}, ${team.color || '#1E293B'}cc)` }}
-                            >
-                              {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{team.name}</p>
-                              <p className="text-[10px] text-warm-400">
-                                <span className="font-mono font-bold text-brand-teal">{team.teamCode}</span> · {team.memberCount} players
-                              </p>
-                            </div>
-                            <Plus className="w-4 h-4 text-brand-teal shrink-0" />
-                          </motion.button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Your teams suggestions */}
-                    {userTeams.length > 0 && (
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider">Your Teams</label>
-                        {userTeams.filter(t => t.id !== homeTeamId).map((team) => (
-                          <motion.button
-                            key={team.id}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => selectTeam(team, 'away')}
-                            className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-warm-200 dark:border-warm-700 hover:border-brand-teal/50 bg-white dark:bg-warm-800/50 transition-all text-left"
-                          >
-                            <div
-                              className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0"
-                              style={{ backgroundColor: team.color || '#1E293B' }}
-                            >
-                              {team.shortName ? team.shortName.slice(0, 2) : team.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{team.name}</p>
-                              <p className="text-[10px] text-warm-400">
-                                {team.shortName && <span className="font-mono">{team.shortName} · </span>}You're a member
-                              </p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-warm-300 dark:text-warm-600 shrink-0" />
-                          </motion.button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Create team */}
-                    {showCreateTeamFor === 'away' ? (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-3 bg-white dark:bg-warm-800 rounded-xl border border-brand-teal/30 space-y-2"
-                      >
-                        <Input
-                          placeholder="Team name (min 3 chars)"
-                          value={newTeamName}
-                          onChange={(e) => setNewTeamName(e.target.value)}
-                          className="h-10 bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 rounded-xl text-sm"
-                          autoFocus
-                        />
-                        <div className="flex gap-1.5 flex-wrap">
-                          {teamColors.slice(0, 8).map((color) => (
-                            <button
-                              key={color}
-                              onClick={() => setNewTeamColor(color)}
-                              className={`w-7 h-7 rounded-lg transition-all ${newTeamColor === color ? 'ring-2 ring-offset-1 ring-brand-teal scale-110' : 'hover:scale-110'}`}
-                              style={{ backgroundColor: color }}
-                            >
-                              {newTeamColor === color && <Check className="w-2.5 h-2.5 text-white mx-auto" />}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => { setShowCreateTeamFor(null); setNewTeamName(''); }} className="flex-1 py-2 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-500 font-semibold text-xs">Cancel</button>
-                          <button onClick={() => handleCreateTeam('away')} disabled={newTeamName.trim().length < 3 || isCreatingTeam} className="flex-1 py-2 rounded-xl bg-brand-teal text-white font-bold text-xs disabled:opacity-40">Create</button>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <button
-                        onClick={() => setShowCreateTeamFor('away')}
-                        className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 border-dashed border-warm-300 dark:border-warm-600 hover:border-brand-teal dark:hover:border-brand-teal transition-colors text-warm-500 dark:text-warm-400 hover:text-brand-teal"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span className="text-xs font-bold">Create New Team</span>
-                      </button>
-                    )}
-
-                    {/* Manual entry */}
-                    <div className="pt-2 border-t border-warm-100 dark:border-warm-700">
-                      <Input
-                        placeholder="Or type team name manually"
-                        value={awayTeamId ? '' : config.awayTeam}
-                        onChange={(e) => {
-                          setConfig(prev => ({ ...prev, awayTeam: e.target.value }));
-                          setAwayTeamId(null);
-                        }}
-                        className="h-9 bg-transparent border-0 border-b border-warm-200 dark:border-warm-700 rounded-none text-xs focus-visible:ring-0 focus-visible:border-brand-teal px-0"
-                      />
-                      <div className="flex gap-1.5 mt-2 flex-wrap">
-                        {teamColors.slice(0, 6).map((color) => (
-                          <button
-                            key={`away-${color}`}
-                            onClick={() => setConfig(prev => ({ ...prev, awayTeamColor: color }))}
-                            className={`w-6 h-6 rounded-md transition-all ${config.awayTeamColor === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}`}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Team B: Selected confirmation */}
-                {config.awayTeam && awayTeamId && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="px-4 pb-3"
+                    <span className="text-white font-black text-lg text-center px-1 truncate max-w-full">{config.awayTeam}</span>
+                    <span className="text-white/60 text-[10px] mt-1">tap to change</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowAwaySuggestions(true)}
+                    className="w-24 h-24 rounded-full bg-warm-800 dark:bg-warm-700 flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
                   >
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/5 border border-emerald-400/20">
-                      <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span className="text-[10px] text-emerald-600 font-medium">{config.awayLineup.length} players loaded</span>
-                    </div>
-                  </motion.div>
+                    <Plus className="w-10 h-10 text-white" />
+                  </button>
                 )}
-              </motion.div>
+                <button
+                  onClick={() => setShowAwaySuggestions(true)}
+                  className="px-6 py-2.5 rounded-xl bg-brand-teal text-white font-bold text-sm hover:bg-brand-teal-dark transition-colors"
+                >
+                  {config.awayTeam ? 'Team B Selected' : 'Select Team B'}
+                </button>
+              </div>
 
-              {/* No teams hint */}
-              {userTeams.length === 0 && !homeTeamId && !awayTeamId && (
-                <div className="text-center py-2">
-                  <p className="text-[10px] text-warm-400 dark:text-warm-500">Tip: Create a team or search by team code to auto-load players</p>
+              {/* Team code input (optional — for joining by code) */}
+              <div className="mt-8 w-full max-w-xs">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter team code (e.g. KT2001)"
+                    value={homeTeamCode}
+                    onChange={(e) => setHomeTeamCode(e.target.value.toUpperCase())}
+                    className="flex-1 h-10 px-3 rounded-xl bg-warm-50 dark:bg-warm-800 border border-warm-200 dark:border-warm-600 text-sm text-warm-800 dark:text-warm-100 uppercase font-mono"
+                    maxLength={10}
+                  />
+                  <button
+                    onClick={() => {
+                      if (homeTeamCode.trim()) {
+                        // Search by team code
+                        fetch(`/api/teams/search?teamCode=${encodeURIComponent(homeTeamCode.trim())}&limit=1`)
+                          .then(res => res.json())
+                          .then(data => {
+                            if (data.teams && data.teams.length > 0) {
+                              const t = data.teams[0];
+                              selectTeam({ id: t.id, name: t.name, shortName: t.shortName, color: t.color, teamCode: t.teamCode }, 'home');
+                            } else {
+                              toast({ title: 'Team not found', description: 'No team with that code', variant: 'destructive' });
+                            }
+                          });
+                      }
+                    }}
+                    className="px-4 h-10 rounded-xl bg-brand-teal text-white font-bold text-sm hover:bg-brand-teal-dark"
+                  >
+                    Find
+                  </button>
                 </div>
-              )}
+              </div>
+
+              {/* Team picker modals */}
+              <AnimatePresence>
+                {showHomeSuggestions && (
+                  <TeamPickerModal
+                    title="Select Team A"
+                    userTeams={userTeams}
+                    onSelect={(team) => {
+                      selectTeam(team, 'home');
+                      setShowHomeSuggestions(false);
+                    }}
+                    onClose={() => setShowHomeSuggestions(false)}
+                    onSearch={async (query) => {
+                      const res = await fetch(`/api/teams/search?q=${encodeURIComponent(query)}&limit=10`);
+                      if (res.ok) {
+                        const data = await res.json();
+                        return data.teams || [];
+                      }
+                      return [];
+                    }}
+                  />
+                )}
+              </AnimatePresence>
+              <AnimatePresence>
+                {showAwaySuggestions && (
+                  <TeamPickerModal
+                    title="Select Team B"
+                    userTeams={userTeams}
+                    onSelect={(team) => {
+                      selectTeam(team, 'away');
+                      setShowAwaySuggestions(false);
+                    }}
+                    onClose={() => setShowAwaySuggestions(false)}
+                    onSearch={async (query) => {
+                      const res = await fetch(`/api/teams/search?q=${encodeURIComponent(query)}&limit=10`);
+                      if (res.ok) {
+                        const data = await res.json();
+                        return data.teams || [];
+                      }
+                      return [];
+                    }}
+                  />
+                )}
+              </AnimatePresence>
             </div>
           )}
+
 
           {step === 3 && (
             <div className="space-y-4 pb-6">
