@@ -272,7 +272,7 @@ function EventLogEntry({ event, matchInfo }: { event: MatchEvent; matchInfo: { h
     <motion.div
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-gray-800/30 dark:hover:bg-gray-700/30 transition-colors"
+      className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-warm-100 dark:hover:bg-warm-700/30 dark:hover:bg-gray-700/30 transition-colors"
     >
       <span className="text-[9px] font-mono text-gray-500 dark:text-gray-400 w-14 shrink-0">{timeStr}</span>
       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamColor }} />
@@ -1556,7 +1556,7 @@ export default function LiveScoringScreen() {
                   #{player.jerseyNumber}
                 </span>
               )}
-              <span className={(isSmall ? 'text-[8px] ' : 'text-sm ') + 'font-bold text-gray-100 truncate leading-tight'}>
+              <span className={(isSmall ? 'text-[8px] ' : 'text-sm ') + 'font-bold text-warm-800 dark:text-gray-100 truncate leading-tight'}>
                 {player.name.split(' ').length > 1
                   ? `${player.name.split(' ')[0]} ${player.name.split(' ')[1][0]}.`
                   : player.name.split(' ')[0]
@@ -1640,10 +1640,10 @@ export default function LiveScoringScreen() {
     return (
       <div className={`flex flex-col h-full transition-colors duration-300 ${
         isRaidingSide && isIdle
-          ? `bg-gradient-to-b from-gray-900 to-gray-950`
+          ? 'bg-gradient-to-b from-warm-100 to-warm-200 dark:from-gray-900 dark:to-gray-950'
           : isRaidingSide
-            ? 'bg-gradient-to-b from-gray-900/90 to-gray-950/90'
-            : 'bg-gray-900/95'
+            ? 'bg-gradient-to-b from-warm-100/90 to-warm-200/90 dark:from-gray-900/90 dark:to-gray-950/90'
+            : 'bg-warm-100/95 dark:bg-gray-900/95'
       }`} style={{ borderRight: side === 'home' ? `2px solid ${teamColor}30` : undefined, borderLeft: side === 'away' ? `2px solid ${teamColor}30` : undefined }}>
         {/* Team header with name, score, turn indicator */}
         <div className="flex items-center justify-between px-2 py-1.5 border-b" style={{ borderColor: `${teamColor}30`, backgroundColor: `${teamColor}10` }}>
@@ -1668,7 +1668,7 @@ export default function LiveScoringScreen() {
                 RAID
               </motion.span>
             ) : (
-              <span className="inline-flex items-center gap-0.5 text-[6px] font-bold px-1 py-0.5 rounded-full bg-gray-800/50 text-gray-500 uppercase tracking-wider">
+              <span className="inline-flex items-center gap-0.5 text-[6px] font-bold px-1 py-0.5 rounded-full bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400 uppercase tracking-wider">
                 <Shield className="w-2 h-2" />
                 DEF
               </span>
@@ -1769,7 +1769,7 @@ export default function LiveScoringScreen() {
         )}
         {!isRaidingSide && isIdle && (
           <div className="px-2 pb-1.5 text-center shrink-0">
-            <span className="inline-flex items-center gap-0.5 text-[7px] font-bold px-2 py-0.5 rounded-full bg-gray-800/40 text-gray-600 uppercase tracking-wider">
+            <span className="inline-flex items-center gap-0.5 text-[7px] font-bold px-2 py-0.5 rounded-full bg-warm-200 dark:bg-warm-700 text-warm-500 dark:text-warm-400 uppercase tracking-wider">
               <Shield className="w-2 h-2" />
               DEFENDING
             </span>
@@ -1795,7 +1795,7 @@ export default function LiveScoringScreen() {
   const allEvents = match.events;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-950 dark:bg-warm-950">
+    <div className="flex flex-col h-screen bg-warm-50 dark:bg-warm-950">
       {/* Share Scorecard Overlay */}
       {showShareScorecard && savedMatchData && (
         <ShareScorecard onClose={() => setShowShareScorecard(false)} matchData={savedMatchData} />
@@ -1853,11 +1853,11 @@ export default function LiveScoringScreen() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              className="w-full max-w-xs rounded-2xl p-5 text-center bg-gray-900 dark:bg-warm-800 border border-red-700/50"
+              className="w-full max-w-xs rounded-2xl p-5 text-center bg-white dark:bg-warm-800 border border-red-700/50"
             >
               <div className="text-3xl mb-2">🚫</div>
-              <h3 className="text-base font-black text-gray-100 dark:text-warm-100">Self-Out?</h3>
-              <p className="text-sm text-gray-400 dark:text-warm-400 mt-1">
+              <h3 className="text-base font-black text-warm-800 dark:text-warm-100">Self-Out?</h3>
+              <p className="text-sm text-warm-500 dark:text-warm-400 mt-1">
                 Did <span className="font-bold text-white">{selfOutConfirm.name}</span> step off the mat?
               </p>
               <p className="text-[10px] text-gray-500 mt-1">
@@ -1887,16 +1887,16 @@ export default function LiveScoringScreen() {
       {/* Timeout Type Selector */}
       {showTimeoutTypeSelector && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-xs rounded-2xl p-5 text-center bg-gray-900 dark:bg-warm-800 border border-gray-700 dark:border-warm-700">
+          <div className="w-full max-w-xs rounded-2xl p-5 text-center bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700">
             <Hand className="w-8 h-8 text-orange-500 mx-auto mb-3" />
-            <h3 className="text-lg font-black text-gray-100 dark:text-warm-100 mb-1">Timeout</h3>
+            <h3 className="text-lg font-black text-warm-800 dark:text-warm-100 mb-1">Timeout</h3>
             <p className="text-xs text-gray-400 mb-4">Who called this timeout?</p>
 
             <div className="space-y-2">
               {/* Home Team */}
               <button
                 onClick={() => handleTimeout('home')}
-                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-warm-300 dark:border-warm-600 hover:border-warm-400 dark:hover:border-warm-500 transition-colors"
                 style={{ backgroundColor: `${match.homeTeamColor}15` }}
               >
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.homeTeamColor }}>
@@ -1914,7 +1914,7 @@ export default function LiveScoringScreen() {
               {/* Away Team */}
               <button
                 onClick={() => handleTimeout('away')}
-                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-warm-300 dark:border-warm-600 hover:border-warm-400 dark:hover:border-warm-500 transition-colors"
                 style={{ backgroundColor: `${match.awayTeamColor}15` }}
               >
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.awayTeamColor }}>
@@ -1932,7 +1932,7 @@ export default function LiveScoringScreen() {
               {/* Official Timeout */}
               <button
                 onClick={() => handleTimeout('official')}
-                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors bg-gray-800/50"
+                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-warm-300 dark:border-warm-600 hover:border-warm-400 dark:hover:border-warm-500 transition-colors bg-gray-800/50"
               >
                 <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-600 text-white">
                   <AlertTriangle className="w-5 h-5" />
@@ -1946,7 +1946,7 @@ export default function LiveScoringScreen() {
 
             <button
               onClick={() => setShowTimeoutTypeSelector(false)}
-              className="w-full mt-3 py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
+              className="w-full mt-3 py-2.5 rounded-xl border border-gray-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
             >
               Cancel
             </button>
@@ -1958,14 +1958,14 @@ export default function LiveScoringScreen() {
       {showTimeoutOverlay && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div
-            className="w-full max-w-xs rounded-2xl p-6 text-center bg-gray-900 dark:bg-warm-800 border border-gray-700 dark:border-warm-700"
+            className="w-full max-w-xs rounded-2xl p-6 text-center bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700"
             style={{ borderTopColor: timeoutTeam === 'home' ? match.homeTeamColor : timeoutTeam === 'away' ? match.awayTeamColor : '#f97316', borderTopWidth: '4px' }}
           >
             <Hand className="w-10 h-10 text-orange-500 mx-auto mb-3" />
-            <h3 className="text-lg font-black text-gray-100 dark:text-warm-100">
+            <h3 className="text-lg font-black text-warm-800 dark:text-warm-100">
               {timeoutTeam === 'official' ? 'Official Timeout' : 'Timeout'}
             </h3>
-            <p className="text-sm text-gray-400 dark:text-warm-400 mb-3">
+            <p className="text-sm text-warm-500 dark:text-warm-400 mb-3">
               {timeoutTeam === 'official'
                 ? 'Officials called a timeout'
                 : timeoutTeam === 'home'
@@ -2005,10 +2005,10 @@ export default function LiveScoringScreen() {
       {/* Substitute Mode Overlay — Tap sub IN first, then pick who goes OUT */}
       {showSubMode && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center">
-          <div className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-4 max-h-[70vh] overflow-y-auto">
+          <div className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-3xl p-4 max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-black text-gray-100 dark:text-warm-100">Substitution</div>
+                <div className="text-sm font-black text-warm-800 dark:text-warm-100">Substitution</div>
                 <div className="text-[10px] text-gray-400 dark:text-warm-500">
                   {subInPlayer
                     ? `Now tap an on-court player to sub OUT for ${subInPlayer.name}`
@@ -2019,7 +2019,7 @@ export default function LiveScoringScreen() {
                 onClick={() => { setShowSubMode(null); setSubInPlayer(null); }}
                 className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"
               >
-                <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
+                <X className="w-4 h-4 text-warm-500 dark:text-warm-400" />
               </button>
             </div>
 
@@ -2045,7 +2045,7 @@ export default function LiveScoringScreen() {
                             <button
                               key={player.id}
                               onClick={() => setSubInPlayer(player)}
-                              className="flex items-center gap-2 p-2 rounded-xl hover:bg-gray-800 transition-colors text-left"
+                              className="flex items-center gap-2 p-2 rounded-xl hover:bg-warm-100 dark:hover:bg-warm-700 transition-colors text-left"
                             >
                               <PlayerCard
                                 player={player}
@@ -2165,9 +2165,7 @@ export default function LiveScoringScreen() {
       </AnimatePresence>
 
       {/* ═══ COMPACT TOP INFO BAR ═══ */}
-      <div className="relative overflow-hidden shrink-0" style={{
-        background: `linear-gradient(135deg, ${match.homeTeamColor}15, #111827, ${match.awayTeamColor}15)`,
-      }}>
+      <div className="relative overflow-hidden shrink-0 bg-warm-100 dark:bg-gray-900 border-b border-warm-200 dark:border-gray-800">
         {/* Top info row */}
         <div className="relative px-2 pt-1 pb-0.5 flex items-center justify-between">
           <div className="flex items-center gap-1">
@@ -2522,14 +2520,14 @@ export default function LiveScoringScreen() {
       <AnimatePresence>
         {raidPhase === 'result' && raider && (
           <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed inset-x-0 bottom-[76px] z-40 px-4">
-            <div className="bg-gray-900 dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-700 dark:border-warm-700 p-4 max-w-md mx-auto">
+            <div className="bg-white dark:bg-warm-800 rounded-2xl shadow-2xl border border-warm-200 dark:border-warm-700 p-4 max-w-md mx-auto">
               {/* Header: Raider info + Timer + Cancel */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md" style={{ backgroundColor: raidingTeamColor }}>
                   {raider.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
                 </div>
                 <div className="flex-1">
-                  <div className="text-base font-black text-gray-100 dark:text-warm-100">#{raider.jerseyNumber || '?'} {raider.name}</div>
+                  <div className="text-base font-black text-warm-800 dark:text-warm-100">#{raider.jerseyNumber || '?'} {raider.name}</div>
                   <div className="text-xs text-gray-400 dark:text-warm-500">raiding for {raidingTeamName}</div>
                 </div>
                 {raidTimer !== null && (
@@ -2546,7 +2544,7 @@ export default function LiveScoringScreen() {
                   </div>
                 )}
                 <button onClick={cancelRaid} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center flex-shrink-0">
-                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
+                  <X className="w-4 h-4 text-warm-500 dark:text-warm-400" />
                 </button>
               </div>
 
@@ -2589,7 +2587,7 @@ export default function LiveScoringScreen() {
                   scorer can quickly log a self-out without going to Actions */}
               <button
                 onClick={() => setSelfOutSelection('raider')}
-                className="w-full mt-2 py-2.5 rounded-xl bg-gray-800 border border-gray-600 text-gray-300 font-bold text-sm flex items-center justify-center gap-2"
+                className="w-full mt-2 py-2.5 rounded-xl bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 text-warm-700 dark:text-warm-200 font-bold text-sm flex items-center justify-center gap-2"
               >
                 🚫 Self-Out (Raider or Defender stepped out)
               </button>
@@ -2601,7 +2599,7 @@ export default function LiveScoringScreen() {
       <AnimatePresence>
         {raidPhase === 'defenders' && raider && raidResult && (
           <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed inset-x-0 bottom-[76px] z-40 px-4">
-            <div className="bg-gray-900 dark:bg-warm-800 rounded-2xl shadow-2xl border border-gray-700 dark:border-warm-700 p-4 max-w-md mx-auto max-h-[60vh] overflow-y-auto">
+            <div className="bg-white dark:bg-warm-800 rounded-2xl shadow-2xl border border-warm-200 dark:border-warm-700 p-4 max-w-md mx-auto max-h-[60vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex-1">
                   {raidResult === 'success' ? (
@@ -2619,7 +2617,7 @@ export default function LiveScoringScreen() {
                   </div>
                 )}
                 <button onClick={() => { setRaidPhase('result'); setSelectedDefenders(new Set()); setBonusPoint(false); }} className="w-8 h-8 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center flex-shrink-0">
-                  <X className="w-4 h-4 text-gray-400 dark:text-warm-400" />
+                  <X className="w-4 h-4 text-warm-500 dark:text-warm-400" />
                 </button>
               </div>
 
@@ -2648,7 +2646,7 @@ export default function LiveScoringScreen() {
                     onClick={() => canGetBonus && setBonusPoint(!bonusPoint)}
                     disabled={!canGetBonus}
                     className={`mt-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                      bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : canGetBonus ? 'bg-gray-800 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-gray-400 dark:text-warm-400' : 'bg-gray-800/50 dark:bg-warm-700/50 border-2 border-gray-700 dark:border-warm-600 text-gray-600 dark:text-warm-600 cursor-not-allowed opacity-50'
+                      bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : canGetBonus ? 'bg-warm-100 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-warm-500 dark:text-warm-400' : 'bg-warm-100/50 dark:bg-warm-700/50 border-2 border-gray-700 dark:border-warm-600 text-gray-600 dark:text-warm-600 cursor-not-allowed opacity-50'
                     }`}
                     title={canGetBonus ? 'Toggle Bonus Point' : !match.bonusEnabled ? 'Bonus disabled for this format' : `Bonus only with ${match.bonusLineThreshold}+ defenders on court`}
                   >
@@ -2691,39 +2689,39 @@ export default function LiveScoringScreen() {
 
 
       {/* ═══ BOTTOM CONTROL BAR ═══ */}
-      <div className="border-t border-gray-700 dark:border-warm-700 bg-gray-900 dark:bg-warm-800 px-2 py-1.5 shrink-0">
+      <div className="border-t border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800 px-2 py-1.5 shrink-0">
         <div className="grid grid-cols-6 gap-0.5">
           {/* HOME — go to home screen (match stays live, come back via Quick Score tab) */}
-          <button onClick={() => setActiveTab('home')} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
+          <button onClick={() => setActiveTab('home')} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-warm-100 dark:active:bg-warm-700">
             <div className="w-7 h-7 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"><Home className="w-3.5 h-3.5 text-gray-400 dark:text-warm-300" /></div>
-            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">HOME</span>
+            <span className="text-[8px] font-semibold text-warm-500 dark:text-warm-400">HOME</span>
           </button>
           {/* UNDO */}
-          <button onClick={handleUndo} disabled={match.events.length === 0} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700 disabled:opacity-30">
+          <button onClick={handleUndo} disabled={match.events.length === 0} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-warm-100 dark:active:bg-warm-700 disabled:opacity-30">
             <div className="w-7 h-7 rounded-full bg-gray-700 dark:bg-warm-700 flex items-center justify-center"><Undo2 className="w-3.5 h-3.5 text-gray-400 dark:text-warm-300" /></div>
-            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">UNDO</span>
+            <span className="text-[8px] font-semibold text-warm-500 dark:text-warm-400">UNDO</span>
           </button>
           {/* PAUSE / PLAY */}
-          <button onClick={handlePause} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
+          <button onClick={handlePause} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-warm-100 dark:active:bg-warm-700">
             <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isPaused ? 'bg-teal-900/40 text-teal-400' : 'bg-gray-700 dark:bg-warm-700 text-gray-400 dark:text-warm-300'}`}>
               {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
             </div>
-            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">{isPaused ? 'PLAY' : 'PAUSE'}</span>
+            <span className="text-[8px] font-semibold text-warm-500 dark:text-warm-400">{isPaused ? 'PLAY' : 'PAUSE'}</span>
           </button>
           {/* ADD PLAYER */}
-          <button onClick={() => setShowAddPlayer(true)} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
+          <button onClick={() => setShowAddPlayer(true)} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-warm-100 dark:active:bg-warm-700">
             <div className="w-7 h-7 rounded-full bg-emerald-900/30 flex items-center justify-center"><UserPlus className="w-3.5 h-3.5 text-emerald-400" /></div>
-            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">ADD</span>
+            <span className="text-[8px] font-semibold text-warm-500 dark:text-warm-400">ADD</span>
           </button>
           {/* SPECIALS — change raid team, add +1 point, end half */}
-          <button onClick={() => setShowSpecialsPanel(true)} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-gray-800 dark:active:bg-warm-700">
+          <button onClick={() => setShowSpecialsPanel(true)} className="flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors active:bg-warm-100 dark:active:bg-warm-700">
             <div className="w-7 h-7 rounded-full bg-yellow-900/30 flex items-center justify-center"><Zap className="w-3.5 h-3.5 text-yellow-400" /></div>
-            <span className="text-[8px] font-semibold text-gray-400 dark:text-warm-400">SPECIALS</span>
+            <span className="text-[8px] font-semibold text-warm-500 dark:text-warm-400">SPECIALS</span>
           </button>
           {/* END MATCH */}
-          <button onClick={handleEndMatch} className={`flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors ${showEndMatchConfirm ? 'bg-red-900/20' : 'active:bg-gray-800 dark:active:bg-warm-700'}`}>
+          <button onClick={handleEndMatch} className={`flex flex-col items-center gap-0.5 py-1 rounded-xl transition-colors ${showEndMatchConfirm ? 'bg-red-900/20' : 'active:bg-warm-100 dark:active:bg-warm-700'}`}>
             <div className={`w-7 h-7 rounded-full flex items-center justify-center ${showEndMatchConfirm ? 'bg-red-800 text-red-300 animate-pulse' : 'bg-red-900/30 text-red-400'}`}><Square className="w-3.5 h-3.5" /></div>
-            <span className={`text-[8px] font-semibold ${showEndMatchConfirm ? 'text-red-300' : 'text-gray-400 dark:text-warm-400'}`}>{showEndMatchConfirm ? 'SURE?' : 'END'}</span>
+            <span className={`text-[8px] font-semibold ${showEndMatchConfirm ? 'text-red-300' : 'text-warm-500 dark:text-warm-400'}`}>{showEndMatchConfirm ? 'SURE?' : 'END'}</span>
           </button>
         </div>
       </div>
@@ -2735,7 +2733,7 @@ export default function LiveScoringScreen() {
           onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerPhone(''); setAddPlayerSearchResults([]); }}
         >
           <div
-            className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
+            className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Handle bar */}
@@ -2754,7 +2752,7 @@ export default function LiveScoringScreen() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setAddPlayerTeam('home')}
-                    className="flex items-center gap-2 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                    className="flex items-center gap-2 p-3 rounded-xl border-2 border-warm-300 dark:border-warm-600 hover:border-warm-400 dark:hover:border-warm-500 transition-colors"
                     style={{ backgroundColor: `${match.homeTeamColor}15` }}
                   >
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.homeTeamColor }}>
@@ -2767,7 +2765,7 @@ export default function LiveScoringScreen() {
                   </button>
                   <button
                     onClick={() => setAddPlayerTeam('away')}
-                    className="flex items-center gap-2 p-3 rounded-xl border-2 border-gray-700 hover:border-gray-500 transition-colors"
+                    className="flex items-center gap-2 p-3 rounded-xl border-2 border-warm-300 dark:border-warm-600 hover:border-warm-400 dark:hover:border-warm-500 transition-colors"
                     style={{ backgroundColor: `${match.awayTeamColor}15` }}
                   >
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: match.awayTeamColor }}>
@@ -2852,7 +2850,7 @@ export default function LiveScoringScreen() {
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerPhone(''); setAddPlayerSearchResults([]); }}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
+                    className="flex-1 py-2.5 rounded-xl border border-gray-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
                   >
                     Cancel
                   </button>
@@ -2885,7 +2883,7 @@ export default function LiveScoringScreen() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4 space-y-3"
+              className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black text-white">⚡ Specials</h3>
@@ -2927,7 +2925,7 @@ export default function LiveScoringScreen() {
 
               <button
                 onClick={() => setShowSpecialsPanel(false)}
-                className="w-full py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
+                className="w-full py-2.5 rounded-xl border border-gray-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
               >
                 Close
               </button>
@@ -2951,7 +2949,7 @@ export default function LiveScoringScreen() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4"
+              className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4"
             >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-black text-white">Add +1 Point to which team?</h3>
@@ -3009,7 +3007,7 @@ export default function LiveScoringScreen() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto"
+              className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-3">
@@ -3096,7 +3094,7 @@ export default function LiveScoringScreen() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4"
+              className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4"
             >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-black text-white">⚖️ Technical Point — Award to which team?</h3>
@@ -3156,7 +3154,7 @@ export default function LiveScoringScreen() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto"
+              className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-black text-white">🚫 Self-Out — Who stepped out?</h3>
@@ -3225,7 +3223,7 @@ export default function LiveScoringScreen() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-gray-900 dark:bg-warm-800 rounded-t-2xl p-4 space-y-3"
+              className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-2xl p-4 space-y-3"
             >
               {/* Header */}
               <div className="flex items-center justify-between">
@@ -3305,7 +3303,7 @@ export default function LiveScoringScreen() {
               {/* Close button */}
               <button
                 onClick={() => setShowActionsPanel(false)}
-                className="w-full py-2.5 rounded-xl border border-gray-600 text-gray-300 font-semibold text-sm"
+                className="w-full py-2.5 rounded-xl border border-gray-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
               >
                 Close
               </button>
