@@ -383,33 +383,34 @@ function TeamPickerModal({
 }
 
 // ─── Formation Player (circle with image + jersey number outside) ──
-function FormationPlayer({ player, teamColor, allPlayers }: { player: MatchPlayer; teamColor: string; allPlayers: DbPlayer[] }) {
+function FormationPlayer({ player, teamColor, allPlayers, size = 'normal' }: { player: MatchPlayer; teamColor: string; allPlayers: DbPlayer[]; size?: 'normal' | 'small' }) {
   const dbPlayer = allPlayers.find(p => p.id === player.id);
   const avatar = dbPlayer?.avatar;
   const initials = player.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+  const isSmall = size === 'small';
 
   return (
     <div className="flex flex-col items-center gap-0.5">
       {/* Jersey number OUTSIDE circle (above) */}
       <span
-        className="text-[9px] font-black leading-none px-1 py-0.5 rounded"
+        className={(isSmall ? 'text-[8px] ' : 'text-[10px] ') + 'font-black leading-none px-1 py-0.5 rounded'}
         style={{ color: '#fff', backgroundColor: teamColor }}
       >
         {player.jerseyNumber || '?'}
       </span>
       {/* Player circle — bigger, with image inside */}
       <div
-        className="w-11 h-11 rounded-full overflow-hidden border-2 shadow-sm flex items-center justify-center"
+        className={(isSmall ? 'w-9 h-9 ' : 'w-14 h-14 ') + 'rounded-full overflow-hidden border-2 shadow-sm flex items-center justify-center'}
         style={{ borderColor: teamColor, backgroundColor: `${teamColor}30` }}
       >
         {avatar ? (
           <img src={avatar} alt={player.name} className="w-full h-full object-cover" />
         ) : (
-          <span className="text-[10px] font-bold" style={{ color: teamColor }}>{initials}</span>
+          <span className={(isSmall ? 'text-[9px] ' : 'text-xs ') + 'font-bold'} style={{ color: teamColor }}>{initials}</span>
         )}
       </div>
       {/* Player first name */}
-      <span className="text-[7px] font-bold text-warm-700 dark:text-warm-300 truncate max-w-[42px]">
+      <span className={(isSmall ? 'text-[6px] ' : 'text-[8px] ') + 'font-bold text-warm-700 dark:text-warm-300 truncate max-w-[48px]'}>
         {player.name?.split(' ')[0]}
       </span>
     </div>
@@ -1685,15 +1686,37 @@ export default function QuickScoreTab() {
                   <div className="absolute top-0 bottom-0 right-0 w-3 border-l border-blue-400/50 bg-warm-100/30 dark:bg-warm-700/30" />
                 </div>
 
-                {/* Substitutes below court */}
-                <div className="flex justify-between mt-2 px-2">
-                  <span className="text-[9px] font-bold text-warm-500">
-                    {config.homeLineup.length > config.playersPerSide ? `${config.homeLineup.length - config.playersPerSide} subs` : 'No subs'}
-                  </span>
-                  <span className="text-[9px] font-bold text-warm-500">
-                    {config.awayLineup.length > config.playersPerSide ? `${config.awayLineup.length - config.playersPerSide} subs` : 'No subs'}
-                  </span>
-                </div>
+                {/* Substitutes below court — show actual player list */}
+                {(config.homeLineup.length > config.playersPerSide || config.awayLineup.length > config.playersPerSide) && (
+                  <div className="mt-3 space-y-2">
+                    {/* Home subs */}
+                    {config.homeLineup.length > config.playersPerSide && (
+                      <div className="flex items-center gap-2 p-2 rounded-xl" style={{ backgroundColor: `${config.homeTeamColor}10` }}>
+                        <span className="text-[9px] font-black uppercase shrink-0" style={{ color: config.homeTeamColor }}>
+                          {config.homeTeam?.slice(0, 8)} Subs:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {config.homeLineup.slice(config.playersPerSide).map((player) => (
+                            <FormationPlayer key={player.id} player={player} teamColor={config.homeTeamColor} allPlayers={allPlayers} size="small" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Away subs */}
+                    {config.awayLineup.length > config.playersPerSide && (
+                      <div className="flex items-center gap-2 p-2 rounded-xl" style={{ backgroundColor: `${config.awayTeamColor}10` }}>
+                        <span className="text-[9px] font-black uppercase shrink-0" style={{ color: config.awayTeamColor }}>
+                          {config.awayTeam?.slice(0, 8)} Subs:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {config.awayLineup.slice(config.playersPerSide).map((player) => (
+                            <FormationPlayer key={player.id} player={player} teamColor={config.awayTeamColor} allPlayers={allPlayers} size="small" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Match info badges */}
