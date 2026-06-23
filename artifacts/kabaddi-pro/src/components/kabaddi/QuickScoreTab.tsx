@@ -385,7 +385,7 @@ export default function QuickScoreTab() {
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<MatchConfig>({
         weightCategory: '',
-    halfDuration: 10,
+    halfDuration: 20,
     playersPerSide: 7,
     homeTeam: '',
     awayTeam: '',
@@ -1147,43 +1147,43 @@ export default function QuickScoreTab() {
                 )}
               </div>
 
-              {/* Half Duration */}
+              {/* Half Duration — Slider 1-20 min, default 20 */}
               <div className="space-y-2">
-                <label className="text-sm font-bold text-warm-700 dark:text-warm-300">Half Duration (minutes)</label>
-                <div className="flex gap-2">
-                  {[10, 15, 20, 25, 30].map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setConfig(prev => ({ ...prev, halfDuration: d }))}
-                      className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${
-                        config.halfDuration === d
-                          ? 'bg-brand-red text-white shadow-md'
-                          : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
-                      }`}
-                    >
-                      {d}
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-bold text-warm-700 dark:text-warm-300">Half Duration</label>
+                  <span className="text-lg font-black text-brand-red">{config.halfDuration} min</span>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={20}
+                  value={config.halfDuration}
+                  onChange={(e) => setConfig(prev => ({ ...prev, halfDuration: parseInt(e.target.value) }))}
+                  className="w-full h-2 bg-warm-200 dark:bg-warm-700 rounded-lg appearance-none cursor-pointer accent-brand-red"
+                />
+                <div className="flex justify-between text-[10px] text-warm-400">
+                  <span>1 min</span>
+                  <span>20 min</span>
                 </div>
               </div>
 
-              {/* Players Per Side */}
+              {/* Players Per Side — Slider 1-8, default 7 */}
               <div className="space-y-2">
-                <label className="text-sm font-bold text-warm-700 dark:text-warm-300">Players Per Side</label>
-                <div className="flex gap-2">
-                  {[3, 5, 7].map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setConfig(prev => ({ ...prev, playersPerSide: p }))}
-                      className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${
-                        config.playersPerSide === p
-                          ? 'bg-brand-red text-white shadow-md'
-                          : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
-                      }`}
-                    >
-                      {p}v{p}
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-bold text-warm-700 dark:text-warm-300">Players Per Side</label>
+                  <span className="text-lg font-black text-brand-red">{config.playersPerSide}v{config.playersPerSide}</span>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={8}
+                  value={config.playersPerSide}
+                  onChange={(e) => setConfig(prev => ({ ...prev, playersPerSide: parseInt(e.target.value) }))}
+                  className="w-full h-2 bg-warm-200 dark:bg-warm-700 rounded-lg appearance-none cursor-pointer accent-brand-red"
+                />
+                <div className="flex justify-between text-[10px] text-warm-400">
+                  <span>1v1</span>
+                  <span>8v8</span>
                 </div>
               </div>
             </div>

@@ -1034,13 +1034,8 @@ export default function HomeTab() {
     });
   };
 
-  // Filter live matches by gender
-  const filteredMatches = liveMatches.filter((match) => {
-    if (genderFilter === 'all') return true;
-    if (genderFilter === 'boys') return match.gender?.toLowerCase() === 'male' || match.gender?.toLowerCase() === 'boys';
-    if (genderFilter === 'girls') return match.gender?.toLowerCase() === 'female' || match.gender?.toLowerCase() === 'girls';
-    return true;
-  });
+  // No gender filter — show all live matches
+  const filteredMatches = liveMatches;
 
   // Gender icon for greeting
   const genderIcon = currentUser?.gender?.toLowerCase() === 'female' || currentUser?.gender?.toLowerCase() === 'girls'
@@ -1609,40 +1604,6 @@ export default function HomeTab() {
           </div>
         </div>
 
-        {/* Gender Filter Toggles */}
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={() => setGenderFilter('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
-              genderFilter === 'all'
-                ? 'bg-warm-800 dark:bg-warm-100 text-warm-50 dark:text-warm-900 shadow-sm'
-                : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-700'
-            }`}
-          >
-            {t('home.all', language)}
-          </button>
-          <button
-            onClick={() => setGenderFilter('boys')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
-              genderFilter === 'boys'
-                ? 'bg-brand-blue text-white shadow-sm'
-                : 'bg-brand-blue/10 text-brand-blue dark:text-brand-navy-light hover:bg-brand-blue/20'
-            }`}
-          >
-            ♂ {t('home.boys', language)}
-          </button>
-          <button
-            onClick={() => setGenderFilter('girls')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold gender-pill ${
-              genderFilter === 'girls'
-                ? 'bg-brand-red text-white shadow-sm'
-                : 'bg-brand-red/10 text-brand-red hover:bg-brand-red/20'
-            }`}
-          >
-            ♀ {t('home.girls', language)}
-          </button>
-        </div>
-
         <AnimatePresence mode="wait">
           {loading ? (
             <motion.div
@@ -1747,20 +1708,7 @@ export default function HomeTab() {
                               </span>
                               LIVE
                             </Badge>
-                            {match.gender && (
-                              <Badge
-                                variant="secondary"
-                                className={`text-[10px] font-semibold border-0 px-2 py-0.5 ${
-                                  match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
-                                    ? 'bg-brand-red/15 text-brand-red'
-                                    : 'bg-brand-blue/15 text-brand-blue dark:text-brand-navy-light'
-                                }`}
-                              >
-                                {match.gender.toLowerCase() === 'female' || match.gender.toLowerCase() === 'girls'
-                                  ? '♀ Girls Match'
-                                  : '♂ Boys Match'}
-                              </Badge>
-                            )}
+
                             {match.weightCategory && (
                               <Badge
                                 variant="secondary"
@@ -1934,9 +1882,7 @@ export default function HomeTab() {
                     </div>
                   </div>
                   <p className="text-warm-700 dark:text-warm-200 text-sm font-bold">
-                    {genderFilter !== 'all'
-                      ? t('home.noLiveMatches', language)
-                      : t('home.noLiveMatches', language)}
+                    {t('home.noLiveMatches', language)}
                   </p>
                   <p className="text-warm-500 dark:text-warm-400 text-xs mt-1 text-center">
                     Matches will appear here when they go live — stay tuned! 🏏
@@ -2231,7 +2177,7 @@ export default function HomeTab() {
             animate="show"
           >
             {upcomingMatches.slice(0, 5).map((match) => {
-              const isFemale = match.gender?.toLowerCase() === 'female' || match.gender?.toLowerCase() === 'girls';
+              
               const gradientFrom = match.homeTeam.color || '#DC2626';
               const gradientTo = match.awayTeam.color || '#1E293B';
               return (
@@ -2260,17 +2206,7 @@ export default function HomeTab() {
                             <Calendar className="w-2.5 h-2.5" />
                             {t('home.upcoming', language)}
                           </Badge>
-                          {match.gender && (
-                            <Badge
-                              className={`text-[9px] font-bold border-0 px-1.5 py-0.5 ${
-                                isFemale
-                                  ? 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400'
-                                  : 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400'
-                              }`}
-                            >
-                              {isFemale ? '♀' : '♂'}
-                            </Badge>
-                          )}
+
                           {match.weightCategory && (
                             <Badge
                               className="text-[9px] font-semibold border-0 px-1.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300"
