@@ -388,7 +388,7 @@ export default function LiveScoringScreen() {
   const [showShareScorecard, setShowShareScorecard] = useState(false);
   const [savedMatchData, setSavedMatchData] = useState<{
     homeTeam: string; awayTeam: string; homeScore: number; awayScore: number;
-    homeTeamColor: string; awayTeamColor: string; gender: string;
+    homeTeamColor: string; awayTeamColor: string;
     topRaider: { name: string; points: number } | null;
     topDefender: { name: string; points: number } | null;
     motm: { name: string; points: number } | null;
