@@ -1101,12 +1101,13 @@ export default function LiveScoringScreen() {
     if (hasStartedRaiding) setRaidGapTimer(RAID_GAP_TIMEOUT);
   };
 
-  const handleEndMatch = async () => {
+  const handleEndMatch = () => {
     if (showEndMatchConfirm) {
-      // Show save/revoke prompt instead of immediately saving
+      // Second tap — show save/discard prompt
       setShowEndMatchConfirm(false);
       setShowSavePrompt(true);
     } else {
+      // First tap — show confirmation
       setShowEndMatchConfirm(true);
       setTimeout(() => setShowEndMatchConfirm(false), 3000);
     }
