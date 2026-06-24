@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer, type MatchEvent } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 import ShareScorecard from './ShareScorecard';
 import ScorerTransferScreen from './ScorerTransferScreen';
 import { matchNotification } from '@/lib/notifications';
