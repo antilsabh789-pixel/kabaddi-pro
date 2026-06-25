@@ -383,4 +383,53 @@ router.post('/giveaway/admin/select-winners', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/giveaway/admin/reset
+ * ADMIN ONLY — Resets the entire giveaway system:
+ *   1. Marks ALL existing rounds as 'completed'
+ *   2. Deletes ALL participants from ALL rounds
+ *   3. Creates a fresh Round 1 with 15-day countdown starting now
+ *   4. Clears all past winners
+ */
+router.post('/giveaway/admin/reset', async (req, res) => {
+  try {
+    const { adminId } = req.body;
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // 1. Mark all rounds as completed
+    await db.giveawayRound.updateMany({
+      where: { status: 'active' },
+      data: { status: 'completed' },
+    });
+
+    // 2. Delete ALL participants
+    await db.giveawayParticipant.deleteMany({});
+
+    // 3. Create fresh Round 1
+    const now = new Date();
+    const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const newRound = await db.giveawayRound.create({
+      data: { roundNumber: 1, startDate: now, endDate, status: 'active' },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Giveaway reset successfully. New Round 1 started with 0 participants.',
+      round: {
+        id: newRound.id,
+        roundNumber: newRound.roundNumber,
+        startDate: newRound.startDate,
+        endDate: newRound.endDate,
+        status: newRound.status,
+      },
+    });
+  } catch (error) {
+    console.error('Giveaway reset error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

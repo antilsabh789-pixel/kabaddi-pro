@@ -406,13 +406,19 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
             <Sparkles className="w-3.5 h-3.5 text-brand-gold" />
             How It Works
           </h4>
-          <div className="space-y-1.5 text-[11px] text-warm-500 dark:text-warm-400">
-            <p>👑 <span className="font-semibold text-warm-700 dark:text-warm-300">Premium members:</span> free entry, every round (₹2 daily plan works!)</p>
-            <p>🤝 <span className="font-semibold text-warm-700 dark:text-warm-300">Free users:</span> 1 successful referral = 1 giveaway entry</p>
+          <div className="space-y-2 text-[11px] text-warm-500 dark:text-warm-400">
+            <div className="p-2 rounded-lg bg-brand-teal/10 border border-brand-teal/20">
+              <p className="font-bold text-brand-teal-dark dark:text-brand-teal text-xs mb-1">🤝 STEP 1 — Refer a Friend (REQUIRED for free users)</p>
+              <p>Share your referral code with friends. When they sign up, you earn 1 giveaway entry + 7 days Premium FREE for both of you!</p>
+            </div>
+            <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/30">
+              <p className="font-bold text-amber-700 dark:text-amber-400 text-xs mb-1">👑 OR — Buy Premium (₹2/day)</p>
+              <p>Premium members get free entry every round — no referral needed!</p>
+            </div>
             <p>✅ 3 winners selected randomly every 15 days</p>
-            <p>🔒 <span className="font-semibold text-warm-700 dark:text-warm-300">Entry is locked in</span> — even if your premium expires after participating, you stay in the draw</p>
-            <p>🔄 Referral entries are used across all rounds — refer more friends to enter more rounds!</p>
-            <p>🔒 Only player IDs are shown for winners — privacy protected</p>
+            <p>🔄 1 referral = 1 entry (used across all rounds — refer more to enter more!)</p>
+            <p>🔒 Entry is locked in even if premium expires</p>
+            <p>🔒 Only player IDs shown for winners — privacy protected</p>
           </div>
         </Card>
 
@@ -466,7 +472,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   <X className="w-4 h-4 text-warm-500" />
                 </button>
               </div>
-              <div className="p-3 border-b border-warm-200 dark:border-warm-700">
+              <div className="p-3 border-b border-warm-200 dark:border-warm-700 space-y-2">
                 <Button
                   onClick={handleSelectWinners}
                   disabled={selectingWinners || adminParticipants.length < 3}
@@ -475,8 +481,34 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   {selectingWinners ? <Loader2 className="w-4 h-4 animate-spin" /> : '🎲 Select 3 Random Winners'}
                 </Button>
                 {adminParticipants.length < 3 && (
-                  <p className="text-[10px] text-amber-500 text-center mt-1">Need at least 3 participants to select winners</p>
+                  <p className="text-[10px] text-amber-500 text-center">Need at least 3 participants to select winners</p>
                 )}
+                <Button
+                  onClick={async () => {
+                    if (!confirm('Reset giveaway? This will delete ALL participants and start a fresh Round 1 with 15-day countdown.')) return;
+                    try {
+                      const res = await fetch('/api/giveaway/admin/reset', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ adminId: currentUser?.id }),
+                      });
+                      if (res.ok) {
+                        toast({ title: '✅ Giveaway Reset!', description: 'Fresh Round 1 started with 0 participants' });
+                        fetchStatus();
+                        handleAdminView();
+                      } else {
+                        const data = await res.json();
+                        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Error', description: 'Failed to reset giveaway', variant: 'destructive' });
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold text-xs"
+                >
+                  🔄 Reset Giveaway (Start Fresh)
+                </Button>
               </div>
               <div className="overflow-y-auto flex-1">
                 {adminLoading ? (
