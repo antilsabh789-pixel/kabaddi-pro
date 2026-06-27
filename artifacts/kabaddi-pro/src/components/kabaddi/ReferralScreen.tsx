@@ -217,21 +217,29 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
     });
   };
 
+  // Build a share URL that pre-fills the referral code on the signup screen.
+  // The AuthScreen reads ?ref=CODE (or ?referral=CODE) and auto-fills the
+  // referral input — so users who click a shared link don't have to
+  // remember/type the code.
+  const shareUrl = typeof window !== 'undefined' && info?.referralCode
+    ? `${window.location.origin}${window.location.pathname}?ref=${encodeURIComponent(info.referralCode)}`
+    : 'https://kabaddipro.app';
+
   const handleShareWhatsApp = () => {
     if (!info?.referralCode) return;
-    const text = `Join me on Kabaddi Pro! 🏆 Use my referral code *${info.referralCode}* to sign up and we both get 7 days of Premium FREE! Download now: https://kabaddipro.app`;
+    const text = `Join me on Kabaddi Pro! 🏆 Use my referral code *${info.referralCode}* to sign up and we both get 7 days of Premium FREE! Click here: ${shareUrl}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleShareTwitter = () => {
     if (!info?.referralCode) return;
-    const text = `Join me on Kabaddi Pro! 🏆 Use my referral code ${info.referralCode} and we both get 7 days Premium FREE! #KabaddiPro`;
+    const text = `Join me on Kabaddi Pro! 🏆 Use my referral code ${info.referralCode} and we both get 7 days Premium FREE! ${shareUrl} #KabaddiPro`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleShare = async () => {
     if (!info?.referralCode) return;
-    const shareText = `Join me on Kabaddi Pro! 🏆 Use my referral code ${info.referralCode} to sign up and we both get 7 days of Premium FREE! Download now: https://kabaddipro.app`;
+    const shareText = `Join me on Kabaddi Pro! 🏆 Use my referral code ${info.referralCode} to sign up and we both get 7 days of Premium FREE! Click here: ${shareUrl}`;
 
     if (navigator.share) {
       try {

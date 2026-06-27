@@ -100,6 +100,7 @@ function mockRegister(payload: {
   name?: string;
   password?: string;
   dateOfBirth?: string;
+  referralCode?: string;
 }): AuthResponse {
   const phone = (payload.phone || '').trim();
   const name = (payload.name || '').trim();
@@ -147,7 +148,19 @@ function mockRegister(payload: {
   users.push(newUser);
   writeUsers(users);
 
-  return { ok: true, status: 200, data: { user: publicUser(newUser) } };
+  // Mock mode: referral codes can't be validated against a real DB, so just
+  // echo back the result. In production the real backend validates + grants
+  // premium days inline during /api/auth register.
+  return {
+    ok: true,
+    status: 200,
+    data: {
+      user: publicUser(newUser),
+      referral: payload.referralCode
+        ? { applied: false, error: 'Referral codes require the live backend' }
+        : { applied: false, error: null },
+    },
+  };
 }
 
 function mockLogin(payload: {
@@ -305,24 +318,43 @@ export async function authRequest(payload: any): Promise<AuthResponse> {
       body: JSON.stringify(payload),
     });
 
-    // ANY non-OK response means "no real backend available" → fall back to mock.
-    // This covers 404 (endpoint not mounted), 502 (Vite proxy can't reach
-    // api-server), 503 (service unavailable), 500, etc.
-    if (!res.ok) {
-      return runMock(payload);
-    }
-
-    // Try to parse JSON — if it fails (e.g. HTML error page from proxy), fall back
+    // Try to parse the body as JSON first — this lets us distinguish a real
+    // backend response (JSON, even on error) from a non-backend response
+    // (HTML error page from a proxy, empty 404, etc.).
     let data: any = null;
+    let parsed = false;
     try {
       data = await res.json();
+      parsed = true;
     } catch {
-      return runMock(payload);
+      // Not JSON — likely an HTML error page from a proxy or a 404 from
+      // the dev server. Fall through to mock fallback below.
     }
 
-    return { ok: true, status: res.status, data };
+    if (parsed) {
+      // The real backend returned JSON — pass through both success AND error
+      // responses. A 400 ("password too short") or 409 ("already registered")
+      // from the backend must reach the UI; we should NOT silently fall back
+      // to the mock in those cases.
+      return { ok: res.ok, status: res.status, data };
+    }
+
+    // JSON parse failed. Treat as "backend not really reachable" only for
+    // status codes that indicate the endpoint itself isn't there.
+    // 404 = endpoint not mounted in dev; 502/503/504 = proxy/upstream errors.
+    if (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 504) {
+      return runMock(payload);
+    }
+    // Any other non-JSON status — surface as a generic error so the UI can
+    // show something instead of silently using mock data.
+    return {
+      ok: false,
+      status: res.status,
+      data: { error: `Unexpected server response (${res.status}). Please try again.` },
+    };
   } catch (networkErr) {
     // Backend unreachable (fetch threw) → fall back to mock
+    void networkErr;
     return runMock(payload);
   }
 }

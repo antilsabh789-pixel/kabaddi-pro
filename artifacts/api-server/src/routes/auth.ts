@@ -48,7 +48,7 @@ function createDOBVerificationToken(phone: string, dateOfBirth: string): string 
 router.post('/auth', async (req, res) => {
   try {
     const body = req.body;
-    const { action, phone, password, name, gender, weight, practiceGround, role, email, dateOfBirth, userId, verificationToken } = body;
+    const { action, phone, password, name, gender, weight, practiceGround, role, email, dateOfBirth, userId, verificationToken, referralCode } = body;
 
     if (action === 'register') {
       if (!phone || !password || !name || !dateOfBirth) {
@@ -66,8 +66,71 @@ router.post('/auth', async (req, res) => {
         data: { phone, playerCode, password: await hashPassword(password), name, email: email || null, dateOfBirth, gender: gender || null, weight: weight || null, practiceGround: practiceGround || null, role: role || 'player', phoneVerified: true },
       });
       await db.playerProfile.create({ data: { userId: user.id } });
-      const { password: _, ...userWithoutPassword } = user;
-      return res.json({ user: userWithoutPassword });
+
+      // ── Process referral code (if provided) ──────────────────────────
+      // Look up an UNUSED referral record matching the code (referredId is null).
+      // If found, mark it as completed and grant 7 days of Premium to BOTH the
+      // referrer and the newly-registered user. This runs inline during signup
+      // so the referral is attributed automatically — no second "apply code"
+      // step required from the user.
+      //
+      // Failures here MUST NOT fail the registration itself — the user is
+      // already created. We just log and continue.
+      let referralApplied = false;
+      let referralError: string | null = null;
+      if (referralCode && typeof referralCode === 'string' && referralCode.trim().length > 0) {
+        try {
+          const code = referralCode.trim().toUpperCase();
+          const referral = await db.referral.findFirst({
+            where: { referralCode: code, referredId: null },
+          });
+          if (!referral) {
+            referralError = 'Invalid or already-used referral code';
+          } else if (referral.referrerId === user.id) {
+            referralError = 'You cannot use your own referral code';
+          } else {
+            // Mark the referral as completed
+            await db.referral.update({
+              where: { id: referral.id },
+              data: { referredId: user.id, status: 'signed_up', completedAt: new Date() },
+            });
+
+            // Grant premium days to BOTH the referrer and the new user
+            const premiumDays = referral.premiumDays || 7;
+            const now = new Date();
+            const premiumExpiry = new Date(now.getTime() + premiumDays * 24 * 60 * 60 * 1000);
+
+            await Promise.all([
+              db.user.update({
+                where: { id: referral.referrerId },
+                data: { isPremium: true, premiumExpiry, premiumPlan: 'referral' },
+              }),
+              db.user.update({
+                where: { id: user.id },
+                data: { isPremium: true, premiumExpiry, premiumPlan: 'referral' },
+              }),
+            ]);
+
+            referralApplied = true;
+          }
+        } catch (refErr) {
+          console.error('Referral apply (during register) error:', refErr);
+          referralError = 'Could not apply referral code';
+        }
+      }
+
+      // Re-fetch the user so the response reflects any premium upgrade from the referral.
+      const freshUser = referralApplied
+        ? await db.user.findUnique({ where: { id: user.id } })
+        : user;
+      const { password: _, ...userWithoutPassword } = freshUser || user;
+      return res.json({
+        user: userWithoutPassword,
+        referral: {
+          applied: referralApplied,
+          error: referralError,
+        },
+      });
     }
 
     if (action === 'login') {

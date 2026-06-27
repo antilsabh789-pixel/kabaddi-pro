@@ -6,7 +6,7 @@ import {
   Trophy, Shield, Megaphone, ChevronRight, ArrowLeft,
   Phone, Eye, EyeOff, User, Lock, Weight, MapPin,
   CircleDot, Zap, Check, Loader2, KeyRound, ArrowRight,
-  ShieldCheck, Calendar, AlertCircle
+  ShieldCheck, Calendar, AlertCircle, Gift
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -297,6 +297,31 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Referral code — pre-filled from ?ref=CODE URL param (or localStorage if the
+  // user clicked a share link earlier and we stashed it for the next signup).
+  // Also still editable manually on the registration form below.
+  const [referralCode, setReferralCode] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      // 1) Check URL: ?ref=CODE or ?referral=CODE
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get('ref') || params.get('referral') || params.get('refcode');
+      if (fromUrl) {
+        const cleaned = fromUrl.trim().toUpperCase();
+        setReferralCode(cleaned);
+        // Persist so the user can navigate around the app before registering
+        // without losing the attribution.
+        try { localStorage.setItem('kabaddi-pending-referral', cleaned); } catch { /* ignore */ }
+        return;
+      }
+      // 2) Fall back to a previously-stashed code (user clicked a share link earlier)
+      const stashed = localStorage.getItem('kabaddi-pending-referral');
+      if (stashed) setReferralCode(stashed.toUpperCase());
+    } catch { /* ignore */ }
+  }, []);
+
   // Date of Birth
   const [dobDay, setDobDay] = useState('');
   const [dobMonth, setDobMonth] = useState('');
@@ -438,6 +463,7 @@ export default function AuthScreen() {
         name: name.trim(),
         password,
         dateOfBirth,
+        referralCode: referralCode.trim() || undefined,
       });
 
       const data = res.data;
@@ -465,6 +491,21 @@ export default function AuthScreen() {
         jerseyNumber: user.jerseyNumber || undefined,
       });
 
+      // Clear the stashed pending-referral code now that we've consumed it
+      // (or attempted to). Prevents the code from being re-applied if the
+      // user logs out and registers a second account on the same device.
+      try { localStorage.removeItem('kabaddi-pending-referral'); } catch { /* ignore */ }
+
+      // Surface referral outcome to the user (non-blocking — registration
+      // succeeded regardless of whether the referral code was valid).
+      if (data.referral?.applied) {
+        // Friendly toast-like inline message (the success animation will show next)
+        console.log(`Referral applied — ${data.referral.premiumDaysGranted || 7} premium days granted to both you and your referrer.`);
+      } else if (data.referral?.error && referralCode.trim()) {
+        // Only show the error if the user actually entered a code
+        console.warn(`Referral not applied: ${data.referral.error}`);
+      }
+
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
@@ -475,7 +516,7 @@ export default function AuthScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [phone, phoneExists, name, password, confirmPassword, dobDay, dobMonth, dobYear, termsAccepted, login, goNext]);
+  }, [phone, phoneExists, name, password, confirmPassword, dobDay, dobMonth, dobYear, termsAccepted, referralCode, login, goNext]);
 
   // ── Login ─────────────────────────────────────────────────────
   const handleLogin = useCallback(async () => {
@@ -1366,6 +1407,31 @@ export default function AuthScreen() {
                           if (error) setError('');
                         }}
                       />
+                    </div>
+
+                    {/* Referral Code (optional) */}
+                    <div className="mb-3">
+                      <label className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2 block">
+                        <span className="flex items-center gap-1.5">
+                          <Gift className="w-3.5 h-3.5 text-brand-gold" />
+                          Referral Code <span className="text-warm-400 font-normal">(optional)</span>
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        value={referralCode}
+                        onChange={(e) => {
+                          setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''));
+                          if (error) setError('');
+                        }}
+                        placeholder="ENTER CODE"
+                        maxLength={20}
+                        autoComplete="off"
+                        className="w-full h-11 rounded-xl border-2 border-warm-200 dark:border-warm-700 bg-white/60 dark:bg-white/5 px-3 text-sm font-mono tracking-wider text-warm-800 dark:text-warm-100 uppercase placeholder:text-warm-400 focus:outline-none focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/20 transition-all"
+                      />
+                      <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-1 leading-relaxed">
+                        Referred by a friend? Enter their code to give <span className="font-bold text-brand-gold">both of you 7 days of Premium FREE</span> — and unlock Giveaway entries.
+                      </p>
                     </div>
 
                     {/* Terms & Conditions */}
