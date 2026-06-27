@@ -62,10 +62,38 @@ async function countSuccessfulReferrals(userId: string): Promise<number> {
  * IMPORTANT: Only counts participations where isPremium=FALSE (i.e. referral-funded entries).
  * Participations where the user was premium at entry time (e.g. they bought a ₹2 daily premium)
  * do NOT consume referral entries — those were "free" entries earned by being premium that day.
+ *
+ * FREE-ENTRY ADJUSTMENT: Every user gets 1 LIFETIME FREE entry (no premium, no referral required).
+ * If the user's first-ever participation was non-premium, it was the "free entry" and does NOT
+ * consume a referral slot. We subtract 1 from the count in that case.
  */
 async function countPastParticipations(userId: string): Promise<number> {
-  return db.giveawayParticipant.count({
+  const nonPremiumCount = await db.giveawayParticipant.count({
     where: { userId, isPremium: false },
+  });
+
+  // Check if the user's FIRST participation was non-premium (i.e. it was the free entry).
+  // If so, that participation did NOT consume a referral slot — subtract it.
+  const firstParticipation = await db.giveawayParticipant.findFirst({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+    select: { isPremium: true },
+  });
+
+  if (firstParticipation && !firstParticipation.isPremium) {
+    return Math.max(0, nonPremiumCount - 1);
+  }
+  return nonPremiumCount;
+}
+
+/**
+ * Count ALL past participations by this user (premium + non-premium).
+ * Used to determine if the user has used their 1 lifetime free entry.
+ * If totalParticipations > 0, the free entry has been used.
+ */
+async function countAllPastParticipations(userId: string): Promise<number> {
+  return db.giveawayParticipant.count({
+    where: { userId },
   });
 }
 
@@ -89,6 +117,8 @@ router.get('/giveaway/status', async (req, res) => {
     let entriesRemaining = 0;
     let canParticipate = false;
     let blockReason = '';
+    let freeEntryAvailable = false;
+    let hasUsedFreeEntry = false;
 
     if (userId) {
       const existing = await db.giveawayParticipant.findUnique({
@@ -106,13 +136,24 @@ router.get('/giveaway/status', async (req, res) => {
       participationsUsed = await countPastParticipations(userId);
       entriesRemaining = Math.max(0, successfulReferrals - participationsUsed);
 
-      // Participation rules:
-      // - Premium members: can participate in every round (no referral required)
-      // - Non-premium members: each successful referral = 1 participation entry
-      //   (used across all rounds, not per-round)
+      // FREE ENTRY: Every user gets 1 lifetime free entry (no premium, no referral needed).
+      // The free entry is available if the user has NEVER participated in ANY round before.
+      const totalPastParticipations = await countAllPastParticipations(userId);
+      hasUsedFreeEntry = totalPastParticipations > 0;
+      freeEntryAvailable = !hasUsedFreeEntry;
+
+      // Participation rules (evaluated in priority order):
+      // 1. Already in this round → blocked
+      // 2. Free entry available → allowed (no other requirements)
+      // 3. Premium active → allowed (free entry every round)
+      // 4. Referral entries remaining → allowed
+      // 5. Otherwise → blocked
       if (hasParticipated) {
         canParticipate = false;
         blockReason = 'already_participated';
+      } else if (freeEntryAvailable) {
+        canParticipate = true;
+        blockReason = '';
       } else if (isPremiumActive) {
         canParticipate = true;
         blockReason = '';
@@ -170,6 +211,8 @@ router.get('/giveaway/status', async (req, res) => {
       successfulReferrals,
       participationsUsed,
       entriesRemaining,
+      freeEntryAvailable, // true if user hasn't used their 1 lifetime free entry
+      hasUsedFreeEntry,
       canParticipate,
       blockReason, // '', 'already_participated', 'no_referrals', 'no_entries_remaining'
       pastWinners,
@@ -223,8 +266,17 @@ router.post('/giveaway/participate', async (req, res) => {
     // GiveawayParticipant record (isPremium field) and never changes after that.
     const isPremiumActive = !!(user.isPremium && (!user.premiumExpiry || new Date(user.premiumExpiry) > new Date()));
 
-    // Enforce the participation rule
-    if (!isPremiumActive) {
+    // FREE ENTRY: Every user gets 1 lifetime free entry (no premium, no referral needed).
+    // Check if the user has EVER participated before. If not, this is their free entry.
+    const totalPastParticipations = await countAllPastParticipations(userId);
+    const freeEntryAvailable = totalPastParticipations === 0;
+
+    // Enforce the participation rule:
+    // 1. Free entry available → allow (no other requirements)
+    // 2. Premium active → allow (free entry every round)
+    // 3. Referral entries remaining → allow
+    // 4. Otherwise → block
+    if (!freeEntryAvailable && !isPremiumActive) {
       const successfulReferrals = await countSuccessfulReferrals(userId);
       const participationsUsed = await countPastParticipations(userId);
       const entriesRemaining = Math.max(0, successfulReferrals - participationsUsed);
@@ -232,7 +284,7 @@ router.post('/giveaway/participate', async (req, res) => {
       if (entriesRemaining <= 0) {
         if (successfulReferrals === 0) {
           return res.status(403).json({
-            error: 'Premium membership OR at least 1 successful referral is required to participate. Buy a ₹2 daily premium or share your referral code with friends!',
+            error: 'Your free entry has been used. Refer a friend or buy a ₹2 daily premium to participate again!',
             blockReason: 'no_referrals',
             successfulReferrals,
             entriesRemaining: 0,
@@ -271,6 +323,7 @@ router.post('/giveaway/participate', async (req, res) => {
       // Return updated eligibility so frontend can refresh state without a separate fetch
       isPremiumActive,
       premiumPlan: user.premiumPlan,
+      freeEntryAvailable: false, // just used it
       entriesRemaining: isPremiumActive ? null : Math.max(0, (await countSuccessfulReferrals(userId)) - (await countPastParticipations(userId)) - 1),
     });
   } catch (error) {

@@ -38,6 +38,8 @@ interface GiveawayStatus {
   successfulReferrals?: number;
   participationsUsed?: number;
   entriesRemaining?: number;
+  freeEntryAvailable?: boolean;
+  hasUsedFreeEntry?: boolean;
   canParticipate?: boolean;
   blockReason?: '' | 'already_participated' | 'no_referrals' | 'no_entries_remaining';
   pastWinners: Array<{
@@ -116,7 +118,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
         // Show a more helpful toast with action button when user is blocked
         if (data.blockReason === 'no_referrals' || data.blockReason === 'no_entries_remaining') {
           toast({
-            title: '⚠️ Premium or Referral Required',
+            title: '⚠️ Referral or Premium Required',
             description: data.error,
             variant: 'destructive',
           });
@@ -125,7 +127,14 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
         }
         return;
       }
-      toast({ title: '🎉 You\'re in!', description: 'Good luck! Winners announced when the timer ends.' });
+      // Custom celebration message for free-entry users
+      const wasFreeEntry = status?.freeEntryAvailable;
+      toast({
+        title: wasFreeEntry ? '🎉 FREE Entry Claimed!' : '🎉 You\'re in!',
+        description: wasFreeEntry
+          ? 'Your first entry is on us! Good luck — winners announced when the timer ends.'
+          : 'Good luck! Winners announced when the timer ends.',
+      });
       fetchStatus();
     } catch {
       toast({ title: 'Error', description: 'Failed to participate', variant: 'destructive' });
@@ -250,6 +259,37 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           </div>
         </Card>
 
+        {/* Free Entry Promo Banner — shown only for first-time users */}
+        {status?.freeEntryAvailable && !status?.hasParticipated && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 p-4 shadow-lg shadow-violet-500/30"
+          >
+            <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10 blur-xl" />
+            <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white/10 blur-xl" />
+            <div className="relative flex items-center gap-3">
+              <motion.div
+                animate={{ rotate: [0, -10, 10, -5, 0] }}
+                transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 1 }}
+                className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm"
+              >
+                <Gift className="w-6 h-6 text-white" />
+              </motion.div>
+              <div className="flex-1 text-white">
+                <p className="text-sm font-black flex items-center gap-1.5">
+                  1ST ENTRY FREE
+                  <span className="text-[8px] bg-white/25 px-1.5 py-0.5 rounded-full font-bold">NO REFERRAL NEEDED</span>
+                </p>
+                <p className="text-[11px] text-white/85 mt-0.5 leading-snug">
+                  New here? Your first giveaway entry is 100% free — no premium, no referral code, nothing. Just tap participate!
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Prizes */}
         <div className="space-y-2">
           <h3 className="text-sm font-black text-warm-800 dark:text-warm-100 flex items-center gap-2 px-1">
@@ -286,17 +326,34 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           ))}
         </div>
 
-        {/* Eligibility Card — Premium or Referral Required */}
+        {/* Eligibility Card — Free Entry / Premium / Referral Required */}
         {currentUser && (
           <Card className={`p-4 ${
-            status?.isPremiumActive
+            status?.freeEntryAvailable
+              ? 'bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-900/20 dark:to-fuchsia-900/10 border-violet-300/50'
+              : status?.isPremiumActive
               ? 'bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-300/50'
               : status?.entriesRemaining && status.entriesRemaining > 0
               ? 'bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/10 border-emerald-300/50'
               : 'bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/10 border-red-300/50'
           }`}>
-            {/* Premium members — free entry */}
-            {status?.isPremiumActive ? (
+            {/* FREE ENTRY available — first-time user, no requirements */}
+            {status?.freeEntryAvailable ? (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 animate-pulse">
+                  <Gift className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
+                    1 FREE Entry Available!
+                    <Badge className="bg-violet-500/20 text-violet-700 dark:text-violet-300 text-[8px] font-bold px-1.5">FREE</Badge>
+                  </p>
+                  <p className="text-[11px] text-violet-600/80 dark:text-violet-400/80 mt-0.5">
+                    Your first giveaway entry is on us — no premium, no referral needed. Just tap below!
+                  </p>
+                </div>
+              </div>
+            ) : status?.isPremiumActive ? (
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shrink-0">
                   <Crown className="w-5 h-5 text-white" />
@@ -336,12 +393,12 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   <div className="flex-1">
                     <p className="text-sm font-bold text-red-700 dark:text-red-300">
                       {status?.blockReason === 'no_referrals'
-                        ? 'Refer a friend to participate'
+                        ? 'Free entry used — refer a friend'
                         : 'All referral entries used'}
                     </p>
                     <p className="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">
                       {status?.blockReason === 'no_referrals'
-                        ? '1 successful referral = 1 giveaway entry. Share your code with friends!'
+                        ? 'Your free entry has been used. Refer a friend or upgrade to Premium to participate again.'
                         : `You've used all ${status?.successfulReferrals || 0} of your referral entries. Refer more friends or upgrade to Premium.`}
                     </p>
                   </div>
@@ -381,7 +438,12 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
             ) : status?.canParticipate === false ? (
               <>
                 <Lock className="w-5 h-5 mr-2" />
-                {status?.isPremiumActive ? 'Already Participated' : 'Premium or Referral Required'}
+                {status?.isPremiumActive ? 'Already Participated' : 'Refer a Friend or Go Premium'}
+              </>
+            ) : status?.freeEntryAvailable ? (
+              <>
+                <Gift className="w-5 h-5 mr-2" />
+                Claim Your FREE Entry Now!
               </>
             ) : (
               <>
