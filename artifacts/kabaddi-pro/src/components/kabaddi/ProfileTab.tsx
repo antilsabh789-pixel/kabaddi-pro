@@ -233,15 +233,6 @@ export default function ProfileTab() {
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [groundSearch, setGroundSearch] = useState('');
   const [showGroundSuggestions, setShowGroundSuggestions] = useState(false);
-  const [earnings, setEarnings] = useState<{
-    totalRevenueINR: number;
-    totalPayments: number;
-    monthlyCount: number;
-    yearlyCount: number;
-    lifetimeCount: number;
-    recentRevenueINR: number;
-    recentPaymentsCount: number;
-  } | null>(null);
   const [totalPlayers, setTotalPlayers] = useState<number>(0);
 
   const [profileData, setProfileData] = useState({
@@ -449,18 +440,10 @@ export default function ProfileTab() {
     return () => { cancelled = true; };
   }, [currentUser?.id, loadProfile, loadRecentMatches, updateUser, currentUser?.playerCode]);
 
-  // Load earnings data for admin users
+  // Load total players count for admin dashboard
   useEffect(() => {
     if (!currentUser?.isAdmin) return;
     let cancelled = false;
-    fetch('/api/payments?status=paid')
-      .then(res => res.json())
-      .then(data => {
-        if (!cancelled && data.summary) {
-          setEarnings(data.summary);
-        }
-      })
-      .catch(() => {});
     // Fetch total players for the admin dashboard tile
     fetch('/api/stats')
       .then(res => res.json())
@@ -2728,7 +2711,8 @@ export default function ProfileTab() {
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* EARNINGS DASHBOARD - Admin Only */}
+      {/* PLAYERS DASHBOARD - Admin Only */}
+      {/* Shows ONLY total players joined — nothing else. */}
       {/* ═══════════════════════════════════════════ */}
       {currentUser?.isAdmin && (
         <motion.div
@@ -2738,52 +2722,24 @@ export default function ProfileTab() {
         >
           <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
             <Users className="w-4 h-4 text-emerald-500" />
-            Users Data
+            Players Dashboard
           </h3>
-          <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30">
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="p-3 rounded-xl bg-white/80 dark:bg-warm-100/50 border border-emerald-100 dark:border-emerald-800/20">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Users className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wide">Total Players</span>
-                </div>
-                <p className="text-xl font-black text-emerald-700 dark:text-emerald-400">
+          <Card className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
+                <Users className="w-8 h-8 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-warm-500 dark:text-warm-400 uppercase tracking-wider font-semibold mb-1">
+                  Total Players Joined
+                </p>
+                <p className="text-4xl font-black text-emerald-700 dark:text-emerald-400 leading-none tracking-tight">
                   {totalPlayers.toLocaleString()}
                 </p>
-              </div>
-              <div className="p-3 rounded-xl bg-white/80 dark:bg-warm-100/50 border border-emerald-100 dark:border-emerald-800/20">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingUp className="w-3.5 h-3.5 text-teal-600" />
-                  <span className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wide">Last 30 Days</span>
-                </div>
-                <p className="text-xl font-black text-teal-700 dark:text-teal-400">
-                  ₹{earnings?.recentRevenueINR?.toLocaleString() || '0'}
+                <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1.5">
+                  All registered players on Kabaddi Pro
                 </p>
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
-                <p className="text-xs text-warm-500 dark:text-warm-400">Monthly</p>
-                <p className="text-base font-bold text-warm-800 dark:text-warm-100">{earnings?.monthlyCount || 0}</p>
-              </div>
-              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
-                <p className="text-xs text-warm-500 dark:text-warm-400">Yearly</p>
-                <p className="text-base font-bold text-warm-800 dark:text-warm-100">{earnings?.yearlyCount || 0}</p>
-              </div>
-              <div className="text-center p-2 rounded-lg bg-white/60 dark:bg-warm-100/30 border border-emerald-100 dark:border-emerald-800/20">
-                <p className="text-xs text-warm-500 dark:text-warm-400">Lifetime</p>
-                <p className="text-base font-bold text-warm-800 dark:text-warm-100">{earnings?.lifetimeCount || 0}</p>
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-xs text-warm-500 dark:text-warm-400">
-              <span className="flex items-center gap-1">
-                <Users className="w-3 h-3" />
-                {earnings?.totalPayments || 0} premium subscribers
-              </span>
-              <span className="flex items-center gap-1">
-                <CreditCard className="w-3 h-3" />
-                Cashfree
-              </span>
             </div>
           </Card>
         </motion.div>
