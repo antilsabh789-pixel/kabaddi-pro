@@ -52,23 +52,119 @@ router.patch('/notifications', async (req, res) => {
 
 // ── Follow ────────────────────────────────────────────────────────────────────
 
+/**
+ * GET /api/follow
+ *
+ * Multiple modes selected by `type` query param:
+ *
+ *   (default, no type)         — single-target check: returns { isFollowing, followerCount }
+ *                                requires userId + targetId
+ *   type=counts                — returns { followerCount, followingCount } for userId
+ *   type=followers             — returns { followers: [...] } — users who follow userId
+ *   type=following             — returns { following: [...] } — users userId is following
+ *
+ * The followers/following list returns the same shape FollowerEntry expects on the
+ * frontend: id, name, avatar, phone (last 4 masked), gender, playerCode, followedAt,
+ * profile { position, jerseyNumber, overallRating, totalPoints, totalMatches }.
+ */
 router.get('/follow', async (req, res) => {
   try {
     const userId = req.query['userId'] as string;
     const targetId = req.query['targetId'] as string;
-    if (!userId || !targetId) return res.status(400).json({ error: 'userId and targetId required' });
+    const type = (req.query['type'] as string) || '';
+
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    // ── Counts mode ────────────────────────────────────────────────────────
+    if (type === 'counts') {
+      const [followerCount, followingCount] = await Promise.all([
+        db.follow.count({ where: { followingId: userId } }),
+        db.follow.count({ where: { followerId: userId } }),
+      ]);
+      return res.json({ followerCount, followingCount });
+    }
+
+    // ── Followers list (users who follow userId) ───────────────────────────
+    if (type === 'followers') {
+      const follows = await db.follow.findMany({
+        where: { followingId: userId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          follower: {
+            select: {
+              id: true, name: true, avatar: true, phone: true, gender: true, playerCode: true,
+              profile: { select: { position: true, jerseyNumber: true, overallRating: true, totalPoints: true, totalMatches: true } },
+            },
+          },
+        },
+      });
+      const followers = follows.map((f) => ({
+        id: f.follower.id,
+        name: f.follower.name,
+        avatar: f.follower.avatar,
+        phone: f.follower.phone ? `****${f.follower.phone.slice(-4)}` : '',
+        gender: f.follower.gender,
+        playerCode: f.follower.playerCode,
+        followedAt: f.createdAt.toISOString(),
+        profile: f.follower.profile,
+      }));
+      return res.json({ followers });
+    }
+
+    // ── Following list (users userId is following) ─────────────────────────
+    if (type === 'following') {
+      const follows = await db.follow.findMany({
+        where: { followerId: userId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          following: {
+            select: {
+              id: true, name: true, avatar: true, phone: true, gender: true, playerCode: true,
+              profile: { select: { position: true, jerseyNumber: true, overallRating: true, totalPoints: true, totalMatches: true } },
+            },
+          },
+        },
+      });
+      const following = follows.map((f) => ({
+        id: f.following.id,
+        name: f.following.name,
+        avatar: f.following.avatar,
+        phone: f.following.phone ? `****${f.following.phone.slice(-4)}` : '',
+        gender: f.following.gender,
+        playerCode: f.following.playerCode,
+        followedAt: f.createdAt.toISOString(),
+        profile: f.following.profile,
+      }));
+      return res.json({ following });
+    }
+
+    // ── Default: single-target check ──────────────────────────────────────
+    if (!targetId) return res.status(400).json({ error: 'targetId or type is required' });
     const follow = await db.follow.findUnique({ where: { followerId_followingId: { followerId: userId, followingId: targetId } } });
     const followerCount = await db.follow.count({ where: { followingId: targetId } });
     return res.json({ isFollowing: !!follow, followerCount });
   } catch (error) {
+    console.error('GET /follow error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * POST /api/follow
+ * Body: { userId, targetId, action } OR { followerId, followingId, action }
+ * The frontend uses followerId/followingId, the original handler used userId/targetId.
+ * Accept BOTH aliases so existing callers keep working.
+ *
+ * action: 'follow' (default) | 'unfollow'
+ */
 router.post('/follow', async (req, res) => {
   try {
-    const { userId, targetId, action } = req.body;
-    if (!userId || !targetId) return res.status(400).json({ error: 'userId and targetId required' });
+    // Accept both alias sets
+    const userId = req.body.userId || req.body.followerId;
+    const targetId = req.body.targetId || req.body.followingId;
+    const action = req.body.action || 'follow';
+
+    if (!userId || !targetId) return res.status(400).json({ error: 'userId (or followerId) and targetId (or followingId) are required' });
 
     if (action === 'unfollow') {
       await db.follow.deleteMany({ where: { followerId: userId, followingId: targetId } });
@@ -78,8 +174,10 @@ router.post('/follow', async (req, res) => {
     }
 
     const followerCount = await db.follow.count({ where: { followingId: targetId } });
-    return res.json({ success: true, isFollowing: action !== 'unfollow', followerCount });
+    const isFollowing = action !== 'unfollow';
+    return res.json({ success: true, isFollowing, followerCount });
   } catch (error) {
+    console.error('POST /follow error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

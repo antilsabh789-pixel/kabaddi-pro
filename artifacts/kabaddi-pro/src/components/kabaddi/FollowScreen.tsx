@@ -13,7 +13,6 @@ import {
   Eye,
   Shield,
   Swords,
-  Star,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -299,9 +298,8 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
   const [following, setFollowing] = useState<FollowerEntry[]>([]);
   const [followingLoading, setFollowingLoading] = useState(false);
 
-  // Suggested players
-  const [suggested, setSuggested] = useState<PlayerResult[]>([]);
-  const [suggestedLoading, setSuggestedLoading] = useState(false);
+  // Suggested players — REMOVED per UX request (was cluttering the Followers/Following tabs).
+  // Users now find players to follow via the Search tab (by phone number).
 
   // Search players (by phone or name)
   const [searchQuery, setSearchQuery] = useState('');
@@ -391,44 +389,11 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
     }
   }, [currentUser]);
 
-  // ─── Fetch suggested players ────────────────────────────────
-
+  // ─── Fetch suggested players — REMOVED per UX request ════════════
+  // (kept as a no-op stub so the initial useEffect doesn't break)
   const fetchSuggested = useCallback(async () => {
-    if (!currentUser) return;
-    setSuggestedLoading(true);
-    try {
-      const res = await fetch(
-        `/api/players?limit=5`
-      );
-      if (!res.ok) throw new Error('Failed to fetch suggested');
-      const data = await res.json();
-      const players: PlayerResult[] = (data.players || [])
-        .filter((p: PlayerResult) => p.id !== currentUser.id)
-        .slice(0, 5);
-
-      // Check which ones are already following
-      const checkRes = await fetch(
-        `/api/follow?userId=${currentUser.id}&type=search&search=`
-      );
-      if (checkRes.ok) {
-        const checkData = await checkRes.json();
-        const followingSet = new Set<string>(
-          (checkData.players || [])
-            .filter((p: PlayerResult) => p.isFollowing)
-            .map((p: PlayerResult) => p.id)
-        );
-        const filteredSuggested = players.filter((p: PlayerResult) => !followingSet.has(p.id));
-        setSuggested(filteredSuggested.map((p: PlayerResult) => ({ ...p, isFollowing: false })));
-      } else {
-        setSuggested(players.map((p: PlayerResult) => ({ ...p, isFollowing: false })));
-      }
-    } catch (err) {
-      console.error('Fetch suggested error:', err);
-      setSuggested([]);
-    } finally {
-      setSuggestedLoading(false);
-    }
-  }, [currentUser]);
+    /* no-op: suggestions section removed from UI */
+  }, []);
 
   // ─── Search players by phone number only (privacy) ─────────────────────────
 
@@ -508,13 +473,6 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
       const data = await res.json();
 
       const nowFollowing = !isCurrentlyFollowing;
-
-      // Update suggested
-      setSuggested((prev) =>
-        prev.map((p) =>
-          p.id === targetId ? { ...p, isFollowing: nowFollowing } : p
-        ).filter((p) => !nowFollowing || p.id !== targetId)
-      );
 
       // Update followed IDs set
       setFollowedIds((prev) => {
@@ -774,80 +732,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                 />
               )}
 
-              {/* ═══ Suggested Players Section ═══ */}
-              <div className="pt-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <Star className="w-4 h-4 text-brand-gold" />
-                  <h3 className="font-bold text-sm text-warm-800 dark:text-warm-100">
-                    Suggested for You
-                  </h3>
-                </div>
-
-                {suggestedLoading ? (
-                  <div className="space-y-1">
-                    {[1, 2, 3].map((i) => (
-                      <PlayerSkeleton key={i} />
-                    ))}
-                  </div>
-                ) : suggested.length > 0 ? (
-                  <Card className="border-warm-200/50 dark:border-warm-200/20 py-0 gap-0 overflow-hidden bg-white/70 dark:bg-warm-100/70 backdrop-blur-sm">
-                    <CardContent className="p-0 divide-y divide-warm-100 dark:divide-warm-200/20">
-                      {suggested.map((player, index) => (
-                        <motion.div
-                          key={player.id}
-                          initial={{ opacity: 0, x: -12 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.06, duration: 0.25 }}
-                          className="flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors"
-                        >
-                          <PlayerAvatar
-                            name={player.name}
-                            avatar={player.avatar}
-                            userId={player.id}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
-                                {getDisplayName(player.name)}
-                              </p>
-                              {player.playerCode && (
-                                <Badge className="bg-warm-200/50 dark:bg-warm-200/20 text-warm-500 dark:text-warm-400 text-[8px] border-0 font-mono">
-                                  {player.playerCode}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] text-warm-500 dark:text-warm-400">
-                              {player.profile?.position && (
-                                <span className="flex items-center gap-0.5">
-                                  <Shield className="w-2.5 h-2.5" />
-                                  {getPositionLabel(player.profile.position)}
-                                </span>
-                              )}
-                              {player.profile?.totalMatches !== undefined && player.profile.totalMatches > 0 && (
-                                <span>{player.profile.totalMatches} matches</span>
-                              )}
-                              {player.profile?.totalPoints !== undefined && player.profile.totalPoints > 0 && (
-                                <span>{player.profile.totalPoints} pts</span>
-                              )}
-                            </div>
-                          </div>
-                          <FollowButton
-                            isFollowing={!!player.isFollowing}
-                            onToggle={() =>
-                              handleFollowAction(player.id, !!player.isFollowing)
-                            }
-                            loading={actionLoadingId === player.id}
-                          />
-                        </motion.div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="text-center py-6">
-                    <p className="text-xs text-warm-500 dark:text-warm-400">No suggestions available</p>
-                  </div>
-                )}
-              </div>
+              {/* ═══ Suggested Players Section removed per UX request ═══ */}
             </motion.div>
           )}
 
@@ -936,80 +821,7 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                 />
               )}
 
-              {/* ═══ Suggested Players Section ═══ */}
-              <div className="pt-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <Star className="w-4 h-4 text-brand-gold" />
-                  <h3 className="font-bold text-sm text-warm-800 dark:text-warm-100">
-                    Suggested for You
-                  </h3>
-                </div>
-
-                {suggestedLoading ? (
-                  <div className="space-y-1">
-                    {[1, 2, 3].map((i) => (
-                      <PlayerSkeleton key={i} />
-                    ))}
-                  </div>
-                ) : suggested.length > 0 ? (
-                  <Card className="border-warm-200/50 dark:border-warm-200/20 py-0 gap-0 overflow-hidden bg-white/70 dark:bg-warm-100/70 backdrop-blur-sm">
-                    <CardContent className="p-0 divide-y divide-warm-100 dark:divide-warm-200/20">
-                      {suggested.map((player, index) => (
-                        <motion.div
-                          key={player.id}
-                          initial={{ opacity: 0, x: 12 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.06, duration: 0.25 }}
-                          className="flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors"
-                        >
-                          <PlayerAvatar
-                            name={player.name}
-                            avatar={player.avatar}
-                            userId={player.id}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-sm text-warm-800 dark:text-warm-100 truncate">
-                                {getDisplayName(player.name)}
-                              </p>
-                              {player.playerCode && (
-                                <Badge className="bg-warm-200/50 dark:bg-warm-200/20 text-warm-500 dark:text-warm-400 text-[8px] border-0 font-mono">
-                                  {player.playerCode}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] text-warm-500 dark:text-warm-400">
-                              {player.profile?.position && (
-                                <span className="flex items-center gap-0.5">
-                                  <Shield className="w-2.5 h-2.5" />
-                                  {getPositionLabel(player.profile.position)}
-                                </span>
-                              )}
-                              {player.profile?.totalMatches !== undefined && player.profile.totalMatches > 0 && (
-                                <span>{player.profile.totalMatches} matches</span>
-                              )}
-                              {player.profile?.totalPoints !== undefined && player.profile.totalPoints > 0 && (
-                                <span>{player.profile.totalPoints} pts</span>
-                              )}
-                            </div>
-                          </div>
-                          <FollowButton
-                            isFollowing={!!player.isFollowing}
-                            onToggle={() =>
-                              handleFollowAction(player.id, !!player.isFollowing)
-                            }
-                            loading={actionLoadingId === player.id}
-                          />
-                        </motion.div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="text-center py-6">
-                    <p className="text-xs text-warm-500 dark:text-warm-400">No suggestions available</p>
-                  </div>
-                )}
-              </div>
+              {/* ═══ Suggested Players Section removed per UX request ═══ */}
             </motion.div>
           )}
 
