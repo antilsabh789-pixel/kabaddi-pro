@@ -74,7 +74,7 @@ export default function LeaderboardScreen({ onClose, onViewPlayer }: Leaderboard
       const res = await fetch(`/api/leaderboard?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setEntries(data.leaderboard || []);
+      setEntries(data.entries || []);
     } catch (err) {
       console.error('Leaderboard fetch error:', err);
       setEntries([]);

@@ -705,7 +705,7 @@ export default function ProfileTab() {
 
     try {
       const res = await fetch('/api/auth/delete-account', {
-        method: 'POST',
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser?.id,
@@ -715,7 +715,9 @@ export default function ProfileTab() {
 
       const data = await res.json();
 
-      if (res.ok && data.success) {
+      // Backend returns { message: 'Account deleted successfully' } (not { success: true }).
+      // Treat any res.ok as success.
+      if (res.ok) {
         // Clear all local state and logout
         logout();
         toast({ title: t('profile.deleteAccountSuccess', language) });

@@ -91,6 +91,23 @@ router.post('/academies/:id/players', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/academies/:id/players?userId=...
+ * Remove a player from an academy.
+ */
+router.delete('/academies/:id/players', async (req, res) => {
+  try {
+    const { id: academyId } = req.params;
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    await db.academyPlayer.deleteMany({ where: { academyId, userId: userId as string } });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/academies/:id/attendance', async (req, res) => {
   try {
     const { id: academyId } = req.params;

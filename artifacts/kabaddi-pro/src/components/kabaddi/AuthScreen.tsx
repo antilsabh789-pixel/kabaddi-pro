@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useKabaddiStore } from '@/lib/store';
 import { authRequest } from '@/lib/authClient';
+import { useToast } from '@/hooks/use-toast';
 
 type Stage = 'auth' | 'role' | 'details';
 type ForgotStage = 'verify' | 'new-password' | 'success';
@@ -357,6 +358,7 @@ export default function AuthScreen() {
 
   const login = useKabaddiStore((s) => s.login);
   const setOnboarded = useKabaddiStore((s) => s.setOnboarded);
+  const { toast } = useToast();
 
   const passwordStrength = getPasswordStrength(password);
 
@@ -496,14 +498,20 @@ export default function AuthScreen() {
       // user logs out and registers a second account on the same device.
       try { localStorage.removeItem('kabaddi-pending-referral'); } catch { /* ignore */ }
 
-      // Surface referral outcome to the user (non-blocking — registration
+      // Surface referral outcome to the user via toast (non-blocking — registration
       // succeeded regardless of whether the referral code was valid).
       if (data.referral?.applied) {
-        // Friendly toast-like inline message (the success animation will show next)
-        console.log(`Referral applied — ${data.referral.premiumDaysGranted || 7} premium days granted to both you and your referrer.`);
+        toast({
+          title: '🎁 Referral Applied!',
+          description: `You and your friend both got ${data.referral.premiumDaysGranted || 7} days of Premium FREE!`,
+        });
       } else if (data.referral?.error && referralCode.trim()) {
         // Only show the error if the user actually entered a code
-        console.warn(`Referral not applied: ${data.referral.error}`);
+        toast({
+          title: 'Referral not applied',
+          description: data.referral.error,
+          variant: 'destructive',
+        });
       }
 
       setShowSuccess(true);

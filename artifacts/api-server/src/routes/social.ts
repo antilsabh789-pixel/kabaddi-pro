@@ -452,28 +452,40 @@ router.post('/referrals', async (req, res) => {
       },
     });
 
-    // Grant premium days to BOTH the referrer and the referred user
+    // Grant premium days to BOTH the referrer and the referred user.
+    // IMPORTANT: Don't stomp existing premium — extend from the later of (now, existing expiry).
     const premiumDays = referral.premiumDays || 7;
     const now = new Date();
-    const premiumExpiry = new Date(now.getTime() + premiumDays * 24 * 60 * 60 * 1000);
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    const [referrer, referredUser] = await Promise.all([
+      db.user.findUnique({ where: { id: referral.referrerId }, select: { isPremium: true, premiumExpiry: true, premiumPlan: true } }),
+      db.user.findUnique({ where: { id: userId }, select: { isPremium: true, premiumExpiry: true, premiumPlan: true } }),
+    ]);
+
+    const referrerExpiry = referrer?.premiumExpiry ? new Date(referrer.premiumExpiry) : null;
+    const referrerBase = (referrer?.isPremium && referrerExpiry && referrerExpiry > now) ? referrerExpiry : now;
+    const referrerNewExpiry = new Date(referrerBase.getTime() + premiumDays * dayMs);
+
+    const referredExpiry = referredUser?.premiumExpiry ? new Date(referredUser.premiumExpiry) : null;
+    const referredBase = (referredUser?.isPremium && referredExpiry && referredExpiry > now) ? referredExpiry : now;
+    const referredNewExpiry = new Date(referredBase.getTime() + premiumDays * dayMs);
 
     await Promise.all([
-      // Referrer gets premium
       db.user.update({
         where: { id: referral.referrerId },
         data: {
           isPremium: true,
-          premiumExpiry,
-          premiumPlan: 'referral',
+          premiumExpiry: referrerNewExpiry,
+          premiumPlan: referrer?.premiumPlan && referrer.premiumPlan !== 'referral' ? referrer.premiumPlan : 'referral',
         },
       }),
-      // Referred user gets premium too
       db.user.update({
         where: { id: userId },
         data: {
           isPremium: true,
-          premiumExpiry,
-          premiumPlan: 'referral',
+          premiumExpiry: referredNewExpiry,
+          premiumPlan: referredUser?.premiumPlan && referredUser.premiumPlan !== 'referral' ? referredUser.premiumPlan : 'referral',
         },
       }),
     ]);

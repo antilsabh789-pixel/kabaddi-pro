@@ -381,7 +381,9 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     setLoading(true);
     try {
       const d = date || attendanceDate;
-      const res = await fetch(`/api/academies/${academyId}/attendance?date=${d}`);
+      // Backend route is /api/coach/attendance (not /api/academies/:id/attendance).
+      // Both return { attendance: [...] }.
+      const res = await fetch(`/api/coach/attendance?academyId=${academyId}&date=${d}`);
       const data = await res.json();
       if (data.attendance) {
         setAttendanceRecords(data.attendance);
@@ -397,19 +399,23 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     if (!selectedAcademyId) return;
     setLoading(true);
     try {
-      const records = attendanceRecords.map((r) => ({
-        userId: r.userId,
-        isPresent: r.isPresent,
-      }));
-      const res = await fetch(`/api/academies/${selectedAcademyId}/attendance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: attendanceDate, records }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: 'Attendance saved!' });
-      }
+      // Backend POST /api/coach/attendance takes a SINGLE record at a time
+      // (academyId, userId, date, isPresent, note). The old code sent
+      // { records: [...] } which the backend ignored. Save each record in parallel.
+      const promises = attendanceRecords.map((r) =>
+        fetch('/api/coach/attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            academyId: selectedAcademyId,
+            userId: r.userId,
+            date: attendanceDate,
+            isPresent: r.isPresent,
+          }),
+        })
+      );
+      await Promise.all(promises);
+      toast({ title: 'Attendance saved!' });
     } catch {
       toast({ title: 'Failed to save attendance', variant: 'destructive' });
     } finally {
@@ -425,9 +431,22 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       const m = month || feeMonth;
       const res = await fetch(`/api/coach/fees?academyId=${academyId}&month=${m}`);
       const data = await res.json();
-      if (data.records) {
-        setFeeRecords(data.records);
-        setFeeSummary(data.summary);
+      // Backend returns { feeRecords: [...] } — not { records, summary }.
+      if (data.feeRecords) {
+        setFeeRecords(data.feeRecords);
+        // Derive summary from the records (backend doesn't return one).
+        const paid = data.feeRecords.filter((r: any) => r.status === 'paid');
+        const pending = data.feeRecords.filter((r: any) => r.status === 'pending');
+        const totalAmount = data.feeRecords.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+        const paidAmount = paid.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+        setFeeSummary({
+          total: data.feeRecords.length,
+          paid: paid.length,
+          pending: pending.length,
+          totalAmount,
+          paidAmount,
+          pendingAmount: totalAmount - paidAmount,
+        });
       }
     } catch (err) {
       console.error('Fetch fees error:', err);
@@ -439,10 +458,20 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
   const markFeePaid = async (feeId: string) => {
     if (!feeId) return;
     try {
+      // Backend has no PUT route — POST /api/coach/fees upserts by (academyId, userId, month).
+      // Find the existing record, then POST with isPaid: true to flip its status.
+      const existing = feeRecords.find((r) => r.id === feeId);
+      if (!existing || !selectedAcademyId) return;
       const res = await fetch('/api/coach/fees', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feeId, status: 'paid' }),
+        body: JSON.stringify({
+          academyId: selectedAcademyId,
+          userId: existing.userId,
+          month: existing.month,
+          amount: existing.amount,
+          isPaid: true,
+        }),
       });
       if (res.ok) {
         toast({ title: 'Fee marked as paid!' });
@@ -464,7 +493,8 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
           userId: feeFormUserId,
           month: feeMonth,
           amount: parseInt(feeFormAmount),
-          status: 'pending',
+          // Backend derives status from isPaid, not status. 'pending' = isPaid: false.
+          isPaid: false,
         }),
       });
       if (res.ok) {
@@ -491,10 +521,12 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     try {
       const res = await fetch(`/api/coach/rewards?academyId=${academyId}`);
       const data = await res.json();
+      // Backend returns only { rewards: [...] } — no leaderboard or playerOfMonth.
+      // Old code waited for data.leaderboard which never came, so rewards never rendered.
       if (data.rewards) {
         setRewards(data.rewards);
-        setLeaderboard(data.leaderboard || []);
-        setPlayerOfMonth(data.playerOfMonth || null);
+        setLeaderboard([]);
+        setPlayerOfMonth(null);
       }
     } catch (err) {
       console.error('Fetch rewards error:', err);
@@ -538,7 +570,9 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     try {
       const res = await fetch(`/api/coach/analytics?academyId=${academyId}`);
       const data = await res.json();
-      if (data.attendancePerformance) {
+      // Backend returns { academy, performanceData, playerCount }.
+      // Old code checked for data.attendancePerformance which never existed.
+      if (data.academy || data.performanceData) {
         setAnalytics(data);
       }
     } catch (err) {

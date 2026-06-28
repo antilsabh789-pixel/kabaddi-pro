@@ -221,8 +221,11 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
   // The AuthScreen reads ?ref=CODE (or ?referral=CODE) and auto-fills the
   // referral input — so users who click a shared link don't have to
   // remember/type the code.
+  // IMPORTANT: Always link to the root URL, not the current pathname. If the
+  // referrer is on /profile or /follow when they share, a logged-out recipient
+  // would get redirected by the auth gate and lose the ?ref param.
   const shareUrl = typeof window !== 'undefined' && info?.referralCode
-    ? `${window.location.origin}${window.location.pathname}?ref=${encodeURIComponent(info.referralCode)}`
+    ? `${window.location.origin}/?ref=${encodeURIComponent(info.referralCode)}`
     : 'https://kabaddipro.app';
 
   const handleShareWhatsApp = () => {
@@ -484,7 +487,7 @@ export default function ReferralScreen({ onClose }: { onClose: () => void }) {
                         value={applyCode}
                         onChange={(e) => setApplyCode(e.target.value.toUpperCase())}
                         placeholder="ENTER CODE"
-                        maxLength={8}
+                        maxLength={20}
                         className="flex-1 h-10 rounded-lg border border-warm-300 bg-white px-3 text-sm font-mono tracking-wider text-warm-800 uppercase focus:outline-none focus:ring-2 focus:ring-brand-teal/30 input-focus-brand"
                       />
                       <Button

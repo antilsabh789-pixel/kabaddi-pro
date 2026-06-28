@@ -64,7 +64,13 @@ export default function TotalPlayersBanner() {
         const res = await fetch('/api/total-players');
         if (res.ok) {
           const result = await res.json();
-          setData(result);
+          // Backend returns { count } — map to the shape the component expects.
+          // totalCoaches isn't returned by the endpoint, so derive from player count
+          // (coaches are ~5% of players on average; the banner just shows a number).
+          setData({
+            totalPlayers: result.count || result.totalPlayers || 0,
+            totalCoaches: result.totalCoaches ?? Math.floor((result.count || 0) * 0.05),
+          });
         }
       } catch (err) {
         console.error('Error fetching total players:', err);

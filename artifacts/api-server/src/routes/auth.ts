@@ -95,19 +95,47 @@ router.post('/auth', async (req, res) => {
               data: { referredId: user.id, status: 'signed_up', completedAt: new Date() },
             });
 
-            // Grant premium days to BOTH the referrer and the new user
+            // Grant premium days to BOTH the referrer and the new user.
+            // IMPORTANT: Don't stomp existing premium — if the referrer is a paying
+            // subscriber with e.g. 25 days left, EXTEND from their current expiry
+            // (not from now), and don't downgrade their premiumPlan.
             const premiumDays = referral.premiumDays || 7;
             const now = new Date();
-            const premiumExpiry = new Date(now.getTime() + premiumDays * 24 * 60 * 60 * 1000);
+            const dayMs = 24 * 60 * 60 * 1000;
+
+            // Fetch current premium state for both users
+            const [referrer, referredUser] = await Promise.all([
+              db.user.findUnique({ where: { id: referral.referrerId }, select: { isPremium: true, premiumExpiry: true, premiumPlan: true } }),
+              db.user.findUnique({ where: { id: user.id }, select: { isPremium: true, premiumExpiry: true, premiumPlan: true } }),
+            ]);
+
+            // Referrer: extend from the later of (now, existing expiry)
+            const referrerExpiry = referrer?.premiumExpiry ? new Date(referrer.premiumExpiry) : null;
+            const referrerBase = (referrer?.isPremium && referrerExpiry && referrerExpiry > now) ? referrerExpiry : now;
+            const referrerNewExpiry = new Date(referrerBase.getTime() + premiumDays * dayMs);
+
+            // Referred user: extend from the later of (now, existing expiry)
+            const referredExpiry = referredUser?.premiumExpiry ? new Date(referredUser.premiumExpiry) : null;
+            const referredBase = (referredUser?.isPremium && referredExpiry && referredExpiry > now) ? referredExpiry : now;
+            const referredNewExpiry = new Date(referredBase.getTime() + premiumDays * dayMs);
 
             await Promise.all([
               db.user.update({
                 where: { id: referral.referrerId },
-                data: { isPremium: true, premiumExpiry, premiumPlan: 'referral' },
+                data: {
+                  isPremium: true,
+                  premiumExpiry: referrerNewExpiry,
+                  // Don't downgrade a paying subscriber's plan label
+                  premiumPlan: referrer?.premiumPlan && referrer.premiumPlan !== 'referral' ? referrer.premiumPlan : 'referral',
+                },
               }),
               db.user.update({
                 where: { id: user.id },
-                data: { isPremium: true, premiumExpiry, premiumPlan: 'referral' },
+                data: {
+                  isPremium: true,
+                  premiumExpiry: referredNewExpiry,
+                  premiumPlan: referredUser?.premiumPlan && referredUser.premiumPlan !== 'referral' ? referredUser.premiumPlan : 'referral',
+                },
               }),
             ]);
 

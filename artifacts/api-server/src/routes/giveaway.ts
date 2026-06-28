@@ -324,7 +324,9 @@ router.post('/giveaway/participate', async (req, res) => {
       isPremiumActive,
       premiumPlan: user.premiumPlan,
       freeEntryAvailable: false, // just used it
-      entriesRemaining: isPremiumActive ? null : Math.max(0, (await countSuccessfulReferrals(userId)) - (await countPastParticipations(userId)) - 1),
+      // countPastParticipations already includes the participation we just created,
+      // so no extra `- 1` needed here — the math mirrors /status exactly.
+      entriesRemaining: isPremiumActive ? null : Math.max(0, (await countSuccessfulReferrals(userId)) - (await countPastParticipations(userId))),
     });
   } catch (error) {
     console.error('Giveaway participate error:', error);
@@ -399,8 +401,14 @@ router.post('/giveaway/admin/select-winners', async (req, res) => {
       return res.status(400).json({ error: `Need at least 3 participants. Current: ${participants.length}` });
     }
 
-    // Shuffle and pick 3
-    const shuffled = [...participants].sort(() => Math.random() - 0.5);
+    // Fisher-Yates shuffle — produces a uniform unbiased permutation.
+    // The old `sort(() => Math.random() - 0.5)` anti-pattern is biased and
+    // unfair for a real-prize draw.
+    const shuffled = [...participants];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
     const winners = shuffled.slice(0, 3);
 
     const winnerIds = winners.map(w => w.user.id);
@@ -452,16 +460,13 @@ router.post('/giveaway/admin/reset', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // 1. Mark all rounds as completed
-    await db.giveawayRound.updateMany({
-      where: { status: 'active' },
-      data: { status: 'completed' },
-    });
+    // 1. Delete ALL rounds (this cascades to participants via onDelete: Cascade)
+    //    AND clears all past winners (winnersJson lives on the round row).
+    //    Must delete rounds (not just updateMany) because roundNumber is @unique —
+    //    creating "Round 1" again would violate the unique constraint if old Round 1 exists.
+    await db.giveawayRound.deleteMany({});
 
-    // 2. Delete ALL participants
-    await db.giveawayParticipant.deleteMany({});
-
-    // 3. Create fresh Round 1
+    // 2. Create fresh Round 1 with 15-day countdown
     const now = new Date();
     const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
     const newRound = await db.giveawayRound.create({
