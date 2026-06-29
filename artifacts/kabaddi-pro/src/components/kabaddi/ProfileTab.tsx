@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil, Trash2 } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil, Trash2, Search, UserPlus } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import Portal from '@/components/portal';
 
@@ -161,6 +161,317 @@ function timeAgo(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// GIFT PREMIUM PANEL — admin-only module-level component
+// Lets admin gift premium to any user by entering their player code.
+// Defined at module level (NOT nested in ProfileTab) to prevent the
+// input-focus-loss bug we fixed in GroundsScreen.
+// ════════════════════════════════════════════════════════════════
+
+interface GiftPlan {
+  id: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'lifetime';
+  label: string;
+  duration: string;
+  days: number | null; // null = lifetime
+  icon: typeof Crown;
+  gradient: string;
+}
+
+const GIFT_PLANS: GiftPlan[] = [
+  { id: 'daily',   label: '1 Day',      duration: '24 hours',           days: 1,   icon: Sparkles, gradient: 'from-sky-400 to-blue-500' },
+  { id: 'weekly',  label: '1 Week',     duration: '7 days',             days: 7,   icon: Zap,      gradient: 'from-emerald-400 to-teal-500' },
+  { id: 'monthly', label: '1 Month',    duration: '30 days',            days: 30,  icon: Star,     gradient: 'from-amber-400 to-orange-500' },
+  { id: 'yearly',  label: '1 Year',     duration: '365 days',           days: 365, icon: Crown,    gradient: 'from-purple-400 to-fuchsia-500' },
+  { id: 'lifetime',label: 'Lifetime',   duration: 'Never expires',      days: null,icon: Trophy,   gradient: 'from-yellow-400 to-amber-500' },
+];
+
+function GiftPremiumPanel() {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const { toast } = useToast();
+
+  const [playerCode, setPlayerCode] = useState('');
+  const [lookupUser, setLookupUser] = useState<{
+    id: string; name: string | null; playerCode: string | null;
+    isPremium: boolean; premiumExpiry: string | null; premiumPlan: string | null;
+  } | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+
+  const [selectedPlan, setSelectedPlan] = useState<GiftPlan['id']>('monthly');
+  const [gifting, setGifting] = useState(false);
+  const [giftResult, setGiftResult] = useState<{
+    name: string | null; playerCode: string | null; plan: string; expiry: string | null;
+  } | null>(null);
+
+  // ─── Lookup player by code (debounced 400ms) ────────────────────
+  const lookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+    setLookupError('');
+    setLookupUser(null);
+    setGiftResult(null);
+
+    const code = playerCode.trim().toUpperCase();
+    if (code.length < 3) {
+      setLookingUp(false);
+      return;
+    }
+    setLookingUp(true);
+    lookupTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/lookup-player?adminId=${currentUser?.id}&playerCode=${encodeURIComponent(code)}`);
+        const data = await res.json();
+        if (res.ok && data.user) {
+          setLookupUser(data.user);
+          setLookupError('');
+        } else {
+          setLookupUser(null);
+          setLookupError(data.error || 'Player not found');
+        }
+      } catch {
+        setLookupUser(null);
+        setLookupError('Failed to look up player');
+      } finally {
+        setLookingUp(false);
+      }
+    }, 400);
+    return () => {
+      if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+    };
+  }, [playerCode, currentUser?.id]);
+
+  // ─── Gift premium ───────────────────────────────────────────────
+  const handleGift = async () => {
+    if (!currentUser?.id || !lookupUser || !selectedPlan) return;
+    setGifting(true);
+    setGiftResult(null);
+    try {
+      const res = await fetch('/api/admin/gift-premium', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: currentUser.id,
+          playerCode: lookupUser.playerCode,
+          plan: selectedPlan,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Gift failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      const planLabel = GIFT_PLANS.find((p) => p.id === selectedPlan)?.label || selectedPlan;
+      setGiftResult({
+        name: data.user?.name || null,
+        playerCode: data.user?.playerCode || null,
+        plan: planLabel,
+        expiry: data.user?.premiumExpiry || null,
+      });
+      toast({
+        title: '🎉 Premium Gifted!',
+        description: `${planLabel} premium given to ${data.user?.name || data.user?.playerCode || 'user'}`,
+      });
+    } catch {
+      toast({ title: 'Gift failed', variant: 'destructive' });
+    } finally {
+      setGifting(false);
+    }
+  };
+
+  const handleReset = () => {
+    setPlayerCode('');
+    setLookupUser(null);
+    setLookupError('');
+    setGiftResult(null);
+    setSelectedPlan('monthly');
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3 }}
+    >
+      <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+        <Gift className="w-4 h-4 text-brand-gold" />
+        Gift Premium
+      </h3>
+      <Card className="p-5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800/30">
+        {/* Step 1: Player code input */}
+        <div className="mb-4">
+          <label className="text-xs font-bold text-warm-700 dark:text-warm-300 mb-2 block uppercase tracking-wider flex items-center gap-1.5">
+            <UserPlus className="w-3.5 h-3.5" />
+            Player Code
+          </label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+            <input
+              type="text"
+              value={playerCode}
+              onChange={(e) => setPlayerCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              placeholder="ENTER CODE (e.g. KP1001)"
+              maxLength={20}
+              className="w-full h-11 rounded-xl border-2 border-amber-200 dark:border-amber-800/50 bg-white dark:bg-warm-900 px-10 text-sm font-mono tracking-wider text-warm-800 dark:text-warm-100 uppercase placeholder:text-warm-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all"
+            />
+            {lookingUp && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-amber-500" />
+            )}
+          </div>
+
+          {/* Lookup result */}
+          {lookupError && (
+            <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+              <X className="w-3 h-3" />
+              {lookupError}
+            </p>
+          )}
+          {lookupUser && (
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 p-3 rounded-lg bg-white dark:bg-warm-900 border border-amber-200 dark:border-amber-800/50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                  {(lookupUser.name || '?').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">
+                    {lookupUser.name || 'Unknown'}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] font-mono text-warm-500">{lookupUser.playerCode}</span>
+                    {lookupUser.isPremium && (
+                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                        <Crown className="w-2.5 h-2.5" />
+                        {lookupUser.premiumPlan || 'PREMIUM'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {lookupUser.isPremium && lookupUser.premiumExpiry && (
+                <p className="text-[10px] text-warm-500 mt-2">
+                  Current premium expires: {new Date(lookupUser.premiumExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  <br/>
+                  <span className="text-amber-600 dark:text-amber-400">Gifting will EXTEND their current premium (not replace it).</span>
+                </p>
+              )}
+            </motion.div>
+          )}
+        </div>
+
+        {/* Step 2: Plan selection (only shows after a player is found) */}
+        {lookupUser && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-4"
+          >
+            <label className="text-xs font-bold text-warm-700 dark:text-warm-300 mb-2 block uppercase tracking-wider flex items-center gap-1.5">
+              <Crown className="w-3.5 h-3.5" />
+              Select Premium Plan
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {GIFT_PLANS.map((plan) => {
+                const Icon = plan.icon;
+                const isSelected = selectedPlan === plan.id;
+                return (
+                  <button
+                    key={plan.id}
+                    onClick={() => setSelectedPlan(plan.id)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                      isSelected
+                        ? `border-amber-400 bg-gradient-to-br ${plan.gradient} text-white shadow-md`
+                        : 'border-amber-200 dark:border-amber-800/50 bg-white dark:bg-warm-900 hover:border-amber-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <Icon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-amber-500'}`} />
+                      <span className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'}`}>
+                        {plan.label}
+                      </span>
+                    </div>
+                    <p className={`text-[10px] ${isSelected ? 'text-white/80' : 'text-warm-500'}`}>
+                      {plan.duration}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Step 3: Gift button */}
+        {lookupUser && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+          >
+            <Button
+              onClick={handleGift}
+              disabled={gifting || !selectedPlan}
+              className="w-full h-12 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-sm rounded-xl shadow-lg shadow-amber-500/30 disabled:opacity-50"
+            >
+              {gifting ? (
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Gifting...</>
+              ) : (
+                <><Gift className="w-5 h-5 mr-2" /> Gift {GIFT_PLANS.find((p) => p.id === selectedPlan)?.label} Premium</>
+              )}
+            </Button>
+          </motion.div>
+        )}
+
+        {/* Success result */}
+        {giftResult && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mt-4 p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shrink-0">
+                <Check className="w-5 h-5 text-white" strokeWidth={3} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-green-700 dark:text-green-400">
+                  Premium Gifted Successfully! 🎉
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+                  <strong>{giftResult.name || giftResult.playerCode || 'User'}</strong> now has <strong>{giftResult.plan}</strong> premium.
+                </p>
+                {giftResult.expiry && (
+                  <p className="text-[10px] text-green-600/80 dark:text-green-500/80 mt-0.5">
+                    Expires: {new Date(giftResult.expiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                )}
+                {selectedPlan === 'lifetime' && (
+                  <p className="text-[10px] text-green-600/80 dark:text-green-500/80 mt-0.5">
+                    Lifetime premium — never expires!
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleReset}
+              className="mt-3 w-full text-xs font-bold text-green-700 dark:text-green-400 hover:underline"
+            >
+              Gift to another player →
+            </button>
+          </motion.div>
+        )}
+
+        {/* Helper text */}
+        {!lookupUser && !lookingUp && (
+          <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-2 leading-relaxed">
+            Enter a player's code (e.g. KP1001) to look them up, then choose a premium plan to gift them for free.
+          </p>
+        )}
+      </Card>
+    </motion.div>
+  );
 }
 
 export default function ProfileTab() {
@@ -2795,6 +3106,12 @@ export default function ProfileTab() {
           </Card>
         </motion.div>
       )}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* GIFT PREMIUM PANEL - Admin Only */}
+      {/* Admin can gift premium to any user by their player code */}
+      {/* ═══════════════════════════════════════════ */}
+      {currentUser?.isAdmin && <GiftPremiumPanel />}
 
       {/* ═══════════════════════════════════════════ */}
       {/* 10. LOGOUT BUTTON with Confirmation Dialog */}
