@@ -58,6 +58,7 @@ model User {
   playerLocation    PlayerLocation?
   leaderboardEntries LeaderboardSeasonEntry[]
   giveawayParticipations GiveawayParticipant[]
+  streak            UserStreak?
 }
 
 model PlayerProfile {
@@ -751,4 +752,32 @@ model GiveawayParticipant {
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([giveawayRoundId, userId]) // One entry per user per round
+}
+
+// ─── Daily Check-in Streak System ────────────────────────────────────
+// Tracks the user's daily check-in streak and which reward milestones they've claimed.
+// Reward milestones:
+//   15 days  → 1 day free premium
+//   25 days  → special "25 Days" badge
+//   50 days  → shaker water bottle (physical prize)
+//   100 days → kabaddi kit with player's name (physical prize)
+//   150 days → 1kg protein powder (physical prize)
+//   200 days → 1kg protein powder (physical prize)
+//   250 days → 1kg protein powder (physical prize)
+//   then every 50 days (300, 350, 400, ...) → 1kg protein powder (physical prize)
+
+model UserStreak {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  currentStreak   Int      @default(0)
+  longestStreak   Int      @default(0)
+  totalCheckIns   Int      @default(0)
+  lastCheckIn     DateTime?
+  // JSON array of milestone day numbers the user has claimed: e.g. [15, 25, 50]
+  // Stored as a JSON string for simplicity (no need for a separate table).
+  claimedMilestones String @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

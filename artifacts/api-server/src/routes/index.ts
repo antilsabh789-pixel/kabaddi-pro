@@ -12,6 +12,7 @@ import statsRouter from "./stats";
 import coachRouter from "./coach";
 import miscRouter from "./misc";
 import giveawayRouter from "./giveaway";
+import streakRouter from "./streak";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(statsRouter);
 router.use(coachRouter);
 router.use(miscRouter);
 router.use(giveawayRouter);
+router.use(streakRouter);
 
 export default router;
