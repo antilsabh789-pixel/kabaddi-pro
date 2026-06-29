@@ -417,7 +417,7 @@ export default function PlayerStatsScreen({ userId, onClose }: PlayerStatsScreen
   const [recentForm, setRecentForm] = useState<RecentMatchResult[]>([]);
   const [positionRank, setPositionRank] = useState<{ rank: number; total: number } | null>(null);
 
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
 
   // Fetch player data
   const fetchPlayerData = useCallback(async () => {

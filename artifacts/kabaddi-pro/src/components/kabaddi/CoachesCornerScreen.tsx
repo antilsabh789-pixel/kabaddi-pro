@@ -56,7 +56,7 @@ const MOCK_PLAYERS: AcademyPlayer[] = [
 
 export default function CoachesCornerScreen({ onClose }: CoachesCornerScreenProps) {
   const { language, coachAcademies, addCoachAcademy, removeCoachAcademy, updateCoachAcademy, currentUser } = useKabaddiStore();
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const lang = language;
 
   const [showUpgrade, setShowUpgrade] = useState(false);

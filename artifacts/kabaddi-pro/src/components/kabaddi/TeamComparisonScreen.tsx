@@ -419,7 +419,7 @@ function TeamSelector({
 export default function TeamComparisonScreen({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const [teams, setTeams] = useState<TeamData[]>([]);
   const [teamA, setTeamA] = useState<TeamData | null>(null);
   const [teamB, setTeamB] = useState<TeamData | null>(null);

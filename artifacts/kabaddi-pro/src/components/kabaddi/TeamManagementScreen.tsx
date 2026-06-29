@@ -196,7 +196,7 @@ export default function TeamManagementScreen({ onClose, onViewPlayer }: TeamMana
   const myTeamCount = teams.filter((t) =>
     t.members.some((m) => m.userId === currentUser?.id)
   ).length;
-  const isFreeUser = !currentUser?.isPremium;
+  const isFreeUser = !currentUser?.isPremium && !currentUser?.isAdmin;
 
   // ─── Refs for stable fetchTeams callback ──────────────────────
   // We use refs so that fetchTeams has NO dependencies and is created

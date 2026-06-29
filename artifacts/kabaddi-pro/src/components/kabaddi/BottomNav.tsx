@@ -40,7 +40,7 @@ const tabs = [
 export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: BottomNavProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const language = useKabaddiStore((s) => s.language);
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
 
   const [ripples, setRipples] = useState<Array<{ id: number; x: number; y: number; tabId: string }>>([]);
   const [showLiveTooltip, setShowLiveTooltip] = useState(false);

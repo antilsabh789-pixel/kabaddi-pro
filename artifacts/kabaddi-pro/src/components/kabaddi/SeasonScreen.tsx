@@ -698,7 +698,7 @@ function MatchCard({ match, index }: { match: SeasonMatch; index: number }) {
 
 export default function SeasonScreen({ onClose }: SeasonScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const { toast } = useToast();
 
   const [seasons, setSeasons] = useState<Season[]>([]);

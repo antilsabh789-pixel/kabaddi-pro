@@ -96,7 +96,7 @@ const itemVariants: Variants = {
 
 export default function DataExportScreen({ onClose }: DataExportScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const { toast } = useToast();
 
   const [selectedType, setSelectedType] = useState<ExportType | null>(null);

@@ -874,7 +874,7 @@ export default function AdvancedStatsScreen({ userId, onClose }: AdvancedStatsSc
                     <Badge className="bg-white/10 text-white/80 text-[10px] border-0 font-semibold capitalize">
                       {profile.position || 'Player'}
                     </Badge>
-                    {currentUser?.isPremium && (
+                    {(currentUser?.isPremium || currentUser?.isAdmin) && (
                       <Badge className="bg-brand-gold/20 text-brand-gold-light text-[10px] border-0 font-bold">
                         <Zap className="w-2.5 h-2.5 mr-0.5" /> PREMIUM
                       </Badge>

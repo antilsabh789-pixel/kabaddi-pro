@@ -130,7 +130,7 @@ function StatBar({ label, value, max, color, locked }: {
 export default function PlayerProfileScreen({ userId, onBack }: PlayerProfileScreenProps) {
   const { currentUser } = useKabaddiStore();
   const language = useKabaddiStore((s) => s.language) as Language;
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const isOwnProfile = currentUser?.id === userId;
   const canSeeStats = isPremium || isOwnProfile;
   const { toast } = useToast();

@@ -92,7 +92,7 @@ const itemVariants: Variants = {
 
 export default function AIInsightsScreen({ onClose, matchId }: AIInsightsScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const { toast } = useToast();
 
   const [insights, setInsights] = useState<Insight[]>([]);

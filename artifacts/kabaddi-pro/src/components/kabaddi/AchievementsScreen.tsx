@@ -79,7 +79,7 @@ function getAchievementProgress(achievement: Achievement, stats: AchievementStat
 
 export default function AchievementsScreen({ onClose }: { onClose: () => void }) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [stats, setStats] = useState<AchievementStats | null>(null);
   const [loading, setLoading] = useState(true);

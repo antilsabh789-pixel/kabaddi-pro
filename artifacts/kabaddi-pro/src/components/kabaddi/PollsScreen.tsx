@@ -72,7 +72,7 @@ const itemVariants: Variants = {
 
 export default function PollsScreen({ onClose }: PollsScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<TabId>('active');

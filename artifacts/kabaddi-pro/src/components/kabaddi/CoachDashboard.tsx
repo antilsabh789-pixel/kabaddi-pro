@@ -183,7 +183,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
   const { language, currentUser } = useKabaddiStore();
   const lang = language;
   const coachUserId = currentUser?.id || '';
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
 
   // ─── State ─────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabId>('academy');

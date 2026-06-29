@@ -17,8 +17,9 @@ export default function PremiumLock({ feature, children, className = '', compact
   const { currentUser } = useKabaddiStore();
   const [showUpgrade, setShowUpgrade] = useState(false);
 
-  // If user is premium, just render the children without lock
-  if (currentUser?.isPremium) {
+  // If user is premium OR admin, just render the children without lock.
+  // Admins get all premium features for free.
+  if (currentUser?.isPremium || currentUser?.isAdmin) {
     return <>{children}</>;
   }
 

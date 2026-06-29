@@ -51,7 +51,7 @@ interface LeaderboardScreenProps {
 }
 
 export default function LeaderboardScreen({ onClose, onViewPlayer }: LeaderboardScreenProps) {
-  const isPremium = useKabaddiStore((s) => s.currentUser?.isPremium) || false;
+  const isPremium = useKabaddiStore((s) => s.currentUser?.isPremium) || useKabaddiStore((s) => s.currentUser?.isAdmin) || false;
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const [tabMode, setTabMode] = useState<TabMode>('tournament');
   const [category, setCategory] = useState<Category>('raiders');

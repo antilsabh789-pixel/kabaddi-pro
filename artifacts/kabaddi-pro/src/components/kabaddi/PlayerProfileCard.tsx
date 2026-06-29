@@ -177,7 +177,7 @@ function CircularRating({ rating, size = 48 }: { rating: number; size?: number }
 // ─── Main Component ──────────────────────────────────────────────────
 
 export default function PlayerProfileCard({ player: playerProp, profile: profileProp, compact = false }: PlayerProfileCardProps) {
-  const viewerIsPremium = useKabaddiStore((s) => s.currentUser?.isPremium) || false;
+  const viewerIsPremium = useKabaddiStore((s) => s.currentUser?.isPremium) || useKabaddiStore((s) => s.currentUser?.isAdmin) || false;
   const viewerId = useKabaddiStore((s) => s.currentUser?.id);
   const language = useKabaddiStore((s) => s.language);
   const storeUser = useKabaddiStore((s) => s.currentUser);

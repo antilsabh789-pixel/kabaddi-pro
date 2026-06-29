@@ -461,10 +461,10 @@ export default function PremiumUpgradeScreen({ onClose, feature }: PremiumUpgrad
     }
   }, [currentUser, selectedPlan, couponApplied, couponCode, discountedPaise, toast]);
 
-  // Check if user already has active premium
-  const hasActivePremium = currentUser?.isPremium && (
+  // Check if user already has active premium (admins always have access)
+  const hasActivePremium = currentUser?.isAdmin || (currentUser?.isPremium && (
     !currentUser.premiumExpiry || new Date(currentUser.premiumExpiry) > new Date()
-  );
+  ));
 
   return (
     <AnimatePresence>

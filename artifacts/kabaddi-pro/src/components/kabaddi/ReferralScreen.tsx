@@ -177,7 +177,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function ReferralScreen({ onClose }: { onClose: () => void }) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const isPremium = currentUser?.isPremium || false;
+  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
   const { toast } = useToast();
   const [info, setInfo] = useState<ReferralInfo | null>(null);
   const [loading, setLoading] = useState(true);
