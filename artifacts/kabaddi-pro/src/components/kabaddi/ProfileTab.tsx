@@ -62,11 +62,8 @@ const WEIGHT_CATEGORIES = [
   { label: 'Open', value: 'open' },
 ];
 
-const PRACTICE_GROUNDS = [
-  'Shivaji Stadium', 'Talkatora Indoor Stadium', 'Thyagaraj Sports Complex',
-  'Indira Gandhi Indoor Stadium', 'Siri Fort Sports Complex', 'Chhatrasal Stadium',
-  'Jawaharlal Nehru Stadium', 'Dr. Karni Singh Shooting Range', 'Other'
-];
+// Practice grounds are now fetched from /api/grounds (real DB data) instead
+// of a hardcoded list. The fetch is debounced and triggered as the user types.
 
 interface RecentMatch {
   id: string;
@@ -233,6 +230,8 @@ export default function ProfileTab() {
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [groundSearch, setGroundSearch] = useState('');
   const [showGroundSuggestions, setShowGroundSuggestions] = useState(false);
+  const [groundSuggestions, setGroundSuggestions] = useState<Array<{ id: string; name: string; city: string | null; state: string | null }>>([]);
+  const [groundSuggestionsLoading, setGroundSuggestionsLoading] = useState(false);
   const [totalPlayers, setTotalPlayers] = useState<number>(0);
 
   const [profileData, setProfileData] = useState({
@@ -455,6 +454,44 @@ export default function ProfileTab() {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [currentUser?.isAdmin]);
+
+  // ─── Fetch ground suggestions from /api/grounds (debounced) ────
+  // When the user types in the practice ground field, we search the real
+  // grounds database (not a hardcoded list). The fetch is debounced 300ms
+  // to avoid hammering the backend on every keystroke.
+  const groundSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (groundSearchTimerRef.current) clearTimeout(groundSearchTimerRef.current);
+    if (!groundSearch.trim()) {
+      setGroundSuggestions([]);
+      setGroundSuggestionsLoading(false);
+      return;
+    }
+    setGroundSuggestionsLoading(true);
+    groundSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/grounds?search=${encodeURIComponent(groundSearch)}&sort=popular`);
+        if (res.ok) {
+          const data = await res.json();
+          setGroundSuggestions((data.grounds || []).slice(0, 8).map((g: any) => ({
+            id: g.id,
+            name: g.name,
+            city: g.city,
+            state: g.state,
+          })));
+        } else {
+          setGroundSuggestions([]);
+        }
+      } catch {
+        setGroundSuggestions([]);
+      } finally {
+        setGroundSuggestionsLoading(false);
+      }
+    }, 300);
+    return () => {
+      if (groundSearchTimerRef.current) clearTimeout(groundSearchTimerRef.current);
+    };
+  }, [groundSearch]);
 
   // toggleDarkMode is now provided by useKabaddiStore (persists to localStorage)
 
@@ -1197,7 +1234,7 @@ export default function ProfileTab() {
                   </div>
                   )}
 
-                  {/* Practice Ground with Autocomplete */}
+                  {/* Practice Ground with Autocomplete — fetches from /api/grounds */}
                   <div className="relative">
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Practice Ground</label>
                     <Input
@@ -1212,22 +1249,36 @@ export default function ProfileTab() {
                       onBlur={() => setTimeout(() => setShowGroundSuggestions(false), 200)}
                       className="bg-white dark:bg-warm-50 border-warm-300 rounded-xl"
                     />
-                    {showGroundSuggestions && groundSearch && (
-                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-warm-50 border border-warm-300 dark:border-warm-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
-                        {PRACTICE_GROUNDS.filter(g => g.toLowerCase().includes(groundSearch.toLowerCase())).map((ground) => (
-                          <button
-                            key={ground}
-                            onClick={() => {
-                              setEditForm({ ...editForm, practiceGround: ground });
-                              setGroundSearch(ground);
-                              setShowGroundSuggestions(false);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs text-warm-700 dark:text-warm-600 hover:bg-warm-100 dark:hover:bg-warm-200 transition-colors"
-                          >
-                            <MapPin className="w-3 h-3 inline mr-1.5 text-warm-400" />
-                            {ground}
-                          </button>
-                        ))}
+                    {showGroundSuggestions && (groundSearch || editForm.practiceGround) && (
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-warm-50 border border-warm-300 dark:border-warm-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {groundSuggestionsLoading ? (
+                          <div className="px-3 py-2 text-xs text-warm-400">Searching grounds...</div>
+                        ) : groundSuggestions.length > 0 ? (
+                          groundSuggestions.map((ground) => (
+                            <button
+                              key={ground.id}
+                              type="button"
+                              onClick={() => {
+                                setEditForm({ ...editForm, practiceGround: ground.name });
+                                setGroundSearch(ground.name);
+                                setShowGroundSuggestions(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs text-warm-700 dark:text-warm-600 hover:bg-warm-100 dark:hover:bg-warm-200 transition-colors flex items-center gap-1.5"
+                            >
+                              <MapPin className="w-3 h-3 inline mr-1 text-warm-400 shrink-0" />
+                              <span className="truncate">{ground.name}</span>
+                              {(ground.city || ground.state) && (
+                                <span className="text-[10px] text-warm-400 ml-auto shrink-0">
+                                  {[ground.city, ground.state].filter(Boolean).join(', ')}
+                                </span>
+                              )}
+                            </button>
+                          ))
+                        ) : (groundSearch || editForm.practiceGround) && (groundSearch || editForm.practiceGround).trim().length >= 2 ? (
+                          <div className="px-3 py-2 text-xs text-warm-400">
+                            No matching grounds found. You can still use this name.
+                          </div>
+                        ) : null}
                       </div>
                     )}
                   </div>
