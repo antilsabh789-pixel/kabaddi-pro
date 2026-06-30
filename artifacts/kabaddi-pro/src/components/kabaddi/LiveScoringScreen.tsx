@@ -378,6 +378,8 @@ export default function LiveScoringScreen() {
   const [addPlayerTeam, setAddPlayerTeam] = useState<'home' | 'away' | null>(null);
   const [addPlayerName, setAddPlayerName] = useState('');
   const [addPlayerPhone, setAddPlayerPhone] = useState('');
+  const [addPlayerJersey, setAddPlayerJersey] = useState('');
+  const [addPlayerMode, setAddPlayerMode] = useState<'registered' | 'unregistered'>('registered');
   const [addPlayerSearchResults, setAddPlayerSearchResults] = useState<Array<{ id: string; name: string; phone?: string; jerseyNumber?: number; playerCode?: string }>>([]);
 
   // Match end state
@@ -1484,35 +1486,92 @@ export default function LiveScoringScreen() {
 
   // Add player mid-match handler
   const handleAddPlayer = () => {
-    if (!addPlayerTeam || !addPlayerName.trim() || !addPlayerPhone.trim()) return;
+    if (!addPlayerTeam) return;
+
+    // Validate based on mode
+    if (addPlayerMode === 'registered') {
+      // Registered mode: phone required, name auto-filled from search
+      if (!addPlayerPhone.trim()) {
+        toast({ title: 'Phone number required', description: 'Enter the player\'s phone number to find their account', duration: 3000 });
+        return;
+      }
+    } else {
+      // Unregistered mode: name + jersey required, phone optional
+      if (!addPlayerName.trim()) {
+        toast({ title: 'Name required', description: 'Enter the player\'s name', duration: 3000 });
+        return;
+      }
+    }
+
     const lineup = addPlayerTeam === 'home' ? match.homeLineup : match.awayLineup;
     const maxSquad = match.playersPerSide + 5;
     if (lineup.length >= maxSquad) {
       toast({ title: 'Squad full', description: `Maximum ${maxSquad} players allowed`, duration: 2000 });
       return;
     }
-    // Check if phone number already exists in the lineup (one phone = one player)
-    const phoneExists = lineup.some(p => p.phone === addPlayerPhone.trim());
-    if (phoneExists) {
-      toast({ title: 'Player already in squad', description: 'This phone number is already registered for a player in this team', duration: 3000 });
-      return;
+
+    // Check phone duplicates (only if phone is provided)
+    const phone = addPlayerPhone.trim();
+    if (phone) {
+      const phoneExists = lineup.some(p => p.phone === phone);
+      if (phoneExists) {
+        toast({ title: 'Player already in squad', description: 'This phone number is already registered for a player in this team', duration: 3000 });
+        return;
+      }
     }
-    // Check search results for an existing user ID to use
-    const existingPlayer = addPlayerSearchResults.find(p => p.phone === addPlayerPhone.trim());
+
+    // Check jersey number duplicates
+    const jerseyNum = addPlayerJersey.trim() ? parseInt(addPlayerJersey, 10) : (lineup.length + 1);
+    if (!isNaN(jerseyNum)) {
+      const jerseyExists = lineup.some(p => p.jerseyNumber === jerseyNum);
+      if (jerseyExists) {
+        toast({ title: 'Jersey number taken', description: `#${jerseyNum} is already worn by another player in this team`, duration: 3000 });
+        return;
+      }
+    }
+
+    // Check search results for an existing user ID (registered mode)
+    const existingPlayer = addPlayerMode === 'registered'
+      ? addPlayerSearchResults.find(p => p.phone === phone)
+      : undefined;
+
+    // Generate player ID:
+    // - Registered + found in DB → use real user ID
+    // - Registered + not found (but phone entered) → phone_<number> (will be resolved on match save)
+    // - Unregistered + phone entered → phone_<number> (stats claimable on signup)
+    // - Unregistered + no phone → guest_<timestamp> (stats NOT claimable — guest only)
+    let playerId: string;
+    if (existingPlayer?.id) {
+      playerId = existingPlayer.id;
+    } else if (phone) {
+      playerId = `phone_${phone}`;
+    } else {
+      playerId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    }
+
     const newPlayer: MatchPlayer = {
-      id: existingPlayer?.id || `phone_${addPlayerPhone.trim()}`,
-      name: addPlayerName.trim(),
-      phone: addPlayerPhone.trim(),
-      jerseyNumber: existingPlayer?.jerseyNumber || lineup.length + 1,
+      id: playerId,
+      name: addPlayerName.trim() || (existingPlayer?.name || 'Unknown Player'),
+      phone: phone || undefined,
+      jerseyNumber: jerseyNum,
       team: addPlayerTeam,
       playerCode: existingPlayer?.playerCode || undefined,
     };
+
     addPlayerToMatch(addPlayerTeam, newPlayer);
     const teamName = addPlayerTeam === 'home' ? match.homeTeam : match.awayTeam;
-    toast({ title: `${newPlayer.name} added to ${teamName}`, description: `📱 ${newPlayer.phone} • Squad: ${lineup.length + 1}`, duration: 2000 });
+    const modeLabel = addPlayerMode === 'registered' ? '📱 Registered' : '👤 Guest';
+    toast({
+      title: `${newPlayer.name} added to ${teamName}`,
+      description: `${modeLabel} • #${jerseyNum} • Squad: ${lineup.length + 1}`,
+      duration: 2000,
+    });
     triggerFeedback(SoundType.WHISTLE);
+
+    // Reset form
     setAddPlayerName('');
     setAddPlayerPhone('');
+    setAddPlayerJersey('');
     setAddPlayerSearchResults([]);
     setShowAddPlayer(false);
     setAddPlayerTeam(null);
@@ -2834,10 +2893,10 @@ export default function LiveScoringScreen() {
       {showAddPlayer && (
         <div
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center"
-          onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerPhone(''); setAddPlayerSearchResults([]); }}
+          onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerPhone(''); setAddPlayerJersey(''); setAddPlayerSearchResults([]); }}
         >
           <div
-            className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
+            className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Handle bar */}
@@ -2847,7 +2906,6 @@ export default function LiveScoringScreen() {
               <UserPlus className="w-5 h-5 text-emerald-400" />
               Add Player
             </h3>
-            <p className="text-[11px] text-gray-400 mb-4">Phone number links the player to their account for match records</p>
 
             {/* Team Selection */}
             {!addPlayerTeam ? (
@@ -2893,75 +2951,170 @@ export default function LiveScoringScreen() {
                   <button onClick={() => setAddPlayerTeam(null)} className="ml-auto text-[10px] text-warm-500 dark:text-gray-400 hover:text-warm-700 dark:hover:text-white">Change</button>
                 </div>
 
-                {/* Phone Number - Primary identifier */}
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                    📱 Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    value={addPlayerPhone}
-                    onChange={(e) => setAddPlayerPhone(e.target.value.replace(/[^\d+\-() ]/g, ''))}
-                    placeholder="Enter phone number"
-                    className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
-                    autoFocus
-                  />
-                  <p className="text-[9px] text-gray-500 mt-1">This number links the player to their account. One number per player.</p>
+                {/* ═══ MODE TOGGLE: Registered vs Unregistered ═══ */}
+                <div className="grid grid-cols-2 gap-2 p-1 bg-warm-100 dark:bg-warm-700/50 rounded-xl">
+                  <button
+                    onClick={() => {
+                      setAddPlayerMode('registered');
+                      setAddPlayerName('');
+                      setAddPlayerJersey('');
+                      setAddPlayerSearchResults([]);
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                      addPlayerMode === 'registered'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-warm-500 dark:text-gray-400 hover:text-warm-700 dark:hover:text-white'
+                    }`}
+                  >
+                    📱 Registered
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAddPlayerMode('unregistered');
+                      setAddPlayerSearchResults([]);
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                      addPlayerMode === 'unregistered'
+                        ? 'bg-amber-600 text-white shadow-md'
+                        : 'text-warm-500 dark:text-gray-400 hover:text-warm-700 dark:hover:text-white'
+                    }`}
+                  >
+                    👤 Unregistered
+                  </button>
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Player Name *</label>
-                  <input
-                    type="text"
-                    value={addPlayerName}
-                    onChange={(e) => setAddPlayerName(e.target.value)}
-                    placeholder="Enter player name"
-                    className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
-                  />
-                </div>
+                {addPlayerMode === 'registered' ? (
+                  <>
+                    {/* ═══ REGISTERED MODE: Phone → auto-fetch player data ═══ */}
+                    <p className="text-[11px] text-emerald-400">Enter the player's phone number — we'll fetch their details automatically.</p>
 
-                {/* Search results - auto-detected players by phone */}
-                {addPlayerSearchResults.length > 0 && (
-                  <div>
-                    <label className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">🔍 Found existing player — Tap to auto-fill</label>
-                    <div className="mt-1 space-y-1">
-                      {addPlayerSearchResults.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => {
-                            setAddPlayerName(p.name);
-                            setAddPlayerPhone(p.phone || '');
-                            setAddPlayerSearchResults([]);
-                          }}
-                          className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-emerald-900/20 transition-colors text-left border border-emerald-800/30"
-                        >
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: addPlayerTeam === 'home' ? match.homeTeamColor : match.awayTeamColor }}>
-                            {p.name.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-warm-800 dark:text-white truncate">{p.name}</p>
-                            <p className="text-[9px] text-gray-400">
-                              📱 {p.phone || 'No phone'} {p.jerseyNumber ? `• #${p.jerseyNumber}` : ''} {p.playerCode ? `• ${p.playerCode}` : ''}
-                            </p>
-                          </div>
-                          <span className="text-[9px] text-emerald-400 font-bold">USE</span>
-                        </button>
-                      ))}
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                        📱 Phone Number *
+                      </label>
+                      <input
+                        type="tel"
+                        value={addPlayerPhone}
+                        onChange={(e) => setAddPlayerPhone(e.target.value.replace(/[^\d+\-() ]/g, ''))}
+                        placeholder="Enter phone number"
+                        className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                        autoFocus
+                      />
+                      <p className="text-[9px] text-gray-500 mt-1">If the player has a Kabaddi Pro account, their name & jersey will auto-fill below.</p>
                     </div>
-                  </div>
+
+                    {/* Search results - auto-detected players by phone */}
+                    {addPlayerSearchResults.length > 0 && (
+                      <div>
+                        <label className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">🔍 Found existing player — Tap to auto-fill</label>
+                        <div className="mt-1 space-y-1">
+                          {addPlayerSearchResults.map((p) => (
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                setAddPlayerName(p.name);
+                                setAddPlayerPhone(p.phone || '');
+                                setAddPlayerJersey(p.jerseyNumber?.toString() || '');
+                                setAddPlayerSearchResults([]);
+                              }}
+                              className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-emerald-900/20 transition-colors text-left border border-emerald-800/30"
+                            >
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: addPlayerTeam === 'home' ? match.homeTeamColor : match.awayTeamColor }}>
+                                {p.name.charAt(0)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-warm-800 dark:text-white truncate">{p.name}</p>
+                                <p className="text-[9px] text-gray-400">
+                                  📱 {p.phone || 'No phone'} {p.jerseyNumber ? `• #${p.jerseyNumber}` : ''} {p.playerCode ? `• ${p.playerCode}` : ''}
+                                </p>
+                              </div>
+                              <span className="text-[9px] text-emerald-400 font-bold">USE</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Name (auto-filled, but editable) */}
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Player Name {addPlayerName ? '✓' : '(auto-fills from search)'}</label>
+                      <input
+                        type="text"
+                        value={addPlayerName}
+                        onChange={(e) => setAddPlayerName(e.target.value)}
+                        placeholder="Will auto-fill when player is found"
+                        className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                      />
+                    </div>
+
+                    {/* Jersey Number (auto-filled, but editable) */}
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jersey Number {addPlayerJersey ? '✓' : '(auto-fills from search)'}</label>
+                      <input
+                        type="number"
+                        value={addPlayerJersey}
+                        onChange={(e) => setAddPlayerJersey(e.target.value.replace(/[^\d]/g, ''))}
+                        placeholder="Auto-fills or enter manually"
+                        className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* ═══ UNREGISTERED MODE: Name + Jersey only ═══ */}
+                    <p className="text-[11px] text-amber-400">Add a player who isn't registered on Kabaddi Pro. Just enter their name and jersey number.</p>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Player Name *</label>
+                      <input
+                        type="text"
+                        value={addPlayerName}
+                        onChange={(e) => setAddPlayerName(e.target.value)}
+                        placeholder="Enter player name"
+                        className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30"
+                        autoFocus
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jersey Number *</label>
+                      <input
+                        type="number"
+                        value={addPlayerJersey}
+                        onChange={(e) => setAddPlayerJersey(e.target.value.replace(/[^\d]/g, ''))}
+                        placeholder="e.g. 7"
+                        className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30"
+                      />
+                    </div>
+
+                    {/* Phone (optional — for stat claiming on signup) */}
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">📱 Phone Number (optional)</label>
+                      <input
+                        type="tel"
+                        value={addPlayerPhone}
+                        onChange={(e) => setAddPlayerPhone(e.target.value.replace(/[^\d+\-() ]/g, ''))}
+                        placeholder="If provided, player can claim stats when they sign up"
+                        className="w-full mt-1 px-3 py-2.5 bg-warm-100 dark:bg-warm-700 border border-warm-300 dark:border-warm-600 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30"
+                      />
+                      <p className="text-[9px] text-gray-500 mt-1">💡 If this player later signs up with this phone number, they'll instantly see all their match stats.</p>
+                    </div>
+                  </>
                 )}
 
                 <div className="flex gap-2 pt-2">
                   <button
-                    onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerPhone(''); setAddPlayerSearchResults([]); }}
+                    onClick={() => { setShowAddPlayer(false); setAddPlayerTeam(null); setAddPlayerName(''); setAddPlayerPhone(''); setAddPlayerJersey(''); setAddPlayerSearchResults([]); }}
                     className="flex-1 py-2.5 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-gray-300 font-semibold text-sm"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleAddPlayer}
-                    disabled={!addPlayerName.trim() || !addPlayerPhone.trim()}
-                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    disabled={addPlayerMode === 'registered' ? !addPlayerPhone.trim() : !addPlayerName.trim()}
+                    className={`flex-1 py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed ${
+                      addPlayerMode === 'registered' ? 'bg-emerald-600' : 'bg-amber-600'
+                    }`}
                   >
                     Add Player
                   </button>
