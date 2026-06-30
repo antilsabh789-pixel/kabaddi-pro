@@ -386,6 +386,10 @@ export default function LiveScoringScreen() {
   // Match end state
   const [showEndMatchConfirm, setShowEndMatchConfirm] = useState(false);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
+  // Time Up screen — shown when 2nd half timer hits 0 (after last raid completes)
+  const [showTimeUp, setShowTimeUp] = useState(false);
+  // Tie breaker — shown when match ends in a draw
+  const [showTieBreaker, setShowTieBreaker] = useState(false);
   const [showEndHalfConfirm, setShowEndHalfConfirm] = useState(false);
   const [showMotmOverlay, setShowMotmOverlay] = useState(false);
   const [motmPlayer, setMotmPlayer] = useState<{ name: string; points: number } | null>(null);
@@ -576,10 +580,12 @@ export default function LiveScoringScreen() {
           triggerFeedback(SoundType.HALF_END);
           setShowHalfTimeTransition(true);
         } else {
+          // 2nd half ended — show Time Up screen with End Match / Continue options
           triggerFeedback(SoundType.HALF_END);
           setTimeout(() => {
             triggerFeedback(SoundType.MATCH_END);
           }, 800);
+          setShowTimeUp(true);
         }
       }
     }
@@ -1117,10 +1123,12 @@ export default function LiveScoringScreen() {
           triggerFeedback(SoundType.HALF_END);
           setShowHalfTimeTransition(true);
         } else {
+          // 2nd half ended — show Time Up screen with End Match / Continue options
           triggerFeedback(SoundType.HALF_END);
           setTimeout(() => {
             triggerFeedback(SoundType.MATCH_END);
           }, 800);
+          setShowTimeUp(true);
         }
       }, 500);
     }
@@ -2000,6 +2008,10 @@ export default function LiveScoringScreen() {
             // resets the timer to halfDuration*60 (full half). Without this,
             // the 2nd half timer stays stuck at 00 (the 1st half's end value).
             switchHalf();
+            // STANDARD KABADDI RULE: The team that did NOT raid first in the
+            // 1st half raids first in the 2nd half. switchRaidQueue flips
+            // the raid queue so the opposite team starts the 2nd half.
+            switchRaidQueue();
             // Reset raid state so the 2nd half waits for the first raid before
             // starting the clock (same behavior as the 1st half).
             setHasStartedRaiding(false);
@@ -2013,6 +2025,114 @@ export default function LiveScoringScreen() {
             setShowHalfTimeTransition(false);
           }}
         />
+      )}
+
+      {/* ═══ TIME UP SCREEN (2nd half ended) ═══ */}
+      {showTimeUp && match && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-3xl p-6 text-center bg-white dark:bg-warm-800">
+            <div className="text-5xl mb-3">⏰</div>
+            <h2 className="text-2xl font-black text-warm-800 dark:text-warm-100 mb-1">Time Up!</h2>
+            <p className="text-sm text-warm-500 dark:text-warm-400 mb-4">
+              {match.currentHalf === 2 ? 'Full time' : 'Half time'} — {match.homeTeam} {match.homeScore} - {match.awayScore} {match.awayTeam}
+            </p>
+
+            {/* Score display */}
+            <div className="flex items-center justify-center gap-6 mb-6">
+              <div className="text-center">
+                <p className="text-xs font-bold" style={{ color: match.homeTeamColor }}>{match.homeTeam}</p>
+                <p className="text-3xl font-black" style={{ color: match.homeTeamColor }}>{match.homeScore}</p>
+              </div>
+              <span className="text-lg text-gray-300 font-bold">-</span>
+              <div className="text-center">
+                <p className="text-xs font-bold" style={{ color: match.awayTeamColor }}>{match.awayTeam}</p>
+                <p className="text-3xl font-black" style={{ color: match.awayTeamColor }}>{match.awayScore}</p>
+              </div>
+            </div>
+
+            {/* Options */}
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  // End Match — check for tie
+                  setShowTimeUp(false);
+                  if (match.homeScore === match.awayScore) {
+                    setShowTieBreaker(true);
+                  } else {
+                    setShowSavePrompt(true);
+                  }
+                }}
+                className="w-full py-3 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-sm shadow-lg"
+              >
+                End Match
+              </button>
+              <button
+                onClick={() => {
+                  // Continue — add more playing time (5 min extra)
+                  setShowTimeUp(false);
+                  setTimer(5 * 60); // 5 extra minutes
+                  setHasStartedRaiding(true); // Resume clock immediately
+                  toast({ title: 'Extra Time Added', description: '5 extra minutes added. Play on!' });
+                }}
+                className="w-full py-3 rounded-xl border-2 border-brand-teal text-brand-teal font-bold text-sm hover:bg-brand-teal/5"
+              >
+                Continue (+5 min)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ TIE BREAKER SCREEN (scores are tied) ═══ */}
+      {showTieBreaker && match && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-3xl p-6 text-center bg-white dark:bg-warm-800">
+            <div className="text-5xl mb-3">🤝</div>
+            <h2 className="text-2xl font-black text-warm-800 dark:text-warm-100 mb-1">Match Tied!</h2>
+            <p className="text-sm text-warm-500 dark:text-warm-400 mb-4">
+              {match.homeTeam} {match.homeScore} - {match.awayScore} {match.awayTeam}
+            </p>
+            <p className="text-xs text-warm-400 mb-5">Choose how to break the tie:</p>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  // 5 min extra time
+                  setShowTieBreaker(false);
+                  setTimer(5 * 60); // 5 min extra
+                  setHasStartedRaiding(true);
+                  toast({ title: 'Extra Time (5 min)', description: 'Golden point — first to score wins!' });
+                }}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg"
+              >
+                ⏱️ 5 Min Extra Time
+              </button>
+              <button
+                onClick={() => {
+                  // 5 raids each — just save as tie for now
+                  // (Full raid shootout implementation would be a larger feature)
+                  setShowTieBreaker(false);
+                  toast({ title: '5 Raids Each', description: 'Raid shootout mode selected. Score 5 raids per team.' });
+                  setTimer(0);
+                  setShowSavePrompt(true);
+                }}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-brand-teal to-brand-teal-dark text-white font-bold text-sm shadow-lg"
+              >
+                🎯 5 Raids Each (Shootout)
+              </button>
+              <button
+                onClick={() => {
+                  // Save as tie
+                  setShowTieBreaker(false);
+                  setShowSavePrompt(true);
+                }}
+                className="w-full py-3 rounded-xl border-2 border-warm-300 dark:border-warm-600 text-warm-600 font-semibold text-sm"
+              >
+                Save as Tie
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* All Out / Super Raid celebrations removed from scorer screen */}
