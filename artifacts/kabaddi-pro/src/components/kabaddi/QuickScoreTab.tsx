@@ -787,36 +787,85 @@ export default function QuickScoreTab() {
     });
   };
 
-  const addQuickPlayer = (team: 'home' | 'away') => {
-    const input = playerSearch.trim();
-    if (!input) return;
+  // ─── Add unregistered player to lineup ────────────────────────
+  // Used in the Lineup step (step 2) to add players who aren't on the team
+  // roster (or aren't registered on Kabaddi Pro at all).
+  const [showAddUnregistered, setShowAddUnregistered] = useState(false);
+  const [unregName, setUnregName] = useState('');
+  const [unregJersey, setUnregJersey] = useState('');
+  const [unregPhone, setUnregPhone] = useState('');
+
+  const addUnregisteredPlayer = (team: 'home' | 'away') => {
+    const name = unregName.trim();
+    if (!name) {
+      toast({ title: 'Name required', variant: 'destructive' });
+      return;
+    }
     const lineup = team === 'home' ? config.homeLineup : config.awayLineup;
     const maxSquad = config.playersPerSide + 5;
-    if (lineup.length >= maxSquad) return; // Squad limit reached
-
-    // Determine if input is a phone number (mostly digits)
-    const isPhoneInput = /^[\d+\-() ]+$/.test(input) && input.replace(/[^\d]/g, '').length >= 6;
-
-    // Check if phone number already exists in squad
-    if (isPhoneInput) {
-      const phoneExists = [...config.homeLineup, ...config.awayLineup].some(p => p.phone === input);
-      if (phoneExists) return; // Already added with this phone
+    if (lineup.length >= maxSquad) {
+      toast({ title: 'Squad full', description: `Maximum ${maxSquad} players allowed`, duration: 2000 });
+      return;
     }
 
+    const phone = unregPhone.trim();
+    // Jersey: use entered value, else auto-assign
+    const jerseyNum = unregJersey.trim() ? parseInt(unregJersey, 10) : (lineup.length + 1);
+
+    // Check jersey duplicates
+    if (!isNaN(jerseyNum) && lineup.some(p => p.jerseyNumber === jerseyNum)) {
+      toast({ title: 'Jersey number taken', description: `#${jerseyNum} is already worn by another player`, duration: 3000 });
+      return;
+    }
+    // Check phone duplicates (if provided)
+    if (phone && [...config.homeLineup, ...config.awayLineup].some(p => p.phone === phone)) {
+      toast({ title: 'Phone already added', description: 'This phone number is already in a squad', duration: 3000 });
+      return;
+    }
+
+    // Generate ID:
+    // - phone provided → phone_<number> (stats claimable on signup)
+    // - no phone → guest_<timestamp> (not claimable)
+    const playerId = phone ? `phone_${phone}` : `guest_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
     const newPlayer: MatchPlayer = {
-      id: `phone_${isPhoneInput ? input.replace(/[^\d+]/g, '') : Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-      name: isPhoneInput ? `Player ${input.slice(-4)}` : input, // Use last 4 digits if phone input
-      phone: isPhoneInput ? input : undefined,
-      jerseyNumber: lineup.length + 1,
+      id: playerId,
+      name,
+      phone: phone || undefined,
+      jerseyNumber: jerseyNum,
       team,
     };
+
     setConfig({
       ...config,
       [team === 'home' ? 'homeLineup' : 'awayLineup']: [...lineup, newPlayer],
     });
-    setPlayerSearch('');
-    setSearchResults([]);
-    setShowSuggestions(false);
+
+    // Auto-mark as playing if we still need starting players
+    const currentPlaying = team === 'home' ? homePlaying7 : awayPlaying7;
+    if (currentPlaying.size < config.playersPerSide) {
+      if (team === 'home') {
+        const newPlaying = new Set(homePlaying7);
+        newPlaying.add(playerId);
+        setHomePlaying7(newPlaying);
+      } else {
+        const newPlaying = new Set(awayPlaying7);
+        newPlaying.add(playerId);
+        setAwayPlaying7(newPlaying);
+      }
+    }
+
+    toast({
+      title: `${name} added`,
+      description: `#${jerseyNum} · ${phone ? '📱 Stats claimable on signup' : '👤 Guest (no stat link)'}`,
+      duration: 2500,
+    });
+
+    // Reset form
+    setUnregName('');
+    setUnregJersey('');
+    setUnregPhone('');
+    setShowAddUnregistered(false);
   };
 
   // Highlight matching text in suggestions
@@ -1614,6 +1663,89 @@ export default function QuickScoreTab() {
                       <p className="text-center text-[10px] text-warm-400 py-2">
                         All team members selected! Tap any selected player above to remove them.
                       </p>
+                    )}
+
+                    {/* ═══ ADD UNREGISTERED PLAYER ═══ */}
+                    {/* Button to add a player who isn't on the team roster or isn't
+                        registered on Kabaddi Pro. */}
+                    {!showAddUnregistered ? (
+                      <button
+                        onClick={() => setShowAddUnregistered(true)}
+                        className="w-full mt-2 py-3 rounded-xl border-2 border-dashed border-amber-400 dark:border-amber-600 text-amber-600 dark:text-amber-400 font-bold text-sm hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Add Unregistered Player
+                      </button>
+                    ) : (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="mt-2 p-3 rounded-xl border-2 border-amber-400 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-900/10 space-y-2.5"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <UserPlus className="w-4 h-4 text-amber-500" />
+                          <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                            Add Unregistered Player
+                          </span>
+                          <button
+                            onClick={() => { setShowAddUnregistered(false); setUnregName(''); setUnregJersey(''); setUnregPhone(''); }}
+                            className="ml-auto text-[10px] text-warm-400 hover:text-warm-600"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+
+                        {/* Name */}
+                        <div>
+                          <label className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">Player Name *</label>
+                          <input
+                            type="text"
+                            value={unregName}
+                            onChange={(e) => setUnregName(e.target.value)}
+                            placeholder="Enter player name"
+                            className="w-full mt-1 px-3 py-2 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-600 rounded-lg text-sm text-warm-800 dark:text-warm-100 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30"
+                            autoFocus
+                          />
+                        </div>
+
+                        {/* Jersey + Phone row */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">Jersey #</label>
+                            <input
+                              type="number"
+                              value={unregJersey}
+                              onChange={(e) => setUnregJersey(e.target.value.replace(/[^\d]/g, ''))}
+                              placeholder="e.g. 7"
+                              className="w-full mt-1 px-3 py-2 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-600 rounded-lg text-sm text-warm-800 dark:text-warm-100 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">Phone (optional)</label>
+                            <input
+                              type="tel"
+                              value={unregPhone}
+                              onChange={(e) => setUnregPhone(e.target.value.replace(/[^\d+\-() ]/g, ''))}
+                              placeholder="For stat link"
+                              className="w-full mt-1 px-3 py-2 bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-600 rounded-lg text-sm text-warm-800 dark:text-warm-100 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30"
+                            />
+                          </div>
+                        </div>
+
+                        <p className="text-[9px] text-warm-400 leading-relaxed">
+                          💡 If you enter a phone number, this player's match stats will be linked to their account when they sign up with that number.
+                        </p>
+
+                        {/* Add button */}
+                        <button
+                          onClick={() => addUnregisteredPlayer(activeLineupTeam)}
+                          disabled={!unregName.trim()}
+                          className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add to {activeLineupTeam === 'home' ? config.homeTeam || 'Team A' : config.awayTeam || 'Team B'}
+                        </button>
+                      </motion.div>
                     )}
                   </>
                 );
