@@ -2715,7 +2715,13 @@ export default function LiveScoringScreen() {
 
               {raidResult === 'success' && (() => {
                 const { onCourtActive: activeDefenders } = splitLineup(fullDefendingLineup, defendingOutIds);
-                const canGetBonus = (match.bonusEnabled ?? true) && activeDefenders.length >= (match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1));
+                // STANDARD KABADDI RULE: Bonus point is ONLY allowed when there are
+                // exactly 6 or 7 defenders on court. With 5 or fewer (all-out /
+                // revival situations), bonus is NOT available — the bonus line
+                // requires a minimum of 6 defenders to be active on the mat.
+                // This is enforced regardless of playersPerSide or bonusLineThreshold
+                // config so the rule is consistent across all match formats.
+                const canGetBonus = (match.bonusEnabled ?? true) && (activeDefenders.length === 6 || activeDefenders.length === 7);
                 return (
                   <button
                     onClick={() => canGetBonus && setBonusPoint(!bonusPoint)}
@@ -2723,10 +2729,10 @@ export default function LiveScoringScreen() {
                     className={`mt-2 w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                       bonusPoint ? 'bg-yellow-900/30 border-2 border-yellow-400 text-yellow-400' : canGetBonus ? 'bg-warm-100 dark:bg-warm-700 border-2 border-gray-600 dark:border-warm-600 text-warm-500 dark:text-warm-400' : 'bg-warm-100/50 dark:bg-warm-700/50 border-2 border-gray-700 dark:border-warm-600 text-gray-600 dark:text-warm-600 cursor-not-allowed opacity-50'
                     }`}
-                    title={canGetBonus ? 'Toggle Bonus Point' : !(match.bonusEnabled ?? true) ? 'Bonus disabled for this format' : `Bonus only with ${match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1)}+ defenders on court`}
+                    title={canGetBonus ? 'Toggle Bonus Point' : !(match.bonusEnabled ?? true) ? 'Bonus disabled for this format' : activeDefenders.length < 6 ? `Bonus needs 6 or 7 defenders on court (currently ${activeDefenders.length})` : 'Bonus only with 6 or 7 defenders on court'}
                   >
                     <span className="text-lg">⭐</span>Bonus Point {bonusPoint ? 'ON' : 'OFF'}
-                    {!canGetBonus && <span className="text-[8px] ml-1">{!(match.bonusEnabled ?? true) ? '(disabled)' : `(${match.bonusLineThreshold ?? Math.max(1, match.playersPerSide - 1)}+ needed)`}</span>}
+                    {!canGetBonus && <span className="text-[8px] ml-1">{!(match.bonusEnabled ?? true) ? '(disabled)' : activeDefenders.length < 6 ? `(${activeDefenders.length}/6 min)` : '(6-7 only)'}</span>}
                   </button>
                 );
               })()}
