@@ -658,7 +658,7 @@ export default function HomeTab() {
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
   const [showGiveaway, setShowGiveaway] = useState(false);
 
-  // Recent Practice Matches state
+  // Recent Matches state (practice + tournament combined)
   const [recentPracticeMatches, setRecentPracticeMatches] = useState<Array<{
     id: string;
     homeTeamName: string;
@@ -666,15 +666,17 @@ export default function HomeTab() {
     homeScore: number;
     awayScore: number;
     createdAt: string;
+    completedAt: string | null;
     isPractice: boolean;
+    tournamentName: string | null;
   }>>([]);
   const [practiceMatchesLoading, setPracticeMatchesLoading] = useState(false);
 
-  // ─── Fetch recent practice matches for the current user ─────────
+  // ─── Fetch recent matches for the current user (practice + tournament) ─
   useEffect(() => {
     if (!currentUser?.id) return;
     setPracticeMatchesLoading(true);
-    fetch(`/api/matches?userId=${currentUser.id}&isPractice=true&status=completed&limit=5`)
+    fetch(`/api/matches?userId=${currentUser.id}&status=completed&limit=10`)
       .then(res => res.ok ? res.json() : { matches: [] })
       .then(data => {
         const matches = (data.matches || []).map((m: any) => ({
@@ -684,7 +686,9 @@ export default function HomeTab() {
           homeScore: m.homeScore || 0,
           awayScore: m.awayScore || 0,
           createdAt: m.createdAt,
+          completedAt: m.completedAt,
           isPractice: m.isPractice,
+          tournamentName: m.tournament?.name || null,
         }));
         setRecentPracticeMatches(matches);
       })
@@ -1598,14 +1602,14 @@ export default function HomeTab() {
       {/* ─── Total Players Banner (hidden temporarily, will re-enable when we have more users) ─── */}
       {/* <TotalPlayersBanner /> */}
 
-      {/* ─── Recent Practice Matches ──────────────────────────────── */}
+      {/* ─── Recent Matches (scorecard cards) ─────────────────────── */}
       {currentUser && (recentPracticeMatches.length > 0 || practiceMatchesLoading) && (
         <section className="px-4 mt-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-brand-teal" />
               <h2 className="text-base font-black text-warm-800 dark:text-warm-100">
-                Recent Practice Matches
+                Recent Matches
               </h2>
             </div>
             <button
@@ -1619,13 +1623,22 @@ export default function HomeTab() {
           {practiceMatchesLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-16 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse" />
+                <div key={i} className="h-24 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse" />
               ))}
             </div>
           ) : (
-            <div className="space-y-2">
-              {recentPracticeMatches.slice(0, 5).map((match) => {
+            <div className="space-y-2.5">
+              {recentPracticeMatches.slice(0, 10).map((match) => {
                 const homeWon = match.homeScore > match.awayScore;
+                const isDraw = match.homeScore === match.awayScore;
+                const matchDate = new Date(match.completedAt || match.createdAt);
+                const dateStr = matchDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                // Result summary
+                const resultText = isDraw
+                  ? 'Match Drawn'
+                  : `${homeWon ? match.homeTeamName : match.awayTeamName} won by ${Math.abs(match.homeScore - match.awayScore)} pt${Math.abs(match.homeScore - match.awayScore) !== 1 ? 's' : ''}`;
+
                 return (
                   <motion.div
                     key={match.id}
@@ -1635,43 +1648,63 @@ export default function HomeTab() {
                       setSelectedMatchId(match.id);
                       setShowMatchDetails(true);
                     }}
-                    className="bg-white dark:bg-warm-800 rounded-xl p-3 border border-warm-200 dark:border-warm-700 hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                    className="bg-white dark:bg-warm-800 rounded-xl border border-warm-200 dark:border-warm-700 hover:shadow-md transition-all cursor-pointer active:scale-[0.98] overflow-hidden"
                   >
-                    <div className="flex items-center justify-between">
-                      {/* Home team */}
-                      <div className="flex-1 min-w-0 text-left">
-                        <p className="text-xs font-bold text-warm-800 dark:text-warm-100 truncate">
-                          {match.homeTeamName}
-                        </p>
-                      </div>
+                    {/* Top row: match type + result badge */}
+                    <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+                      <span className="text-[9px] font-bold text-warm-400 uppercase tracking-wider">
+                        {match.tournamentName || (match.isPractice ? 'Practice Match' : 'Tournament Match')}
+                      </span>
+                      <span className="text-[8px] font-black text-white bg-brand-red px-2 py-0.5 rounded-full uppercase tracking-wide">
+                        Result
+                      </span>
+                    </div>
 
-                      {/* Score */}
-                      <div className="flex items-center gap-2 px-3">
-                        <span className={`text-lg font-black ${homeWon ? 'text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>
+                    {/* Date row */}
+                    <div className="px-3 pb-1.5">
+                      <span className="text-[9px] text-warm-400">
+                        {dateStr}
+                      </span>
+                    </div>
+
+                    {/* Team scores */}
+                    <div className="px-3 pb-2 space-y-1">
+                      {/* Home team */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-1.5 h-4 rounded-full shrink-0 ${homeWon ? 'bg-emerald-500' : 'bg-warm-300 dark:bg-warm-600'}`} />
+                          <p className={`text-sm font-bold truncate ${homeWon ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+                            {match.homeTeamName}
+                          </p>
+                        </div>
+                        <span className={`text-sm font-black ml-2 shrink-0 ${homeWon ? 'text-warm-800 dark:text-warm-100' : 'text-warm-400'}`}>
                           {match.homeScore}
                         </span>
-                        <span className="text-[10px] text-warm-400">-</span>
-                        <span className={`text-lg font-black ${!homeWon ? 'text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>
+                      </div>
+                      {/* Away team */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-1.5 h-4 rounded-full shrink-0 ${!homeWon && !isDraw ? 'bg-emerald-500' : 'bg-warm-300 dark:bg-warm-600'}`} />
+                          <p className={`text-sm font-bold truncate ${!homeWon && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500 dark:text-warm-400'}`}>
+                            {match.awayTeamName}
+                          </p>
+                        </div>
+                        <span className={`text-sm font-black ml-2 shrink-0 ${!homeWon && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-400'}`}>
                           {match.awayScore}
                         </span>
                       </div>
-
-                      {/* Away team */}
-                      <div className="flex-1 min-w-0 text-right">
-                        <p className="text-xs font-bold text-warm-800 dark:text-warm-100 truncate">
-                          {match.awayTeamName}
-                        </p>
-                      </div>
                     </div>
 
-                    {/* Date + Practice badge */}
-                    <div className="flex items-center justify-center gap-2 mt-1.5">
-                      <span className="text-[9px] text-warm-400">
-                        {new Date(match.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                      </span>
-                      <span className="text-[8px] font-bold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded-full">
-                        PRACTICE
-                      </span>
+                    {/* Result summary + actions */}
+                    <div className="flex items-center justify-between px-3 py-2 border-t border-warm-100 dark:border-warm-700/50 bg-warm-50/50 dark:bg-warm-700/20">
+                      <p className="text-[10px] font-semibold text-warm-600 dark:text-warm-300 truncate">
+                        {resultText}
+                      </p>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-[10px] font-bold text-brand-teal">
+                          Scorecard
+                        </span>
+                      </div>
                     </div>
                   </motion.div>
                 );
