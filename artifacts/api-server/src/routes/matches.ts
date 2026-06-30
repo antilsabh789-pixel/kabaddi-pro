@@ -70,22 +70,39 @@ router.post('/matches', async (req, res) => {
       homeTeamName, awayTeamName, homeTeamColor, awayTeamColor,
       homeScore, awayScore, gender, isPractice, weightCategory,
       liveStreamUrl, halfDuration, playersPerSide, events,
+      existingMatchId,
     } = req.body;
 
-    // Create the match record
-    const match = await db.match.create({
-      data: {
-        homeTeamId: homeTeamName || 'home',
-        awayTeamId: awayTeamName || 'away',
-        homeScore: homeScore || 0,
-        awayScore: awayScore || 0,
-        isPractice: isPractice ?? true,
-        status: 'completed',
-        gender: gender || null,
-        startedAt: new Date(),
-        completedAt: new Date(),
-      },
-    });
+    // If existingMatchId is provided, the match was already created as 'live'
+    // at match start. We just need to save events + update player stats on it
+    // and mark it completed. Don't create a duplicate match record.
+    let match;
+    if (existingMatchId) {
+      match = await db.match.update({
+        where: { id: existingMatchId },
+        data: {
+          homeScore: homeScore || 0,
+          awayScore: awayScore || 0,
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      });
+    } else {
+      // Create the match record
+      match = await db.match.create({
+        data: {
+          homeTeamId: homeTeamName || 'home',
+          awayTeamId: awayTeamName || 'away',
+          homeScore: homeScore || 0,
+          awayScore: awayScore || 0,
+          isPractice: isPractice ?? true,
+          status: 'completed',
+          gender: gender || null,
+          startedAt: new Date(),
+          completedAt: new Date(),
+        },
+      });
+    }
 
     // ─── Update player stats from events ──────────────────────────
     // For each event with a playerId, update the player's profile stats.
@@ -301,6 +318,100 @@ router.get('/match-events', async (req, res) => {
     const events = await db.matchEvent.findMany({ where: { matchId }, orderBy: { timestamp: 'asc' } });
     return res.json({ events });
   } catch (error) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/matches/live
+ * Creates a new match record with status='live' when a scorer starts scoring.
+ * Returns the new match ID so the frontend can PATCH updates to it later.
+ *
+ * Body: { homeTeamName, awayTeamName, homeTeamColor, awayTeamColor, isPractice,
+ *         halfDuration, playersPerSide, gender, weightCategory }
+ * Returns: { match: { id, ... } }
+ */
+router.post('/matches/live', async (req, res) => {
+  try {
+    const {
+      homeTeamName, awayTeamName, homeTeamColor, awayTeamColor,
+      isPractice, halfDuration, playersPerSide, gender, weightCategory,
+    } = req.body;
+
+    const match = await db.match.create({
+      data: {
+        homeTeamId: homeTeamName || 'home',
+        awayTeamId: awayTeamName || 'away',
+        homeScore: 0,
+        awayScore: 0,
+        isPractice: isPractice ?? true,
+        status: 'live',
+        gender: gender || null,
+        halfDuration: halfDuration || 20,
+        playersPerSide: playersPerSide || 7,
+        startedAt: new Date(),
+      },
+    });
+
+    return res.json({ match });
+  } catch (error) {
+    console.error('Create live match error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/matches/live?userId=...
+ * Returns all live matches (both practice and tournament) where the user is
+ * a member of either the home or away team. Used by the home feed to show
+ * live scores for matches the user cares about.
+ *
+ * The lookup is by team membership (TeamMember rows). For practice matches
+ * where teams might not have formal memberships, we also include matches
+ * where the user has scored events (playerId or playerPhone).
+ */
+router.get('/matches/live', async (req, res) => {
+  try {
+    const userId = (req.query['userId'] as string) || '';
+    if (!userId) return res.json({ matches: [] });
+
+    // Find team IDs where the user is a member
+    const teamMemberships = await db.teamMember.findMany({
+      where: { userId },
+      select: { teamId: true },
+    });
+    const userTeamIds = teamMemberships.map((tm) => tm.teamId);
+
+    // Build the where clause:
+    // - status = 'live'
+    // - AND (user is a member of home/away team OR user has events in this match)
+    const where: Record<string, unknown> = { status: 'live' };
+
+    const orClauses: unknown[] = [];
+    if (userTeamIds.length > 0) {
+      orClauses.push({ homeTeamId: { in: userTeamIds } });
+      orClauses.push({ awayTeamId: { in: userTeamIds } });
+    }
+    // Also include matches where the user has scored events (covers practice
+    // matches where the team names don't match formal team IDs)
+    orClauses.push({ events: { some: { playerId: userId } } });
+
+    where.OR = orClauses;
+
+    const matches = await db.match.findMany({
+      where,
+      include: {
+        homeTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
+        awayTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
+        tournament: { select: { id: true, name: true } },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 20,
+    });
+
+    return res.json({ matches });
+  } catch (error) {
+    console.error('Live matches fetch error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

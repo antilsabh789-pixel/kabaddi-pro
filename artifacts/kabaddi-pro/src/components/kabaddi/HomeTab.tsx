@@ -140,6 +140,8 @@ interface LiveMatch {
   homeTeam: TeamBasic;
   awayTeam: TeamBasic;
   tournament: { id: string; name: string } | null;
+  isPractice?: boolean;
+  startedAt?: string;
 }
 
 interface CompletedMatch {
@@ -810,11 +812,39 @@ export default function HomeTab() {
 
         if (cancelled || !data) return;
 
-        // Live matches from stats API
+        // Live matches from stats API (all live matches — tournament + practice)
         const matches: LiveMatch[] = Array.isArray(data.liveMatches)
           ? data.liveMatches
           : [];
         setLiveMatches(matches);
+
+        // Also fetch user-specific live matches (practice + tournament) for
+        // teams the user is a member of. Merge with the stats matches, deduped.
+        if (currentUser?.id) {
+          try {
+            const userLiveRes = await fetch(`/api/matches/live?userId=${currentUser.id}`);
+            if (userLiveRes.ok) {
+              const userLiveData = await userLiveRes.json();
+              const userLiveMatches: LiveMatch[] = (userLiveData.matches || []).map((m: any) => ({
+                id: m.id,
+                homeTeam: { name: m.homeTeam?.name || 'Home', shortName: m.homeTeam?.shortName || '', color: m.homeTeam?.color || '#DC2626' },
+                awayTeam: { name: m.awayTeam?.name || 'Away', shortName: m.awayTeam?.shortName || '', color: m.awayTeam?.color || '#1E293B' },
+                homeScore: m.homeScore || 0,
+                awayScore: m.awayScore || 0,
+                status: m.status,
+                isPractice: m.isPractice,
+                tournament: m.tournament?.name || null,
+                startedAt: m.startedAt,
+              }));
+              // Merge: add user-specific matches that aren't already in the list
+              const existingIds = new Set(matches.map((m) => m.id));
+              const merged = [...matches, ...userLiveMatches.filter((m) => !existingIds.has(m.id))];
+              setLiveMatches(merged);
+            }
+          } catch {
+            // Non-critical — fall back to stats-only matches
+          }
+        }
 
         // Recent completed matches
         const recent: CompletedMatch[] = Array.isArray(data.recentMatches)
@@ -1943,6 +1973,11 @@ export default function HomeTab() {
                         {match.tournament && (
                           <p className="text-[10px] text-warm-500 dark:text-warm-400 text-center mt-2">
                             {match.tournament.name}
+                          </p>
+                        )}
+                        {match.isPractice && !match.tournament && (
+                          <p className="text-[10px] text-brand-teal text-center mt-2 font-bold">
+                            🏏 PRACTICE MATCH
                           </p>
                         )}
                       </CardContent>

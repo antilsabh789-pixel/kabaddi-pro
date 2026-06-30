@@ -683,7 +683,42 @@ export const useKabaddiStore = create<KabaddiState>()(
           tossMatchConfig: null,
         }),
 
-      startMatch: (match, firstRaidTeam) =>
+      startMatch: (match, firstRaidTeam) => {
+        // Create a live match record in the backend so it appears in the home
+        // feed for players in the playing teams. Fire-and-forget — don't block
+        // the UI. The returned match ID is stored on activeMatch.id so we can
+        // PATCH updates (score changes) and mark it completed at the end.
+        try {
+          fetch('/api/matches/live', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              homeTeamName: match.homeTeam,
+              awayTeamName: match.awayTeam,
+              homeTeamColor: match.homeTeamColor,
+              awayTeamColor: match.awayTeamColor,
+              isPractice: match.isPractice,
+              halfDuration: match.halfDuration,
+              playersPerSide: match.playersPerSide,
+              gender: match.gender,
+              weightCategory: match.weightCategory,
+            }),
+          })
+            .then((res) => res.ok ? res.json() : null)
+            .then((data) => {
+              if (data?.match?.id) {
+                // Store the DB match ID on the active match so we can PATCH it later
+                set((state) => ({
+                  activeMatch: state.activeMatch ? { ...state.activeMatch, id: data.match.id } : null,
+                }));
+              }
+            })
+            .catch((err) => console.error('Failed to create live match:', err));
+        } catch (e) {
+          // Non-critical — don't fail match start if live record creation fails
+          console.error('Live match create error:', e);
+        }
+
         set({
           activeMatch: {
             ...match,
@@ -718,7 +753,8 @@ export const useKabaddiStore = create<KabaddiState>()(
           activeTab: 'quick-score',
           showToss: false,
           tossMatchConfig: null,
-        }),
+        });
+      },
 
       endMatch: () => set({ activeMatch: null }),
 

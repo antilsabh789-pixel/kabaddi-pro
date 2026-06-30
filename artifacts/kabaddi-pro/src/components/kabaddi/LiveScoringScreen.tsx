@@ -503,6 +503,44 @@ export default function LiveScoringScreen() {
     };
   }, [match?.isLive, isPaused, hasStartedRaiding, setTimer]);
 
+  // ═══ LIVE SCORE SYNC ═══
+  // Every 15 seconds during a live match, PATCH the current score to the
+  // backend so the home feed shows updated live scores for players in the
+  // playing teams. Only runs if we have a DB match ID (created at match start).
+  const lastScoreSyncRef = useRef<{ home: number; away: number } | null>(null);
+  useEffect(() => {
+    if (!match?.id || !match?.isLive) return;
+
+    const syncInterval = setInterval(async () => {
+      const current = useKabaddiStore.getState().activeMatch;
+      if (!current?.id || !current?.isLive) return;
+
+      // Only sync if score changed since last sync
+      const lastSync = lastScoreSyncRef.current;
+      if (lastSync && lastSync.home === current.homeScore && lastSync.away === current.awayScore) {
+        return; // No change — skip
+      }
+
+      try {
+        await fetch('/api/matches', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            matchId: current.id,
+            homeScore: current.homeScore,
+            awayScore: current.awayScore,
+          }),
+        });
+        lastScoreSyncRef.current = { home: current.homeScore, away: current.awayScore };
+      } catch (err) {
+        // Non-critical — live sync is best-effort
+        console.error('Live score sync failed:', err);
+      }
+    }, 15000); // 15 seconds
+
+    return () => clearInterval(syncInterval);
+  }, [match?.id, match?.isLive]);
+
   // ═══ 5-MINUTE WARNING & HALF/END TIME DETECTION ═══
   useEffect(() => {
     if (!match?.isLive) return;
@@ -1130,6 +1168,10 @@ export default function LiveScoringScreen() {
     });
 
     try {
+      // If we have a DB match ID (from the live record created at match start),
+      // pass existingMatchId so the backend updates that record instead of
+      // creating a duplicate. Otherwise, fall back to creating a new completed
+      // match record (legacy flow).
       await fetch('/api/matches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1141,6 +1183,7 @@ export default function LiveScoringScreen() {
           weightCategory: match.weightCategory,
           liveStreamUrl: match.liveStreamUrl,
           halfDuration: match.halfDuration, playersPerSide: match.playersPerSide,
+          existingMatchId: match.id || undefined,
           events: match.events.map(e => ({
             eventType: e.eventType, teamId: e.teamId, half: e.half,
             playerId: e.playerId, value: e.value, details: e.details,
