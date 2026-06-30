@@ -6,24 +6,22 @@ import {
   Trophy, X, Clock, Shield, Swords, Crown, Share2,
   Calendar, Zap, MapPin, Sparkles, Play, Flame,
   Target, Lock, AlertCircle, Users, Timer, Trash2,
+  Star, Medal, ChevronRight, TrendingUp,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { useKabaddiStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
-import { useKabaddiStore, type EventType } from '@/lib/store';
-import ShareScorecard from './ShareScorecard';
-import MatchHighlightsScreen from './MatchHighlightsScreen';
-import MatchReplayScreen from './MatchReplayScreen';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface MatchTeam {
   id: string;
   name: string;
   shortName?: string;
   color?: string;
+  logo?: string | null;
 }
 
 interface MatchEventDB {
@@ -31,6 +29,7 @@ interface MatchEventDB {
   matchId: string;
   teamId: string;
   playerId?: string;
+  playerPhone?: string | null;
   eventType: string;
   value: number;
   details?: string;
@@ -64,7 +63,7 @@ interface MatchData {
   playersPerSide: number;
   isPractice: boolean;
   venue?: string | null;
-  ground?: string | null;
+  ground?: { id: string; name: string; address?: string; city?: string } | null;
   weightCategory?: string | null;
 }
 
@@ -74,124 +73,41 @@ interface MatchDetailsScreenProps {
   onViewPlayer?: (userId: string) => void;
 }
 
-// ─── Event icon / label map using lucide icon names ──────────────────────────
-
-const EVENT_META: Record<string, { lucideIcon: string; label: string; isRaid: boolean; isTackle: boolean }> = {
-  raid_point:       { lucideIcon: 'Zap',     label: 'Raid Point',      isRaid: true,  isTackle: false },
-  bonus_point:      { lucideIcon: 'Target',  label: 'Bonus Point',     isRaid: true,  isTackle: false },
-  tackle_point:     { lucideIcon: 'Shield',  label: 'Tackle Point',    isRaid: false, isTackle: true  },
-  super_raid:       { lucideIcon: 'Flame',   label: 'Super Raid',      isRaid: true,  isTackle: false },
-  super_tackle:     { lucideIcon: 'Lock',    label: 'Super Tackle',    isRaid: false, isTackle: true  },
-  do_or_die_raid:   { lucideIcon: 'Zap',     label: 'Do-or-Die Raid',  isRaid: true,  isTackle: false },
-  all_out:          { lucideIcon: 'Flame',   label: 'All Out',         isRaid: false, isTackle: false },
-  timeout:          { lucideIcon: 'Clock',   label: 'Timeout',         isRaid: false, isTackle: false },
-  yellow_card:      { lucideIcon: 'AlertCircle', label: 'Yellow Card', isRaid: false, isTackle: false },
-  red_card:         { lucideIcon: 'AlertCircle', label: 'Red Card',    isRaid: false, isTackle: false },
-  green_card:       { lucideIcon: 'AlertCircle', label: 'Green Card',  isRaid: false, isTackle: false },
+const EVENT_META: Record<string, { icon: typeof Zap; label: string; isRaid: boolean; isTackle: boolean; color: string }> = {
+  raid_point:       { icon: Zap,        label: 'Raid Point',     isRaid: true,  isTackle: false, color: 'text-orange-500' },
+  bonus_point:      { icon: Target,     label: 'Bonus Point',    isRaid: true,  isTackle: false, color: 'text-amber-500' },
+  tackle_point:     { icon: Shield,     label: 'Tackle Point',   isRaid: false, isTackle: true,  color: 'text-blue-500' },
+  super_raid:       { icon: Flame,      label: 'Super Raid',     isRaid: true,  isTackle: false, color: 'text-red-500' },
+  super_tackle:     { icon: Lock,       label: 'Super Tackle',   isRaid: false, isTackle: true,  color: 'text-purple-500' },
+  do_or_die_raid:   { icon: Zap,        label: 'Do-or-Die',      isRaid: true,  isTackle: false, color: 'text-red-600' },
+  all_out:          { icon: Flame,      label: 'All Out',        isRaid: false, isTackle: false, color: 'text-red-500' },
+  timeout:          { icon: Clock,      label: 'Timeout',        isRaid: false, isTackle: false, color: 'text-gray-500' },
+  yellow_card:      { icon: AlertCircle,label: 'Yellow Card',    isRaid: false, isTackle: false, color: 'text-yellow-500' },
+  red_card:         { icon: AlertCircle,label: 'Red Card',       isRaid: false, isTackle: false, color: 'text-red-600' },
+  empty_raid:       { icon: Clock,      label: 'Empty Raid',     isRaid: true,  isTackle: false, color: 'text-gray-400' },
 };
 
-// Map icon names to components for rendering
-function EventIcon({ iconName, className }: { iconName: string; className?: string }) {
-  const iconProps = { className };
-  switch (iconName) {
-    case 'Zap': return <Zap {...iconProps} />;
-    case 'Shield': return <Shield {...iconProps} />;
-    case 'Flame': return <Flame {...iconProps} />;
-    case 'Target': return <Target {...iconProps} />;
-    case 'Lock': return <Lock {...iconProps} />;
-    case 'Clock': return <Clock {...iconProps} />;
-    case 'AlertCircle': return <AlertCircle {...iconProps} />;
-    default: return <Zap {...iconProps} />;
-  }
-}
+type TabId = 'awards' | 'scorecard' | 'commentary' | 'summary';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDateTime(iso: string | null): { date: string; time: string } {
-  if (!iso) return { date: '—', time: '' };
-  const d = new Date(iso);
-  return {
-    date: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
-  };
-}
-
-function formatDuration(isoStart: string | null, isoEnd: string | null): string {
-  if (!isoStart || !isoEnd) return '';
-  const ms = new Date(isoEnd).getTime() - new Date(isoStart).getTime();
-  const totalMins = Math.round(ms / 60000);
-  return `${totalMins} min`;
-}
-
-function getStatusConfig(status: string): { label: string; color: string; bgColor: string; pulse: boolean } {
-  switch (status) {
-    case 'LIVE':
-    case 'IN_PROGRESS':
-      return { label: 'LIVE', color: 'text-red-500', bgColor: 'bg-red-500/10 border-red-500/30', pulse: true };
-    case 'COMPLETED':
-    case 'FULL_TIME':
-      return { label: 'COMPLETED', color: 'text-brand-teal', bgColor: 'bg-brand-teal/10 border-brand-teal/30', pulse: false };
-    default:
-      return { label: 'UPCOMING', color: 'text-brand-gold', bgColor: 'bg-brand-gold/10 border-brand-gold/30', pulse: false };
-  }
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ════════════════════════════════════════════════════════════════════════════
 
 export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: MatchDetailsScreenProps) {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const { toast } = useToast();
   const [match, setMatch] = useState<MatchData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showShare, setShowShare] = useState(false);
-  const [showHighlights, setShowHighlights] = useState(false);
-  const [showReplay, setShowReplay] = useState(false);
-  const [prevHomeScore, setPrevHomeScore] = useState(0);
-  const [prevAwayScore, setPrevAwayScore] = useState(0);
-  const [homeScoreFlash, setHomeScoreFlash] = useState(false);
-  const [awayScoreFlash, setAwayScoreFlash] = useState(false);
-
-  const { toast } = useToast();
-  const activeMatch = useKabaddiStore((s) => s.activeMatch);
-  const currentUser = useKabaddiStore((s) => s.currentUser);
-  const timelineRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<TabId>('awards');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  // Check if current user is the scorer of this match (can delete it)
-  const canDeleteMatch = !!(currentUser?.id && match?.scorers?.some((s: any) => s.userId === currentUser.id));
-
-  // ── Delete match ───────────────────────────────────────────────────────────
-  const handleDeleteMatch = async () => {
-    if (!currentUser?.id || !matchId) return;
-    setDeleting(true);
-    try {
-      const res = await fetch('/api/matches', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, userId: currentUser.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: 'Delete failed', description: data.error, variant: 'destructive' });
-        return;
-      }
-      toast({ title: 'Match Deleted', description: 'Player stats have been reversed.' });
-      onClose();
-    } catch {
-      toast({ title: 'Delete failed', variant: 'destructive' });
-    } finally {
-      setDeleting(false);
-      setDeleteConfirm(false);
-    }
-  };
 
   // ── Fetch match ────────────────────────────────────────────────────────────
   const fetchMatch = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Use the dedicated /api/matches/:id endpoint (NOT /api/matches?id=
-      // which doesn't exist and was returning wrong data)
       const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}`);
       if (!res.ok) throw new Error('Match not found');
       const data = await res.json();
@@ -204,1096 +120,518 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
     }
   }, [matchId]);
 
-  useEffect(() => {
-    fetchMatch();
-  }, [fetchMatch]);
+  useEffect(() => { fetchMatch(); }, [fetchMatch]);
 
-  // ── Score change animation ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!match) return;
-    if (match.homeScore !== prevHomeScore && prevHomeScore !== 0) {
-      setHomeScoreFlash(true);
-      const timer = setTimeout(() => setHomeScoreFlash(false), 800);
-      return () => clearTimeout(timer);
-    }
-    if (match.awayScore !== prevAwayScore && prevAwayScore !== 0) {
-      setAwayScoreFlash(true);
-      const timer = setTimeout(() => setAwayScoreFlash(false), 800);
-      return () => clearTimeout(timer);
-    }
-    setPrevHomeScore(match.homeScore);
-    setPrevAwayScore(match.awayScore);
-  
-    return undefined;}, [match?.homeScore, match?.awayScore, prevHomeScore, prevAwayScore]);
+  // ── Delete match ───────────────────────────────────────────────────────────
+  const canDeleteMatch = !!(currentUser?.id && match?.scorers?.some((s) => s.userId === currentUser.id));
 
-  // ── Derived data ───────────────────────────────────────────────────────────
-  const homeColor = match?.homeTeam?.color || '#DC2626';
-  const awayColor = match?.awayTeam?.color || '#1E293B';
-  const isHomeWin = match ? match.homeScore > match.awayScore : false;
-  const isAwayWin = match ? match.awayScore > match.homeScore : false;
-  const isDraw = match ? match.homeScore === match.awayScore : false;
-  const winnerSide: 'home' | 'away' | 'draw' | null = match
-    ? isDraw ? 'draw' : isHomeWin ? 'home' : 'away'
-    : null;
+  const handleDeleteMatch = async () => {
+    if (!currentUser?.id || !matchId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/matches', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, userId: currentUser.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: 'Delete failed', description: data.error, variant: 'destructive' }); return; }
+      toast({ title: 'Match Deleted', description: 'Player stats have been reversed.' });
+      onClose();
+    } catch { toast({ title: 'Delete failed', variant: 'destructive' }); }
+    finally { setDeleting(false); setDeleteConfirm(false); }
+  };
 
-  const statusConfig = match ? getStatusConfig(match.status) : getStatusConfig('');
-
-  // ── Player contribution aggregation ────────────────────────────────────────
-  const aggregatePlayers = useCallback(() => {
-    if (!match) return { topRaiders: [], topDefenders: [] };
-
-    const raidMap: Record<string, { id: string; name: string; teamId: string; points: number; raidPoints: number; bonusPoints: number }> = {};
-    const tackleMap: Record<string, { id: string; name: string; teamId: string; points: number; tacklePoints: number; superTackles: number }> = {};
-
-    // Build player name lookup from scorers
+  // ── Player aggregation ─────────────────────────────────────────────────────
+  const playerMap = useCallback(() => {
+    if (!match) return { players: {} as Record<string, { id: string; name: string; teamId: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number }> , topRaiders: [] as any[], topDefenders: [] as any[] };
+    const players: Record<string, { id: string; name: string; teamId: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number }> = {};
     const scorerNames: Record<string, string> = {};
-    for (const s of match.scorers) {
-      scorerNames[s.userId] = s.user.name;
-    }
+    for (const s of match.scorers) scorerNames[s.userId] = s.user.name;
 
     for (const evt of match.events) {
-      if (!evt.playerId) continue;
+      const pid = evt.playerId;
+      if (!pid) continue;
+      if (!players[pid]) players[pid] = { id: pid, name: scorerNames[pid] || pid.slice(0, 6), teamId: evt.teamId, raidPoints: 0, tacklePoints: 0, bonusPoints: 0, totalPoints: 0, raids: 0, tackles: 0, superTackles: 0 };
+      const p = players[pid];
+      const val = evt.value || 0;
       const meta = EVENT_META[evt.eventType];
       if (!meta) continue;
-
-      const name = scorerNames[evt.playerId] || evt.playerId.slice(0, 6);
-
-      if (meta.isRaid) {
-        if (!raidMap[evt.playerId]) raidMap[evt.playerId] = { id: evt.playerId, name, teamId: evt.teamId, points: 0, raidPoints: 0, bonusPoints: 0 };
-        raidMap[evt.playerId].points += evt.value;
-        if (evt.eventType === 'bonus_point') raidMap[evt.playerId].bonusPoints += evt.value;
-        else raidMap[evt.playerId].raidPoints += evt.value;
-      }
-      if (meta.isTackle) {
-        if (!tackleMap[evt.playerId]) tackleMap[evt.playerId] = { id: evt.playerId, name, teamId: evt.teamId, points: 0, tacklePoints: 0, superTackles: 0 };
-        tackleMap[evt.playerId].points += evt.value;
-        tackleMap[evt.playerId].tacklePoints += evt.value;
-        if (evt.eventType === 'super_tackle') tackleMap[evt.playerId].superTackles += 1;
-      }
+      if (meta.isRaid) { p.raids += 1; if (evt.eventType === 'bonus_point') p.bonusPoints += val; else p.raidPoints += val; }
+      if (meta.isTackle) { p.tackles += 1; p.tacklePoints += val; if (evt.eventType === 'super_tackle') p.superTackles += 1; }
+      p.totalPoints += val;
     }
-
-    const topRaiders = Object.values(raidMap).sort((a, b) => b.points - a.points).slice(0, 5);
-    const topDefenders = Object.values(tackleMap).sort((a, b) => b.points - a.points).slice(0, 5);
-
-    return { topRaiders, topDefenders };
+    const topRaiders = Object.values(players).filter(p => p.raidPoints + p.bonusPoints > 0).sort((a, b) => (b.raidPoints + b.bonusPoints) - (a.raidPoints + a.bonusPoints));
+    const topDefenders = Object.values(players).filter(p => p.tacklePoints > 0).sort((a, b) => b.tacklePoints - a.tacklePoints);
+    return { players, topRaiders, topDefenders };
   }, [match]);
 
-  const { topRaiders, topDefenders } = aggregatePlayers();
+  const { players, topRaiders, topDefenders } = playerMap();
+  const motm = match?.motmUser ? players[match.motmUser.id] : null;
+  const bestRaider = topRaiders[0] || null;
+  const bestDefender = topDefenders[0] || null;
 
-  // ── MOTM points ────────────────────────────────────────────────────────────
-  const motmPoints = useCallback(() => {
-    if (!match?.motmUser) return 0;
-    let total = 0;
-    for (const evt of match.events) {
-      if (evt.playerId === match.motmUser!.id) total += evt.value;
-    }
-    return total;
-  }, [match]);
-
-  // ── Team stats computation ─────────────────────────────────────────────────
-  const computeTeamStats = useCallback(() => {
+  // ── Team stats ─────────────────────────────────────────────────────────────
+  const teamStats = useCallback(() => {
     if (!match) return null;
-    let homeRaidPts = 0, awayRaidPts = 0;
-    let homeTacklePts = 0, awayTacklePts = 0;
-    let homeBonusPts = 0, awayBonusPts = 0;
-    let homeAllOuts = 0, awayAllOuts = 0;
-
+    let hRaid = 0, aRaid = 0, hTackle = 0, aTackle = 0, hBonus = 0, aBonus = 0, hAllOut = 0, aAllOut = 0;
     for (const evt of match.events) {
       const isHome = evt.teamId === match.homeTeamId;
-      const meta = EVENT_META[evt.eventType];
-      if (!meta) continue;
-
-      if (meta.isRaid && evt.eventType !== 'bonus_point') {
-        if (isHome) homeRaidPts += evt.value; else awayRaidPts += evt.value;
-      }
-      if (meta.isTackle) {
-        if (isHome) homeTacklePts += evt.value; else awayTacklePts += evt.value;
-      }
-      if (evt.eventType === 'bonus_point') {
-        if (isHome) homeBonusPts += evt.value; else awayBonusPts += evt.value;
-      }
-      if (evt.eventType === 'all_out') {
-        if (isHome) homeAllOuts += 1; else awayAllOuts += 1;
-      }
+      const meta = EVENT_META[evt.eventType]; if (!meta) continue;
+      if (evt.eventType === 'raid_point' || evt.eventType === 'super_raid' || evt.eventType === 'do_or_die_raid') { if (isHome) hRaid += evt.value; else aRaid += evt.value; }
+      else if (evt.eventType === 'bonus_point') { if (isHome) hBonus += evt.value; else aBonus += evt.value; }
+      else if (meta.isTackle) { if (isHome) hTackle += evt.value; else aTackle += evt.value; }
+      else if (evt.eventType === 'all_out') { if (isHome) hAllOut += evt.value; else aAllOut += evt.value; }
     }
-
-    return {
-      home: { total: match.homeScore, raidPoints: homeRaidPts, tacklePoints: homeTacklePts, bonusPoints: homeBonusPts, allOuts: homeAllOuts },
-      away: { total: match.awayScore, raidPoints: awayRaidPts, tacklePoints: awayTacklePts, bonusPoints: awayBonusPts, allOuts: awayAllOuts },
-    };
+    return { hRaid, aRaid, hTackle, aTackle, hBonus, aBonus, hAllOut, aAllOut };
   }, [match]);
 
-  const teamStats = computeTeamStats();
+  const ts = teamStats();
 
-  // ── Share data ─────────────────────────────────────────────────────────────
-  const buildShareData = useCallback(() => {
-    if (!match) return null;
-    const motm = match.motmUser ? { name: match.motmUser.name, points: motmPoints() } : null;
-    const tr = topRaiders[0] ? { name: topRaiders[0].name, points: topRaiders[0].points } : null;
-    const td = topDefenders[0] ? { name: topDefenders[0].name, points: topDefenders[0].points } : null;
-    return {
-      homeTeam: match.homeTeam.name,
-      awayTeam: match.awayTeam.name,
-      homeScore: match.homeScore,
-      awayScore: match.awayScore,
-      homeTeamColor: homeColor,
-      awayTeamColor: awayColor,
-      tournament: match.tournament?.name || null,
-      date: match.startedAt,
-      venue: match.venue || null,
-      gender: match.gender || null,
-      weightCategory: match.weightCategory || null,
-      topRaider: tr,
-      topDefender: td,
-      motm,
-    };
-  }, [match, homeColor, awayColor, motmPoints, topRaiders, topDefenders]);
+  // ── Loading ────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-brand-red/30 border-t-brand-red rounded-full animate-spin" />
+          <p className="text-sm text-warm-500">Loading match...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // ── Sorted events (chronological, oldest first) ────────────────────────────
-  const sortedEvents = match
-    ? [...match.events].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      )
-    : [];
+  if (error || !match) {
+    return (
+      <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col items-center justify-center p-6">
+        <AlertCircle className="w-12 h-12 text-brand-red mb-3" />
+        <p className="text-sm font-bold text-warm-800 dark:text-warm-100 mb-1">{error || 'Match not found'}</p>
+        <Button onClick={onClose} className="mt-4">Go Back</Button>
+      </div>
+    );
+  }
 
-  // ── Half progress calculation ──────────────────────────────────────────────
-  const getHalfProgress = useCallback(() => {
-    if (!match?.startedAt) return 0;
-    const start = new Date(match.startedAt).getTime();
-    const now = match.completedAt
-      ? new Date(match.completedAt).getTime()
-      : Date.now();
-    const halfDurationMs = match.halfDuration * 60 * 1000;
-    const totalMatchMs = halfDurationMs * 2;
-    const elapsed = Math.min(now - start, totalMatchMs);
-    return Math.round((elapsed / totalMatchMs) * 100);
-  }, [match]);
+  const homeWon = match.homeScore > match.awayScore;
+  const isDraw = match.homeScore === match.awayScore;
+  const resultText = isDraw ? 'Match Drawn' : `${homeWon ? match.homeTeam.name : match.awayTeam.name} won by ${Math.abs(match.homeScore - match.awayScore)} pt${Math.abs(match.homeScore - match.awayScore) !== 1 ? 's' : ''}`;
+  const matchDate = new Date(match.completedAt || match.startedAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const tabs: { id: TabId; label: string; icon: typeof Trophy }[] = [
+    { id: 'awards', label: 'Awards', icon: Crown },
+    { id: 'scorecard', label: 'Scorecard', icon: Swords },
+    { id: 'commentary', label: 'Commentary', icon: Play },
+    { id: 'summary', label: 'Summary', icon: TrendingUp },
+  ];
+
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col"
-      >
-        {/* ── Header bar ── */}
-        <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
-                <Swords className="w-4 h-4 text-white" />
-              </div>
-              <h1 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">MATCH DETAILS</h1>
+    <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col">
+      {/* ═══ HEADER ═══ */}
+      <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-red to-brand-red-dark flex items-center justify-center">
+              <Swords className="w-4 h-4 text-white" />
             </div>
-            <div className="flex items-center gap-2">
-              {/* Delete Match button — only visible to the scorer who created this match */}
-              {canDeleteMatch && !deleteConfirm && (
-                <button
-                  onClick={() => setDeleteConfirm(true)}
-                  className="px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center gap-1"
-                  title="Delete this match (reverses player stats)"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete
-                </button>
-              )}
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 transition-colors"
-              >
-                <X className="w-4 h-4" />
+            <h1 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">MATCH DETAILS</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {canDeleteMatch && !deleteConfirm && (
+              <button onClick={() => setDeleteConfirm(true)} className="px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-200 flex items-center gap-1">
+                <Trash2 className="w-3.5 h-3.5" /> Delete
               </button>
+            )}
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        {deleteConfirm && (
+          <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
+            <p className="text-xs font-bold text-red-700 dark:text-red-400 mb-2">⚠️ Delete this match? This will reverse all player stats. This cannot be undone.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteConfirm(false)} disabled={deleting} className="flex-1 py-2 rounded-lg border border-warm-300 dark:border-warm-600 text-warm-600 font-semibold text-xs">Cancel</button>
+              <button onClick={handleDeleteMatch} disabled={deleting} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs disabled:opacity-50">{deleting ? 'Deleting...' : 'Yes, Delete'}</button>
             </div>
           </div>
+        )}
 
-          {/* Delete confirmation bar */}
-          {deleteConfirm && (
-            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
-              <p className="text-xs font-bold text-red-700 dark:text-red-400 mb-2">
-                ⚠️ Delete this match? This will reverse all player stats from this match. This cannot be undone.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setDeleteConfirm(false)}
-                  disabled={deleting}
-                  className="flex-1 py-2 rounded-lg border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300 font-semibold text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteMatch}
-                  disabled={deleting}
-                  className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs disabled:opacity-50"
-                >
-                  {deleting ? 'Deleting...' : 'Yes, Delete Match'}
-                </button>
+        {/* Score banner */}
+        <div className="px-4 pb-3">
+          <div className="flex items-center justify-between">
+            {/* Home team */}
+            <div className="flex-1 text-center">
+              <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center text-white font-black text-lg mb-1" style={{ backgroundColor: match.homeTeam.color || '#DC2626' }}>
+                {match.homeTeam.shortName?.charAt(0) || match.homeTeam.name.charAt(0)}
               </div>
+              <p className={`text-xs font-bold truncate ${homeWon ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500'}`}>{match.homeTeam.name}</p>
             </div>
-          )}
-        </header>
-
-        {/* ── Scrollable content ── */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {loading ? (
-            <div className="px-4 py-8 space-y-4">
-              <div className="h-48 rounded-2xl bg-warm-100 dark:bg-warm-100 animate-pulse" />
-              <div className="h-24 rounded-2xl bg-warm-100 dark:bg-warm-100 animate-pulse" />
-              <div className="h-64 rounded-2xl bg-warm-100 dark:bg-warm-100 animate-pulse" />
+            {/* Score */}
+            <div className="flex items-center gap-2 px-4">
+              <span className={`text-3xl font-black ${homeWon ? 'text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>{match.homeScore}</span>
+              <span className="text-sm text-warm-400">-</span>
+              <span className={`text-3xl font-black ${!homeWon && !isDraw ? 'text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>{match.awayScore}</span>
             </div>
-          ) : error || !match ? (
-            <div className="flex flex-col items-center justify-center py-20 px-6">
-              <Shield className="w-12 h-12 text-warm-300 dark:text-warm-300 mb-3" />
-              <p className="text-warm-600 dark:text-warm-300 text-sm font-medium">{error || 'Match not found'}</p>
-              <Button onClick={fetchMatch} variant="outline" className="mt-4 rounded-xl">
-                Retry
-              </Button>
+            {/* Away team */}
+            <div className="flex-1 text-center">
+              <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center text-white font-black text-lg mb-1" style={{ backgroundColor: match.awayTeam.color || '#1E293B' }}>
+                {match.awayTeam.shortName?.charAt(0) || match.awayTeam.name.charAt(0)}
+              </div>
+              <p className={`text-xs font-bold truncate ${!homeWon && !isDraw ? 'text-warm-800 dark:text-warm-100' : 'text-warm-500'}`}>{match.awayTeam.name}</p>
             </div>
-          ) : (
-            <div className="px-4 py-4 space-y-4 pb-28">
-
-              {/* ════════════════════════════════════════════════════════════════
-                  1. ENHANCED MATCH HEADER
-                  ════════════════════════════════════════════════════════════════ */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Card className="overflow-hidden border-0 shadow-lg text-white py-0 gap-0">
-                  {/* Team color gradient banner */}
-                  <div
-                    className="relative px-5 pt-4 pb-2"
-                    style={{
-                      background: `linear-gradient(135deg, ${homeColor} 0%, ${homeColor}cc 35%, ${awayColor}cc 65%, ${awayColor} 100%)`,
-                    }}
-                  >
-                    {/* Match status badge */}
-                    <div className="flex items-center justify-between mb-4">
-                      <Badge className={`text-[10px] font-black tracking-wider border px-2.5 py-1 ${statusConfig.bgColor} ${statusConfig.color}`}>
-                        {statusConfig.pulse && (
-                          <span className="relative flex h-2 w-2 mr-1.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-                          </span>
-                        )}
-                        {statusConfig.label}
-                      </Badge>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-white/20 text-white text-[10px] font-semibold border-0 px-2 py-0.5">
-                          {match.isPractice ? 'Practice' : 'Tournament'}
-                        </Badge>
-                        <Badge className={`text-[10px] font-semibold border-0 px-2 py-0.5 ${
-                          match.gender === 'male' ? 'bg-brand-blue/40 text-brand-blue-light' : 'bg-pink-500/30 text-pink-200'
-                        }`}>
-                          {match.gender === 'male' ? '♂ Boys' : '♀ Girls'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Teams & Score */}
-                    <div className="flex items-center justify-between pb-3">
-                      {/* Home Team */}
-                      <motion.div
-                        initial={{ opacity: 0, x: -30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.5, delay: 0.1 }}
-                        className="flex-1 text-center"
-                      >
-                        <div className="relative inline-block">
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', damping: 10, stiffness: 150, delay: 0.2 }}
-                            className="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-xl mx-auto ring-4 ring-white/20"
-                            style={{ backgroundColor: homeColor }}
-                          >
-                            {match.homeTeam.shortName?.charAt(0).toUpperCase() || match.homeTeam.name.charAt(0).toUpperCase()}
-                          </motion.div>
-                          {winnerSide === 'home' && (
-                            <motion.div
-                              initial={{ scale: 0, rotate: -180 }}
-                              animate={{ scale: 1, rotate: 0 }}
-                              transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.5 }}
-                              className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-brand-gold flex items-center justify-center shadow-lg"
-                            >
-                              <Trophy className="w-3.5 h-3.5 text-white" />
-                            </motion.div>
-                          )}
-                        </div>
-                        <p className={`font-bold text-sm mt-2.5 truncate px-1 ${
-                          isHomeWin ? 'text-brand-gold' : 'text-white/90'
-                        }`}>
-                          {match.homeTeam.name}
-                        </p>
-                        {match.homeTeam.shortName && (
-                          <span className="text-[10px] font-bold text-white/50 tracking-wide">{match.homeTeam.shortName}</span>
-                        )}
-                        {isHomeWin && (
-                          <span className="text-brand-gold text-[10px] font-bold tracking-wider block mt-0.5">WINNER</span>
-                        )}
-                      </motion.div>
-
-                      {/* VS Divider & Score */}
-                      <div className="px-2 text-center flex flex-col items-center">
-                        {/* VS badge */}
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: 'spring', damping: 8, stiffness: 150, delay: 0.3 }}
-                          className="mb-3"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20">
-                            <span className="text-xs font-black text-white/70">VS</span>
-                          </div>
-                        </motion.div>
-
-                        {/* Score */}
-                        <div className="flex items-center gap-2">
-                          <motion.span
-                            key={`home-${match.homeScore}`}
-                            initial={homeScoreFlash ? { scale: 1.3 } : {}}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', damping: 8 }}
-                            className={`text-5xl font-black tabular-nums ${
-                              isHomeWin ? 'text-brand-gold' : 'text-white'
-                            }`}
-                            style={homeScoreFlash ? {
-                              textShadow: '0 0 20px rgba(245,158,11,0.6), 0 0 40px rgba(245,158,11,0.3)',
-                            } : {}}
-                          >
-                            {match.homeScore}
-                          </motion.span>
-                          <span className="text-white/30 text-xl font-medium">-</span>
-                          <motion.span
-                            key={`away-${match.awayScore}`}
-                            initial={awayScoreFlash ? { scale: 1.3 } : {}}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', damping: 8 }}
-                            className={`text-5xl font-black tabular-nums ${
-                              isAwayWin ? 'text-brand-gold' : 'text-white'
-                            }`}
-                            style={awayScoreFlash ? {
-                              textShadow: '0 0 20px rgba(245,158,11,0.6), 0 0 40px rgba(245,158,11,0.3)',
-                            } : {}}
-                          >
-                            {match.awayScore}
-                          </motion.span>
-                        </div>
-                        {isDraw && (
-                          <Badge className="bg-brand-gold/20 text-brand-gold text-[10px] font-bold border-0 mt-2">
-                            DRAW
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Away Team */}
-                      <motion.div
-                        initial={{ opacity: 0, x: 30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.5, delay: 0.1 }}
-                        className="flex-1 text-center"
-                      >
-                        <div className="relative inline-block">
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', damping: 10, stiffness: 150, delay: 0.2 }}
-                            className="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-xl mx-auto ring-4 ring-white/20"
-                            style={{ backgroundColor: awayColor }}
-                          >
-                            {match.awayTeam.shortName?.charAt(0).toUpperCase() || match.awayTeam.name.charAt(0).toUpperCase()}
-                          </motion.div>
-                          {winnerSide === 'away' && (
-                            <motion.div
-                              initial={{ scale: 0, rotate: -180 }}
-                              animate={{ scale: 1, rotate: 0 }}
-                              transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.5 }}
-                              className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-brand-gold flex items-center justify-center shadow-lg"
-                            >
-                              <Trophy className="w-3.5 h-3.5 text-white" />
-                            </motion.div>
-                          )}
-                        </div>
-                        <p className={`font-bold text-sm mt-2.5 truncate px-1 ${
-                          isAwayWin ? 'text-brand-gold' : 'text-white/90'
-                        }`}>
-                          {match.awayTeam.name}
-                        </p>
-                        {match.awayTeam.shortName && (
-                          <span className="text-[10px] font-bold text-white/50 tracking-wide">{match.awayTeam.shortName}</span>
-                        )}
-                        {isAwayWin && (
-                          <span className="text-brand-gold text-[10px] font-bold tracking-wider block mt-0.5">WINNER</span>
-                        )}
-                      </motion.div>
-                    </div>
-                  </div>
-
-                  {/* Half indicator with progress bar */}
-                  <div className="bg-brand-navy-dark px-5 py-3">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-white/50 text-[10px] font-bold tracking-wider">MATCH PROGRESS</span>
-                      <span className="text-white/50 text-[10px] font-semibold">
-                        {match.halfDuration}min halves · {match.playersPerSide}v{match.playersPerSide}
-                      </span>
-                    </div>
-                    <Progress
-                      value={getHalfProgress()}
-                      className="h-1.5 bg-white/10"
-                    />
-                    <div className="flex justify-between mt-1">
-                      <span className="text-white/40 text-[9px]">1st Half</span>
-                      <span className="text-white/40 text-[9px]">2nd Half</span>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-
-              {/* ════════════════════════════════════════════════════════════════
-                  2. MAN OF THE MATCH (Enhanced)
-                  ════════════════════════════════════════════════════════════════ */}
-              {match.motmUser && (
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.1 }}
-                >
-                  <Card className="card-shine border-2 border-brand-gold/40 bg-gradient-to-r from-brand-gold/10 via-brand-gold/5 to-brand-gold-dark/10 py-0 gap-0 overflow-hidden dark:from-brand-gold/15 dark:via-brand-gold/5 dark:to-brand-gold-dark/15">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        {/* Avatar with golden ring */}
-                        <div className="relative shrink-0">
-                          <div className="w-16 h-16 rounded-full bg-warm-100 dark:bg-warm-100 border-[3px] border-brand-gold/60 flex items-center justify-center overflow-hidden shadow-lg shadow-brand-gold/20">
-                            {match.motmUser.avatar ? (
-                              <img
-                                src={match.motmUser.avatar}
-                                alt={match.motmUser.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-xl font-bold text-warm-500 dark:text-warm-400">
-                                {match.motmUser.name.charAt(0).toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', delay: 0.3 }}
-                            className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-brand-gold flex items-center justify-center shadow-lg"
-                          >
-                            <Crown className="w-3.5 h-3.5 text-white" />
-                          </motion.div>
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <Badge className="bg-brand-gold/20 text-brand-gold-dark dark:text-brand-gold text-[10px] font-semibold border-0 px-2 py-0.5 mb-1">
-                            <Crown className="w-2.5 h-2.5 mr-0.5" />
-                            Man of the Match
-                          </Badge>
-                          <p
-                            className="text-warm-800 dark:text-warm-100 font-bold text-sm truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
-                            onClick={() => onViewPlayer?.(match.motmUser!.id)}
-                          >
-                            {match.motmUser.name}
-                          </p>
-                          {(() => {
-                            const motmEvents = match.events.filter(e => e.playerId === match.motmUser!.id);
-                            const teamId = motmEvents[0]?.teamId;
-                            const teamName = teamId === match.homeTeamId ? match.homeTeam.name
-                              : teamId === match.awayTeamId ? match.awayTeam.name : null;
-                            return teamName ? (
-                              <p className="text-warm-500 dark:text-warm-400 text-xs">{teamName}</p>
-                            ) : null;
-                          })()}
-                        </div>
-
-                        {/* Points */}
-                        <div className="text-right shrink-0">
-                          <motion.p
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', delay: 0.4 }}
-                            className="text-brand-gold font-black text-2xl"
-                          >
-                            {motmPoints()}
-                          </motion.p>
-                          <p className="text-warm-400 dark:text-warm-400 text-[10px]">points</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
-
-              {/* ════════════════════════════════════════════════════════════════
-                  3. ENHANCED EVENT TIMELINE
-                  ════════════════════════════════════════════════════════════════ */}
-              {sortedEvents.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.15 }}
-                >
-                  <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
-                    <div className="px-4 pt-4 pb-2">
-                      <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
-                        <Timer className="w-4 h-4 text-brand-red" />
-                        MATCH TIMELINE
-                      </h3>
-                    </div>
-                    <div ref={timelineRef} className="max-h-96 overflow-y-auto custom-scrollbar px-4 pb-4 scroll-smooth">
-                      <div className="relative">
-                        {/* Timeline vertical line */}
-                        <div className="absolute left-[18px] top-0 bottom-0 w-0.5 bg-warm-200 dark:bg-warm-700" />
-
-                        {sortedEvents.map((evt, idx) => {
-                          const meta = EVENT_META[evt.eventType] || { lucideIcon: 'Zap', label: evt.eventType, isRaid: false, isTackle: false };
-                          const isHome = evt.teamId === match.homeTeamId;
-                          const teamName = isHome ? match.homeTeam.name : match.awayTeam.name;
-                          const teamColor = isHome ? homeColor : awayColor;
-                          const evtTime = new Date(evt.timestamp);
-                          const timeStr = evtTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-                          // Find player name
-                          const scorer = match.scorers.find(s => s.userId === evt.playerId);
-                          const playerName = scorer?.user?.name || null;
-
-                          // Half separator
-                          const showHalfSeparator =
-                            idx === 0
-                              ? true
-                              : evt.half !== sortedEvents[idx - 1].half;
-
-                          return (
-                            <div key={evt.id}>
-                              {/* Half divider - sticky */}
-                              {showHalfSeparator && (
-                                <div className="sticky top-0 z-10 flex items-center gap-2 mb-2 mt-2 first:mt-0 bg-warm-50 dark:bg-warm-50 py-1">
-                                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
-                                  <Badge className="bg-brand-navy/10 dark:bg-brand-navy/10 text-brand-navy dark:text-brand-navy text-[10px] font-bold border-0 px-3 py-0.5 rounded-full">
-                                    {evt.half === 1 ? '1st Half' : '2nd Half'}
-                                  </Badge>
-                                  <div className="flex-1 h-px bg-warm-200 dark:bg-warm-700" />
-                                </div>
-                              )}
-
-                              {/* Event row - color-coded by team */}
-                              <motion.div
-                                initial={{ opacity: 0, x: isHome ? -16 : 16 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.3, delay: Math.min(idx * 0.03, 0.6) }}
-                                className={`flex items-start gap-3 mb-2.5 ${!isHome ? 'flex-row-reverse' : ''}`}
-                              >
-                                {/* Timeline dot */}
-                                <div
-                                  className="w-[14px] h-[14px] rounded-full border-[3px] border-white dark:border-warm-50 shadow-sm shrink-0 mt-1.5 z-[1]"
-                                  style={{ backgroundColor: teamColor }}
-                                />
-
-                                {/* Event card */}
-                                <div className={`flex-1 max-w-[85%] rounded-xl px-3 py-2.5 transition-shadow hover:shadow-md ${
-                                  isHome
-                                    ? 'bg-gradient-to-r from-warm-100 to-warm-100/60 dark:from-warm-100 dark:to-warm-100/60 border border-warm-200/60 dark:border-warm-700/60'
-                                    : 'bg-gradient-to-l from-warm-100 to-warm-100/60 dark:from-warm-100 dark:to-warm-100/60 border border-warm-200/60 dark:border-warm-700/60'
-                                }`}>
-                                  <div className={`flex items-center gap-1.5 ${!isHome ? 'flex-row-reverse' : ''}`}>
-                                    <EventIcon
-                                      iconName={meta.lucideIcon}
-                                      className="w-3.5 h-3.5"
-                                      // Use team color for the icon
-                                    />
-                                    <span className="text-xs font-semibold text-warm-800 dark:text-warm-100">
-                                      {meta.label}
-                                    </span>
-                                    {evt.value > 0 && (
-                                      <Badge className="bg-brand-teal/15 text-brand-teal-dark dark:text-brand-teal text-[9px] font-bold border-0 px-1.5 py-0">
-                                        +{evt.value}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className={`flex items-center gap-2 mt-0.5 ${!isHome ? 'flex-row-reverse' : ''}`}>
-                                    {playerName && (
-                                      <span
-                                        className="text-[11px] text-warm-600 dark:text-warm-300 font-medium cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
-                                        onClick={() => evt.playerId && onViewPlayer?.(evt.playerId)}
-                                      >
-                                        {playerName}
-                                      </span>
-                                    )}
-                                    <span
-                                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white"
-                                      style={{ backgroundColor: teamColor }}
-                                    >
-                                      {teamName}
-                                    </span>
-                                    <span className="text-[10px] text-warm-400 dark:text-warm-400">{timeStr}</span>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              )}
-
-              {/* ════════════════════════════════════════════════════════════════
-                  4. TEAM COMPARISON SECTION
-                  ════════════════════════════════════════════════════════════════ */}
-              {teamStats && (
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.2 }}
-                >
-                  <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
-                    <div className="px-4 pt-4 pb-2">
-                      <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
-                        <Swords className="w-4 h-4 text-brand-red" />
-                        TEAM COMPARISON
-                      </h3>
-                    </div>
-                    <div className="px-4 pb-4 space-y-3">
-                      {/* Team headers */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-                            style={{ backgroundColor: homeColor }}
-                          >
-                            {match.homeTeam.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="text-xs font-bold text-warm-700 dark:text-warm-200 truncate max-w-[100px]">{match.homeTeam.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-warm-700 dark:text-warm-200 truncate max-w-[100px]">{match.awayTeam.name}</span>
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-                            style={{ backgroundColor: awayColor }}
-                          >
-                            {match.awayTeam.name.charAt(0).toUpperCase()}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Stats comparison bars */}
-                      {[
-                        { label: 'Total Points', home: teamStats.home.total, away: teamStats.away.total },
-                        { label: 'Raid Points', home: teamStats.home.raidPoints, away: teamStats.away.raidPoints },
-                        { label: 'Tackle Points', home: teamStats.home.tacklePoints, away: teamStats.away.tacklePoints },
-                        { label: 'Bonus Points', home: teamStats.home.bonusPoints, away: teamStats.away.bonusPoints },
-                        { label: 'All Outs', home: teamStats.home.allOuts, away: teamStats.away.allOuts },
-                      ].map((stat, statIdx) => {
-                        const maxVal = Math.max(stat.home, stat.away, 1);
-                        const homeWin = stat.home > stat.away;
-                        const awayWin = stat.away > stat.home;
-
-                        return (
-                          <motion.div
-                            key={stat.label}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 + statIdx * 0.06 }}
-                            className="space-y-1"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className={`text-sm font-black ${
-                                homeWin ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-warm-600 dark:text-warm-300'
-                              }`}>
-                                {stat.home}
-                              </span>
-                              <span className="text-[10px] font-bold text-warm-500 dark:text-warm-400 tracking-wide">{stat.label}</span>
-                              <span className={`text-sm font-black ${
-                                awayWin ? 'text-brand-gold-dark dark:text-brand-gold' : 'text-warm-600 dark:text-warm-300'
-                              }`}>
-                                {stat.away}
-                              </span>
-                            </div>
-                            <div className="flex gap-1 h-2.5">
-                              {/* Home bar (right-aligned) */}
-                              <div className="flex-1 flex justify-end">
-                                <motion.div
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${(stat.home / maxVal) * 100}%` }}
-                                  transition={{ duration: 0.6, delay: 0.3 + statIdx * 0.06 }}
-                                  className={`h-full rounded-l-full ${
-                                    homeWin
-                                      ? 'bg-gradient-to-r from-brand-gold/40 to-brand-gold'
-                                      : 'bg-warm-300 dark:bg-warm-300'
-                                  }`}
-                                />
-                              </div>
-                              {/* Away bar (left-aligned) */}
-                              <div className="flex-1">
-                                <motion.div
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${(stat.away / maxVal) * 100}%` }}
-                                  transition={{ duration: 0.6, delay: 0.3 + statIdx * 0.06 }}
-                                  className={`h-full rounded-r-full ${
-                                    awayWin
-                                      ? 'bg-gradient-to-l from-brand-gold/40 to-brand-gold'
-                                      : 'bg-warm-300 dark:bg-warm-300'
-                                  }`}
-                                />
-                              </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </Card>
-                </motion.div>
-              )}
-
-              {/* ════════════════════════════════════════════════════════════════
-                  5. TOP PERFORMERS (Enhanced)
-                  ════════════════════════════════════════════════════════════════ */}
-              {(topRaiders.length > 0 || topDefenders.length > 0) && (
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.25 }}
-                  className="space-y-3"
-                >
-                  {/* Top Raiders */}
-                  {topRaiders.length > 0 && (
-                    <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
-                      <div className="px-4 pt-4 pb-2">
-                        <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
-                          <Zap className="w-4 h-4 text-brand-red" />
-                          TOP RAIDERS
-                        </h3>
-                      </div>
-                      <div className="px-4 pb-3 space-y-1.5">
-                        {topRaiders.map((p, idx) => {
-                          const isHome = p.teamId === match.homeTeamId;
-                          const teamName = isHome ? match.homeTeam.name : match.awayTeam.name;
-                          const teamColor = isHome ? homeColor : awayColor;
-                          const bonusPts = p.bonusPoints || 0;
-                          const raidPts = p.raidPoints || 0;
-                          return (
-                            <motion.div
-                              key={p.name + p.teamId}
-                              initial={{ opacity: 0, x: -12 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: 0.1 + idx * 0.06 }}
-                              className="flex items-center gap-3 bg-warm-50 dark:bg-warm-50 rounded-xl px-3 py-2.5 hover:bg-warm-100 dark:hover:bg-warm-100 transition-colors"
-                            >
-                              {/* Avatar with red raider ring */}
-                              <div className="relative shrink-0">
-                                <div className="w-9 h-9 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center ring-2 ring-brand-red/50 text-sm font-bold text-warm-600 dark:text-warm-300">
-                                  {p.name.charAt(0).toUpperCase()}
-                                </div>
-                                <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black text-white ${
-                                  idx === 0 ? 'bg-brand-gold' : idx === 1 ? 'bg-warm-400 dark:bg-warm-400' : 'bg-warm-300 dark:bg-warm-300'
-                                }`}>
-                                  {idx + 1}
-                                </div>
-                              </div>
-
-                              {/* Name & team */}
-                              <div className="flex-1 min-w-0">
-                                <p
-                                  className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
-                                  onClick={() => onViewPlayer?.(p.id)}
-                                >
-                                  {p.name}
-                                </p>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span
-                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
-                                    style={{ backgroundColor: teamColor }}
-                                  >
-                                    {teamName}
-                                  </span>
-                                  <span className="text-[9px] text-warm-400 dark:text-warm-400">
-                                    {raidPts}R {bonusPts}B
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Points */}
-                              <div className="text-right shrink-0">
-                                <p className="text-brand-red font-black text-base">{p.points}</p>
-                                <p className="text-warm-400 dark:text-warm-400 text-[9px] -mt-0.5">raid pts</p>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    </Card>
-                  )}
-
-                  {/* Top Defenders */}
-                  {topDefenders.length > 0 && (
-                    <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
-                      <div className="px-4 pt-4 pb-2">
-                        <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
-                          <Shield className="w-4 h-4 text-brand-blue" />
-                          TOP DEFENDERS
-                        </h3>
-                      </div>
-                      <div className="px-4 pb-3 space-y-1.5">
-                        {topDefenders.map((p, idx) => {
-                          const isHome = p.teamId === match.homeTeamId;
-                          const teamName = isHome ? match.homeTeam.name : match.awayTeam.name;
-                          const teamColor = isHome ? homeColor : awayColor;
-                          const superTackles = p.superTackles || 0;
-                          const tacklePts = p.tacklePoints || 0;
-                          return (
-                            <motion.div
-                              key={p.name + p.teamId}
-                              initial={{ opacity: 0, x: 12 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: 0.1 + idx * 0.06 }}
-                              className="flex items-center gap-3 bg-warm-50 dark:bg-warm-50 rounded-xl px-3 py-2.5 hover:bg-warm-100 dark:hover:bg-warm-100 transition-colors"
-                            >
-                              {/* Avatar with blue defender ring */}
-                              <div className="relative shrink-0">
-                                <div className="w-9 h-9 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center ring-2 ring-brand-blue/50 text-sm font-bold text-warm-600 dark:text-warm-300">
-                                  {p.name.charAt(0).toUpperCase()}
-                                </div>
-                                <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black text-white ${
-                                  idx === 0 ? 'bg-brand-gold' : idx === 1 ? 'bg-warm-400 dark:bg-warm-400' : 'bg-warm-300 dark:bg-warm-300'
-                                }`}>
-                                  {idx + 1}
-                                </div>
-                              </div>
-
-                              {/* Name & team */}
-                              <div className="flex-1 min-w-0">
-                                <p
-                                  className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate cursor-pointer hover:text-brand-teal dark:hover:text-brand-teal-light transition-colors"
-                                  onClick={() => onViewPlayer?.(p.id)}
-                                >
-                                  {p.name}
-                                </p>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span
-                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
-                                    style={{ backgroundColor: teamColor }}
-                                  >
-                                    {teamName}
-                                  </span>
-                                  <span className="text-[9px] text-warm-400 dark:text-warm-400">
-                                    {tacklePts}T {superTackles > 0 ? `${superTackles}ST` : ''}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Points */}
-                              <div className="text-right shrink-0">
-                                <p className="text-brand-blue font-black text-base">{p.points}</p>
-                                <p className="text-warm-400 dark:text-warm-400 text-[9px] -mt-0.5">tackle pts</p>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    </Card>
-                  )}
-                </motion.div>
-              )}
-
-              {/* ════════════════════════════════════════════════════════════════
-                  6. MATCH INFO FOOTER
-                  ════════════════════════════════════════════════════════════════ */}
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.3 }}
-              >
-                <Card className="border-warm-200/60 dark:border-warm-700/60 py-0 gap-0 overflow-hidden">
-                  <div className="px-4 pt-4 pb-2">
-                    <h3 className="text-sm font-black tracking-wider text-warm-700 dark:text-warm-200 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-warm-400 dark:text-warm-400" />
-                      MATCH INFO
-                    </h3>
-                  </div>
-                  <div className="px-4 pb-4 space-y-2.5">
-                    {/* Venue */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-brand-red/10 flex items-center justify-center shrink-0">
-                        <MapPin className="w-4 h-4 text-brand-red" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">VENUE</p>
-                        <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
-                          {match.venue || 'Not specified'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Date & Time */}
-                    {match.startedAt && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-brand-teal/10 flex items-center justify-center shrink-0">
-                          <Calendar className="w-4 h-4 text-brand-teal" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">DATE & TIME</p>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-100">
-                            {formatDateTime(match.startedAt).date} · {formatDateTime(match.startedAt).time}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Duration */}
-                    {match.startedAt && match.completedAt && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-brand-gold/10 flex items-center justify-center shrink-0">
-                          <Clock className="w-4 h-4 text-brand-gold" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">DURATION</p>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-100">
-                            {formatDuration(match.startedAt, match.completedAt)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Tournament */}
-                    {match.tournament && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-brand-navy/10 dark:bg-brand-navy/10 flex items-center justify-center shrink-0">
-                          <Trophy className="w-4 h-4 text-brand-navy dark:text-brand-navy" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">TOURNAMENT</p>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
-                            {match.tournament.name}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Gender Category */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center shrink-0">
-                        <Users className="w-4 h-4 text-pink-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">CATEGORY</p>
-                        <Badge className={`text-[10px] font-semibold border-0 px-2 py-0.5 mt-0.5 ${
-                          match.gender === 'male'
-                            ? 'bg-brand-blue/10 text-brand-blue-light dark:text-brand-blue-light'
-                            : 'bg-pink-500/10 text-pink-600 dark:text-pink-500'
-                        }`}>
-                          {match.gender === 'male' ? '♂ Boys' : '♀ Girls'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Weight Category */}
-                    {match.weightCategory && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                          <span className="text-sm">⚖️</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">WEIGHT</p>
-                          <Badge className="text-[10px] font-semibold border-0 px-2 py-0.5 mt-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-                            {match.weightCategory === 'open' ? '♾️ Open' : `⚖️ ${match.weightCategory}`}
-                          </Badge>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Ground */}
-                    {match.ground && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-warm-200/60 dark:bg-warm-200/60 flex items-center justify-center shrink-0">
-                          <MapPin className="w-4 h-4 text-warm-500 dark:text-warm-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-warm-400 dark:text-warm-400 tracking-wide">GROUND</p>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate">
-                            {match.ground}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </motion.div>
-
-            </div>
-          )}
+          </div>
+          <p className="text-center text-[10px] font-semibold text-warm-500 dark:text-warm-400 mt-2">{resultText}</p>
         </div>
 
-        {/* ── Enhanced Bottom Action Bar ── */}
-        {!loading && match && (
-          <div className="sticky bottom-0 bg-white/95 dark:bg-warm-50/95 backdrop-blur-md border-t border-warm-200/60 dark:border-warm-700/60 px-4 py-3 safe-bottom">
-            <div className="flex gap-2">
-              <Button
-                onClick={() => {
-                  const data = buildShareData();
-                  if (data) {
-                    setShowShare(true);
-                  } else {
-                    toast({ title: 'Cannot share', description: 'Match data unavailable' });
-                  }
-                }}
-                className="flex-1 h-11 bg-gradient-to-r from-brand-red to-brand-red-dark hover:from-brand-red-light hover:to-brand-red text-white font-bold rounded-xl text-xs shadow-md shadow-brand-red/20 transition-all active:scale-95"
+        {/* Tabs */}
+        <div className="flex border-t border-warm-200/60 dark:border-warm-700/60">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-bold transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-brand-red border-b-2 border-brand-red'
+                    : 'text-warm-400 hover:text-warm-600'
+                }`}
               >
-                <Share2 className="w-4 h-4 mr-1.5" />
-                Share Scorecard
-              </Button>
-              <Button
-                onClick={() => setShowReplay(true)}
-                className="flex-1 h-11 bg-gradient-to-r from-brand-navy to-brand-navy-dark hover:from-brand-navy-light hover:to-brand-navy text-white font-bold rounded-xl text-xs shadow-md shadow-brand-navy/20 transition-all active:scale-95"
-              >
-                <Play className="w-4 h-4 mr-1.5" />
-                Watch Replay
-              </Button>
-              <Button
-                onClick={() => setShowHighlights(true)}
-                className="flex-1 h-11 bg-gradient-to-r from-brand-gold to-brand-gold-dark hover:from-brand-gold-light hover:to-brand-gold text-white font-bold rounded-xl text-xs shadow-md shadow-brand-gold/20 transition-all active:scale-95"
-              >
-                <Sparkles className="w-4 h-4 mr-1.5" />
-                Highlights
-              </Button>
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      {/* ═══ CONTENT ═══ */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <AnimatePresence mode="wait">
+          {/* ─── AWARDS TAB ─── */}
+          {activeTab === 'awards' && (
+            <motion.div key="awards" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 space-y-4 pb-8">
+              {/* Player of the Match */}
+              <AwardCard
+                title="Player of the Match"
+                icon={Crown}
+                gradient="from-amber-400 to-yellow-500"
+                player={motm ? { name: match.motmUser?.name || motm.name, points: motm.totalPoints, raids: motm.raids, tackles: motm.tackles } : null}
+                badge="MOTM"
+                onViewPlayer={onViewPlayer}
+                playerId={match.motmUser?.id}
+              />
+
+              {/* Raider of the Match */}
+              <AwardCard
+                title="Raider of the Match"
+                icon={Zap}
+                gradient="from-orange-400 to-red-500"
+                player={bestRaider ? { name: bestRaider.name, points: bestRaider.raidPoints + bestRaider.bonusPoints, raids: bestRaider.raids, tackles: 0 } : null}
+                badge="RAIDER"
+                onViewPlayer={onViewPlayer}
+                playerId={bestRaider?.id}
+              />
+
+              {/* Defender of the Match */}
+              <AwardCard
+                title="Defender of the Match"
+                icon={Shield}
+                gradient="from-blue-400 to-indigo-500"
+                player={bestDefender ? { name: bestDefender.name, points: bestDefender.tacklePoints, raids: 0, tackles: bestDefender.tackles } : null}
+                badge="DEFENDER"
+                onViewPlayer={onViewPlayer}
+                playerId={bestDefender?.id}
+              />
+
+              {/* No awards state */}
+              {!motm && !bestRaider && !bestDefender && (
+                <div className="text-center py-12">
+                  <Trophy className="w-12 h-12 text-warm-300 dark:text-warm-600 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-warm-500">No awards available</p>
+                  <p className="text-xs text-warm-400 mt-1">Player awards appear here after the match is scored.</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ─── SCORECARD TAB ─── */}
+          {activeTab === 'scorecard' && (
+            <motion.div key="scorecard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 space-y-4 pb-8">
+              {/* Team stats summary */}
+              {ts && (
+                <Card className="overflow-hidden border-warm-200 dark:border-warm-700">
+                  <div className="grid grid-cols-4 text-center text-[9px] font-bold uppercase text-warm-400 border-b border-warm-100 dark:border-warm-700">
+                    <div className="py-2 text-left pl-3">Stat</div>
+                    <div className="py-2" style={{ color: match.homeTeam.color || '#DC2626' }}>{match.homeTeam.shortName || match.homeTeam.name.slice(0,3)}</div>
+                    <div className="py-2" style={{ color: match.awayTeam.color || '#1E293B' }}>{match.awayTeam.shortName || match.awayTeam.name.slice(0,3)}</div>
+                    <div className="py-2 text-right pr-3">Stat</div>
+                  </div>
+                  {[
+                    { label: 'Raid Pts', home: ts.hRaid, away: ts.aRaid },
+                    { label: 'Tackle Pts', home: ts.hTackle, away: ts.aTackle },
+                    { label: 'Bonus Pts', home: ts.hBonus, away: ts.aBonus },
+                    { label: 'All Out Pts', home: ts.hAllOut, away: ts.aAllOut },
+                    { label: 'Total', home: match.homeScore, away: match.awayScore },
+                  ].map((row) => (
+                    <div key={row.label} className="grid grid-cols-4 text-center text-xs border-b border-warm-50 dark:border-warm-700/50 last:border-0">
+                      <div className="py-2 text-left pl-3 text-warm-500 font-semibold">{row.label}</div>
+                      <div className={`py-2 font-black ${row.home > row.away ? 'text-emerald-600' : 'text-warm-600 dark:text-warm-300'}`}>{row.home}</div>
+                      <div className={`py-2 font-black ${row.away > row.home ? 'text-emerald-600' : 'text-warm-600 dark:text-warm-300'}`}>{row.away}</div>
+                      <div className="py-2 text-right pr-3 text-warm-500 font-semibold">{row.label}</div>
+                    </div>
+                  ))}
+                </Card>
+              )}
+
+              {/* Home team players */}
+              <PlayerScorecard teamName={match.homeTeam.name} teamColor={match.homeTeam.color || '#DC2626'} players={Object.values(players).filter(p => p.teamId === match.homeTeamId)} onViewPlayer={onViewPlayer} />
+
+              {/* Away team players */}
+              <PlayerScorecard teamName={match.awayTeam.name} teamColor={match.awayTeam.color || '#1E293B'} players={Object.values(players).filter(p => p.teamId === match.awayTeamId)} onViewPlayer={onViewPlayer} />
+
+              {Object.keys(players).length === 0 && (
+                <div className="text-center py-8">
+                  <Users className="w-10 h-10 text-warm-300 mx-auto mb-2" />
+                  <p className="text-sm text-warm-500">No player data available</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ─── COMMENTARY TAB ─── */}
+          {activeTab === 'commentary' && (
+            <motion.div key="commentary" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 pb-8">
+              {match.events.length === 0 ? (
+                <div className="text-center py-8">
+                  <Play className="w-10 h-10 text-warm-300 mx-auto mb-2" />
+                  <p className="text-sm text-warm-500">No commentary available</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {/* Reverse events so latest is at top */}
+                  {[...match.events].reverse().map((evt, idx) => {
+                    const meta = EVENT_META[evt.eventType];
+                    if (!meta) return null;
+                    const Icon = meta.icon;
+                    const isHome = evt.teamId === match.homeTeamId;
+                    const teamName = isHome ? match.homeTeam.shortName || match.homeTeam.name : match.awayTeam.shortName || match.awayTeam.name;
+                    const scorerName = match.scorers.find(s => s.userId === evt.playerId)?.user?.name || evt.playerId?.slice(0, 6) || '';
+                    const time = new Date(evt.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                    return (
+                      <motion.div
+                        key={evt.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: Math.min(idx * 0.02, 0.5) }}
+                        className={`flex items-center gap-3 p-2.5 rounded-lg ${isHome ? 'bg-red-50/50 dark:bg-red-900/10' : 'bg-blue-50/50 dark:bg-blue-900/10'}`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isHome ? 'bg-red-100 dark:bg-red-900/30' : 'bg-blue-100 dark:bg-blue-900/30'}`}>
+                          <Icon className={`w-4 h-4 ${meta.color}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-warm-800 dark:text-warm-100">
+                            {meta.label}{evt.value > 0 ? ` (+${evt.value})` : ''}
+                          </p>
+                          <p className="text-[10px] text-warm-500 dark:text-warm-400 truncate">
+                            {scorerName && `${scorerName} · `}{teamName} · Half {evt.half}
+                          </p>
+                        </div>
+                        <span className="text-[9px] text-warm-400 font-mono shrink-0">{time}</span>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ─── SUMMARY TAB ─── */}
+          {activeTab === 'summary' && (
+            <motion.div key="summary" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 space-y-3 pb-8">
+              {/* Match info */}
+              <Card className="p-4 border-warm-200 dark:border-warm-700">
+                <h3 className="text-xs font-black uppercase tracking-wider text-warm-500 mb-3">Match Info</h3>
+                <div className="space-y-2 text-xs">
+                  <InfoRow icon={Calendar} label="Date" value={matchDate} />
+                  <InfoRow icon={Trophy} label="Type" value={match.tournament?.name || (match.isPractice ? 'Practice Match' : 'Tournament Match')} />
+                  <InfoRow icon={Users} label="Format" value={`${match.playersPerSide}-a-side · ${match.halfDuration} min halves`} />
+                  {match.gender && <InfoRow icon={Users} label="Category" value={match.gender} />}
+                  {match.weightCategory && <InfoRow icon={Shield} label="Weight" value={match.weightCategory} />}
+                  {match.ground?.name && <InfoRow icon={MapPin} label="Venue" value={`${match.ground.name}${match.ground.city ? ', ' + match.ground.city : ''}`} />}
+                </div>
+              </Card>
+
+              {/* Result */}
+              <Card className="p-4 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800">
+                <h3 className="text-xs font-black uppercase tracking-wider text-amber-600 mb-2">Result</h3>
+                <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{resultText}</p>
+                <div className="flex items-center justify-between mt-3 text-xs">
+                  <span style={{ color: match.homeTeam.color || '#DC2626' }} className="font-bold">{match.homeTeam.name}</span>
+                  <span className="font-black text-lg">{match.homeScore} - {match.awayScore}</span>
+                  <span style={{ color: match.awayTeam.color || '#1E293B' }} className="font-bold">{match.awayTeam.name}</span>
+                </div>
+              </Card>
+
+              {/* Scored by */}
+              {match.scorers.length > 0 && (
+                <Card className="p-4 border-warm-200 dark:border-warm-700">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-warm-500 mb-2">Scored By</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {match.scorers.map(s => (
+                      <div key={s.id} className="flex items-center gap-2 bg-warm-100 dark:bg-warm-800 rounded-full pr-3 pl-1 py-1">
+                        <div className="w-6 h-6 rounded-full bg-brand-teal flex items-center justify-center text-white text-[10px] font-bold">
+                          {s.user.name?.charAt(0) || '?'}
+                        </div>
+                        <span className="text-xs font-semibold text-warm-700 dark:text-warm-200">{s.user.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SUB-COMPONENTS
+// ════════════════════════════════════════════════════════════════════════════
+
+function AwardCard({ title, icon: Icon, gradient, player, badge, onViewPlayer, playerId }: {
+  title: string;
+  icon: typeof Crown;
+  gradient: string;
+  player: { name: string; points: number; raids: number; tackles: number } | null;
+  badge: string;
+  onViewPlayer?: (userId: string) => void;
+  playerId?: string;
+}) {
+  if (!player) {
+    return (
+      <Card className="p-4 border-warm-200 dark:border-warm-700 opacity-60">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-warm-100 dark:bg-warm-700 flex items-center justify-center">
+            <Icon className="w-6 h-6 text-warm-400" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-warm-400 uppercase tracking-wider">{title}</p>
+            <p className="text-sm text-warm-400">Not available</p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      onClick={() => playerId && onViewPlayer?.(playerId)}
+      className={`relative overflow-hidden rounded-2xl border-2 ${playerId && onViewPlayer ? 'cursor-pointer' : ''}`}
+    >
+      {/* Gradient background */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-10`} />
+
+      <div className="relative p-4">
+        <div className="flex items-center gap-3">
+          {/* Icon badge */}
+          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg shrink-0`}>
+            <Icon className="w-7 h-7 text-white" />
+          </div>
+
+          {/* Player info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-warm-500">{title}</p>
+              <span className={`text-[8px] font-black text-white bg-gradient-to-r ${gradient} px-1.5 py-0.5 rounded-full`}>{badge}</span>
+            </div>
+            <p className="text-base font-black text-warm-800 dark:text-warm-100 truncate">{player.name}</p>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-xs font-bold text-warm-600 dark:text-warm-300 flex items-center gap-0.5">
+                <Star className="w-3 h-3 text-amber-500" /> {player.points} pts
+              </span>
+              {player.raids > 0 && (
+                <span className="text-[10px] text-warm-500 flex items-center gap-0.5">
+                  <Zap className="w-2.5 h-2.5" /> {player.raids} raids
+                </span>
+              )}
+              {player.tackles > 0 && (
+                <span className="text-[10px] text-warm-500 flex items-center gap-0.5">
+                  <Shield className="w-2.5 h-2.5" /> {player.tackles} tackles
+                </span>
+              )}
             </div>
           </div>
-        )}
 
-        {/* ── Share Scorecard overlay ── */}
-        <AnimatePresence>
-          {showShare && (() => {
-            const data = buildShareData();
-            if (!data) return null;
-            return (
-              <ShareScorecard
-                onClose={() => setShowShare(false)}
-                matchData={data}
-              />
-            );
-          })()}
-        </AnimatePresence>
+          {/* Chevron if clickable */}
+          {playerId && onViewPlayer && (
+            <ChevronRight className="w-5 h-5 text-warm-400 shrink-0" />
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
-        {/* ── Match Highlights overlay ── */}
-        {showHighlights && matchId && (
-          <MatchHighlightsScreen
-            matchId={matchId}
-            onClose={() => setShowHighlights(false)}
-          />
-        )}
-        {/* ── Match Replay overlay ── */}
-        {showReplay && matchId && (
-          <MatchReplayScreen
-            matchId={matchId}
-            onClose={() => setShowReplay(false)}
-          />
-        )}
-      </motion.div>
-    </AnimatePresence>
+function PlayerScorecard({ teamName, teamColor, players, onViewPlayer }: {
+  teamName: string;
+  teamColor: string;
+  players: Array<{ id: string; name: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number }>;
+  onViewPlayer?: (userId: string) => void;
+}) {
+  const sorted = [...players].sort((a, b) => b.totalPoints - a.totalPoints);
+
+  return (
+    <Card className="overflow-hidden border-warm-200 dark:border-warm-700">
+      {/* Team header */}
+      <div className="flex items-center gap-2 px-3 py-2.5" style={{ backgroundColor: `${teamColor}15` }}>
+        <div className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-black" style={{ backgroundColor: teamColor }}>
+          {teamName.charAt(0)}
+        </div>
+        <span className="text-sm font-black" style={{ color: teamColor }}>{teamName}</span>
+        <span className="text-[10px] text-warm-400 ml-auto">{sorted.length} players</span>
+      </div>
+
+      {/* Column headers */}
+      <div className="grid grid-cols-12 gap-1 px-3 py-1.5 text-[8px] font-bold uppercase text-warm-400 border-b border-warm-100 dark:border-warm-700/50">
+        <div className="col-span-4">Player</div>
+        <div className="col-span-2 text-center">Raid</div>
+        <div className="col-span-2 text-center">Tkl</div>
+        <div className="col-span-2 text-center">Bonus</div>
+        <div className="col-span-2 text-center font-black text-warm-600">Pts</div>
+      </div>
+
+      {/* Players */}
+      {sorted.length === 0 ? (
+        <p className="text-center text-[10px] text-warm-400 py-4">No player data</p>
+      ) : (
+        sorted.map((p) => (
+          <div
+            key={p.id}
+            onClick={() => onViewPlayer?.(p.id)}
+            className={`grid grid-cols-12 gap-1 px-3 py-2 text-xs border-b border-warm-50 dark:border-warm-700/30 last:border-0 ${onViewPlayer ? 'cursor-pointer hover:bg-warm-50 dark:hover:bg-warm-700/30' : ''}`}
+          >
+            <div className="col-span-4 font-semibold text-warm-800 dark:text-warm-100 truncate">{p.name}</div>
+            <div className="col-span-2 text-center text-warm-600 dark:text-warm-300">{p.raidPoints}</div>
+            <div className="col-span-2 text-center text-warm-600 dark:text-warm-300">{p.tacklePoints}</div>
+            <div className="col-span-2 text-center text-amber-500">{p.bonusPoints}</div>
+            <div className="col-span-2 text-center font-black text-warm-800 dark:text-warm-100">{p.totalPoints}</div>
+          </div>
+        ))
+      )}
+    </Card>
+  );
+}
+
+function InfoRow({ icon: Icon, label, value }: { icon: typeof Calendar; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Icon className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+      <span className="text-warm-500 font-semibold w-20">{label}</span>
+      <span className="text-warm-800 dark:text-warm-100 font-medium flex-1">{value}</span>
+    </div>
   );
 }
