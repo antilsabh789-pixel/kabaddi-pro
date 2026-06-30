@@ -1891,7 +1891,23 @@ export default function LiveScoringScreen() {
           awayScore={match.awayScore}
           homeColor={match.homeTeamColor}
           awayColor={match.awayTeamColor}
-          onContinue={() => setShowHalfTimeTransition(false)}
+          onContinue={() => {
+            // Advance to the next half: switchHalf() sets currentHalf=2 AND
+            // resets the timer to halfDuration*60 (full half). Without this,
+            // the 2nd half timer stays stuck at 00 (the 1st half's end value).
+            switchHalf();
+            // Reset raid state so the 2nd half waits for the first raid before
+            // starting the clock (same behavior as the 1st half).
+            setHasStartedRaiding(false);
+            setRaidPhase('idle');
+            setRaider(null);
+            setSelectedDefenders(new Set());
+            setBonusPoint(false);
+            setRaidResult(null);
+            // Reset the 5-minute warning flag so it fires again in the 2nd half
+            fiveMinWarningFiredRef.current = false;
+            setShowHalfTimeTransition(false);
+          }}
         />
       )}
 
@@ -2252,8 +2268,8 @@ export default function LiveScoringScreen() {
               animate={isTimerPulsing ? { scale: [1, 1.05, 1] } : {}}
               transition={{ duration: 0.8, repeat: isTimerPulsing ? Infinity : 0 }}
             >
-              <Clock className="w-3 h-3" style={{ color: isTimerPulsing ? '#ef4444' : '#9ca3af' }} />
-              <span className="text-sm font-black" style={{ color: isTimerPulsing ? '#ef4444' : '#e5e7eb' }}>
+              <Clock className="w-3 h-3" style={{ color: isTimerPulsing ? '#ef4444' : '#000000' }} />
+              <span className="text-sm font-black" style={{ color: isTimerPulsing ? '#ef4444' : '#000000' }}>
                 {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
               </span>
             </motion.div>

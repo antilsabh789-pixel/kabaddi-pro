@@ -85,7 +85,34 @@ router.post('/matches', async (req, res) => {
     const isPracticeMatch = isPractice ?? true;
     const prefix = isPracticeMatch ? 'practice' : 'tournament';
 
-    // Aggregate stats per player from events
+    // ─── Resolve synthetic player IDs to real user IDs ─────────────
+    // When a scorer adds a player by phone number (without selecting from search),
+    // the frontend generates a synthetic ID like 'phone_+91XXXXXXXXXX'. These
+    // aren't real user IDs, so playerProfile.upsert would fail (FK constraint on
+    // userId → User.id). We need to resolve them to real user IDs by looking up
+    // the phone number in the User table.
+    //
+    // Build a map of syntheticId → realUserId for all phone_-prefixed IDs in events.
+    const syntheticIds = new Set<string>();
+    for (const evt of (events || [])) {
+      if (evt.playerId && typeof evt.playerId === 'string' && evt.playerId.startsWith('phone_')) {
+        syntheticIds.add(evt.playerId);
+      }
+    }
+    const phoneToUserId = new Map<string, string>();
+    if (syntheticIds.size > 0) {
+      // Extract phone numbers from the synthetic IDs (format: phone_<phone_number>)
+      const phonesToLookup = Array.from(syntheticIds).map((id) => id.slice('phone_'.length));
+      const users = await db.user.findMany({
+        where: { phone: { in: phonesToLookup } },
+        select: { id: true, phone: true },
+      });
+      for (const u of users) {
+        phoneToUserId.set(`phone_${u.phone}`, u.id);
+      }
+    }
+
+    // Aggregate stats per player from events (using resolved real user IDs)
     const playerStats: Record<string, {
       raidPoints: number;
       tacklePoints: number;
@@ -100,14 +127,24 @@ router.post('/matches', async (req, res) => {
 
     for (const evt of (events || [])) {
       if (!evt.playerId) continue;
-      if (!playerStats[evt.playerId]) {
-        playerStats[evt.playerId] = {
+      // Resolve synthetic phone_ IDs to real user IDs
+      let resolvedPlayerId = evt.playerId;
+      if (typeof evt.playerId === 'string' && evt.playerId.startsWith('phone_')) {
+        resolvedPlayerId = phoneToUserId.get(evt.playerId) || '';
+        if (!resolvedPlayerId) {
+          // Phone number doesn't match any registered user — skip stats for this player
+          // (they're a guest scorer entry, not a registered Kabaddi Pro user)
+          continue;
+        }
+      }
+      if (!playerStats[resolvedPlayerId]) {
+        playerStats[resolvedPlayerId] = {
           raidPoints: 0, tacklePoints: 0, bonusPoints: 0, superTackles: 0,
           totalRaids: 0, successfulRaids: 0, totalTackles: 0, successfulTackles: 0,
           totalPoints: 0,
         };
       }
-      const ps = playerStats[evt.playerId];
+      const ps = playerStats[resolvedPlayerId];
       const val = evt.value || 0;
 
       switch (evt.eventType) {
@@ -142,15 +179,18 @@ router.post('/matches', async (req, res) => {
       }
     }
 
-    // Save events to DB and update player profiles
+    // Save events to DB (store the RESOLVED playerId so future queries link correctly)
     for (const evt of (events || [])) {
-      // Save event to match events table
+      let resolvedPlayerId = evt.playerId || null;
+      if (resolvedPlayerId && typeof resolvedPlayerId === 'string' && resolvedPlayerId.startsWith('phone_')) {
+        resolvedPlayerId = phoneToUserId.get(resolvedPlayerId) || null;
+      }
       await db.matchEvent.create({
         data: {
           matchId: match.id,
           eventType: evt.eventType,
           teamId: evt.teamId || '',
-          playerId: evt.playerId || null,
+          playerId: resolvedPlayerId,
           value: evt.value || 0,
           details: evt.details || null,
           half: evt.half || 1,
