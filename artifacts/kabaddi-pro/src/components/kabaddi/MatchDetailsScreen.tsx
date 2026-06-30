@@ -190,7 +190,9 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/matches?id=${encodeURIComponent(matchId)}`);
+      // Use the dedicated /api/matches/:id endpoint (NOT /api/matches?id=
+      // which doesn't exist and was returning wrong data)
+      const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}`);
       if (!res.ok) throw new Error('Match not found');
       const data = await res.json();
       setMatch(data.match as MatchData);

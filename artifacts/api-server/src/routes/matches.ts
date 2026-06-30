@@ -32,6 +32,7 @@ router.get('/matches', async (req, res) => {
     const userId = (req.query['userId'] as string) || '';
     const isPractice = (req.query['isPractice'] as string) || '';
     const limit = parseInt((req.query['limit'] as string) || '20');
+    const offset = parseInt((req.query['offset'] as string) || '0');
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
@@ -66,6 +67,7 @@ router.get('/matches', async (req, res) => {
     const matches = await db.match.findMany({
       where,
       take: limit,
+      skip: offset,
       include: {
         homeTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
         awayTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
@@ -79,6 +81,37 @@ router.get('/matches', async (req, res) => {
     return res.json({ matches });
   } catch (error) {
     console.error('Matches fetch error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/matches/:id
+ * Returns a single match by ID with full details (events, scorers, teams).
+ * Used by MatchDetailsScreen to show the full scorecard.
+ */
+router.get('/matches/:id', async (req, res) => {
+  try {
+    const matchId = req.params['id'];
+    if (!matchId) return res.status(400).json({ error: 'Match ID is required' });
+
+    const match = await db.match.findUnique({
+      where: { id: matchId },
+      include: {
+        homeTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
+        awayTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
+        tournament: { select: { id: true, name: true } },
+        ground: { select: { id: true, name: true, address: true, city: true } },
+        events: { orderBy: { timestamp: 'asc' } },
+        scorers: { include: { user: { select: { id: true, name: true, avatar: true } } } },
+      },
+    });
+
+    if (!match) return res.status(404).json({ error: 'Match not found' });
+
+    return res.json({ match });
+  } catch (error) {
+    console.error('Match fetch by ID error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -108,10 +141,52 @@ router.post('/matches', async (req, res) => {
       });
     } else {
       // Create the match record
+      // IMPORTANT: homeTeamId/awayTeamId must be valid Team IDs (FK constraint).
+      // The frontend sends team NAMES (e.g. "Warriors"), not IDs. We need to
+      // resolve names to team IDs by looking up existing teams, or create
+      // placeholder teams if they don't exist.
+      let resolvedHomeTeamId = homeTeamName || 'home';
+      let resolvedAwayTeamId = awayTeamName || 'away';
+
+      // Try to find existing teams by name (case-insensitive)
+      if (homeTeamName) {
+        const existingHome = await db.team.findFirst({ where: { name: homeTeamName }, select: { id: true } });
+        if (existingHome) {
+          resolvedHomeTeamId = existingHome.id;
+        } else {
+          // Create a placeholder team so the FK constraint is satisfied
+          const newTeam = await db.team.create({
+            data: {
+              name: homeTeamName,
+              color: homeTeamColor || '#DC2626',
+              shortName: homeTeamName.slice(0, 3).toUpperCase(),
+              teamCode: Math.random().toString(36).slice(2, 8).toUpperCase(),
+            },
+          });
+          resolvedHomeTeamId = newTeam.id;
+        }
+      }
+      if (awayTeamName) {
+        const existingAway = await db.team.findFirst({ where: { name: awayTeamName }, select: { id: true } });
+        if (existingAway) {
+          resolvedAwayTeamId = existingAway.id;
+        } else {
+          const newTeam = await db.team.create({
+            data: {
+              name: awayTeamName,
+              color: awayTeamColor || '#1E293B',
+              shortName: awayTeamName.slice(0, 3).toUpperCase(),
+              teamCode: Math.random().toString(36).slice(2, 8).toUpperCase(),
+            },
+          });
+          resolvedAwayTeamId = newTeam.id;
+        }
+      }
+
       match = await db.match.create({
         data: {
-          homeTeamId: homeTeamName || 'home',
-          awayTeamId: awayTeamName || 'away',
+          homeTeamId: resolvedHomeTeamId,
+          awayTeamId: resolvedAwayTeamId,
           homeScore: homeScore || 0,
           awayScore: awayScore || 0,
           isPractice: isPractice ?? true,
@@ -523,10 +598,48 @@ router.post('/matches/live', async (req, res) => {
       isPractice, halfDuration, playersPerSide, gender, weightCategory,
     } = req.body;
 
+    // Resolve team names to team IDs (same as POST /matches — FK constraint
+    // requires valid Team IDs, but the frontend sends team NAMES)
+    let resolvedHomeTeamId = homeTeamName || 'home';
+    let resolvedAwayTeamId = awayTeamName || 'away';
+
+    if (homeTeamName) {
+      const existingHome = await db.team.findFirst({ where: { name: homeTeamName }, select: { id: true } });
+      if (existingHome) {
+        resolvedHomeTeamId = existingHome.id;
+      } else {
+        const newTeam = await db.team.create({
+          data: {
+            name: homeTeamName,
+            color: homeTeamColor || '#DC2626',
+            shortName: homeTeamName.slice(0, 3).toUpperCase(),
+            teamCode: Math.random().toString(36).slice(2, 8).toUpperCase(),
+          },
+        });
+        resolvedHomeTeamId = newTeam.id;
+      }
+    }
+    if (awayTeamName) {
+      const existingAway = await db.team.findFirst({ where: { name: awayTeamName }, select: { id: true } });
+      if (existingAway) {
+        resolvedAwayTeamId = existingAway.id;
+      } else {
+        const newTeam = await db.team.create({
+          data: {
+            name: awayTeamName,
+            color: awayTeamColor || '#1E293B',
+            shortName: awayTeamName.slice(0, 3).toUpperCase(),
+            teamCode: Math.random().toString(36).slice(2, 8).toUpperCase(),
+          },
+        });
+        resolvedAwayTeamId = newTeam.id;
+      }
+    }
+
     const match = await db.match.create({
       data: {
-        homeTeamId: homeTeamName || 'home',
-        awayTeamId: awayTeamName || 'away',
+        homeTeamId: resolvedHomeTeamId,
+        awayTeamId: resolvedAwayTeamId,
         homeScore: 0,
         awayScore: 0,
         isPractice: isPractice ?? true,
