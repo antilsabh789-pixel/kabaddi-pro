@@ -27,14 +27,22 @@ async function updateTournamentStandings(tournamentId: string, homeTeamId: strin
 router.get('/matches', async (req, res) => {
   try {
     const status = (req.query['status'] as string) || '';
-    const tournamentId = req.query['tournamentId'] as string;
-    const teamId = req.query['teamId'] as string;
+    const tournamentId = (req.query['tournamentId'] as string) || '';
+    const teamId = (req.query['teamId'] as string) || '';
+    const userId = (req.query['userId'] as string) || '';
+    const isPractice = (req.query['isPractice'] as string) || '';
     const limit = parseInt((req.query['limit'] as string) || '20');
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (tournamentId) where.tournamentId = tournamentId;
     if (teamId) where.OR = [{ homeTeamId: teamId }, { awayTeamId: teamId }];
+    if (isPractice === 'true') where.isPractice = true;
+    if (isPractice === 'false') where.isPractice = false;
+    // Filter by user participation — matches where the user has at least one event
+    if (userId) {
+      where.events = { some: { OR: [{ playerId: userId }, { playerPhone: userId }] } };
+    }
 
     const matches = await db.match.findMany({
       where,
@@ -87,12 +95,12 @@ router.post('/matches', async (req, res) => {
 
     // ─── Resolve synthetic player IDs to real user IDs ─────────────
     // When a scorer adds a player by phone number (without selecting from search),
-    // the frontend generates a synthetic ID like 'phone_+91XXXXXXXXXX'. These
-    // aren't real user IDs, so playerProfile.upsert would fail (FK constraint on
-    // userId → User.id). We need to resolve them to real user IDs by looking up
-    // the phone number in the User table.
-    //
-    // Build a map of syntheticId → realUserId for all phone_-prefixed IDs in events.
+    // the frontend generates a synthetic ID like 'phone_+91XXXXXXXXXX'.
+    // - If the phone matches a registered user → resolve to their real userId
+    // - If NOT registered → store stats under the phone number (keyed as
+    //   'phone_<number>') and save playerPhone on the events. When that player
+    //   later signs up with the same phone, the register flow will CLAIM these
+    //   pending stats and link them to the new user account.
     const syntheticIds = new Set<string>();
     for (const evt of (events || [])) {
       if (evt.playerId && typeof evt.playerId === 'string' && evt.playerId.startsWith('phone_')) {
@@ -112,7 +120,9 @@ router.post('/matches', async (req, res) => {
       }
     }
 
-    // Aggregate stats per player from events (using resolved real user IDs)
+    // Aggregate stats per player from events.
+    // Key is either a real userId (resolved) or 'phone_<number>' for unregistered.
+    // Unregistered players' stats are saved as pending — claimed on signup.
     const playerStats: Record<string, {
       raidPoints: number;
       tacklePoints: number;
@@ -123,28 +133,36 @@ router.post('/matches', async (req, res) => {
       totalTackles: number;
       successfulTackles: number;
       totalPoints: number;
+      isPending: boolean; // true if stats are pending (unregistered player)
+      phone: string | null; // phone number for pending stats
     }> = {};
 
     for (const evt of (events || [])) {
       if (!evt.playerId) continue;
-      // Resolve synthetic phone_ IDs to real user IDs
-      let resolvedPlayerId = evt.playerId;
+      // Resolve synthetic phone_ IDs
+      let resolvedKey = evt.playerId;
+      let isPending = false;
+      let phone: string | null = null;
       if (typeof evt.playerId === 'string' && evt.playerId.startsWith('phone_')) {
-        resolvedPlayerId = phoneToUserId.get(evt.playerId) || '';
-        if (!resolvedPlayerId) {
-          // Phone number doesn't match any registered user — skip stats for this player
-          // (they're a guest scorer entry, not a registered Kabaddi Pro user)
-          continue;
+        const realUserId = phoneToUserId.get(evt.playerId);
+        if (realUserId) {
+          resolvedKey = realUserId;
+        } else {
+          // Not registered — keep as phone_-prefixed key, mark as pending
+          resolvedKey = evt.playerId;
+          isPending = true;
+          phone = evt.playerId.slice('phone_'.length);
         }
       }
-      if (!playerStats[resolvedPlayerId]) {
-        playerStats[resolvedPlayerId] = {
+      if (!playerStats[resolvedKey]) {
+        playerStats[resolvedKey] = {
           raidPoints: 0, tacklePoints: 0, bonusPoints: 0, superTackles: 0,
           totalRaids: 0, successfulRaids: 0, totalTackles: 0, successfulTackles: 0,
           totalPoints: 0,
+          isPending, phone,
         };
       }
-      const ps = playerStats[resolvedPlayerId];
+      const ps = playerStats[resolvedKey];
       const val = evt.value || 0;
 
       switch (evt.eventType) {
@@ -170,8 +188,6 @@ router.post('/matches', async (req, res) => {
           ps.totalPoints += val;
           break;
         case 'do_or_die_raid':
-          // Failed do-or-die raid — raider is out, defending team gets point
-          // This doesn't add to the raider's stats
           break;
         case 'empty_raid':
           ps.totalRaids += 1;
@@ -179,11 +195,19 @@ router.post('/matches', async (req, res) => {
       }
     }
 
-    // Save events to DB (store the RESOLVED playerId so future queries link correctly)
+    // Save events to DB (store resolved playerId for registered, or playerPhone for unregistered)
     for (const evt of (events || [])) {
-      let resolvedPlayerId = evt.playerId || null;
+      let resolvedPlayerId: string | null = evt.playerId || null;
+      let playerPhone: string | null = null;
       if (resolvedPlayerId && typeof resolvedPlayerId === 'string' && resolvedPlayerId.startsWith('phone_')) {
-        resolvedPlayerId = phoneToUserId.get(resolvedPlayerId) || null;
+        const realUserId = phoneToUserId.get(resolvedPlayerId);
+        if (realUserId) {
+          resolvedPlayerId = realUserId;
+        } else {
+          // Unregistered — save the phone number for later claim
+          playerPhone = resolvedPlayerId.slice('phone_'.length);
+          resolvedPlayerId = null;
+        }
       }
       await db.matchEvent.create({
         data: {
@@ -191,6 +215,7 @@ router.post('/matches', async (req, res) => {
           eventType: evt.eventType,
           teamId: evt.teamId || '',
           playerId: resolvedPlayerId,
+          playerPhone,
           value: evt.value || 0,
           details: evt.details || null,
           half: evt.half || 1,
@@ -198,8 +223,16 @@ router.post('/matches', async (req, res) => {
       });
     }
 
-    // Update player profiles with aggregated stats
-    for (const [playerId, stats] of Object.entries(playerStats)) {
+    // Update player profiles with aggregated stats.
+    // For registered players: update their PlayerProfile directly.
+    // For unregistered (pending) players: skip for now — stats are stored on
+    // the MatchEvents (with playerPhone) and will be claimed when they sign up.
+    for (const [playerKey, stats] of Object.entries(playerStats)) {
+      if (stats.isPending) {
+        // Pending — will be claimed on signup. Skip profile update.
+        continue;
+      }
+      const playerId = playerKey;
       // Ensure profile exists
       await db.playerProfile.upsert({
         where: { userId: playerId },

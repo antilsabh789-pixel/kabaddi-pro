@@ -55,6 +55,7 @@ import {
   Percent,
   CalendarRange,
   FileDown,
+  ClipboardList,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -654,6 +655,40 @@ export default function HomeTab() {
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
   const [showGiveaway, setShowGiveaway] = useState(false);
+
+  // Recent Practice Matches state
+  const [recentPracticeMatches, setRecentPracticeMatches] = useState<Array<{
+    id: string;
+    homeTeamName: string;
+    awayTeamName: string;
+    homeScore: number;
+    awayScore: number;
+    createdAt: string;
+    isPractice: boolean;
+  }>>([]);
+  const [practiceMatchesLoading, setPracticeMatchesLoading] = useState(false);
+
+  // ─── Fetch recent practice matches for the current user ─────────
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    setPracticeMatchesLoading(true);
+    fetch(`/api/matches?userId=${currentUser.id}&isPractice=true&status=completed&limit=5`)
+      .then(res => res.ok ? res.json() : { matches: [] })
+      .then(data => {
+        const matches = (data.matches || []).map((m: any) => ({
+          id: m.id,
+          homeTeamName: m.homeTeam?.name || 'Home',
+          awayTeamName: m.awayTeam?.name || 'Away',
+          homeScore: m.homeScore || 0,
+          awayScore: m.awayScore || 0,
+          createdAt: m.createdAt,
+          isPractice: m.isPractice,
+        }));
+        setRecentPracticeMatches(matches);
+      })
+      .catch(() => setRecentPracticeMatches([]))
+      .finally(() => setPracticeMatchesLoading(false));
+  }, [currentUser?.id]);
 
   // ─── Android Back Button Support ──────────────────────────────────
   // Each overlay pushes a browser history entry so the Android back button
@@ -1523,6 +1558,89 @@ export default function HomeTab() {
 
       {/* ─── Total Players Banner (hidden temporarily, will re-enable when we have more users) ─── */}
       {/* <TotalPlayersBanner /> */}
+
+      {/* ─── Recent Practice Matches ──────────────────────────────── */}
+      {currentUser && (recentPracticeMatches.length > 0 || practiceMatchesLoading) && (
+        <section className="px-4 mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-brand-teal" />
+              <h2 className="text-base font-black text-warm-800 dark:text-warm-100">
+                Recent Practice Matches
+              </h2>
+            </div>
+            <button
+              onClick={() => setShowMatchHistory(true)}
+              className="text-xs font-bold text-brand-teal hover:underline"
+            >
+              View All
+            </button>
+          </div>
+
+          {practiceMatchesLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-16 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recentPracticeMatches.slice(0, 5).map((match) => {
+                const homeWon = match.homeScore > match.awayScore;
+                return (
+                  <motion.div
+                    key={match.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onClick={() => {
+                      setSelectedMatchId(match.id);
+                      setShowMatchDetails(true);
+                    }}
+                    className="bg-white dark:bg-warm-800 rounded-xl p-3 border border-warm-200 dark:border-warm-700 hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                  >
+                    <div className="flex items-center justify-between">
+                      {/* Home team */}
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-xs font-bold text-warm-800 dark:text-warm-100 truncate">
+                          {match.homeTeamName}
+                        </p>
+                      </div>
+
+                      {/* Score */}
+                      <div className="flex items-center gap-2 px-3">
+                        <span className={`text-lg font-black ${homeWon ? 'text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>
+                          {match.homeScore}
+                        </span>
+                        <span className="text-[10px] text-warm-400">-</span>
+                        <span className={`text-lg font-black ${!homeWon ? 'text-emerald-600 dark:text-emerald-400' : 'text-warm-500'}`}>
+                          {match.awayScore}
+                        </span>
+                      </div>
+
+                      {/* Away team */}
+                      <div className="flex-1 min-w-0 text-right">
+                        <p className="text-xs font-bold text-warm-800 dark:text-warm-100 truncate">
+                          {match.awayTeamName}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Date + Practice badge */}
+                    <div className="flex items-center justify-center gap-2 mt-1.5">
+                      <span className="text-[9px] text-warm-400">
+                        {new Date(match.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </span>
+                      <span className="text-[8px] font-bold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded-full">
+                        PRACTICE
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ─── Gradient Separator ─── */}
       {/* <div className="px-4 mt-4">

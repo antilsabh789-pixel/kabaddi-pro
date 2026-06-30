@@ -67,6 +67,91 @@ router.post('/auth', async (req, res) => {
       });
       await db.playerProfile.create({ data: { userId: user.id } });
 
+      // ── CLAIM PENDING MATCH STATS ────────────────────────────────
+      // Before this user registered, a scorer may have added them to matches by
+      // phone number. Those MatchEvents were saved with playerPhone (and
+      // playerId=null). Now that the user is registered, we CLAIM those events:
+      //   1. Find all MatchEvents where playerPhone = user's phone
+      //   2. Aggregate stats (raid points, tackles, etc.) per match's isPractice flag
+      //   3. Update the user's PlayerProfile with the aggregated stats
+      //   4. Link the events to the new user (set playerId, clear playerPhone)
+      // This way, when a non-registered player signs up, they instantly see all
+      // their past match stats on their profile.
+      try {
+        const pendingEvents = await db.matchEvent.findMany({
+          where: { playerPhone: phone },
+          include: { match: { select: { isPractice: true } } },
+        });
+
+        if (pendingEvents.length > 0) {
+          // Aggregate stats, separating practice vs tournament
+          const agg = {
+            practice: { matches: new Set<string>(), raids: 0, successfulRaids: 0, tackles: 0, successfulTackles: 0, raidPoints: 0, tacklePoints: 0, bonusPoints: 0, superTackles: 0, totalPoints: 0 },
+            tournament: { matches: new Set<string>(), raids: 0, successfulRaids: 0, tackles: 0, successfulTackles: 0, raidPoints: 0, tacklePoints: 0, bonusPoints: 0, superTackles: 0, totalPoints: 0 },
+          };
+
+          for (const evt of pendingEvents) {
+            const bucket = evt.match.isPractice ? agg.practice : agg.tournament;
+            bucket.matches.add(evt.matchId);
+            const val = evt.value || 0;
+            switch (evt.eventType) {
+              case 'raid_point':
+                bucket.raidPoints += val; bucket.raids += 1; bucket.successfulRaids += 1; bucket.totalPoints += val; break;
+              case 'bonus_point':
+                bucket.bonusPoints += val; bucket.totalPoints += val; break;
+              case 'tackle_point':
+                bucket.tacklePoints += val; bucket.tackles += 1; bucket.successfulTackles += 1; bucket.totalPoints += val; break;
+              case 'super_tackle':
+                bucket.tacklePoints += val; bucket.superTackles += 1; bucket.totalPoints += val; break;
+              case 'empty_raid':
+                bucket.raids += 1; break;
+            }
+          }
+
+          // Update the user's PlayerProfile with claimed stats
+          const updateData: Record<string, number> = {};
+          if (agg.practice.matches.size > 0) {
+            updateData.practiceMatches = { increment: agg.practice.matches.size };
+            if (agg.practice.raids > 0) updateData.practiceTotalRaids = { increment: agg.practice.raids };
+            if (agg.practice.successfulRaids > 0) updateData.practiceSuccessfulRaids = { increment: agg.practice.successfulRaids };
+            if (agg.practice.tackles > 0) updateData.practiceTotalTackles = { increment: agg.practice.tackles };
+            if (agg.practice.successfulTackles > 0) updateData.practiceSuccessfulTackles = { increment: agg.practice.successfulTackles };
+            if (agg.practice.raidPoints > 0) updateData.practiceRaidPoints = { increment: agg.practice.raidPoints };
+            if (agg.practice.tacklePoints > 0) updateData.practiceTacklePoints = { increment: agg.practice.tacklePoints };
+            if (agg.practice.bonusPoints > 0) updateData.practiceBonusPoints = { increment: agg.practice.bonusPoints };
+            if (agg.practice.superTackles > 0) updateData.practiceSuperTackles = { increment: agg.practice.superTackles };
+            if (agg.practice.totalPoints > 0) updateData.practiceTotalPoints = { increment: agg.practice.totalPoints };
+          }
+          if (agg.tournament.matches.size > 0) {
+            updateData.tournamentMatches = { increment: agg.tournament.matches.size };
+            if (agg.tournament.raids > 0) updateData.tournamentTotalRaids = { increment: agg.tournament.raids };
+            if (agg.tournament.successfulRaids > 0) updateData.tournamentSuccessfulRaids = { increment: agg.tournament.successfulRaids };
+            if (agg.tournament.tackles > 0) updateData.tournamentTotalTackles = { increment: agg.tournament.tackles };
+            if (agg.tournament.successfulTackles > 0) updateData.tournamentSuccessfulTackles = { increment: agg.tournament.successfulTackles };
+            if (agg.tournament.raidPoints > 0) updateData.tournamentRaidPoints = { increment: agg.tournament.raidPoints };
+            if (agg.tournament.tacklePoints > 0) updateData.tournamentTacklePoints = { increment: agg.tournament.tacklePoints };
+            if (agg.tournament.bonusPoints > 0) updateData.tournamentBonusPoints = { increment: agg.tournament.bonusPoints };
+            if (agg.tournament.superTackles > 0) updateData.tournamentSuperTackles = { increment: agg.tournament.superTackles };
+            if (agg.tournament.totalPoints > 0) updateData.tournamentTotalPoints = { increment: agg.tournament.totalPoints };
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            await db.playerProfile.update({ where: { userId: user.id }, data: updateData });
+          }
+
+          // Link all pending events to the new user
+          await db.matchEvent.updateMany({
+            where: { playerPhone: phone },
+            data: { playerId: user.id, playerPhone: null },
+          });
+
+          console.log(`[claim-pending-stats] Claimed ${pendingEvents.length} events for new user ${user.id} (${phone})`);
+        }
+      } catch (claimErr) {
+        // Non-critical — don't fail registration if stats claim fails
+        console.error('Claim pending stats error:', claimErr);
+      }
+
       // ── Process referral code (if provided) ──────────────────────────
       // Look up an UNUSED referral record matching the code (referredId is null).
       // If found, mark it as completed and grant 7 days of Premium to BOTH the
