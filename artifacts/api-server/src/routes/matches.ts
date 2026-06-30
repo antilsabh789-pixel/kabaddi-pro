@@ -39,9 +39,28 @@ router.get('/matches', async (req, res) => {
     if (teamId) where.OR = [{ homeTeamId: teamId }, { awayTeamId: teamId }];
     if (isPractice === 'true') where.isPractice = true;
     if (isPractice === 'false') where.isPractice = false;
-    // Filter by user participation — matches where the user has at least one event
+    // Filter by user participation — matches where the user:
+    //   1. Has at least one event with their playerId (they played in the match), OR
+    //   2. Is a scorer of the match (they scored it), OR
+    //   3. Has events with their phone number in playerPhone (unregistered at match time,
+    //      later claimed on signup — the events were linked to their userId via claim flow,
+    //      so case 1 covers this. But we keep this as a fallback.)
     if (userId) {
-      where.events = { some: { OR: [{ playerId: userId }, { playerPhone: userId }] } };
+      where.OR = [
+        { events: { some: { playerId: userId } } },
+        { scorers: { some: { userId } } },
+        // Also look up the user's phone and match events by playerPhone
+        // (covers the case where events were saved before the phone_ → userId resolution)
+      ];
+      // Fetch the user's phone to also match playerPhone on events
+      try {
+        const user = await db.user.findUnique({ where: { id: userId }, select: { phone: true } });
+        if (user?.phone) {
+          where.OR.push({ events: { some: { playerPhone: user.phone } } });
+        }
+      } catch {
+        // Non-critical
+      }
     }
 
     const matches = await db.match.findMany({
