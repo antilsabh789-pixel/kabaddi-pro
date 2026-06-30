@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, X, Clock, Shield, Swords, Crown, Share2,
   Calendar, Zap, MapPin, Sparkles, Play, Flame,
-  Target, Lock, AlertCircle, Users, Timer,
+  Target, Lock, AlertCircle, Users, Timer, Trash2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -152,7 +152,38 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
 
   const { toast } = useToast();
   const activeMatch = useKabaddiStore((s) => s.activeMatch);
+  const currentUser = useKabaddiStore((s) => s.currentUser);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Check if current user is the scorer of this match (can delete it)
+  const canDeleteMatch = !!(currentUser?.id && match?.scorers?.some((s: any) => s.userId === currentUser.id));
+
+  // ── Delete match ───────────────────────────────────────────────────────────
+  const handleDeleteMatch = async () => {
+    if (!currentUser?.id || !matchId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/matches', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, userId: currentUser.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Delete failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Match Deleted', description: 'Player stats have been reversed.' });
+      onClose();
+    } catch {
+      toast({ title: 'Delete failed', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(false);
+    }
+  };
 
   // ── Fetch match ────────────────────────────────────────────────────────────
   const fetchMatch = useCallback(async () => {
@@ -354,13 +385,51 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
               </div>
               <h1 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">MATCH DETAILS</h1>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Delete Match button — only visible to the scorer who created this match */}
+              {canDeleteMatch && !deleteConfirm && (
+                <button
+                  onClick={() => setDeleteConfirm(true)}
+                  className="px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center gap-1"
+                  title="Delete this match (reverses player stats)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+
+          {/* Delete confirmation bar */}
+          {deleteConfirm && (
+            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
+              <p className="text-xs font-bold text-red-700 dark:text-red-400 mb-2">
+                ⚠️ Delete this match? This will reverse all player stats from this match. This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 py-2 rounded-lg border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300 font-semibold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteMatch}
+                  disabled={deleting}
+                  className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : 'Yes, Delete Match'}
+                </button>
+              </div>
+            </div>
+          )}
         </header>
 
         {/* ── Scrollable content ── */}

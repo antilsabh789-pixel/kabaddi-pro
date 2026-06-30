@@ -70,7 +70,7 @@ router.post('/matches', async (req, res) => {
       homeTeamName, awayTeamName, homeTeamColor, awayTeamColor,
       homeScore, awayScore, gender, isPractice, weightCategory,
       liveStreamUrl, halfDuration, playersPerSide, events,
-      existingMatchId,
+      existingMatchId, scorerUserId,
     } = req.body;
 
     // If existingMatchId is provided, the match was already created as 'live'
@@ -276,6 +276,20 @@ router.post('/matches', async (req, res) => {
       });
     }
 
+    // ─── Save the scorer (who scored this match) ──────────────────
+    // This lets the scorer delete the match later via DELETE /api/matches/:id
+    if (scorerUserId) {
+      try {
+        await db.matchScorer.upsert({
+          where: { matchId_userId: { matchId: match.id, userId: scorerUserId } },
+          update: {},
+          create: { matchId: match.id, userId: scorerUserId },
+        });
+      } catch {
+        // Non-critical — don't fail the match save if scorer record fails
+      }
+    }
+
     return res.json({ match, playerStatsUpdated: Object.keys(playerStats).length });
   } catch (error) {
     console.error('Match create error:', error);
@@ -307,6 +321,158 @@ router.patch('/matches', async (req, res) => {
     return res.json({ match });
   } catch (error) {
     console.error('Match update error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/matches
+ * Body: { matchId, userId }
+ *
+ * Allows the scorer who created the match to delete it at any time.
+ * - Verifies the user is a scorer of this match (MatchScorer record exists)
+ * - Reverses all player stat updates (decrements what was incremented)
+ * - Deletes all MatchEvents for this match
+ * - Deletes all MatchScorer records for this match
+ * - Deletes the match record itself
+ *
+ * This ensures player stats stay accurate after a match is deleted —
+ * the stats that were added when the match was saved are removed.
+ */
+router.delete('/matches', async (req, res) => {
+  try {
+    const { matchId, userId } = req.body;
+    if (!matchId || !userId) return res.status(400).json({ error: 'matchId and userId are required' });
+
+    // Verify the match exists
+    const match = await db.match.findUnique({
+      where: { id: matchId },
+      include: {
+        events: true,
+        scorers: { select: { userId: true } },
+      },
+    });
+    if (!match) return res.status(404).json({ error: 'Match not found' });
+
+    // Verify the user is a scorer of this match (or an admin)
+    const user = await db.user.findUnique({ where: { id: userId }, select: { isAdmin: true } });
+    const isScorer = match.scorers.some((s) => s.userId === userId);
+    const isAdmin = user?.isAdmin === true;
+    if (!isScorer && !isAdmin) {
+      return res.status(403).json({ error: 'Only the scorer who created this match (or an admin) can delete it' });
+    }
+
+    // ─── Reverse player stats ────────────────────────────────────
+    // Re-aggregate the stats from the match's events and DECREMENT them from
+    // each player's PlayerProfile. This mirrors the increment logic in POST /matches.
+    const isPracticeMatch = match.isPractice;
+    const prefix = isPracticeMatch ? 'practice' : 'tournament';
+
+    // Aggregate stats per player from events (using resolved playerId)
+    const playerStats: Record<string, {
+      raidPoints: number;
+      tacklePoints: number;
+      bonusPoints: number;
+      superTackles: number;
+      totalRaids: number;
+      successfulRaids: number;
+      totalTackles: number;
+      successfulTackles: number;
+      totalPoints: number;
+    }> = {};
+
+    for (const evt of match.events) {
+      if (!evt.playerId) continue; // skip events without a linked player
+      if (!playerStats[evt.playerId]) {
+        playerStats[evt.playerId] = {
+          raidPoints: 0, tacklePoints: 0, bonusPoints: 0, superTackles: 0,
+          totalRaids: 0, successfulRaids: 0, totalTackles: 0, successfulTackles: 0,
+          totalPoints: 0,
+        };
+      }
+      const ps = playerStats[evt.playerId];
+      const val = evt.value || 0;
+
+      switch (evt.eventType) {
+        case 'raid_point':
+          ps.raidPoints += val; ps.totalRaids += 1; ps.successfulRaids += 1; ps.totalPoints += val; break;
+        case 'bonus_point':
+          ps.bonusPoints += val; ps.totalPoints += val; break;
+        case 'tackle_point':
+          ps.tacklePoints += val; ps.totalTackles += 1; ps.successfulTackles += 1; ps.totalPoints += val; break;
+        case 'super_tackle':
+          ps.tacklePoints += val; ps.superTackles += 1; ps.totalPoints += val; break;
+        case 'do_or_die_raid':
+          break;
+        case 'empty_raid':
+          ps.totalRaids += 1; break;
+      }
+    }
+
+    // Decrement the stats from each player's profile
+    for (const [playerId, stats] of Object.entries(playerStats)) {
+      const profile = await db.playerProfile.findUnique({ where: { userId: playerId } });
+      if (!profile) continue; // no profile to update
+
+      const updateData: Record<string, number> = {};
+      // Decrement match count by 1 (don't go below 0)
+      const currentMatches = (isPracticeMatch ? profile.practiceMatches : profile.tournamentMatches) || 0;
+      if (currentMatches > 0) updateData[`${prefix}Matches`] = currentMatches - 1;
+
+      // Decrement each stat (don't go below 0)
+      if (stats.totalRaids > 0) {
+        const cur = (isPracticeMatch ? profile.practiceTotalRaids : profile.tournamentTotalRaids) || 0;
+        updateData[`${prefix}TotalRaids`] = Math.max(0, cur - stats.totalRaids);
+      }
+      if (stats.successfulRaids > 0) {
+        const cur = (isPracticeMatch ? profile.practiceSuccessfulRaids : profile.tournamentSuccessfulRaids) || 0;
+        updateData[`${prefix}SuccessfulRaids`] = Math.max(0, cur - stats.successfulRaids);
+      }
+      if (stats.totalTackles > 0) {
+        const cur = (isPracticeMatch ? profile.practiceTotalTackles : profile.tournamentTotalTackles) || 0;
+        updateData[`${prefix}TotalTackles`] = Math.max(0, cur - stats.totalTackles);
+      }
+      if (stats.successfulTackles > 0) {
+        const cur = (isPracticeMatch ? profile.practiceSuccessfulTackles : profile.tournamentSuccessfulTackles) || 0;
+        updateData[`${prefix}SuccessfulTackles`] = Math.max(0, cur - stats.successfulTackles);
+      }
+      if (stats.raidPoints > 0) {
+        const cur = (isPracticeMatch ? profile.practiceRaidPoints : profile.tournamentRaidPoints) || 0;
+        updateData[`${prefix}RaidPoints`] = Math.max(0, cur - stats.raidPoints);
+      }
+      if (stats.tacklePoints > 0) {
+        const cur = (isPracticeMatch ? profile.practiceTacklePoints : profile.tournamentTacklePoints) || 0;
+        updateData[`${prefix}TacklePoints`] = Math.max(0, cur - stats.tacklePoints);
+      }
+      if (stats.bonusPoints > 0) {
+        const cur = (isPracticeMatch ? profile.practiceBonusPoints : profile.tournamentBonusPoints) || 0;
+        updateData[`${prefix}BonusPoints`] = Math.max(0, cur - stats.bonusPoints);
+      }
+      if (stats.superTackles > 0) {
+        const cur = (isPracticeMatch ? profile.practiceSuperTackles : profile.tournamentSuperTackles) || 0;
+        updateData[`${prefix}SuperTackles`] = Math.max(0, cur - stats.superTackles);
+      }
+      if (stats.totalPoints > 0) {
+        const cur = (isPracticeMatch ? profile.practiceTotalPoints : profile.tournamentTotalPoints) || 0;
+        updateData[`${prefix}TotalPoints`] = Math.max(0, cur - stats.totalPoints);
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await db.playerProfile.update({ where: { userId: playerId }, data: updateData });
+      }
+    }
+
+    // ─── Delete the match + all related records ──────────────────
+    // MatchEvents + MatchScorers are cascade-deleted with the match
+    await db.match.delete({ where: { id: matchId } });
+
+    return res.json({
+      success: true,
+      message: 'Match deleted successfully. Player stats have been reversed.',
+      playerStatsReversed: Object.keys(playerStats).length,
+    });
+  } catch (error) {
+    console.error('Match delete error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

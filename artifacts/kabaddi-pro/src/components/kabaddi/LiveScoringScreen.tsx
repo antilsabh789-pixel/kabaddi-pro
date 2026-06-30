@@ -312,6 +312,7 @@ export default function LiveScoringScreen() {
   const {
     activeMatch,
     addBatchEvents,
+    currentUser,
     addEvent,
     undoLastRaid,
     undoLastEvent,
@@ -1184,6 +1185,7 @@ export default function LiveScoringScreen() {
           liveStreamUrl: match.liveStreamUrl,
           halfDuration: match.halfDuration, playersPerSide: match.playersPerSide,
           existingMatchId: match.id || undefined,
+          scorerUserId: currentUser?.id,
           events: match.events.map(e => ({
             eventType: e.eventType, teamId: e.teamId, half: e.half,
             playerId: e.playerId, value: e.value, details: e.details,
