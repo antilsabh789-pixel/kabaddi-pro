@@ -1199,10 +1199,19 @@ export default function HomeTab() {
       {showNotifications && (
         <NotificationPanel
           onClose={() => setShowNotifications(false)}
-          onNavigate={(screen) => {
+          onNavigate={(screen, matchId) => {
             setShowNotifications(false);
             switch (screen) {
               case 'match-details':
+                // Open MatchDetailsScreen with the specific match ID so the
+                // user sees the full scorecard for the match they tapped.
+                if (matchId) {
+                  setSelectedMatchId(matchId);
+                  setShowMatchDetails(true);
+                } else {
+                  // No matchId — fall back to match history
+                  setShowMatchHistory(true);
+                }
                 break;
               case 'achievements':
                 setShowAchievements(true);

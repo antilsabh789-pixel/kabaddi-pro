@@ -149,6 +149,7 @@ export interface AppNotification {
   description: string;
   timestamp: number;
   read: boolean;
+  matchId?: string; // for match_start/match_result notifications — used to open the scorecard
 }
 
 export type Language = 'en' | 'hi';

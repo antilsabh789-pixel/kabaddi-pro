@@ -430,7 +430,7 @@ function ClearConfirmDialog({ onConfirm, onCancel }: ClearConfirmProps) {
 
 interface NotificationPanelProps {
   onClose: () => void;
-  onNavigate?: (screen: string, data?: Record<string, string>) => void;
+  onNavigate?: (screen: string, matchId?: string) => void;
 }
 
 export default function NotificationPanel({ onClose, onNavigate }: NotificationPanelProps) {
@@ -519,7 +519,9 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
         switch (notification.type) {
           case 'match_start':
           case 'match_result':
-            onNavigate('match-details');
+            // Pass the matchId so the parent can open MatchDetailsScreen
+            // with the correct match scorecard
+            onNavigate('match-details', notification.matchId);
             break;
           case 'achievement':
             onNavigate('achievements');

@@ -1196,7 +1196,7 @@ export default function LiveScoringScreen() {
       console.error('Failed to save match:', err);
     }
 
-    addNotification(matchNotification(match.homeTeam, match.awayTeam, match.homeScore, match.awayScore));
+    addNotification(matchNotification(match.homeTeam, match.awayTeam, match.homeScore, match.awayScore, match.id));
     if (motm) setMotmPlayer(motm);
 
     endMatch();

@@ -9,6 +9,7 @@ export interface AppNotification {
   description: string;
   timestamp: number;
   read: boolean;
+  matchId?: string; // for match_start/match_result notifications — used to open the scorecard
 }
 
 const ICONS: Record<NotificationType, string> = {
@@ -27,12 +28,14 @@ export function matchNotification(
   homeTeam: string,
   awayTeam: string,
   homeScore: number,
-  awayScore: number
+  awayScore: number,
+  matchId?: string
 ): Omit<AppNotification, 'id' | 'timestamp' | 'read'> {
   return {
     type: 'match_result',
     title: 'Match Completed',
     description: `${homeTeam} ${homeScore} - ${awayScore} ${awayTeam}`,
+    matchId,
   };
 }
 
