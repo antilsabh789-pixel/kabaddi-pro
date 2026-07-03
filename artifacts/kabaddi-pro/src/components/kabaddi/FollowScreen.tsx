@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface FollowScreenProps {
   onClose: () => void;
+  onViewPlayer?: (userId: string) => void;
 }
 
 type TabId = 'followers' | 'following' | 'search';
@@ -200,7 +201,7 @@ function FollowButton({
 
   return (
     <motion.button
-      onClick={onToggle}
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
       disabled={loading}
       whileTap={{ scale: 0.92 }}
       className={`${sizeClasses} rounded-full font-bold transition-all duration-200 flex items-center gap-1 shrink-0 ${
@@ -275,7 +276,7 @@ function EmptyState({
 
 // ─── Main Component ───────────────────────────────────────────────
 
-export default function FollowScreen({ onClose }: FollowScreenProps) {
+export default function FollowScreen({ onClose, onViewPlayer }: FollowScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
 
@@ -680,7 +681,8 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                           initial={{ opacity: 0, x: -12 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: index * 0.04, duration: 0.25 }}
-                          className="flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors"
+                          className={`flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors ${onViewPlayer ? 'cursor-pointer' : ''}`}
+                          onClick={() => onViewPlayer?.(follower.id)}
                         >
                           <PlayerAvatar
                             name={follower.name}
@@ -780,7 +782,8 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                         initial={{ opacity: 0, x: 12 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.04, duration: 0.25 }}
-                        className="flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors"
+                        className={`flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors ${onViewPlayer ? 'cursor-pointer' : ''}`}
+                        onClick={() => onViewPlayer?.(person.id)}
                       >
                         <PlayerAvatar
                           name={person.name}
@@ -884,7 +887,8 @@ export default function FollowScreen({ onClose }: FollowScreenProps) {
                         initial={{ opacity: 0, x: 12 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.04, duration: 0.25 }}
-                        className="flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors"
+                        className={`flex items-center gap-3 p-3 hover:bg-warm-50/80 dark:hover:bg-warm-200/10 transition-colors ${onViewPlayer ? 'cursor-pointer' : ''}`}
+                        onClick={() => onViewPlayer?.(player.id)}
                       >
                         <PlayerAvatar
                           name={player.name}

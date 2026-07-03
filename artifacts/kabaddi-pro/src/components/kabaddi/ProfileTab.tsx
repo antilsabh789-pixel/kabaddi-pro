@@ -1260,7 +1260,13 @@ export default function ProfileTab() {
         <AdvancedStatsScreen userId={currentUser.id} onClose={() => setShowAdvancedStats(false)} />
       )}
       {showFollow && (
-        <FollowScreen onClose={() => setShowFollow(false)} />
+        <FollowScreen
+          onClose={() => setShowFollow(false)}
+          onViewPlayer={(userId: string) => {
+            setPlayerProfileUserId(userId);
+            setShowPlayerProfile(true);
+          }}
+        />
       )}
       {showAchievements && (
         <AchievementsScreen onClose={() => setShowAchievements(false)} />

@@ -1267,7 +1267,7 @@ export default function HomeTab() {
         />
       )}
       {showFollow && (
-        <FollowScreen onClose={() => setShowFollow(false)} />
+        <FollowScreen onClose={() => setShowFollow(false)} onViewPlayer={openPlayerProfile} />
       )}
       {showSocialFeed && (
         <SocialFeedScreen onClose={() => setShowSocialFeed(false)} />
