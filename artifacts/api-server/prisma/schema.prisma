@@ -59,6 +59,7 @@ model User {
   leaderboardEntries LeaderboardSeasonEntry[]
   giveawayParticipations GiveawayParticipant[]
   streak            UserStreak?
+  joinRequests      TeamJoinRequest[] @relation("UserJoinRequests")
 }
 
 model PlayerProfile {
@@ -126,6 +127,7 @@ model Team {
   members        TeamMember[]
   homeMatches    Match[]     @relation("HomeTeam")
   awayMatches    Match[]     @relation("AwayTeam")
+  joinRequests   TeamJoinRequest[] @relation("TeamJoinRequests")
   tournamentEntries TournamentEntry[]
   challengesFrom  Challenge[] @relation("ChallengeFromTeam")
   challengesTo    Challenge[] @relation("ChallengeToTeam")
@@ -781,4 +783,24 @@ model UserStreak {
   updatedAt        DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Team Join Requests ─────────────────────────────────────────────
+// Players can send a request to join a team. Team captains/members can
+// accept or reject the request. Once accepted, the player is added as a
+// TeamMember.
+
+model TeamJoinRequest {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  status    String   @default("pending") // pending, accepted, rejected
+  message   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team Team @relation("TeamJoinRequests", fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId, status]) // One pending request per user per team
 }

@@ -425,4 +425,166 @@ router.get('/teams-leaderboard', async (req, res) => {
   }
 });
 
+// ─── Team Join Requests ─────────────────────────────────────────────
+
+/**
+ * POST /api/teams/:id/join-request
+ * Body: { userId, message? }
+ * Creates a join request for the team. One pending request per user per team.
+ */
+router.post('/teams/:id/join-request', async (req, res) => {
+  try {
+    const teamId = req.params['id'];
+    const { userId, message } = req.body;
+    if (!teamId || !userId) return res.status(400).json({ error: 'teamId and userId are required' });
+
+    // Check team exists
+    const team = await db.team.findUnique({ where: { id: teamId } });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+
+    // Check if already a member
+    const existingMember = await db.teamMember.findFirst({ where: { teamId, userId } });
+    if (existingMember) return res.status(409).json({ error: 'You are already a member of this team' });
+
+    // Check for existing PENDING request
+    const existingRequest = await db.teamJoinRequest.findFirst({
+      where: { teamId, userId, status: 'pending' },
+    });
+    if (existingRequest) return res.status(409).json({ error: 'You already have a pending request for this team' });
+
+    const request = await db.teamJoinRequest.create({
+      data: { teamId, userId, message: message || null, status: 'pending' },
+      include: { user: { select: { id: true, name: true, avatar: true, playerCode: true } } },
+    });
+
+    return res.json({ request });
+  } catch (error) {
+    console.error('Team join request error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/teams/:id/join-requests?userId=...
+ * Returns pending join requests for a team. Only team members can view.
+ */
+router.get('/teams/:id/join-requests', async (req, res) => {
+  try {
+    const teamId = req.params['id'];
+    const userId = (req.query['userId'] as string) || '';
+    if (!teamId || !userId) return res.status(400).json({ error: 'teamId and userId are required' });
+
+    // Verify the requester is a member of the team
+    const member = await db.teamMember.findFirst({ where: { teamId, userId } });
+    if (!member) return res.status(403).json({ error: 'Only team members can view join requests' });
+
+    const requests = await db.teamJoinRequest.findMany({
+      where: { teamId, status: 'pending' },
+      include: { user: { select: { id: true, name: true, avatar: true, playerCode: true, gender: true, weight: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json({ requests });
+  } catch (error) {
+    console.error('Team join requests fetch error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/teams/join-requests/:id/accept
+ * Body: { userId }
+ * Accepts a join request — adds the requesting user as a team member.
+ */
+router.post('/teams/join-requests/:id/accept', async (req, res) => {
+  try {
+    const requestId = req.params['id'];
+    const { userId } = req.body;
+    if (!requestId || !userId) return res.status(400).json({ error: 'requestId and userId are required' });
+
+    const request = await db.teamJoinRequest.findUnique({
+      where: { id: requestId },
+      include: { team: { include: { members: true } } },
+    });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.status !== 'pending') return res.status(400).json({ error: 'Request already processed' });
+
+    // Verify the accepter is a member of the team
+    const isMember = request.team.members.some(m => m.userId === userId);
+    if (!isMember) return res.status(403).json({ error: 'Only team members can accept requests' });
+
+    // Add the requesting user as a team member
+    await db.teamMember.create({
+      data: { teamId: request.teamId, userId: request.userId, isCaptain: false },
+    });
+
+    // Mark request as accepted
+    await db.teamJoinRequest.update({
+      where: { id: requestId },
+      data: { status: 'accepted' },
+    });
+
+    return res.json({ success: true, message: 'Player added to team' });
+  } catch (error) {
+    console.error('Accept join request error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/teams/join-requests/:id/reject
+ * Body: { userId }
+ * Rejects a join request.
+ */
+router.post('/teams/join-requests/:id/reject', async (req, res) => {
+  try {
+    const requestId = req.params['id'];
+    const { userId } = req.body;
+    if (!requestId || !userId) return res.status(400).json({ error: 'requestId and userId are required' });
+
+    const request = await db.teamJoinRequest.findUnique({
+      where: { id: requestId },
+      include: { team: { include: { members: true } } },
+    });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.status !== 'pending') return res.status(400).json({ error: 'Request already processed' });
+
+    // Verify the rejecter is a member of the team
+    const isMember = request.team.members.some(m => m.userId === userId);
+    if (!isMember) return res.status(403).json({ error: 'Only team members can reject requests' });
+
+    await db.teamJoinRequest.update({
+      where: { id: requestId },
+      data: { status: 'rejected' },
+    });
+
+    return res.json({ success: true, message: 'Request rejected' });
+  } catch (error) {
+    console.error('Reject join request error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/teams/my-join-requests?userId=...
+ * Returns all join requests SENT by the user (to see their status).
+ */
+router.get('/teams/my-join-requests', async (req, res) => {
+  try {
+    const userId = (req.query['userId'] as string) || '';
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    const requests = await db.teamJoinRequest.findMany({
+      where: { userId },
+      include: { team: { select: { id: true, name: true, shortName: true, color: true, logo: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json({ requests });
+  } catch (error) {
+    console.error('My join requests error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

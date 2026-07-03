@@ -18,6 +18,8 @@ import {
   Lock,
   Camera,
   ImageIcon,
+  UserPlus,
+  Loader2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -520,11 +522,93 @@ export default function TeamManagementScreen({ onClose, onViewPlayer }: TeamMana
     }
   };
 
+  // ─── Send a join request to a team ──────────────────────────
+  const [joinRequestLoading, setJoinRequestLoading] = useState<string | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<Set<string>>(new Set());
+
+  const handleJoinRequest = async (teamId: string) => {
+    if (!currentUser?.id) return;
+    setJoinRequestLoading(teamId);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/join-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Request failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      // Mark as pending so the button changes
+      setPendingRequests(prev => new Set(prev).add(teamId));
+      toast({ title: 'Request Sent! 📨', description: 'Team members will be notified. You\'ll be added once they accept.' });
+    } catch {
+      toast({ title: 'Request failed', variant: 'destructive' });
+    } finally {
+      setJoinRequestLoading(null);
+    }
+  };
+
+  // ─── Fetch join requests for a team (for team members to see) ──
+  const [teamJoinRequests, setTeamJoinRequests] = useState<Array<{
+    id: string; status: string; message: string | null; createdAt: string;
+    user: { id: string; name: string; avatar?: string; playerCode?: string; gender?: string; weight?: string };
+  }>>([]);
+  const [showJoinRequests, setShowJoinRequests] = useState(false);
+
+  const fetchJoinRequests = useCallback(async (teamId: string) => {
+    if (!currentUser?.id) return;
+    try {
+      const res = await fetch(`/api/teams/${teamId}/join-requests?userId=${currentUser.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTeamJoinRequests(data.requests || []);
+      }
+    } catch { /* ignore */ }
+  }, [currentUser?.id]);
+
+  const handleAcceptRequest = async (requestId: string) => {
+    if (!currentUser?.id) return;
+    try {
+      const res = await fetch(`/api/teams/join-requests/${requestId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      if (res.ok) {
+        toast({ title: 'Player Added! ✅', description: 'Player has been added to your team.' });
+        if (selectedTeam) fetchJoinRequests(selectedTeam.id);
+        fetchTeams();
+      }
+    } catch { toast({ title: 'Failed to accept', variant: 'destructive' }); }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    if (!currentUser?.id) return;
+    try {
+      const res = await fetch(`/api/teams/join-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      if (res.ok) {
+        toast({ title: 'Request Rejected', description: 'The join request has been rejected.' });
+        if (selectedTeam) fetchJoinRequests(selectedTeam.id);
+      }
+    } catch { toast({ title: 'Failed to reject', variant: 'destructive' }); }
+  };
+
   // ─── Navigate to team detail ─────────────────────────────────
 
   const openTeamDetail = (team: TeamData) => {
     setSelectedTeam(team);
     setView('detail');
+    // Fetch join requests if the user is a member of this team
+    if (team.members.some(m => m.userId === currentUser?.id)) {
+      fetchJoinRequests(team.id);
+      setShowJoinRequests(true);
+    }
   };
 
   const goBackToList = () => {
@@ -830,8 +914,30 @@ export default function TeamManagementScreen({ onClose, onViewPlayer }: TeamMana
                               </div>
                             </div>
 
-                            {/* Arrow indicator */}
-                            <ChevronRight className="w-4 h-4 text-warm-400 dark:text-warm-500 shrink-0" />
+                            {/* Action: Request to Join (for non-members) or Arrow (for members) */}
+                            {isMyTeam ? (
+                              <ChevronRight className="w-4 h-4 text-warm-400 dark:text-warm-500 shrink-0" />
+                            ) : pendingRequests.has(team.id) ? (
+                              <span className="px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-xs font-bold shrink-0">
+                                Pending
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleJoinRequest(team.id);
+                                }}
+                                disabled={joinRequestLoading === team.id}
+                                className="px-3 py-1.5 rounded-lg bg-brand-teal text-white text-xs font-bold hover:bg-brand-teal-dark transition-colors shrink-0 flex items-center gap-1 disabled:opacity-50"
+                              >
+                                {joinRequestLoading === team.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <UserPlus className="w-3.5 h-3.5" />
+                                )}
+                                Request
+                              </button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -1557,6 +1663,58 @@ export default function TeamManagementScreen({ onClose, onViewPlayer }: TeamMana
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ═══ JOIN REQUESTS OVERLAY ═══ */}
+      {showJoinRequests && selectedTeam && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowJoinRequests(false)}>
+          <div className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-gray-400 rounded-full mx-auto mb-4" />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-warm-800 dark:text-white flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-brand-teal" />
+                Join Requests
+              </h3>
+              <button onClick={() => setShowJoinRequests(false)} className="w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center">
+                <X className="w-4 h-4 text-warm-500" />
+              </button>
+            </div>
+            <p className="text-xs text-warm-400 mb-4">Players requesting to join {selectedTeam.name}</p>
+
+            {teamJoinRequests.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="w-10 h-10 text-warm-300 mx-auto mb-2" />
+                <p className="text-sm text-warm-500">No pending requests</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {teamJoinRequests.map((req) => (
+                  <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-warm-50 dark:bg-warm-700/50">
+                    <div className="w-10 h-10 rounded-full bg-brand-teal flex items-center justify-center text-white text-sm font-bold shrink-0">
+                      {req.user.name?.charAt(0) || '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{req.user.name}</p>
+                      <p className="text-[10px] text-warm-400">
+                        {req.user.playerCode || 'No code'}
+                        {req.user.gender && ` · ${req.user.gender}`}
+                        {req.user.weight && ` · ${req.user.weight}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      <button onClick={() => handleAcceptRequest(req.id)} className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600">
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleRejectRequest(req.id)} className="w-8 h-8 rounded-lg bg-red-500 text-white flex items-center justify-center hover:bg-red-600">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
