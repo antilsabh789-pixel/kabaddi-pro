@@ -150,13 +150,20 @@ export default function PlayerProfileScreen({ userId, onBack }: PlayerProfileScr
         }
         const data = await res.json();
 
-        // Fetch follower count + isFollowing
+        // Fetch follower count + isFollowing from the real follow API
         let followerCount = 0;
         let isFollowing = false;
         if (currentUser?.id) {
-          // Skip the follow API check (returns 404 too) — use sensible defaults
-          followerCount = Math.floor(Math.random() * 500) + 50;
-          isFollowing = false;
+          try {
+            const followRes = await fetch(`/api/follow?userId=${currentUser.id}&targetId=${userId}`);
+            if (followRes.ok) {
+              const followData = await followRes.json();
+              followerCount = followData.followerCount || 0;
+              isFollowing = followData.isFollowing || false;
+            }
+          } catch {
+            // Non-critical — defaults to 0 followers, not following
+          }
         }
 
         // Team names come from the profile data from API
