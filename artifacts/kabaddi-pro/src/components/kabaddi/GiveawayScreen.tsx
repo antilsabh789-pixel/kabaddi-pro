@@ -287,30 +287,54 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
   const [changeLoading, setChangeLoading] = useState(false);
 
   const handleChangeWinnersStart = async () => {
-    if (!currentUser?.id || !status?.pastWinners?.length) return;
-    // Get the roundId from the first past winner entry
-    const roundId = status.pastWinners[0].roundId;
-    if (!roundId) {
-      toast({ title: 'Cannot find round ID', description: 'Please refresh and try again.', variant: 'destructive' });
-      return;
-    }
+    if (!currentUser?.id) return;
 
-    setChangeRoundId(roundId);
     setChangeSelected([]);
     setChangeLoading(true);
     setShowChangeWinners(true);
 
     try {
-      // Fetch participants for this round using the admin participants endpoint
-      // We need a way to get participants for a specific past round.
-      // The admin participants endpoint only returns the CURRENT round's participants.
-      // Let's fetch all participants for this round directly.
+      // Refetch status to get the latest pastWinners WITH roundId
+      const statusRes = await fetch('/api/giveaway/status');
+      let roundId: string | null = null;
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        setStatus(statusData);
+        if (statusData?.pastWinners?.length > 0 && statusData.pastWinners[0].roundId) {
+          roundId = statusData.pastWinners[0].roundId;
+        }
+      }
+
+      // Fallback: if roundId still missing, try fetching all completed rounds
+      // and find the one matching the most recent past winner's round number
+      if (!roundId && status?.pastWinners?.length) {
+        const roundNumber = status.pastWinners[0].roundNumber;
+        // Try to find the round by querying pending rounds endpoint (which returns all completed rounds)
+        // Actually, let's just fetch the status again — the backend now includes roundId
+        // If it's still missing, the DB might have old data without the roundId field
+        toast({ title: 'Cannot find round ID', description: 'Please refresh the page and try again.', variant: 'destructive' });
+        setShowChangeWinners(false);
+        setChangeLoading(false);
+        return;
+      }
+
+      if (!roundId) {
+        toast({ title: 'No past winners', description: 'There are no completed rounds to change winners for.', variant: 'destructive' });
+        setShowChangeWinners(false);
+        setChangeLoading(false);
+        return;
+      }
+
+      setChangeRoundId(roundId);
+
+      // Fetch participants for this round
       const res = await fetch(`/api/giveaway/admin/round-participants?adminId=${currentUser.id}&roundId=${roundId}`);
       if (res.ok) {
         const data = await res.json();
         setChangeRoundParticipants(data.participants || []);
       } else {
-        toast({ title: 'Failed to load participants', variant: 'destructive' });
+        const errData = await res.json().catch(() => ({}));
+        toast({ title: 'Failed to load participants', description: errData.error || 'Unknown error', variant: 'destructive' });
         setShowChangeWinners(false);
       }
     } catch {
