@@ -1275,7 +1275,7 @@ export default function LiveScoringScreen() {
       // pass existingMatchId so the backend updates that record instead of
       // creating a duplicate. Otherwise, fall back to creating a new completed
       // match record (legacy flow).
-      await fetch('/api/matches', {
+      const saveRes = await fetch('/api/matches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1294,8 +1294,24 @@ export default function LiveScoringScreen() {
           })),
         }),
       });
+      if (!saveRes.ok) {
+        const errData = await saveRes.json().catch(() => ({}));
+        console.error('Match save failed:', errData);
+        toast({
+          title: '⚠️ Match save failed!',
+          description: errData.error || 'Please try saving again. Your score is still recorded locally.',
+          variant: 'destructive',
+          duration: 5000,
+        });
+      }
     } catch (err) {
       console.error('Failed to save match:', err);
+      toast({
+        title: '⚠️ Match save failed!',
+        description: 'Network error. Please check your connection and try again.',
+        variant: 'destructive',
+        duration: 5000,
+      });
     }
 
     addNotification(matchNotification(match.homeTeam, match.awayTeam, match.homeScore, match.awayScore, match.id));
@@ -1318,7 +1334,10 @@ export default function LiveScoringScreen() {
   const handleEndHalf = () => {
     if (showEndHalfConfirm) {
       triggerFeedback(SoundType.HALF_END);
-      switchHalf();
+      // Do NOT call switchHalf() here — the HalfTimeScreen onContinue handler
+      // calls switchHalf() + switchRaidQueue(). Calling it here too would
+      // flip currentHalf twice (back to the original value) and break the
+      // 2nd half. Just show the HalfTimeScreen and let onContinue handle it.
       setHasStartedRaiding(false);
       setRaidTimer(null);
       if (raidTimerRef.current) clearInterval(raidTimerRef.current);
@@ -1330,7 +1349,12 @@ export default function LiveScoringScreen() {
       consecutiveEmptyRaidsRef.current = {};
       fiveMinWarningFiredRef.current = false;
       setShowEndHalfConfirm(false);
-      setShowHalfTimeTransition(true);
+      // If in 2nd half, show Time Up screen instead of Half Time
+      if (match?.currentHalf === 2) {
+        setShowTimeUp(true);
+      } else {
+        setShowHalfTimeTransition(true);
+      }
     } else {
       setShowEndHalfConfirm(true);
       setTimeout(() => setShowEndHalfConfirm(false), 3000);

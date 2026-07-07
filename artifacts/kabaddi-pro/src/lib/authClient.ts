@@ -343,6 +343,15 @@ export async function authRequest(payload: any): Promise<AuthResponse> {
     // status codes that indicate the endpoint itself isn't there.
     // 404 = endpoint not mounted in dev; 502/503/504 = proxy/upstream errors.
     if (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 504) {
+      // For REGISTRATION, do NOT fall back to mock — it creates a fake user
+      // in localStorage that can't interact with the real backend.
+      if (payload?.action === 'register') {
+        return {
+          ok: false,
+          status: 503,
+          data: { error: 'Cannot reach server. Please check your internet connection and try again.' },
+        };
+      }
       return runMock(payload);
     }
     // Any other non-JSON status — surface as a generic error so the UI can
