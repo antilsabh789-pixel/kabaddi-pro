@@ -41,6 +41,7 @@ model User {
   sentNotifications Notification[] @relation("NotificationSender")
   activities        Activity[]
   userAchievements  UserAchievement[]
+  academyAnnouncements AcademyAnnouncement[] // announcements this user (coach) has posted
   sentChallenges    Challenge[]   @relation("ChallengeSender")
   receivedChallenges Challenge[]  @relation("ChallengeReceiver")
   referralsMade     Referral[]    @relation("ReferralReferrer")
@@ -528,6 +529,7 @@ model Academy {
   feeRecords     FeeRecord[]
   rewards        StudentReward[]
   parentContacts ParentContact[]
+  announcements AcademyAnnouncement[]
 
   @@map("academies")
 }
@@ -623,6 +625,25 @@ model ParentContact {
 
   @@unique([userId, academyId])
   @@map("parent_contacts")
+}
+
+// ─── Academy Announcements ───────────────────────────────────────
+// Coach posts an announcement → all academy players see it + get a
+// Notification row so it appears in their bell icon.
+
+model AcademyAnnouncement {
+  id          String   @id @default(cuid())
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  coachUserId String   // the coach who posted it
+  coachUser   User     @relation(fields: [coachUserId], references: [id])
+  title       String
+  message     String
+  // Optional: if the coach schedules it for a future date. Null = immediate.
+  scheduledAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("academy_announcements")
 }
 
 // ─── Match Transfer / Scorer Handoff ─────────────────────────────

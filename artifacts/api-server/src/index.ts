@@ -55,7 +55,36 @@ async function autoMigrate() {
     `ALTER TABLE "attendances" ADD CONSTRAINT "attendances_academyId_userId_date_session_key" UNIQUE ("academyId", "userId", "date", "session")`,
   ];
 
-  for (const sql of [...statements, ...constraintStatements]) {
+  // Create the academy_announcements table if it doesn't exist. This is
+  // idempotent — CREATE TABLE IF NOT EXISTS is a no-op if the table exists.
+  // We use raw SQL instead of `prisma db push` so the server can boot on
+  // Vercel without a separate migration step.
+  const tableStatements = [
+    `CREATE TABLE IF NOT EXISTS "academy_announcements" (
+      "id" TEXT NOT NULL,
+      "academyId" TEXT NOT NULL,
+      "coachUserId" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "message" TEXT NOT NULL,
+      "scheduledAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "academy_announcements_pkey" PRIMARY KEY ("id")
+    )`,
+    // Foreign keys — add IF NOT EXISTS guard by dropping first (Postgres doesn't
+    // support ADD CONSTRAINT IF NOT EXISTS, so we wrap in a DO block)
+    `DO $$ BEGIN
+      ALTER TABLE "academy_announcements" ADD CONSTRAINT "academy_announcements_academyId_fkey"
+        FOREIGN KEY ("academyId") REFERENCES "academies"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "academy_announcements" ADD CONSTRAINT "academy_announcements_coachUserId_fkey"
+        FOREIGN KEY ("coachUserId") REFERENCES "User"("id") ON DELETE RESTRICT;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    // Index for querying announcements by academy (most common query)
+    `CREATE INDEX IF NOT EXISTS "academy_announcements_academyId_idx" ON "academy_announcements"("academyId")`,
+  ];
+
+  for (const sql of [...statements, ...constraintStatements, ...tableStatements]) {
     try {
       await db.$executeRawUnsafe(sql);
       logger.info({ sql: sql.slice(0, 100) }, 'auto-migrate: applied');

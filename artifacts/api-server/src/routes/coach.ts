@@ -527,4 +527,193 @@ router.post('/coach/rewards', async (req, res) => {
   }
 });
 
+// ─── Announcements ───────────────────────────────────────────────────────────
+
+/**
+ * POST /api/coach/announcements
+ * Body: { academyId, coachUserId, title, message }
+ *
+ * Creates an announcement for the academy. ALL players in the academy get a
+ * Notification row so it appears in their bell icon + notification panel.
+ *
+ * Returns: { announcement }
+ */
+router.post('/coach/announcements', async (req, res) => {
+  try {
+    const { academyId, coachUserId, title, message } = req.body;
+    if (!academyId || !coachUserId || !title || !message) {
+      return res.status(400).json({ error: 'academyId, coachUserId, title, and message are required' });
+    }
+
+    // Verify the coach owns this academy
+    const academy = await db.academy.findUnique({
+      where: { id: academyId },
+      select: { id: true, coachUserId: true, name: true },
+    });
+    if (!academy) return res.status(404).json({ error: 'Academy not found' });
+    if (academy.coachUserId !== coachUserId) {
+      return res.status(403).json({ error: 'Only the academy coach can post announcements' });
+    }
+
+    // Create the announcement
+    const announcement = await db.academyAnnouncement.create({
+      data: {
+        academyId,
+        coachUserId,
+        title: String(title).slice(0, 200),
+        message: String(message).slice(0, 2000),
+      },
+      include: {
+        coachUser: { select: { id: true, name: true, avatar: true } },
+      },
+    });
+
+    // Fan-out: create a Notification for EVERY player in the academy so it
+    // appears in their bell icon + notification panel. We do this in bulk
+    // with createMany for efficiency.
+    const players = await db.academyPlayer.findMany({
+      where: { academyId },
+      select: { userId: true },
+    });
+
+    if (players.length > 0) {
+      const coachName = announcement.coachUser.name || 'Your Coach';
+      const notifTitle = `📢 ${academy.name}: ${announcement.title}`;
+      const notifMessage = String(message).slice(0, 200);
+      await db.notification.createMany({
+        data: players.map((p) => ({
+          userId: p.userId,
+          type: 'academy_announcement',
+          title: notifTitle,
+          message: notifMessage,
+          fromUserId: coachUserId,
+        })),
+      });
+    }
+
+    return res.json({
+      announcement: {
+        id: announcement.id,
+        academyId: announcement.academyId,
+        title: announcement.title,
+        message: announcement.message,
+        createdAt: announcement.createdAt,
+        coach: announcement.coachUser,
+      },
+      notifiedPlayers: players.length,
+    });
+  } catch (error) {
+    console.error('Create announcement error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/coach/announcements?academyId=...
+ * Returns all announcements for an academy (most recent first).
+ */
+router.get('/coach/announcements', async (req, res) => {
+  try {
+    const academyId = req.query['academyId'] as string;
+    if (!academyId) return res.status(400).json({ error: 'academyId is required' });
+
+    const announcements = await db.academyAnnouncement.findMany({
+      where: { academyId },
+      include: {
+        coachUser: { select: { id: true, name: true, avatar: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return res.json({
+      announcements: announcements.map((a) => ({
+        id: a.id,
+        academyId: a.academyId,
+        title: a.title,
+        message: a.message,
+        createdAt: a.createdAt,
+        coach: a.coachUser,
+      })),
+    });
+  } catch (error) {
+    console.error('Fetch announcements error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/coach/announcements/:id
+ * Body: { coachUserId }
+ * Deletes an announcement. Only the coach who created it can delete.
+ */
+router.delete('/coach/announcements/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { coachUserId } = req.body;
+    if (!coachUserId) return res.status(400).json({ error: 'coachUserId is required' });
+
+    const announcement = await db.academyAnnouncement.findUnique({ where: { id } });
+    if (!announcement) return res.status(404).json({ error: 'Announcement not found' });
+    if (announcement.coachUserId !== coachUserId) {
+      return res.status(403).json({ error: 'Only the coach who posted this can delete it' });
+    }
+
+    await db.academyAnnouncement.delete({ where: { id } });
+    return res.json({ success: true, message: 'Announcement deleted' });
+  } catch (error) {
+    console.error('Delete announcement error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/announcements?userId=...
+ * Returns ALL announcements for academies the given user is a member of.
+ * Used by the player's Home tab / announcement feed so players see what
+ * their coaches have posted.
+ */
+router.get('/announcements', async (req, res) => {
+  try {
+    const userId = req.query['userId'] as string;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    // Find all academies this user is a member of
+    const memberships = await db.academyPlayer.findMany({
+      where: { userId },
+      select: { academyId: true },
+    });
+    const academyIds = memberships.map((m) => m.academyId);
+
+    if (academyIds.length === 0) {
+      return res.json({ announcements: [] });
+    }
+
+    const announcements = await db.academyAnnouncement.findMany({
+      where: { academyId: { in: academyIds } },
+      include: {
+        academy: { select: { id: true, name: true } },
+        coachUser: { select: { id: true, name: true, avatar: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+
+    return res.json({
+      announcements: announcements.map((a) => ({
+        id: a.id,
+        academyId: a.academyId,
+        academyName: a.academy.name,
+        title: a.title,
+        message: a.message,
+        createdAt: a.createdAt,
+        coach: a.coachUser,
+      })),
+    });
+  } catch (error) {
+    console.error('Fetch player announcements error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

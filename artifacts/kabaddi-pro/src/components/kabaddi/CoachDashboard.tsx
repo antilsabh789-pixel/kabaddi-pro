@@ -32,6 +32,7 @@ import {
   Loader2,
   Phone,
   MessageCircle,
+  Megaphone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -232,7 +233,7 @@ interface ParentData {
   };
 }
 
-type TabId = 'academy' | 'attendance' | 'fees' | 'rewards' | 'analytics';
+type TabId = 'academy' | 'attendance' | 'fees' | 'rewards' | 'analytics' | 'announcements';
 type AcademySubView = 'list' | 'detail' | 'create';
 
 // ─── Tab Config ────────────────────────────────────────────────────
@@ -241,6 +242,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'academy', label: 'Academy', icon: <Building2 className="w-4 h-4" /> },
   { id: 'attendance', label: 'Attendance', icon: <ClipboardCheck className="w-4 h-4" /> },
   { id: 'fees', label: 'Fees', icon: <IndianRupee className="w-4 h-4" /> },
+  { id: 'announcements', label: 'Announce', icon: <Megaphone className="w-4 h-4" /> },
   { id: 'rewards', label: 'Rewards', icon: <Trophy className="w-4 h-4" /> },
   { id: 'analytics', label: 'Analytics', icon: <BarChart3 className="w-4 h-4" /> },
 ];
@@ -307,6 +309,19 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
   const [playerAttendanceView, setPlayerAttendanceView] = useState<{ userId: string; name: string | null; phone: string | null; avatar: string | null } | null>(null);
   const [playerAttendanceHistory, setPlayerAttendanceHistory] = useState<PlayerAttendanceHistory | null>(null);
   const [playerAttendanceLoading, setPlayerAttendanceLoading] = useState(false);
+
+  // Announcements state
+  interface AnnouncementData {
+    id: string;
+    academyId: string;
+    title: string;
+    message: string;
+    createdAt: string;
+    coach: { id: string; name: string | null; avatar: string | null };
+  }
+  const [announcements, setAnnouncements] = useState<AnnouncementData[]>([]);
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', message: '' });
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
 
   // Rewards state
   const [rewards, setRewards] = useState<RewardData[]>([]);
@@ -898,6 +913,78 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     }
   };
 
+  // ─── Announcements API Calls ──────────────────────────
+
+  const fetchAnnouncements = useCallback(async (academyId: string) => {
+    try {
+      const res = await fetch(`/api/coach/announcements?academyId=${academyId}`);
+      const data = await res.json();
+      if (data.announcements) {
+        setAnnouncements(data.announcements);
+      } else {
+        setAnnouncements([]);
+      }
+    } catch (err) {
+      console.error('Fetch announcements error:', err);
+      setAnnouncements([]);
+    }
+  }, []);
+
+  const createAnnouncement = async () => {
+    if (!selectedAcademyId || !currentUser?.id) return;
+    if (!announcementForm.title.trim() || !announcementForm.message.trim()) {
+      toast({ title: 'Please enter both title and message', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/coach/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          academyId: selectedAcademyId,
+          coachUserId: currentUser.id,
+          title: announcementForm.title.trim(),
+          message: announcementForm.message.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.announcement) {
+        toast({ title: `📢 Announcement sent to ${data.notifiedPlayers} players!` });
+        setAnnouncementForm({ title: '', message: '' });
+        setShowAnnouncementForm(false);
+        fetchAnnouncements(selectedAcademyId);
+      } else {
+        toast({ title: data.error || 'Failed to post announcement', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to post announcement', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteAnnouncement = async (id: string) => {
+    if (!currentUser?.id) return;
+    if (!confirm('Delete this announcement?')) return;
+    try {
+      const res = await fetch(`/api/coach/announcements/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coachUserId: currentUser.id }),
+      });
+      if (res.ok) {
+        toast({ title: 'Announcement deleted' });
+        if (selectedAcademyId) fetchAnnouncements(selectedAcademyId);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data.error || 'Failed to delete', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to delete', variant: 'destructive' });
+    }
+  };
+
   // ─── Analytics API Calls ───────────────────────────────
 
   const fetchAnalytics = useCallback(async (academyId: string) => {
@@ -944,9 +1031,10 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       fetchFees(selectedAcademyId);
       fetchPlayerFeeStatuses(selectedAcademyId);
     }
+    else if (activeTab === 'announcements') fetchAnnouncements(selectedAcademyId);
     else if (activeTab === 'rewards') fetchRewards(selectedAcademyId);
     else if (activeTab === 'analytics') fetchAnalytics(selectedAcademyId);
-  }, [activeTab, selectedAcademyId, fetchAttendance, fetchFees, fetchPlayerFeeStatuses, fetchRewards, fetchAnalytics]);
+  }, [activeTab, selectedAcademyId, fetchAttendance, fetchFees, fetchPlayerFeeStatuses, fetchAnnouncements, fetchRewards, fetchAnalytics]);
 
   // ─── Auto-fetch attendance history when a player profile modal opens ───
   // When the coach taps a player in the Academy tab, the profile modal opens
@@ -3000,6 +3088,160 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     );
   };
 
+  // ─── Tab: Announcements ─────────────────────────────────
+
+  const renderAnnouncementsTab = () => {
+    if (!selectedAcademyId) {
+      return (
+        <div className="p-4 text-center">
+          <Megaphone className="w-12 h-12 text-warm-300 mx-auto mb-3" />
+          <p className="text-warm-500">Select an academy first</p>
+          {renderAcademySelector(true)}
+        </div>
+      );
+    }
+
+    const fmtRelative = (iso: string) => {
+      const d = new Date(iso);
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffHr = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHr / 24);
+      if (diffMin < 1) return 'Just now';
+      if (diffMin < 60) return `${diffMin}m ago`;
+      if (diffHr < 24) return `${diffHr}h ago`;
+      if (diffDay < 7) return `${diffDay}d ago`;
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    };
+
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="p-4 space-y-4"
+      >
+        {renderAcademySelector(true)}
+
+        {/* Compose New Announcement button */}
+        <Button
+          onClick={() => setShowAnnouncementForm(!showAnnouncementForm)}
+          size="sm"
+          className="w-full bg-brand-green/10 text-brand-green hover:bg-brand-green/20 border-0"
+          variant="outline"
+        >
+          {showAnnouncementForm ? <X className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+          {showAnnouncementForm ? 'Cancel' : 'New Announcement'}
+        </Button>
+
+        {/* Compose Form */}
+        <AnimatePresence>
+          {showAnnouncementForm && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
+                <CardContent className="p-4 space-y-3">
+                  <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 flex items-center gap-2">
+                    <Megaphone className="w-4 h-4 text-brand-green" />
+                    Post Announcement
+                  </h3>
+                  <p className="text-[10px] text-warm-500">
+                    All players in this academy will see it + get a notification.
+                  </p>
+                  <div>
+                    <label className="text-xs text-warm-500 mb-1 block">Title</label>
+                    <Input
+                      value={announcementForm.title}
+                      onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
+                      placeholder="e.g., Practice cancelled tomorrow"
+                      maxLength={200}
+                      className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-warm-500 mb-1 block">Message</label>
+                    <textarea
+                      value={announcementForm.message}
+                      onChange={(e) => setAnnouncementForm({ ...announcementForm, message: e.target.value })}
+                      placeholder="Write your announcement here..."
+                      maxLength={2000}
+                      rows={4}
+                      className="w-full p-2 rounded-lg bg-white/50 dark:bg-white/5 border border-warm-200 dark:border-warm-700 text-sm text-warm-800 dark:text-warm-200 resize-none"
+                    />
+                    <p className="text-[9px] text-warm-400 text-right mt-0.5">{announcementForm.message.length}/2000</p>
+                  </div>
+                  <Button
+                    onClick={createAnnouncement}
+                    disabled={loading || !announcementForm.title.trim() || !announcementForm.message.trim()}
+                    size="sm"
+                    className="w-full bg-brand-green text-white"
+                  >
+                    {loading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Send className="w-3 h-3 mr-1" />}
+                    Send to All Players
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Announcements List */}
+        {announcements.length === 0 ? (
+          <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
+            <CardContent className="p-6 text-center">
+              <Megaphone className="w-8 h-8 text-warm-300 mx-auto mb-2" />
+              <p className="text-sm text-warm-500">No announcements yet</p>
+              <p className="text-[10px] text-warm-400 mt-1">Tap "New Announcement" to post one.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {announcements.map((a) => (
+              <Card key={a.id} className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-brand-green/20 flex items-center justify-center text-brand-green font-bold text-[10px] overflow-hidden shrink-0">
+                        {a.coach.avatar ? (
+                          <img src={a.coach.avatar} alt={a.coach.name || 'Coach'} className="w-full h-full object-cover" />
+                        ) : (
+                          (a.coach.name || '?')[0]?.toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-warm-500">{a.coach.name || 'Coach'}</p>
+                        <p className="text-[9px] text-warm-400">{fmtRelative(a.createdAt)}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deleteAnnouncement(a.id)}
+                      className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-warm-400 hover:text-red-500 shrink-0"
+                      title="Delete announcement"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <h3 className="text-sm font-bold text-warm-800 dark:text-warm-200 mb-1 flex items-center gap-1.5">
+                    <Megaphone className="w-3.5 h-3.5 text-brand-green shrink-0" />
+                    {a.title}
+                  </h3>
+                  <p className="text-xs text-warm-600 dark:text-warm-300 whitespace-pre-wrap break-words">
+                    {a.message}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
+  };
+
   // ─── Main Render ───────────────────────────────────────
 
   return (
@@ -3061,6 +3303,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
           {activeTab === 'academy' && <div key="academy">{renderAcademyTab()}</div>}
           {activeTab === 'attendance' && <div key="attendance">{renderAttendanceTab()}</div>}
           {activeTab === 'fees' && <div key="fees">{renderFeesTab()}</div>}
+          {activeTab === 'announcements' && <div key="announcements">{renderAnnouncementsTab()}</div>}
           {activeTab === 'rewards' && <div key="rewards">{renderRewardsTab()}</div>}
           {activeTab === 'analytics' && <div key="analytics">{renderAnalyticsTab()}</div>}
         </AnimatePresence>
