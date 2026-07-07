@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 
 // Raid flow states
 type RaidPhase = 'idle' | 'result' | 'defenders';
-type RaidResult = 'success' | 'caught' | 'empty' | null;
+type RaidResult = 'success' | 'caught' | 'empty' | 'mutual_out' | null;
 type ActionTab = 'raid' | 'defense' | 'special' | 'cards';
 
 const RAID_TIME_LIMIT = 30; // seconds
@@ -367,6 +367,9 @@ export default function LiveScoringScreen() {
   const [raidPhase, setRaidPhase] = useState<RaidPhase>('idle');
   const [raider, setRaider] = useState<MatchPlayer | null>(null);
   const [raidResult, setRaidResult] = useState<RaidResult>(null);
+  // Mutual out: both teams lose players in the same raid
+  const [mutualOutRaiders, setMutualOutRaiders] = useState(0); // raiding team players out
+  const [mutualOutDefenders, setMutualOutDefenders] = useState(0); // defending team players out
   const [selectedDefenders, setSelectedDefenders] = useState<Set<string>>(new Set());
   const [bonusPoint, setBonusPoint] = useState(false);
 
@@ -901,9 +904,96 @@ export default function LiveScoringScreen() {
       processRaidResult(result, new Set(), false);
       return;
     }
+    if (result === 'mutual_out') {
+      setRaidResult('mutual_out');
+      setMutualOutRaiders(1);
+      setMutualOutDefenders(1);
+      setRaidPhase('result'); // stay on result screen to pick counts
+      return;
+    }
     setRaidResult(result);
     setRaidPhase('defenders');
     setSelectedDefenders(new Set());
+  };
+
+  // Process mutual out — both teams lose players
+  const processMutualOut = () => {
+    if (!match || !raider) return;
+    if (mutualOutRaiders < 1 || mutualOutDefenders < 1) return;
+
+    setIsTurnTransitioning(true);
+    if (!hasStartedRaiding) setHasStartedRaiding(true);
+    setRaidTimer(null);
+    if (raidTimerRef.current) clearInterval(raidTimerRef.current);
+
+    const raidingTeamId = raidingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+    const defendingTeamId = defendingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
+
+    const events: Omit<MatchEvent, 'id' | 'timestamp'>[] = [];
+
+    // Raiding team scores points for defenders out
+    if (mutualOutDefenders > 0) {
+      events.push({
+        matchId: match.id, eventType: 'raid_point', teamId: raidingTeamId,
+        half: match.currentHalf, playerId: raider.id, playerName: raider.name,
+        value: mutualOutDefenders,
+        details: JSON.stringify({ mutualOut: true, defendersOut: mutualOutDefenders, raiderId: raider.id }),
+      });
+    }
+
+    // Defending team scores points for raiders out (including the raider)
+    if (mutualOutRaiders > 0) {
+      events.push({
+        matchId: match.id, eventType: 'tackle_point', teamId: defendingTeamId,
+        half: match.currentHalf, playerId: raider.id, playerName: raider.name,
+        value: mutualOutRaiders,
+        details: JSON.stringify({ mutualOut: true, raidersOut: mutualOutRaiders, raiderId: raider.id }),
+      });
+    }
+
+    // Add batch events + update out players
+    addBatchEvents(events, {
+      raidingOutDelta: mutualOutRaiders,
+      defendingOutDelta: mutualOutDefenders,
+    });
+
+    // Update score
+    updateScore(raidingTeam, mutualOutDefenders);
+    updateScore(defendingTeam, mutualOutRaiders);
+
+    triggerFeedback(SoundType.RAID_POINT);
+    toast({
+      title: 'Mutual Out!',
+      description: `${raidingTeamName} +${mutualOutDefenders} · ${defendingTeamName} +${mutualOutRaiders}`,
+      duration: 2000,
+    });
+
+    // Start raid gap timer
+    setRaidGapTimer(RAID_GAP_TIMEOUT);
+
+    // Reset state
+    setRaidPhase('idle');
+    setRaider(null);
+    setRaidResult(null);
+    setSelectedDefenders(new Set());
+    setBonusPoint(false);
+    setMutualOutRaiders(0);
+    setMutualOutDefenders(0);
+
+    // Half/match end check
+    if (pendingHalfEndRef.current) {
+      pendingHalfEndRef.current = false;
+      setTimeout(() => {
+        if (match.currentHalf === 1) {
+          triggerFeedback(SoundType.HALF_END);
+          setShowHalfTimeTransition(true);
+        } else {
+          triggerFeedback(SoundType.HALF_END);
+          setTimeout(() => { triggerFeedback(SoundType.MATCH_END); }, 800);
+          setShowTimeUp(true);
+        }
+      }, 500);
+    }
   };
 
   // Toggle defender selection
@@ -2914,9 +3004,112 @@ export default function LiveScoringScreen() {
               >
                 🚫 Self-Out (Raider or Defender stepped out)
               </button>
+
+              {/* Mutual Out button — both teams lose players */}
+              <button
+                onClick={() => handleSelectResult('mutual_out')}
+                className="w-full mt-2 py-2.5 rounded-xl bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 font-bold text-sm flex items-center justify-center gap-2"
+              >
+                ⚔️ Mutual Out (Both teams lose players)
+              </button>
             </div>
           </motion.div>
         )}
+
+        {/* ═══ MUTUAL OUT SELECTOR — pick how many players out from each team ═══ */}
+        <AnimatePresence>
+          {raidResult === 'mutual_out' && raidPhase === 'result' && (
+            <motion.div
+              key="mutual-out-selector"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-white dark:bg-warm-800 rounded-2xl shadow-2xl border border-warm-200 dark:border-warm-700 p-4 max-w-md mx-auto"
+            >
+              <h3 className="text-base font-black text-purple-600 dark:text-purple-400 text-center mb-1">⚔️ Mutual Out</h3>
+              <p className="text-[10px] text-gray-400 text-center mb-4">Both teams lose players. Set how many from each team.</p>
+
+              {/* Raiders out (raiding team) */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold" style={{ color: raidingTeamColor }}>
+                    {raidingTeamName} players out
+                  </span>
+                  <span className="text-lg font-black text-purple-600">{mutualOutRaiders}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setMutualOutRaiders(Math.max(1, mutualOutRaiders - 1))}
+                    className="w-9 h-9 rounded-lg bg-warm-100 dark:bg-warm-700 flex items-center justify-center font-black text-warm-600"
+                  >
+                    −
+                  </button>
+                  <div className="flex-1 h-9 bg-warm-100 dark:bg-warm-700 rounded-lg flex items-center justify-center">
+                    <span className="text-sm font-bold text-warm-800 dark:text-warm-100">{mutualOutRaiders} out</span>
+                  </div>
+                  <button
+                    onClick={() => setMutualOutRaiders(Math.min(7, mutualOutRaiders + 1))}
+                    className="w-9 h-9 rounded-lg bg-warm-100 dark:bg-warm-700 flex items-center justify-center font-black text-warm-600"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-[9px] text-warm-400 mt-1">Points to {defendingTeamName}: +{mutualOutRaiders}</p>
+              </div>
+
+              {/* Defenders out (defending team) */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold" style={{ color: defendingTeamColor }}>
+                    {defendingTeamName} players out
+                  </span>
+                  <span className="text-lg font-black text-purple-600">{mutualOutDefenders}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setMutualOutDefenders(Math.max(1, mutualOutDefenders - 1))}
+                    className="w-9 h-9 rounded-lg bg-warm-100 dark:bg-warm-700 flex items-center justify-center font-black text-warm-600"
+                  >
+                    −
+                  </button>
+                  <div className="flex-1 h-9 bg-warm-100 dark:bg-warm-700 rounded-lg flex items-center justify-center">
+                    <span className="text-sm font-bold text-warm-800 dark:text-warm-100">{mutualOutDefenders} out</span>
+                  </div>
+                  <button
+                    onClick={() => setMutualOutDefenders(Math.min(7, mutualOutDefenders + 1))}
+                    className="w-9 h-9 rounded-lg bg-warm-100 dark:bg-warm-700 flex items-center justify-center font-black text-warm-600"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-[9px] text-warm-400 mt-1">Points to {raidingTeamName}: +{mutualOutDefenders}</p>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 mb-3 text-center">
+                <p className="text-xs font-bold text-purple-700 dark:text-purple-300">
+                  {raidingTeamName} +{mutualOutDefenders} · {defendingTeamName} +{mutualOutRaiders}
+                </p>
+              </div>
+
+              {/* Confirm + Cancel */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setRaidResult(null); setRaidPhase('result'); setMutualOutRaiders(0); setMutualOutDefenders(0); }}
+                  className="flex-1 py-2.5 rounded-xl border border-warm-300 dark:border-warm-600 text-warm-600 font-semibold text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={processMutualOut}
+                  className="flex-1 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm"
+                >
+                  ⚔️ Confirm Mutual Out
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </AnimatePresence>
 
       <AnimatePresence>
