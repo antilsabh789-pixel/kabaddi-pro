@@ -77,8 +77,13 @@ router.post('/auth', async (req, res) => {
       if (existingUser) return res.status(409).json({ error: 'Phone number already registered. Please login instead.' });
 
       const playerCode = await generatePlayerCode();
+      // COACH ROLE IS DEPRECATED. Everyone is now a normal player. The Coach
+      // Corner feature is available to all users — there's no separate coach
+      // account type anymore. We ignore any role sent from the frontend and
+      // always set 'player'. This also prevents a malicious caller from
+      // creating an admin account by passing role:'admin'.
       const user = await db.user.create({
-        data: { phone, playerCode, password: await hashPassword(password), name, email: email || null, dateOfBirth, gender: gender || null, weight: weight || null, practiceGround: practiceGround || null, role: role || 'player', phoneVerified: true },
+        data: { phone, playerCode, password: await hashPassword(password), name, email: email || null, dateOfBirth, gender: gender || null, weight: weight || null, practiceGround: practiceGround || null, role: 'player', phoneVerified: true },
       });
       await db.playerProfile.create({ data: { userId: user.id } });
 
@@ -309,8 +314,10 @@ router.post('/auth', async (req, res) => {
       //   - password  → POST /auth action='reset-password' (DOB-verified)
       //   - dateOfBirth → NEVER editable (it's the password-reset verifier)
       //   - phone     → not supported via this endpoint to prevent account-takeover
-      // Allow only profile-display fields here.
-      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'role', 'avatar'];
+      // 'role' is also NOT editable — the coach role is deprecated and everyone
+      // is a player now. Forcing role='player' on register prevents new coaches;
+      // blocking role here prevents existing users from making themselves coach.
+      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'avatar'];
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
         if (body[field] !== undefined) updateData[field] = body[field];

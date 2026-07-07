@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil, Trash2, Search, UserPlus } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil, Trash2, Search, UserPlus, RefreshCw } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import Portal from '@/components/portal';
 
@@ -413,6 +413,7 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
     isPremium: boolean;
     premiumExpiry: string | null;
     premiumPlan: string | null;
+    role: string | null;
     gender: string | null;
     weight: string | null;
     practiceGround: string | null;
@@ -429,6 +430,7 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [migrating, setMigrating] = useState(false);
 
   // Debounce the search input so we don't fire a query on every keystroke
   useEffect(() => {
@@ -478,6 +480,33 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
 
   useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
 
+  // Migrate all role='coach' users to role='player'. One-time admin action
+  // to clean up the deprecated coach role. Backend endpoint:
+  // POST /api/admin/migrate-coaches-to-players
+  const handleMigrateCoaches = async () => {
+    if (!currentUser?.id) return;
+    if (!confirm('This will convert ALL users currently marked as "coach" back to normal "player" role. They will keep all their data (matches, teams, stats). Continue?')) return;
+    setMigrating(true);
+    try {
+      const res = await fetch('/api/admin/migrate-coaches-to-players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: currentUser.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: '✅ Migration complete', description: data.message });
+        fetchPlayers(); // refresh the list
+      } else {
+        toast({ title: 'Migration failed', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Network error', description: 'Please try again.', variant: 'destructive' });
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   // Format helper — render member-since as "Jul 7, 2026"
   const fmtDate = (iso: string) => {
     try {
@@ -522,9 +551,20 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
               <p className="text-[10px] text-warm-500 dark:text-warm-400">{total.toLocaleString()} registered {total === 1 ? 'player' : 'players'}</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleMigrateCoaches}
+              disabled={migrating}
+              className="px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50 flex items-center gap-1"
+              title="Convert all users with role='coach' back to normal player role. One-time cleanup."
+            >
+              {migrating ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              {migrating ? 'Migrating...' : 'Migrate Coaches'}
+            </button>
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Search bar */}
@@ -610,6 +650,11 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
                           <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
                             <Crown className="w-2.5 h-2.5" />
                             {fmtPlan(p.premiumPlan)}
+                          </span>
+                        )}
+                        {p.role === 'coach' && (
+                          <span className="shrink-0 inline-flex items-center text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full" title="User registered as coach (deprecated role). Tap 'Migrate Coaches' to convert.">
+                            COACH
                           </span>
                         )}
                       </div>
@@ -1634,7 +1679,11 @@ export default function ProfileTab() {
     {
       title: 'Team & Stats',
       items: [
-        ...(currentUser?.role === 'coach' ? [{ icon: Megaphone, label: 'Coach Dashboard', desc: 'Academy, attendance & fees', color: 'brand-green', premium: false, onClick: () => setShowCoachDashboard(true) }] : []),
+        // Coach Dashboard is now available to EVERYONE — the coach role is
+        // deprecated. Anyone (player or former-coach) can manage their academy,
+        // attendance, and fees from here. No role check, no premium gate on the
+        // menu entry itself (the CoachDashboard screen handles its own gating).
+        { icon: Megaphone, label: 'Coach Dashboard', desc: 'Academy, attendance & fees', color: 'brand-green', premium: false, onClick: () => setShowCoachDashboard(true) },
         { icon: Users, label: 'My Teams', desc: 'Manage your teams', color: 'brand-teal', premium: false, onClick: () => setShowTeamManagement(true) },
         { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', premium: true, onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
         { icon: Activity, label: 'My Stats', desc: 'View your stats', color: 'brand-red', premium: false, onClick: () => setShowStats(true) },
@@ -1964,7 +2013,7 @@ export default function ProfileTab() {
                   </div>
 
                   {/* Gender Selection - Players only */}
-                  {currentUser?.role !== 'coach' && (
+                  {(
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Gender</label>
                     <div className="grid grid-cols-2 gap-3">
@@ -1993,7 +2042,7 @@ export default function ProfileTab() {
                   )}
 
                   {/* Weight Category Selector - Players only */}
-                  {currentUser?.role !== 'coach' && (
+                  {(
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Weight Category</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -2090,7 +2139,7 @@ export default function ProfileTab() {
                   </div>
 
                   {/* Jersey Number - Players only */}
-                  {currentUser?.role !== 'coach' && (
+                  {(
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Jersey Number</label>
                     <div className="relative">
@@ -2109,7 +2158,7 @@ export default function ProfileTab() {
                   )}
 
                   {/* Position Selection with Visual Icons - Players only */}
-                  {currentUser?.role !== 'coach' && (
+                  {(
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Position</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -2181,7 +2230,7 @@ export default function ProfileTab() {
             </h2>
 
             {/* Position badge with kabaddi-themed icon - Players only */}
-            {currentUser?.role !== 'coach' && (profileData.position || currentUser?.position) && (
+            {(profileData.position || currentUser?.position) && (
               <div className="flex items-center justify-center gap-1.5 mt-1.5">
                 <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 flex items-center gap-1.5">
                   <span className="text-sm">{getPositionIcon(profileData.position || currentUser?.position || '')}</span>
@@ -2195,7 +2244,7 @@ export default function ProfileTab() {
 
             {/* Weight & Practice Ground */}
             <div className="flex items-center justify-center gap-3 mt-1.5 text-white/70 text-xs">
-              {currentUser?.role !== 'coach' && currentUser?.weight && (
+              {currentUser?.weight && (
                 <span className="flex items-center gap-1">
                   <Activity className="w-3 h-3" />
                   {currentUser.weight === 'open' ? '♾️ Open' : `⚖️ ${currentUser.weight}`}
@@ -2211,7 +2260,7 @@ export default function ProfileTab() {
 
             {/* Badges Row */}
             <div className="flex items-center justify-center gap-2 mt-2">
-              {currentUser?.role !== 'coach' && (profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+              {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
                 <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
                   #{profileData.jerseyNumber || currentUser?.jerseyNumber}
                 </span>
@@ -3339,7 +3388,7 @@ export default function ProfileTab() {
           </div>
 
           {/* Weight - Players only */}
-          {currentUser?.role !== 'coach' && currentUser?.weight && (
+          {currentUser?.weight && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
@@ -3371,7 +3420,7 @@ export default function ProfileTab() {
           )}
 
           {/* Position - Players only */}
-          {currentUser?.role !== 'coach' && (profileData.position || currentUser?.position) && (
+          {(profileData.position || currentUser?.position) && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
@@ -3387,7 +3436,7 @@ export default function ProfileTab() {
           )}
 
           {/* Jersey - Players only */}
-          {currentUser?.role !== 'coach' && (profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+          {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">

@@ -212,20 +212,23 @@ router.get('/admin/lookup-player', async (req, res) => {
 /**
  * GET /api/admin/players?adminId=...&page=1&limit=50&search=...
  *
- * Returns ALL registered players (role='player', isAdmin=false) — paginated,
- * searchable by name / playerCode / phone. Admin sees full phone (for prize
- * contact) + premium status + member-since date.
+ * Returns ALL registered users EXCEPT admins — regardless of role (player,
+ * coach, etc.). The coach role is being deprecated; everyone is now treated
+ * as a player. Admin sees full phone (for prize contact) + premium status +
+ * member-since date.
  *
  * Query params:
  *   adminId (required) — must be an admin
  *   page    (default 1)
  *   limit   (default 50, max 200)
  *   search  (optional) — case-insensitive match on name / playerCode / phone
+ *   role    (optional) — filter by role ('player' | 'coach' | 'all'). Defaults
+ *            to 'all' so no one is hidden from the admin.
  *
  * Response: {
  *   players: [{ id, name, playerCode, phone, avatar, gender, isPremium,
- *               premiumExpiry, premiumPlan, location, practiceGround, memberSince }],
- *   total: number,     // total matching the filter (not just this page)
+ *               premiumExpiry, premiumPlan, role, location, practiceGround, memberSince }],
+ *   total: number,
  *   page: number,
  *   limit: number,
  *   totalPages: number,
@@ -237,6 +240,7 @@ router.get('/admin/players', async (req, res) => {
     const page = Math.max(1, parseInt((req.query['page'] as string) || '1', 10));
     const limit = Math.min(200, Math.max(1, parseInt((req.query['limit'] as string) || '50', 10)));
     const search = ((req.query['search'] as string) || '').trim();
+    const roleFilter = ((req.query['role'] as string) || 'all').toLowerCase();
 
     if (!adminId) return res.status(400).json({ error: 'adminId is required' });
 
@@ -245,12 +249,17 @@ router.get('/admin/players', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Build the where clause: only real players (no admins, no coaches),
-    // optionally narrowed by a search term.
+    // Build the where clause: everyone EXCEPT admins (so players + coaches +
+    // any future role all show up). Optionally narrow by an explicit role
+    // filter if the admin wants to see only one role.
     const where: Record<string, unknown> = {
-      role: 'player',
       isAdmin: false,
     };
+    if (roleFilter === 'player' || roleFilter === 'coach') {
+      where.role = roleFilter;
+    }
+    // roleFilter === 'all' (default) → no role filter, everyone shows up
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -266,7 +275,7 @@ router.get('/admin/players', async (req, res) => {
         select: {
           id: true, name: true, playerCode: true, phone: true, avatar: true,
           isPremium: true, premiumExpiry: true, premiumPlan: true,
-          gender: true, weight: true, practiceGround: true, location: true,
+          role: true, gender: true, weight: true, practiceGround: true, location: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' }, // newest first
@@ -284,6 +293,7 @@ router.get('/admin/players', async (req, res) => {
       isPremium: u.isPremium,
       premiumExpiry: u.premiumExpiry,
       premiumPlan: u.premiumPlan,
+      role: u.role,
       gender: u.gender,
       weight: u.weight,
       practiceGround: u.practiceGround,
@@ -300,6 +310,43 @@ router.get('/admin/players', async (req, res) => {
     });
   } catch (error) {
     console.error('Admin players list error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/migrate-coaches-to-players
+ * ADMIN ONLY — One-time migration: set role='player' for every user whose
+ * role is currently 'coach'. The coach role is being deprecated; everyone is
+ * now a normal player (the Coach Corner feature is available to all).
+ *
+ * Body: { adminId }
+ * Returns: { success, migratedCount }
+ */
+router.post('/admin/migrate-coaches-to-players', async (req, res) => {
+  try {
+    const { adminId } = req.body;
+    if (!adminId) return res.status(400).json({ error: 'adminId is required' });
+
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = await db.user.updateMany({
+      where: { role: 'coach', isAdmin: false },
+      data: { role: 'player' },
+    });
+
+    return res.json({
+      success: true,
+      migratedCount: result.count,
+      message: result.count === 0
+        ? 'No coaches to migrate — everyone is already a player.'
+        : `Migrated ${result.count} coach${result.count === 1 ? '' : 'es'} to player role.`,
+    });
+  } catch (error) {
+    console.error('Migrate coaches to players error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
