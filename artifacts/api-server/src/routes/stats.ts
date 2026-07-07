@@ -33,6 +33,7 @@ router.get('/stats', async (req, res) => {
     const tackleSuccessRate = (aggregateStats._sum.totalTackles ?? 0) > 0
       ? Math.round(((aggregateStats._sum.successfulTackles ?? 0) / (aggregateStats._sum.totalTackles ?? 1)) * 100) : 0;
 
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     return res.json({
       totalPlayers, totalTeams, totalTournaments, totalMatches, liveMatchCount, completedMatchCount, upcomingMatchCount,
       totalRaidPoints: aggregateStats._sum.raidPoints ?? 0,
