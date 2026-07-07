@@ -948,6 +948,21 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     else if (activeTab === 'analytics') fetchAnalytics(selectedAcademyId);
   }, [activeTab, selectedAcademyId, fetchAttendance, fetchFees, fetchPlayerFeeStatuses, fetchRewards, fetchAnalytics]);
 
+  // ─── Auto-fetch attendance history when a player profile modal opens ───
+  // When the coach taps a player in the Academy tab, the profile modal opens
+  // and we immediately fetch their 30-day attendance PnL chart. This also
+  // fires when playerAttendanceView opens (from the Attendance tab).
+  useEffect(() => {
+    const targetUserId = playerProfileView?.userId || playerAttendanceView?.userId;
+    if (targetUserId && selectedAcademyId) {
+      fetchPlayerAttendanceHistory(selectedAcademyId, targetUserId);
+    }
+    // Cleanup: clear the history when the modal closes
+    if (!playerProfileView && !playerAttendanceView) {
+      setPlayerAttendanceHistory(null);
+    }
+  }, [playerProfileView, playerAttendanceView, selectedAcademyId, fetchPlayerAttendanceHistory]);
+
   // ─── Academy Selector ──────────────────────────────────
 
   const renderAcademySelector = (show: boolean) => {
@@ -1537,18 +1552,27 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4"
-                onClick={() => setPlayerProfileView(null)}
+                onClick={() => {
+                  setPlayerProfileView(null);
+                  setPlayerAttendanceHistory(null);
+                }}
               >
                 <motion.div
                   initial={{ y: 50, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: 50, opacity: 0 }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-white dark:bg-warm-900 rounded-2xl p-5 w-full max-w-sm space-y-4"
+                  className="bg-white dark:bg-warm-900 rounded-2xl p-5 w-full max-w-sm max-h-[85vh] overflow-y-auto space-y-4"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-warm-900 pb-2 -mt-1 z-10">
                     <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Player Details</h3>
-                    <button onClick={() => setPlayerProfileView(null)} className="p-1 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800">
+                    <button
+                      onClick={() => {
+                        setPlayerProfileView(null);
+                        setPlayerAttendanceHistory(null);
+                      }}
+                      className="p-1 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800"
+                    >
                       <X className="w-4 h-4 text-warm-500" />
                     </button>
                   </div>
@@ -1568,6 +1592,98 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                       Joined {new Date(playerProfileView.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   </div>
+
+                  {/* ─── Attendance PnL Chart (last 30 days) ───
+                      Auto-loads when the profile modal opens so the coach sees
+                      the player's attendance history at a glance. */}
+                  {(() => {
+                    // Fetch attendance history when this modal opens (once per player)
+                    // We use a useEffect inside the IIFE via a small inline component trick.
+                    return null;
+                  })()}
+                  {playerAttendanceHistory?.summary && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-center">
+                        <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{playerAttendanceHistory.summary.presentDays}</p>
+                        <p className="text-[9px] text-warm-500 uppercase">Present</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-center">
+                        <p className="text-lg font-bold text-red-600 dark:text-red-400">{playerAttendanceHistory.summary.absentDays}</p>
+                        <p className="text-[9px] text-warm-500 uppercase">Absent</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-brand-green/10 text-center">
+                        <p className="text-lg font-bold text-brand-green">{playerAttendanceHistory.summary.attendanceRate}%</p>
+                        <p className="text-[9px] text-warm-500 uppercase">Rate</p>
+                      </div>
+                    </div>
+                  )}
+                  {playerAttendanceLoading ? (
+                    <div className="flex flex-col items-center py-4">
+                      <Loader2 className="w-6 h-6 animate-spin text-brand-green mb-2" />
+                      <p className="text-xs text-warm-500">Loading attendance history…</p>
+                    </div>
+                  ) : playerAttendanceHistory?.history && playerAttendanceHistory.history.length > 0 ? (
+                    <div>
+                      <p className="text-[10px] text-warm-500 mb-1.5 font-semibold uppercase tracking-wider">
+                        30-Day Attendance {academyDetail?.practiceSchedule === 'both-time' && '(top = morning, bottom = evening)'}
+                      </p>
+                      <div className="grid grid-cols-10 gap-0.5">
+                        {playerAttendanceHistory.history.map((day) => {
+                          const sessions = day.sessions;
+                          const hasRecord = sessions.length > 0;
+                          const isBoth = academyDetail?.practiceSchedule === 'both-time';
+
+                          if (!hasRecord) {
+                            return (
+                              <div
+                                key={day.date}
+                                className="aspect-square rounded-sm bg-warm-100 dark:bg-warm-800"
+                                title={`${day.date}: No record`}
+                              />
+                            );
+                          }
+
+                          if (isBoth) {
+                            const morning = sessions.find(s => s.session === 'morning');
+                            const evening = sessions.find(s => s.session === 'evening');
+                            return (
+                              <div
+                                key={day.date}
+                                className="aspect-square rounded-sm overflow-hidden flex flex-col"
+                                title={`${day.date}\nMorning: ${morning ? (morning.isPresent ? 'Present' : 'Absent') : 'No record'}\nEvening: ${evening ? (evening.isPresent ? 'Present' : 'Absent') : 'No record'}`}
+                              >
+                                <div className={`flex-1 ${morning ? (morning.isPresent ? 'bg-emerald-500' : 'bg-red-500') : 'bg-warm-200 dark:bg-warm-700'}`} />
+                                <div className={`flex-1 ${evening ? (evening.isPresent ? 'bg-emerald-500' : 'bg-red-500') : 'bg-warm-200 dark:bg-warm-700'}`} />
+                              </div>
+                            );
+                          }
+
+                          const anyPresent = sessions.some(s => s.isPresent);
+                          return (
+                            <div
+                              key={day.date}
+                              className={`aspect-square rounded-sm ${anyPresent ? 'bg-emerald-500' : 'bg-red-500'}`}
+                              title={`${day.date}: ${anyPresent ? 'Present' : 'Absent'}`}
+                            />
+                          );
+                        })}
+                      </div>
+                      {/* Legend */}
+                      <div className="flex items-center justify-center gap-3 mt-2 text-[9px] text-warm-500 flex-wrap">
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Present</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500" /> Absent</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-warm-100 dark:bg-warm-800" /> No record</span>
+                      </div>
+                    </div>
+                  ) : (
+                    !playerAttendanceLoading && (
+                      <div className="text-center py-4">
+                        <Calendar className="w-8 h-8 text-warm-300 mx-auto mb-2" />
+                        <p className="text-xs text-warm-500">No attendance history yet</p>
+                      </div>
+                    )
+                  )}
+
                   {/* Action buttons */}
                   <div className="grid grid-cols-2 gap-3">
                     {playerProfileView.user.phone ? (
