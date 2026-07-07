@@ -3582,8 +3582,11 @@ export default function ProfileTab() {
             Players Dashboard
           </h3>
           <Card
-            className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-500/10 transition-all"
+            className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-500/10 transition-all active:scale-[0.98] select-none"
+            role="button"
+            tabIndex={0}
             onClick={() => setShowAllPlayers(true)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAllPlayers(true); } }}
           >
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
