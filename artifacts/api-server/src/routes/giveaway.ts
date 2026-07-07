@@ -798,12 +798,9 @@ router.post('/giveaway/admin/restore-round', async (req, res) => {
 
     // Check if a round with this number already exists
     const existing = await db.giveawayRound.findFirst({ where: { roundNumber: parseInt(roundNumber) } });
-    // If the round exists but has NO winners (winnersJson is null), we can
-    // restore winners onto it. If it already HAS winners, block to prevent
-    // accidental overwrite (use Change Winners for that).
-    if (existing && existing.winnersJson) {
-      return res.status(409).json({ error: `Round ${roundNumber} already has winners. Use Change Winners instead.` });
-    }
+    // If the round exists (with or without winners), we OVERWRITE the winners.
+    // This lets the admin change winners even when participants were deleted
+    // (Change Winners requires participants, but Restore works by player code).
 
     // Look up user IDs for the player codes
     const users = await db.user.findMany({
