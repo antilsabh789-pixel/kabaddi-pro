@@ -274,6 +274,13 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
   // Edit-academy mode (so coach can change offDays after creation)
   const [showEditAcademy, setShowEditAcademy] = useState(false);
   const [editOffDays, setEditOffDays] = useState<string[]>([]);
+  // Editable academy details — pre-filled when the edit sheet opens, saved via
+  // PUT /api/academies/:id. Lets the coach rename the academy, change location,
+  // change ground, switch between one-time / both-time practice schedule, etc.
+  const [editName, setEditName] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editGroundName, setEditGroundName] = useState('');
+  const [editPracticeSchedule, setEditPracticeSchedule] = useState<'one-time' | 'both-time'>('one-time');
 
   // Attendance state
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
@@ -403,22 +410,37 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     }
   };
 
-  // Update an existing academy's offDays (and optionally other fields).
-  // Called from the Edit Academy sheet in the academy detail view.
-  const updateAcademyOffDays = async (academyId: string, offDays: string[]) => {
+  // Update an existing academy's details — name, location, ground, practice
+  // schedule, AND offDays. Called from the Edit Academy sheet in the academy
+  // detail view. Lets the coach rename the academy, change location, switch
+  // between one-time / both-time practice, and re-pick holidays.
+  const updateAcademyDetails = async (academyId: string, updates: {
+    name?: string;
+    location?: string | null;
+    groundName?: string | null;
+    practiceSchedule?: 'one-time' | 'both-time';
+    offDays?: string[];
+  }) => {
     setLoading(true);
     try {
+      const body: Record<string, unknown> = {};
+      if (updates.name !== undefined) body.name = updates.name;
+      if (updates.location !== undefined) body.location = updates.location || null;
+      if (updates.groundName !== undefined) body.groundName = updates.groundName || null;
+      if (updates.practiceSchedule !== undefined) body.practiceSchedule = updates.practiceSchedule;
+      if (updates.offDays !== undefined) {
+        body.offDays = updates.offDays;
+        body.sundayHoliday = updates.offDays.includes('sun'); // keep backwards-compat boolean in sync
+      }
+
       const res = await fetch(`/api/academies/${academyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          offDays,
-          sundayHoliday: offDays.includes('sun'), // keep backwards-compat boolean in sync
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.academy) {
-        toast({ title: 'Holidays updated!' });
+        toast({ title: 'Academy details updated!' });
         setAcademyDetail(data.academy);
         setShowEditAcademy(false);
         fetchAcademies();
@@ -431,6 +453,11 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       setLoading(false);
     }
   };
+
+  // Backwards-compat wrapper — old call sites used updateAcademyOffDays.
+  // Routed through updateAcademyDetails so we don't duplicate the API call.
+  const updateAcademyOffDays = (academyId: string, offDays: string[]) =>
+    updateAcademyDetails(academyId, { offDays });
 
   const deleteAcademy = async (id: string) => {
     if (!confirm('Are you sure you want to delete this academy?')) return;
@@ -1044,17 +1071,23 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                   </div>
                   <button
                     onClick={() => {
-                      // Pre-fill editOffDays from the academy's current offDays
+                      // Pre-fill ALL editable fields from the academy's current state
                       try {
                         const arr = JSON.parse(academyDetail.offDays || '[]');
                         setEditOffDays(Array.isArray(arr) ? arr : (academyDetail.sundayHoliday ? ['sun'] : []));
                       } catch {
                         setEditOffDays(academyDetail.sundayHoliday ? ['sun'] : []);
                       }
+                      setEditName(academyDetail.name || '');
+                      setEditLocation(academyDetail.location || '');
+                      setEditGroundName(academyDetail.groundName || '');
+                      setEditPracticeSchedule(
+                        (academyDetail.practiceSchedule === 'both-time' ? 'both-time' : 'one-time')
+                      );
                       setShowEditAcademy(true);
                     }}
                     className="shrink-0 p-1.5 rounded-lg bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300 hover:bg-warm-300"
-                    title="Edit holidays"
+                    title="Edit academy details"
                   >
                     <Settings className="w-3.5 h-3.5" />
                   </button>
@@ -1070,9 +1103,13 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
             </CardContent>
           </Card>
 
-          {/* Edit Holidays Sheet */}
+          {/* ─── Edit Academy Details Sheet ───
+              Lets coach edit ALL academy fields: name, location, ground,
+              practice schedule (one-time ↔ both-time), and holiday days.
+              Triggered by the Settings icon next to "Holidays" or by the
+              "Edit Academy" button below the player list. */}
           <AnimatePresence>
-            {showEditAcademy && (
+            {showEditAcademy && academyDetail && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -1085,61 +1122,157 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: 50, opacity: 0 }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-white dark:bg-warm-900 rounded-2xl p-5 w-full max-w-sm space-y-4"
+                  className="bg-white dark:bg-warm-900 rounded-2xl p-5 w-full max-w-sm max-h-[85vh] overflow-y-auto space-y-4"
                 >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Edit Holidays</h3>
+                  <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-warm-900 pb-2 -mt-1 z-10">
+                    <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Edit Academy</h3>
                     <button onClick={() => setShowEditAcademy(false)} className="p-1 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800">
                       <X className="w-4 h-4 text-warm-500" />
                     </button>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-warm-500">Pick the day(s) your academy is closed:</span>
-                    <button
-                      type="button"
-                      onClick={() => setEditOffDays([])}
-                      className={`text-[10px] font-bold px-2 py-1 rounded-full transition-colors ${
-                        editOffDays.length === 0
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
-                      }`}
-                    >
-                      All days working
-                    </button>
+
+                  {/* Academy Name */}
+                  <div>
+                    <label className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5 block">
+                      Academy Name
+                    </label>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Academy name"
+                      className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+                    />
                   </div>
-                  <div className="grid grid-cols-7 gap-1.5">
-                    {(['sun','mon','tue','wed','thu','fri','sat'] as const).map((day) => {
-                      const isOff = editOffDays.includes(day);
-                      return (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => {
-                            setEditOffDays(prev => isOff ? prev.filter(d => d !== day) : [...prev, day]);
-                          }}
-                          className={`p-2.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
-                            isOff
-                              ? 'bg-red-500 text-white'
-                              : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-300 hover:bg-warm-200'
-                          }`}
-                        >
-                          {day.charAt(0)}
-                        </button>
-                      );
-                    })}
+
+                  {/* Location */}
+                  <div>
+                    <label className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5 block">
+                      Location
+                    </label>
+                    <Input
+                      value={editLocation}
+                      onChange={(e) => setEditLocation(e.target.value)}
+                      placeholder="City / Area"
+                      className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+                    />
                   </div>
-                  {editOffDays.length > 0 && (
-                    <p className="text-[10px] text-red-500 dark:text-red-400 font-medium">
-                      {editOffDays.length === 1 ? `${editOffDays[0].toUpperCase()} is holiday` : `${editOffDays.length} holidays: ${editOffDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}`}
+
+                  {/* Ground Name */}
+                  <div>
+                    <label className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5 block">
+                      Ground Name
+                    </label>
+                    <Input
+                      value={editGroundName}
+                      onChange={(e) => setEditGroundName(e.target.value)}
+                      placeholder="Ground / Academy name"
+                      className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+                    />
+                  </div>
+
+                  {/* Practice Schedule — One Time / Both Time toggle */}
+                  <div>
+                    <label className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5 block">
+                      Practice Schedule
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditPracticeSchedule('one-time')}
+                        className={`p-3 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${
+                          editPracticeSchedule === 'one-time'
+                            ? 'border-brand-green bg-brand-green/10 text-brand-green'
+                            : 'border-warm-200 dark:border-warm-700 text-warm-500 hover:border-warm-300'
+                        }`}
+                      >
+                        <Clock className="w-4 h-4" />
+                        One Time
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditPracticeSchedule('both-time')}
+                        className={`p-3 rounded-xl border-2 text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${
+                          editPracticeSchedule === 'both-time'
+                            ? 'border-brand-green bg-brand-green/10 text-brand-green'
+                            : 'border-warm-200 dark:border-warm-700 text-warm-500 hover:border-warm-300'
+                        }`}
+                      >
+                        <Clock className="w-4 h-4" />
+                        Both Time
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-1.5">
+                      {editPracticeSchedule === 'both-time'
+                        ? 'Players can have separate morning + evening attendance per day.'
+                        : 'Single attendance session per day.'}
                     </p>
-                  )}
+                  </div>
+
+                  {/* Holiday Days picker */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider">
+                        Holiday Days
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setEditOffDays([])}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-full transition-colors ${
+                          editOffDays.length === 0
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                        }`}
+                      >
+                        All days working
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-warm-500 dark:text-warm-400 mb-2">
+                      Tap the day(s) your academy is closed.
+                    </p>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {(['sun','mon','tue','wed','thu','fri','sat'] as const).map((day) => {
+                        const isOff = editOffDays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => {
+                              setEditOffDays(prev => isOff ? prev.filter(d => d !== day) : [...prev, day]);
+                            }}
+                            className={`p-2.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                              isOff
+                                ? 'bg-red-500 text-white'
+                                : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-300 hover:bg-warm-200'
+                            }`}
+                          >
+                            {day.charAt(0)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {editOffDays.length > 0 && (
+                      <p className="text-[10px] text-red-500 dark:text-red-400 mt-2 font-medium">
+                        {editOffDays.length === 1
+                          ? `${editOffDays[0].toUpperCase()} is holiday`
+                          : `${editOffDays.length} holidays: ${editOffDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}`}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Save button — sends ALL fields to updateAcademyDetails */}
                   <Button
-                    onClick={() => updateAcademyOffDays(academyDetail.id, editOffDays)}
-                    disabled={loading}
+                    onClick={() => updateAcademyDetails(academyDetail.id, {
+                      name: editName.trim() || academyDetail.name,
+                      location: editLocation.trim() || null,
+                      groundName: editGroundName.trim() || null,
+                      practiceSchedule: editPracticeSchedule,
+                      offDays: editOffDays,
+                    })}
+                    disabled={loading || !editName.trim()}
                     className="w-full bg-brand-green hover:bg-brand-green-dark text-white"
                   >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
-                    Save Holidays
+                    Save Changes
                   </Button>
                 </motion.div>
               </motion.div>
@@ -1242,7 +1375,30 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
             </CardContent>
           </Card>
 
-          {/* Delete Academy */}
+          {/* Edit Academy + Delete Academy buttons */}
+          <Button
+            onClick={() => {
+              // Pre-fill ALL editable fields from the academy's current state
+              try {
+                const arr = JSON.parse(academyDetail.offDays || '[]');
+                setEditOffDays(Array.isArray(arr) ? arr : (academyDetail.sundayHoliday ? ['sun'] : []));
+              } catch {
+                setEditOffDays(academyDetail.sundayHoliday ? ['sun'] : []);
+              }
+              setEditName(academyDetail.name || '');
+              setEditLocation(academyDetail.location || '');
+              setEditGroundName(academyDetail.groundName || '');
+              setEditPracticeSchedule(
+                (academyDetail.practiceSchedule === 'both-time' ? 'both-time' : 'one-time')
+              );
+              setShowEditAcademy(true);
+            }}
+            variant="outline"
+            className="w-full border-brand-green/30 text-brand-green hover:bg-brand-green/5 dark:hover:bg-brand-green/900/20 mb-2"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Edit Academy Details
+          </Button>
           <Button
             onClick={() => deleteAcademy(academyDetail.id)}
             variant="outline"
