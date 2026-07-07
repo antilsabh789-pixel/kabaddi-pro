@@ -996,13 +996,44 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   🔄 Reset Giveaway (Start Fresh Round)
                 </Button>
 
-                {/* Restore Past Round */}
+                {/* Quick Restore Round 1 — one tap, pre-filled with known winners */}
+                <Button
+                  onClick={async () => {
+                    if (!confirm('Restore Round 1 with winners:\n🥇 KP1015 — 1kg Protein Powder\n🥈 KP1025 — Kabaddi Kit\n🥉 KP1017 — Shaker Water Bottle\n\nTap OK to restore now.')) return;
+                    try {
+                      const res = await fetch('/api/giveaway/admin/restore-round', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          adminId: currentUser?.id,
+                          roundNumber: 1,
+                          winnerPlayerCodes: ['KP1015', 'KP1025', 'KP1017'],
+                        }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        toast({ title: '✅ Round 1 Restored!', description: 'Winners are now visible in Past Winners + Home page.' });
+                        fetchStatus();
+                        setShowAdminPanel(false);
+                      } else {
+                        toast({ title: 'Restore failed', description: data.error, variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Restore failed', variant: 'destructive' });
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs"
+                >
+                  🏆 Quick Restore Round 1 Winners (KP1015, KP1025, KP1017)
+                </Button>
+
+                {/* Manual Restore — for other rounds */}
                 <Button
                   onClick={async () => {
                     const codes = prompt(
                       'Restore a past round with winners.\n\n' +
                       'Enter: round number, then winner player codes separated by commas.\n' +
-                      'Example: 1, KP1015, KP1025, KP1017\n\n' +
+                      'Example: 2, KP1020, KP1030, KP1040\n\n' +
                       'First code = 1st prize, second = 2nd, third = 3rd.'
                     );
                     if (!codes) return;
@@ -1038,7 +1069,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   variant="outline"
                   className="w-full border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl font-bold text-xs"
                 >
-                  📋 Restore Past Round Winners
+                  📋 Restore Other Round (Manual)
                 </Button>
               </div>
               <div className="overflow-y-auto flex-1">
