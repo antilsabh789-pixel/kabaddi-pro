@@ -971,7 +971,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                 )}
                 <Button
                   onClick={async () => {
-                    if (!confirm('Reset giveaway? This will delete ALL participants and start a fresh Round 1 with 15-day countdown.')) return;
+                    if (!confirm('Start a fresh giveaway round? This will end the current round and start a new one. Past rounds and winners are preserved.')) return;
                     try {
                       const res = await fetch('/api/giveaway/admin/reset', {
                         method: 'POST',

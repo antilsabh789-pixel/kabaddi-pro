@@ -697,11 +697,13 @@ router.post('/giveaway/admin/change-winners', async (req, res) => {
 
 /**
  * POST /api/giveaway/admin/reset
- * ADMIN ONLY — Resets the entire giveaway system:
- *   1. Marks ALL existing rounds as 'completed'
- *   2. Deletes ALL participants from ALL rounds
- *   3. Creates a fresh Round 1 with 15-day countdown starting now
- *   4. Clears all past winners
+ * ADMIN ONLY — Starts a fresh giveaway round.
+ *
+ * IMPORTANT: This does NOT delete past rounds or winners. It only:
+ *   1. Marks the current active round as 'completed' (keeps its participants + winners)
+ *   2. Creates a new round with the next round number + 15-day countdown
+ *
+ * Past winners from all previous rounds remain visible in the Past Winners section.
  */
 router.post('/giveaway/admin/reset', async (req, res) => {
   try {
@@ -711,22 +713,25 @@ router.post('/giveaway/admin/reset', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // 1. Delete ALL rounds (this cascades to participants via onDelete: Cascade)
-    //    AND clears all past winners (winnersJson lives on the round row).
-    //    Must delete rounds (not just updateMany) because roundNumber is @unique —
-    //    creating "Round 1" again would violate the unique constraint if old Round 1 exists.
-    await db.giveawayRound.deleteMany({});
+    // 1. Mark the current active round as 'completed' (don't delete it!)
+    //    This preserves its participants and winnersJson for the Past Winners section.
+    await db.giveawayRound.updateMany({
+      where: { status: 'active' },
+      data: { status: 'completed' },
+    });
 
-    // 2. Create fresh Round 1 with 15-day countdown
+    // 2. Create a new round with the next round number + 15-day countdown
+    const lastRound = await db.giveawayRound.findFirst({ orderBy: { roundNumber: 'desc' } });
+    const nextNumber = (lastRound?.roundNumber || 0) + 1;
     const now = new Date();
     const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
     const newRound = await db.giveawayRound.create({
-      data: { roundNumber: 1, startDate: now, endDate, status: 'active' },
+      data: { roundNumber: nextNumber, startDate: now, endDate, status: 'active' },
     });
 
     return res.json({
       success: true,
-      message: 'Giveaway reset successfully. New Round 1 started with 0 participants.',
+      message: `Fresh Round ${nextNumber} started. Past rounds and winners are preserved.`,
       round: {
         id: newRound.id,
         roundNumber: newRound.roundNumber,
