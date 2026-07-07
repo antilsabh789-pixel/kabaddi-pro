@@ -187,6 +187,209 @@ const GIFT_PLANS: GiftPlan[] = [
   { id: 'lifetime',label: 'Lifetime',   duration: 'Never expires',      days: null,icon: Trophy,   gradient: 'from-yellow-400 to-amber-500' },
 ];
 
+// ════════════════════════════════════════════════════════════════
+// PLAYER SEARCH PANEL — admin-only module-level component
+// Search any player by their player code to see contact details
+// (name, phone, avatar, premium status, location, etc.)
+// Used by admin to contact winners for giveaway prize distribution.
+// ════════════════════════════════════════════════════════════════
+
+function PlayerSearchPanel() {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const { toast } = useToast();
+
+  const [searchCode, setSearchCode] = useState('');
+  const [result, setResult] = useState<{
+    id: string; name: string | null; playerCode: string | null;
+    phone: string; avatar: string | null;
+    isPremium: boolean; premiumExpiry: string | null; premiumPlan: string | null;
+    gender: string | null; weight: string | null;
+    practiceGround: string | null; location: string | null;
+    memberSince: string;
+  } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSearch = async () => {
+    if (!currentUser?.id || !searchCode.trim()) return;
+    setSearching(true);
+    setError('');
+    setResult(null);
+    try {
+      const res = await fetch(`/api/admin/lookup-player?adminId=${currentUser.id}&playerCode=${encodeURIComponent(searchCode.trim().toUpperCase())}`);
+      const data = await res.json();
+      if (res.ok && data.user) {
+        setResult(data.user);
+      } else {
+        setError(data.error || 'Player not found');
+      }
+    } catch {
+      setError('Search failed');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.35 }}
+    >
+      <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+        <Search className="w-4 h-4 text-brand-teal" />
+        Player Lookup
+      </h3>
+      <Card className="p-5 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/10 border-teal-200 dark:border-teal-800/30">
+        {/* Search input */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+          <input
+            type="text"
+            value={searchCode}
+            onChange={(e) => setSearchCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+            placeholder="ENTER PLAYER CODE (e.g. KP1001)"
+            maxLength={20}
+            className="w-full h-11 rounded-xl border-2 border-teal-200 dark:border-teal-800/50 bg-white dark:bg-warm-900 px-10 text-sm font-mono tracking-wider text-warm-800 dark:text-warm-100 uppercase placeholder:text-warm-400 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-400/20 transition-all"
+          />
+          {searching && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-teal-500" />
+          )}
+        </div>
+
+        <button
+          onClick={handleSearch}
+          disabled={searching || !searchCode.trim()}
+          className="w-full h-11 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:opacity-90 text-white font-bold text-sm disabled:opacity-40 flex items-center justify-center gap-2"
+        >
+          {searching ? <><Loader2 className="w-4 h-4 animate-spin" /> Searching...</> : <><Search className="w-4 h-4" /> Search Player</>}
+        </button>
+
+        {/* Error */}
+        {error && (
+          <p className="text-xs text-red-500 mt-3 flex items-center gap-1">
+            <X className="w-3 h-3" /> {error}
+          </p>
+        )}
+
+        {/* Result */}
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 p-4 rounded-xl bg-white dark:bg-warm-900 border border-teal-200 dark:border-teal-800/50 space-y-3"
+          >
+            {/* Player header */}
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shrink-0 overflow-hidden">
+                {result.avatar ? (
+                  <img src={result.avatar} alt={result.name || 'Player'} className="w-full h-full object-cover" />
+                ) : (
+                  (result.name || '?').charAt(0).toUpperCase()
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-black text-warm-800 dark:text-warm-100 truncate">
+                  {result.name || 'Unknown Player'}
+                </p>
+                <p className="text-xs text-warm-500 font-mono">{result.playerCode}</p>
+              </div>
+              {result.isPremium && (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-full flex items-center gap-0.5">
+                  <Crown className="w-2.5 h-2.5" /> {result.premiumPlan || 'PREMIUM'}
+                </span>
+              )}
+            </div>
+
+            {/* Contact details */}
+            <div className="space-y-2 border-t border-warm-100 dark:border-warm-700/50 pt-3">
+              <div className="flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                <span className="text-[10px] font-bold text-warm-400 uppercase">Phone</span>
+                <span className="text-sm font-mono font-bold text-warm-800 dark:text-warm-100 flex-1">{result.phone}</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(result.phone);
+                    toast({ title: 'Phone Copied!', description: result.phone });
+                  }}
+                  className="px-2 py-1 rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-600 text-[10px] font-bold hover:bg-teal-200"
+                >
+                  Copy
+                </button>
+              </div>
+
+              {result.gender && (
+                <div className="flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-warm-400 uppercase">Gender</span>
+                  <span className="text-sm text-warm-800 dark:text-warm-100 capitalize">{result.gender}</span>
+                </div>
+              )}
+
+              {result.weight && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-warm-400 uppercase w-14">Weight</span>
+                  <span className="text-sm text-warm-800 dark:text-warm-100">{result.weight}</span>
+                </div>
+              )}
+
+              {result.practiceGround && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-warm-400 uppercase">Ground</span>
+                  <span className="text-sm text-warm-800 dark:text-warm-100">{result.practiceGround}</span>
+                </div>
+              )}
+
+              {result.location && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-warm-400 uppercase">Location</span>
+                  <span className="text-sm text-warm-800 dark:text-warm-100">{result.location}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Calendar className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                <span className="text-[10px] font-bold text-warm-400 uppercase">Joined</span>
+                <span className="text-sm text-warm-800 dark:text-warm-100">
+                  {new Date(result.memberSince).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick actions */}
+            <div className="flex gap-2 pt-2 border-t border-warm-100 dark:border-warm-700/50">
+              <a
+                href={`tel:${result.phone}`}
+                className="flex-1 py-2 rounded-lg bg-teal-500 text-white text-xs font-bold text-center hover:bg-teal-600 flex items-center justify-center gap-1"
+              >
+                <Phone className="w-3.5 h-3.5" /> Call
+              </a>
+              <a
+                href={`https://wa.me/${result.phone.replace(/[^\d]/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2 rounded-lg bg-green-500 text-white text-xs font-bold text-center hover:bg-green-600 flex items-center justify-center gap-1"
+              >
+                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+              </a>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Helper text */}
+        {!result && !error && !searching && (
+          <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-2 leading-relaxed">
+            Enter a player's code (e.g. KP1001) to see their contact details — name, phone number, location. Use this to contact giveaway winners for prize delivery.
+          </p>
+        )}
+      </Card>
+    </motion.div>
+  );
+}
+
 function GiftPremiumPanel() {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
@@ -3118,6 +3321,12 @@ export default function ProfileTab() {
       {/* Admin can gift premium to any user by their player code */}
       {/* ═══════════════════════════════════════════ */}
       {currentUser?.isAdmin && <GiftPremiumPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* PLAYER SEARCH PANEL - Admin Only */}
+      {/* Search any player by ID to see contact details */}
+      {/* ═══════════════════════════════════════════ */}
+      {currentUser?.isAdmin && <PlayerSearchPanel />}
 
       {/* ═══════════════════════════════════════════ */}
       {/* 10. LOGOUT BUTTON with Confirmation Dialog */}

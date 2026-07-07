@@ -175,8 +175,9 @@ router.get('/admin/lookup-player', async (req, res) => {
     const user = await db.user.findUnique({
       where: { playerCode: code },
       select: {
-        id: true, name: true, playerCode: true,
+        id: true, name: true, playerCode: true, phone: true, avatar: true,
         isPremium: true, premiumExpiry: true, premiumPlan: true,
+        gender: true, weight: true, practiceGround: true, location: true,
         createdAt: true,
       },
     });
@@ -190,9 +191,15 @@ router.get('/admin/lookup-player', async (req, res) => {
         id: user.id,
         name: user.name,
         playerCode: user.playerCode,
+        phone: user.phone, // Admin can see full phone for prize contact
+        avatar: user.avatar,
         isPremium: user.isPremium,
         premiumExpiry: user.premiumExpiry,
         premiumPlan: user.premiumPlan,
+        gender: user.gender,
+        weight: user.weight,
+        practiceGround: user.practiceGround,
+        location: user.location,
         memberSince: user.createdAt,
       },
     });
