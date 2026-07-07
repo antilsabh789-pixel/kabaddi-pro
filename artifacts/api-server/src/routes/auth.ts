@@ -317,7 +317,9 @@ router.post('/auth', async (req, res) => {
       // 'role' is also NOT editable — the coach role is deprecated and everyone
       // is a player now. Forcing role='player' on register prevents new coaches;
       // blocking role here prevents existing users from making themselves coach.
-      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'avatar'];
+      // 'showCoachBadge' IS editable — it's a purely cosmetic opt-in badge that
+      // any user can toggle on their profile. It does NOT change role or access.
+      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'avatar', 'showCoachBadge'];
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
         if (body[field] !== undefined) updateData[field] = body[field];

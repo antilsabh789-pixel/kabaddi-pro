@@ -26,6 +26,7 @@ model User {
   weight         String?  // e.g., "65kg", "70kg"
   practiceGround String?  // practice ground / academy name
   location       String?  // city / area for coaches
+  showCoachBadge Boolean  @default(false) // opt-in cosmetic coach badge on profile — does NOT change role or feature access
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

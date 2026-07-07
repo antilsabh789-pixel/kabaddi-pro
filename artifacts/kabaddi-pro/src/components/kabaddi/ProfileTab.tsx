@@ -26,6 +26,7 @@ import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 import PremiumLock from './PremiumLock';
 import TeamManagementScreen from './TeamManagementScreen';
 import PlayerProfileScreen from './PlayerProfileScreen';
+import { authRequest } from '@/lib/authClient';
 import PlayerComparisonScreen from './PlayerComparisonScreen';
 import AdvancedStatsScreen from './AdvancedStatsScreen';
 import FollowScreen from './FollowScreen';
@@ -414,6 +415,7 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
     premiumExpiry: string | null;
     premiumPlan: string | null;
     role: string | null;
+    showCoachBadge: boolean;
     gender: string | null;
     weight: string | null;
     practiceGround: string | null;
@@ -653,8 +655,13 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
                           </span>
                         )}
                         {p.role === 'coach' && (
-                          <span className="shrink-0 inline-flex items-center text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full" title="User registered as coach (deprecated role). Tap 'Migrate Coaches' to convert.">
-                            COACH
+                          <span className="shrink-0 inline-flex items-center text-[9px] font-bold text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded-full" title="User still has role='coach' in DB. Tap 'Migrate Coaches' to convert to player role.">
+                            <RefreshCw className="w-2.5 h-2.5 mr-0.5" />PENDING MIGRATION
+                          </span>
+                        )}
+                        {p.showCoachBadge && (
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full" title="User has opted-in to display the Coach badge on their profile.">
+                            <Megaphone className="w-2.5 h-2.5" />COACH
                           </span>
                         )}
                       </div>
@@ -1059,6 +1066,7 @@ export default function ProfileTab() {
     practiceGround: currentUser?.practiceGround || '',
     position: '',
     jerseyNumber: '',
+    showCoachBadge: currentUser?.showCoachBadge ?? false,
   });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
@@ -1337,6 +1345,7 @@ export default function ProfileTab() {
       practiceGround: currentUser?.practiceGround || '',
       position: currentUser?.position || profileData.position || '',
       jerseyNumber: (currentUser?.jerseyNumber || profileData.jerseyNumber)?.toString() || '',
+      showCoachBadge: currentUser?.showCoachBadge ?? false,
     });
   }, [currentUser, profileData.position, profileData.jerseyNumber, editOpen]);
 
@@ -1430,6 +1439,7 @@ export default function ProfileTab() {
     const updatedWeight = editForm.weight ? (editForm.weight === 'open' ? 'open' : editForm.weight) : undefined;
     const updatedGender = editForm.gender || undefined;
     const updatedPracticeGround = editForm.practiceGround || undefined;
+    const updatedShowCoachBadge = !!editForm.showCoachBadge;
 
     // Update Zustand store with all fields (including position & jerseyNumber)
     updateUser({
@@ -1438,6 +1448,7 @@ export default function ProfileTab() {
       practiceGround: updatedPracticeGround,
       position: updatedPosition,
       jerseyNumber: updatedJerseyNumber,
+      showCoachBadge: updatedShowCoachBadge,
     });
 
     // Update local profileData immediately for instant display
@@ -1449,6 +1460,10 @@ export default function ProfileTab() {
     setProfileNotFound(false);
 
     try {
+      // Send ALL editable fields to /auth update-details (gender, weight,
+      // practiceGround, avatar, showCoachBadge) AND player-profile fields
+      // (position, jerseyNumber) to /players/:id. Two endpoints because the
+      // fields live on different tables.
       const updateBody: Record<string, unknown> = {
         gender: editForm.gender,
         weight: editForm.weight ? (editForm.weight === 'open' ? 'open' : editForm.weight) : undefined,
@@ -1462,6 +1477,21 @@ export default function ProfileTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateBody),
       });
+
+      // ALSO send showCoachBadge (and other User-table fields) to /auth
+      // update-details — the showCoachBadge field lives on User, not on
+      // PlayerProfile, so /players/:id (which targets PlayerProfile) won't
+      // persist it. Fire-and-forget; if it fails the UI still shows the
+      // optimistic update.
+      try {
+        await authRequest({
+          userId: currentUser?.id,
+          action: 'update-details',
+          showCoachBadge: updatedShowCoachBadge,
+        });
+      } catch (e) {
+        console.error('Failed to save showCoachBadge:', e);
+      }
 
       // If save was successful, reload profile to get server-confirmed data
       if (res.ok && currentUser?.id) {
@@ -2185,6 +2215,45 @@ export default function ProfileTab() {
                   </div>
                   )}
 
+                  {/* Coach Badge Toggle — opt-in cosmetic badge on profile.
+                      Anyone can enable this. It does NOT change role or feature
+                      access; it just shows a "COACH" badge next to the user's
+                      name on their profile and in admin lists. */}
+                  <div className="p-3 rounded-xl border-2 border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-900/10">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+                          <Megaphone className="w-4.5 h-4.5 text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-warm-800 dark:text-warm-100 flex items-center gap-1.5">
+                            Show Coach Badge
+                          </p>
+                          <p className="text-[10px] text-warm-500 dark:text-warm-400 leading-tight">
+                            Display a "COACH" badge on your profile. Available to everyone — purely cosmetic.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={editForm.showCoachBadge}
+                        onClick={() => setEditForm(prev => ({ ...prev, showCoachBadge: !prev.showCoachBadge }))}
+                        className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${
+                          editForm.showCoachBadge
+                            ? 'bg-emerald-500'
+                            : 'bg-warm-300 dark:bg-warm-700'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${
+                            editForm.showCoachBadge ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
                   <Button
                     onClick={handleSaveProfile}
                     className="w-full bg-brand-red hover:bg-brand-red-dark text-white rounded-xl"
@@ -2208,6 +2277,11 @@ export default function ProfileTab() {
                     <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
                     <Crown className="w-2.5 h-2.5 mr-0.5 relative z-10" />PRO
                   </Badge>
+                </span>
+              )}
+              {currentUser?.showCoachBadge && (
+                <span className="inline-flex items-center gap-0.5 ml-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/90 text-white text-[8px] font-bold border border-emerald-400/50 shadow-sm">
+                  <Megaphone className="w-2.5 h-2.5" />COACH
                 </span>
               )}
               {currentUser?.gender === 'male' ? (

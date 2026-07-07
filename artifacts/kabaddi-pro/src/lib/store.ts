@@ -20,6 +20,7 @@ export interface CurrentUser {
   premiumExpiry?: string | null;
   premiumPlan?: string | null;
   isAdmin?: boolean;
+  showCoachBadge?: boolean;
   createdAt?: number;
 }
 

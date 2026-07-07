@@ -275,7 +275,8 @@ router.get('/admin/players', async (req, res) => {
         select: {
           id: true, name: true, playerCode: true, phone: true, avatar: true,
           isPremium: true, premiumExpiry: true, premiumPlan: true,
-          role: true, gender: true, weight: true, practiceGround: true, location: true,
+          role: true, showCoachBadge: true,
+          gender: true, weight: true, practiceGround: true, location: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' }, // newest first
@@ -294,6 +295,7 @@ router.get('/admin/players', async (req, res) => {
       premiumExpiry: u.premiumExpiry,
       premiumPlan: u.premiumPlan,
       role: u.role,
+      showCoachBadge: u.showCoachBadge,
       gender: u.gender,
       weight: u.weight,
       practiceGround: u.practiceGround,
@@ -335,7 +337,14 @@ router.post('/admin/migrate-coaches-to-players', async (req, res) => {
 
     const result = await db.user.updateMany({
       where: { role: 'coach', isAdmin: false },
-      data: { role: 'player' },
+      data: {
+        role: 'player',
+        // Preserve the coach identity cosmetically — the user asked for a
+        // "Coach Badge" toggle in the profile. Former coaches get the badge
+        // auto-enabled so they don't lose their identity; they can toggle it
+        // off in their profile editor if they don't want it.
+        showCoachBadge: true,
+      },
     });
 
     return res.json({
