@@ -144,20 +144,59 @@ router.get('/coach/analytics', async (req, res) => {
     const academyId = req.query['academyId'] as string;
     if (!academyId) return res.status(400).json({ error: 'academyId is required' });
 
-    const academy = await db.academy.findUnique({ where: { id: academyId }, include: { players: { include: { user: { select: { id: true, name: true, avatar: true } } } } } });
+    const academy = await db.academy.findUnique({
+      where: { id: academyId },
+      include: { players: { include: { user: { select: { id: true, name: true, avatar: true } } } } },
+    });
     if (!academy) return res.status(404).json({ error: 'Academy not found' });
 
     const userIds = academy.players.map((p) => p.userId);
     const profiles = await db.playerProfile.findMany({ where: { userId: { in: userIds } } });
     const profileMap = new Map(profiles.map((p) => [p.userId, p]));
 
+    // Build performance data with rich stats from PlayerProfile.
+    // The frontend Analytics tab reads this array to render bar charts + tables.
     const performanceData = academy.players.map((p) => {
       const profile = profileMap.get(p.userId);
-      return { name: p.user.name || 'Unknown', totalPoints: profile?.totalPoints || 0, totalMatches: profile?.totalMatches || 0, overallRating: profile?.overallRating || 0 };
+      const totalPoints = profile?.totalPoints || 0;
+      const totalMatches = profile?.totalMatches || 0;
+      const raidPoints = profile?.raidPoints || 0;
+      const tacklePoints = profile?.tacklePoints || 0;
+      const overallRating = profile?.overallRating || 0;
+      return {
+        userId: p.userId,
+        name: p.user.name || 'Unknown',
+        avatar: p.user.avatar,
+        totalPoints,
+        totalMatches,
+        raidPoints,
+        tacklePoints,
+        overallRating,
+      };
     });
 
-    return res.json({ academy, performanceData, playerCount: academy.players.length });
+    // Sort by totalPoints desc so the top performers show first
+    performanceData.sort((a, b) => b.totalPoints - a.totalPoints);
+
+    // Aggregate academy totals for the summary cards
+    const academyTotals = {
+      totalPoints: performanceData.reduce((sum, p) => sum + p.totalPoints, 0),
+      totalMatches: performanceData.reduce((sum, p) => sum + p.totalMatches, 0),
+      totalRaidPoints: performanceData.reduce((sum, p) => sum + p.raidPoints, 0),
+      totalTacklePoints: performanceData.reduce((sum, p) => sum + p.tacklePoints, 0),
+      avgRating: performanceData.length > 0
+        ? Math.round((performanceData.reduce((sum, p) => sum + p.overallRating, 0) / performanceData.length) * 10) / 10
+        : 0,
+    };
+
+    return res.json({
+      academy,
+      performanceData,
+      playerCount: academy.players.length,
+      academyTotals,
+    });
   } catch (error) {
+    console.error('Analytics error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -209,6 +248,93 @@ router.post('/coach/attendance', async (req, res) => {
     }
     return res.json({ attendance: record });
   } catch (error) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/coach/attendance/player?academyId=...&userId=...&days=30
+ * Returns a single player's attendance history for the last N days (default 30).
+ * Used by the coach dashboard's per-player PnL-style attendance chart.
+ *
+ * Response: {
+ *   player: { id, name, avatar, phone },
+ *   history: [{ date: 'YYYY-MM-DD', sessions: [{ session: 'morning'|'evening'|'default', isPresent: boolean }] }],
+ *   summary: { totalDays, presentDays, absentDays, attendanceRate }
+ * }
+ */
+router.get('/coach/attendance/player', async (req, res) => {
+  try {
+    const academyId = req.query['academyId'] as string;
+    const userId = req.query['userId'] as string;
+    const days = Math.min(90, Math.max(7, parseInt((req.query['days'] as string) || '30', 10)));
+
+    if (!academyId || !userId) return res.status(400).json({ error: 'academyId and userId are required' });
+
+    // Fetch the player's user record for name/avatar/phone
+    const player = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, avatar: true, phone: true },
+    });
+    if (!player) return res.status(404).json({ error: 'Player not found' });
+
+    // Compute the date range: last N days ending today (UTC, date-only)
+    const now = new Date();
+    const start = new Date(now);
+    start.setUTCDate(start.getUTCDate() - (days - 1));
+    start.setUTCHours(0, 0, 0, 0);
+
+    const records = await db.attendance.findMany({
+      where: {
+        academyId,
+        userId,
+        date: { gte: start, lte: now },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    // Group by date → sessions[]
+    const byDate = new Map<string, { session: string; isPresent: boolean }[]>();
+    for (const r of records) {
+      const dateKey = r.date.toISOString().split('T')[0]; // YYYY-MM-DD
+      if (!byDate.has(dateKey)) byDate.set(dateKey, []);
+      byDate.get(dateKey)!.push({ session: r.session || 'default', isPresent: r.isPresent });
+    }
+
+    // Build the history array with one entry per day in the range (fill gaps)
+    const history: { date: string; sessions: { session: string; isPresent: boolean }[] }[] = [];
+    let presentDays = 0;
+    let absentDays = 0;
+    for (let i = 0; i < days; i++) {
+      const d = new Date(start);
+      d.setUTCDate(start.getUTCDate() + i);
+      const dateKey = d.toISOString().split('T')[0];
+      const sessions = byDate.get(dateKey) || [];
+      history.push({ date: dateKey, sessions });
+      if (sessions.length > 0) {
+        // Count a day as present if ANY session was present, absent only if ALL sessions absent
+        const anyPresent = sessions.some(s => s.isPresent);
+        if (anyPresent) presentDays++;
+        else absentDays++;
+      }
+    }
+
+    const totalDays = presentDays + absentDays;
+    const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+    return res.json({
+      player,
+      history,
+      summary: {
+        totalDays,
+        presentDays,
+        absentDays,
+        attendanceRate,
+        daysChecked: days,
+      },
+    });
+  } catch (error) {
+    console.error('Player attendance history error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

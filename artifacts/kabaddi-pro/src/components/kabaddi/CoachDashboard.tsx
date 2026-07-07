@@ -174,10 +174,46 @@ interface LeaderboardEntry {
 }
 
 interface AnalyticsData {
-  attendancePerformance: { name: string; attendancePercent: number; performanceScore: number }[];
-  attendanceTrend: { month: string; attendanceRate: number; present: number; total: number }[];
-  feeSummary: { paid: number; pending: number; overdue: number; paidCount: number; pendingCount: number; overdueCount: number };
-  totalPlayers: number;
+  // Backend actually returns { academy, performanceData, playerCount, academyTotals }
+  // — not the old { attendancePerformance, attendanceTrend, feeSummary, totalPlayers }.
+  // Updated to match the real backend response shape.
+  academy?: AcademyData;
+  performanceData: {
+    userId: string;
+    name: string;
+    avatar: string | null;
+    totalPoints: number;
+    totalMatches: number;
+    raidPoints: number;
+    tacklePoints: number;
+    overallRating: number;
+  }[];
+  playerCount: number;
+  academyTotals?: {
+    totalPoints: number;
+    totalMatches: number;
+    totalRaidPoints: number;
+    totalTacklePoints: number;
+    avgRating: number;
+  };
+}
+
+// Per-player attendance history entry — one per day in the range.
+interface AttendanceHistoryDay {
+  date: string; // YYYY-MM-DD
+  sessions: { session: string; isPresent: boolean }[];
+}
+
+interface PlayerAttendanceHistory {
+  player: { id: string; name: string | null; avatar: string | null; phone: string | null };
+  history: AttendanceHistoryDay[];
+  summary: {
+    totalDays: number;
+    presentDays: number;
+    absentDays: number;
+    attendanceRate: number;
+    daysChecked: number;
+  };
 }
 
 interface ParentData {
@@ -256,6 +292,12 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
 
   // Player profile quick-view (call/WhatsApp from coach view)
   const [playerProfileView, setPlayerProfileView] = useState<AcademyPlayerData | null>(null);
+
+  // Per-player attendance history modal — PnL-style chart of last 30 days.
+  // Triggered when coach taps a player row in the Attendance tab.
+  const [playerAttendanceView, setPlayerAttendanceView] = useState<{ userId: string; name: string | null; phone: string | null; avatar: string | null } | null>(null);
+  const [playerAttendanceHistory, setPlayerAttendanceHistory] = useState<PlayerAttendanceHistory | null>(null);
+  const [playerAttendanceLoading, setPlayerAttendanceLoading] = useState(false);
 
   // Rewards state
   const [rewards, setRewards] = useState<RewardData[]>([]);
@@ -471,6 +513,26 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       setLoading(false);
     }
   }, [attendanceDate]);
+
+  // Fetch a single player's attendance history (last N days) for the PnL-style
+  // chart in the per-player attendance modal. Calls GET /api/coach/attendance/player.
+  const fetchPlayerAttendanceHistory = useCallback(async (academyId: string, userId: string) => {
+    setPlayerAttendanceLoading(true);
+    try {
+      const res = await fetch(`/api/coach/attendance/player?academyId=${academyId}&userId=${userId}&days=30`);
+      const data = await res.json();
+      if (data.history) {
+        setPlayerAttendanceHistory(data);
+      } else {
+        setPlayerAttendanceHistory(null);
+      }
+    } catch (err) {
+      console.error('Fetch player attendance history error:', err);
+      setPlayerAttendanceHistory(null);
+    } finally {
+      setPlayerAttendanceLoading(false);
+    }
+  }, []);
 
   const saveAttendance = async () => {
     if (!selectedAcademyId) return;
@@ -1449,34 +1511,79 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                     key={record.userId}
                     className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                    <div
+                      className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
+                      onClick={() => {
+                        // Open the per-player attendance history modal (PnL chart).
+                        if (!selectedAcademyId) return;
+                        setPlayerAttendanceView({
+                          userId: record.userId,
+                          name: record.name,
+                          phone: record.phone || null,
+                          avatar: record.avatar || null,
+                        });
+                        fetchPlayerAttendanceHistory(selectedAcademyId, record.userId);
+                      }}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden ${
                         record.isPresent
                           ? 'bg-brand-green/20 text-brand-green'
                           : 'bg-red-100 dark:bg-red-900/20 text-red-500'
                       }`}>
-                        {(record.name || '?')[0]?.toUpperCase()}
+                        {record.avatar ? (
+                          <img src={record.avatar} alt={record.name || 'Player'} className="w-full h-full object-cover" />
+                        ) : (
+                          (record.name || '?')[0]?.toUpperCase()
+                        )}
                       </div>
-                      <span className="text-sm font-medium text-warm-800 dark:text-warm-200">
-                        {record.name || 'Unknown'}
-                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-warm-800 dark:text-warm-200 truncate">
+                          {record.name || 'Unknown'}
+                        </p>
+                        {record.phone && (
+                          <p className="text-[10px] text-warm-500 truncate">{record.phone}</p>
+                        )}
+                      </div>
                     </div>
-                    <button
-                      onClick={() =>
-                        setAttendanceRecords((prev) =>
-                          prev.map((r) =>
-                            r.userId === record.userId ? { ...r, isPresent: !r.isPresent } : r
+                    <div className="flex items-center gap-1 shrink-0">
+                      {/* Call + WhatsApp buttons (same as academy detail) */}
+                      {record.phone && (
+                        <>
+                          <a
+                            href={`tel:${record.phone}`}
+                            className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-emerald-500 transition-colors"
+                            title={`Call ${record.phone}`}
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </a>
+                          <a
+                            href={`https://wa.me/${record.phone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-500 transition-colors"
+                            title={`WhatsApp ${record.phone}`}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+                        </>
+                      )}
+                      <button
+                        onClick={() =>
+                          setAttendanceRecords((prev) =>
+                            prev.map((r) =>
+                              r.userId === record.userId ? { ...r, isPresent: !r.isPresent } : r
+                            )
                           )
-                        )
-                      }
-                      className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
-                        record.isPresent
-                          ? 'bg-brand-green text-white shadow-md'
-                          : 'bg-warm-100 dark:bg-warm-800 text-warm-400'
-                      }`}
-                    >
-                      {record.isPresent ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                    </button>
+                        }
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                          record.isPresent
+                            ? 'bg-brand-green text-white shadow-md'
+                            : 'bg-warm-100 dark:bg-warm-800 text-warm-400'
+                        }`}
+                      >
+                        {record.isPresent ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1522,6 +1629,194 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
             </CardContent>
           </Card>
         )}
+
+        {/* ─── Per-Player Attendance History Modal (PnL-style chart) ───
+            Shows when coach taps a player row. Displays last 30 days as a grid
+            of color-coded cells: green = present, red = absent, gray = no record.
+            For "both-time" academies, each cell is split top/bottom (morning top
+            half, evening bottom half) so the coach can see both sessions. */}
+        <AnimatePresence>
+          {playerAttendanceView && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-3"
+              onClick={() => {
+                setPlayerAttendanceView(null);
+                setPlayerAttendanceHistory(null);
+              }}
+            >
+              <motion.div
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 50, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-warm-900 rounded-2xl p-5 w-full max-w-md max-h-[85vh] overflow-y-auto space-y-4"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-green to-brand-green-dark flex items-center justify-center text-white font-bold overflow-hidden shrink-0">
+                      {playerAttendanceView.avatar ? (
+                        <img src={playerAttendanceView.avatar} alt={playerAttendanceView.name || 'Player'} className="w-full h-full object-cover" />
+                      ) : (
+                        (playerAttendanceView.name || '?')[0]?.toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold text-warm-800 dark:text-warm-100 truncate">{playerAttendanceView.name || 'Unknown'}</h3>
+                      <p className="text-[10px] text-warm-500">Attendance — Last 30 Days</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setPlayerAttendanceView(null);
+                      setPlayerAttendanceHistory(null);
+                    }}
+                    className="p-1 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 shrink-0"
+                  >
+                    <X className="w-4 h-4 text-warm-500" />
+                  </button>
+                </div>
+
+                {/* Summary stats */}
+                {playerAttendanceHistory?.summary && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-center">
+                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{playerAttendanceHistory.summary.presentDays}</p>
+                      <p className="text-[9px] text-warm-500 uppercase">Present</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-center">
+                      <p className="text-lg font-bold text-red-600 dark:text-red-400">{playerAttendanceHistory.summary.absentDays}</p>
+                      <p className="text-[9px] text-warm-500 uppercase">Absent</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-brand-green/10 text-center">
+                      <p className="text-lg font-bold text-brand-green">{playerAttendanceHistory.summary.attendanceRate}%</p>
+                      <p className="text-[9px] text-warm-500 uppercase">Rate</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* PnL-style 30-day grid.
+                    Each day is a cell. Green = present, red = absent, gray = no record.
+                    For "both-time" academies, each cell is split top (morning) / bottom (evening). */}
+                {playerAttendanceLoading ? (
+                  <div className="flex flex-col items-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-brand-green mb-2" />
+                    <p className="text-xs text-warm-500">Loading attendance history…</p>
+                  </div>
+                ) : playerAttendanceHistory?.history && playerAttendanceHistory.history.length > 0 ? (
+                  <>
+                    <div>
+                      <p className="text-[10px] text-warm-500 mb-1.5 font-semibold uppercase tracking-wider">
+                        30-Day Chart {academyDetail?.practiceSchedule === 'both-time' && '(M = Morning, E = Evening)'}
+                      </p>
+                      <div className="grid grid-cols-7 gap-1">
+                        {playerAttendanceHistory.history.map((day) => {
+                          const sessions = day.sessions;
+                          const hasRecord = sessions.length > 0;
+                          const isBothTime = academyDetail?.practiceSchedule === 'both-time';
+
+                          if (!hasRecord) {
+                            // No attendance recorded for this day — gray cell
+                            return (
+                              <div
+                                key={day.date}
+                                className="aspect-square rounded bg-warm-100 dark:bg-warm-800"
+                                title={`${day.date}: No record`}
+                              />
+                            );
+                          }
+
+                          if (isBothTime) {
+                            // Split cell: top half = morning, bottom half = evening
+                            const morning = sessions.find(s => s.session === 'morning');
+                            const evening = sessions.find(s => s.session === 'evening');
+                            return (
+                              <div
+                                key={day.date}
+                                className="aspect-square rounded overflow-hidden flex flex-col"
+                                title={`${day.date}\nMorning: ${morning ? (morning.isPresent ? 'Present' : 'Absent') : 'No record'}\nEvening: ${evening ? (evening.isPresent ? 'Present' : 'Absent') : 'No record'}`}
+                              >
+                                <div className={`flex-1 ${morning ? (morning.isPresent ? 'bg-emerald-500' : 'bg-red-500') : 'bg-warm-200 dark:bg-warm-700'}`} />
+                                <div className={`flex-1 ${evening ? (evening.isPresent ? 'bg-emerald-500' : 'bg-red-500') : 'bg-warm-200 dark:bg-warm-700'}`} />
+                              </div>
+                            );
+                          }
+
+                          // Single-session academy — one color per day
+                          const anyPresent = sessions.some(s => s.isPresent);
+                          return (
+                            <div
+                              key={day.date}
+                              className={`aspect-square rounded ${anyPresent ? 'bg-emerald-500' : 'bg-red-500'}`}
+                              title={`${day.date}: ${anyPresent ? 'Present' : 'Absent'}`}
+                            />
+                          );
+                        })}
+                      </div>
+                      {/* Legend */}
+                      <div className="flex items-center justify-center gap-3 mt-2 text-[9px] text-warm-500">
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-500" /> Present</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-500" /> Absent</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-warm-100 dark:bg-warm-800" /> No record</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-6">
+                    <Calendar className="w-8 h-8 text-warm-300 mx-auto mb-2" />
+                    <p className="text-xs text-warm-500">No attendance history yet</p>
+                  </div>
+                )}
+
+                {/* Action buttons: Call / WhatsApp / View Profile */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {playerAttendanceView.phone ? (
+                    <>
+                      <a
+                        href={`tel:${playerAttendanceView.phone}`}
+                        className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-colors"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        Call
+                      </a>
+                      <a
+                        href={`https://wa.me/${playerAttendanceView.phone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold text-xs transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        WhatsApp
+                      </a>
+                    </>
+                  ) : (
+                    <p className="col-span-2 text-center text-[10px] text-warm-400 py-2.5">No phone on file</p>
+                  )}
+                  <button
+                    onClick={() => {
+                      // Open the full player profile (same modal used in academy detail).
+                      // Reuse playerProfileView state which expects an AcademyPlayerData shape.
+                      if (academyDetail?.players) {
+                        const found = academyDetail.players.find(p => p.userId === playerAttendanceView.userId);
+                        if (found) {
+                          setPlayerAttendanceView(null);
+                          setPlayerProfileView(found);
+                        }
+                      }
+                    }}
+                    className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-brand-green hover:bg-brand-green-dark text-white font-semibold text-xs transition-colors"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    Profile
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     );
   };
@@ -2101,11 +2396,20 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
 
     if (!analytics) return null;
 
-    const feePieData = [
-      { name: 'Paid', value: analytics.feeSummary.paid },
-      { name: 'Pending', value: analytics.feeSummary.pending },
-      { name: 'Overdue', value: analytics.feeSummary.overdue },
-    ].filter((d) => d.value > 0);
+    // Backend returns: { academy, performanceData, playerCount, academyTotals }
+    // performanceData is an array of { userId, name, avatar, totalPoints, totalMatches,
+    // raidPoints, tacklePoints, overallRating } sorted by totalPoints desc.
+    const perf = analytics.performanceData || [];
+    const totals = analytics.academyTotals;
+    const topPerformers = perf.slice(0, 10);
+
+    // Bar chart data: each player's total points (top 10)
+    const pointsBarData = topPerformers.map((p) => ({
+      name: (p.name || '?').slice(0, 8),
+      totalPoints: p.totalPoints,
+      raidPoints: p.raidPoints,
+      tacklePoints: p.tacklePoints,
+    }));
 
     return (
       <motion.div
@@ -2116,152 +2420,168 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       >
         {renderAcademySelector(true)}
 
-        {/* Attendance vs Performance */}
-        <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
+        {/* ─── Academy Performance Summary ─── */}
+        <Card className="bg-gradient-to-r from-brand-green/10 to-brand-teal/10 backdrop-blur-xl border-brand-green/20">
           <CardContent className="p-4">
-            <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-3">
-              Attendance vs Performance
+            <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-3 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-brand-green" />
+              Academy Performance
             </h3>
-            {analytics.attendancePerformance.length > 0 ? (
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analytics.attendancePerformance.slice(0, 10)} barGap={4}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'rgba(255,255,255,0.95)',
-                        borderRadius: '8px',
-                        border: 'none',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        fontSize: '12px',
-                      }}
-                    />
-                    <Bar dataKey="attendancePercent" fill="#22c55e" name="Attendance %" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="performanceScore" fill="#f59e0b" name="Performance" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-sm text-warm-500 text-center py-8">No data available yet</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Monthly Attendance Trend */}
-        <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-3">
-              Monthly Attendance Trend
-            </h3>
-            {analytics.attendanceTrend.length > 0 ? (
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={analytics.attendanceTrend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'rgba(255,255,255,0.95)',
-                        borderRadius: '8px',
-                        border: 'none',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        fontSize: '12px',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="attendanceRate"
-                      stroke="#22c55e"
-                      strokeWidth={2}
-                      dot={{ fill: '#22c55e', r: 4 }}
-                      name="Attendance %"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-sm text-warm-500 text-center py-8">No attendance data yet</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Fee Collection Pie Chart */}
-        <PremiumLock feature="Advanced Fee Analytics" compact={false}>
-          <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
-            <CardContent className="p-4">
-              <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-3">
-                Fee Collection Rate
-              </h3>
-              {feePieData.length > 0 ? (
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={feePieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={75}
-                        paddingAngle={3}
-                        dataKey="value"
-                        label={({ name, value }) => `₹${value}`}
-                      >
-                        {feePieData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value: number) => `₹${value.toLocaleString()}`}
-                        contentStyle={{
-                          backgroundColor: 'rgba(255,255,255,0.95)',
-                          borderRadius: '8px',
-                          border: 'none',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                          fontSize: '12px',
-                        }}
-                      />
-                      <Legend
-                        iconType="circle"
-                        iconSize={8}
-                        wrapperStyle={{ fontSize: '11px' }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-sm text-warm-500 text-center py-8">No fee data for this month</p>
-              )}
-            </CardContent>
-          </Card>
-        </PremiumLock>
-
-        {/* Quick Stats */}
-        <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-3">Quick Stats</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-xl bg-brand-green/10 text-center">
-                <p className="text-2xl font-bold text-brand-green">{analytics.totalPlayers}</p>
+                <p className="text-2xl font-bold text-brand-green">{analytics.playerCount}</p>
                 <p className="text-[10px] text-warm-500 uppercase tracking-wider">Total Players</p>
               </div>
               <div className="p-3 rounded-xl bg-brand-gold/10 text-center">
-                <p className="text-2xl font-bold text-brand-gold">
-                  {analytics.feeSummary.paid + analytics.feeSummary.pending + analytics.feeSummary.overdue > 0
-                    ? Math.round(
-                        (analytics.feeSummary.paid /
-                          (analytics.feeSummary.paid + analytics.feeSummary.pending + analytics.feeSummary.overdue)) *
-                          100
-                      )
-                    : 0}%
-                </p>
-                <p className="text-[10px] text-warm-500 uppercase tracking-wider">Fee Collection</p>
+                <p className="text-2xl font-bold text-brand-gold">{totals?.avgRating || 0}</p>
+                <p className="text-[10px] text-warm-500 uppercase tracking-wider">Avg Rating</p>
+              </div>
+              <div className="p-3 rounded-xl bg-brand-red/10 text-center">
+                <p className="text-2xl font-bold text-brand-red">{totals?.totalPoints || 0}</p>
+                <p className="text-[10px] text-warm-500 uppercase tracking-wider">Total Points</p>
+              </div>
+              <div className="p-3 rounded-xl bg-brand-teal/10 text-center">
+                <p className="text-2xl font-bold text-brand-teal">{totals?.totalMatches || 0}</p>
+                <p className="text-[10px] text-warm-500 uppercase tracking-wider">Total Matches</p>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* ─── Top Performers Bar Chart (Total Points per player) ─── */}
+        <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-3">
+              Top Performers — Total Points
+            </h3>
+            {pointsBarData.length > 0 && pointsBarData.some(d => d.totalPoints > 0) ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pointsBarData} barGap={4}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-30} textAnchor="end" height={50} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(255,255,255,0.95)',
+                        borderRadius: '8px',
+                        border: 'none',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Bar dataKey="raidPoints" fill="#22c55e" name="Raid Points" stackId="a" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="tacklePoints" fill="#f59e0b" name="Tackle Points" stackId="a" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-sm text-warm-500 text-center py-8">No performance data yet. Play some matches to see stats here.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ─── Player Performance Table ─── */}
+        <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-3 flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-brand-gold" />
+              Player Stats — Last Performances
+            </h3>
+            {perf.length > 0 ? (
+              <div className="space-y-1.5 max-h-80 overflow-y-auto custom-scrollbar">
+                {/* Header row */}
+                <div className="grid grid-cols-12 gap-1 text-[9px] font-bold text-warm-400 uppercase tracking-wider px-2 pb-1 border-b border-warm-200/30 dark:border-warm-700/30">
+                  <div className="col-span-4">Player</div>
+                  <div className="col-span-2 text-center">Matches</div>
+                  <div className="col-span-2 text-center">Raid</div>
+                  <div className="col-span-2 text-center">Tackle</div>
+                  <div className="col-span-2 text-center">Total</div>
+                </div>
+                {perf.map((p, idx) => (
+                  <div
+                    key={p.userId}
+                    className="grid grid-cols-12 gap-1 items-center px-2 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-xs"
+                  >
+                    <div className="col-span-4 flex items-center gap-1.5 min-w-0">
+                      {idx < 3 && (
+                        <span className={`text-[9px] font-bold ${
+                          idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-gray-400' : 'text-orange-600'
+                        }`}>
+                          #{idx + 1}
+                        </span>
+                      )}
+                      <div className="w-6 h-6 rounded-full bg-brand-green/20 flex items-center justify-center text-brand-green font-bold text-[9px] overflow-hidden shrink-0">
+                        {p.avatar ? (
+                          <img src={p.avatar} alt={p.name || 'Player'} className="w-full h-full object-cover" />
+                        ) : (
+                          (p.name || '?')[0]?.toUpperCase()
+                        )}
+                      </div>
+                      <span className="font-medium text-warm-800 dark:text-warm-200 truncate">
+                        {p.name || 'Unknown'}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-center text-warm-600 dark:text-warm-300">{p.totalMatches}</div>
+                    <div className="col-span-2 text-center text-emerald-600 dark:text-emerald-400 font-semibold">{p.raidPoints}</div>
+                    <div className="col-span-2 text-center text-amber-600 dark:text-amber-400 font-semibold">{p.tacklePoints}</div>
+                    <div className="col-span-2 text-center font-bold text-warm-800 dark:text-warm-100">{p.totalPoints}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-warm-500 text-center py-8">No player stats yet. Add players and play matches to see performance data.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ─── Raid vs Tackle Distribution ─── */}
+        {totals && (totals.totalRaidPoints > 0 || totals.totalTacklePoints > 0) && (
+          <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-bold text-warm-700 dark:text-warm-300 mb-3">
+                Raid vs Tackle Distribution
+              </h3>
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Raid Points', value: totals.totalRaidPoints },
+                        { name: 'Tackle Points', value: totals.totalTacklePoints },
+                      ].filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={75}
+                      paddingAngle={3}
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      <Cell fill="#22c55e" />
+                      <Cell fill="#f59e0b" />
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => `${value} pts`}
+                      contentStyle={{
+                        backgroundColor: 'rgba(255,255,255,0.95)',
+                        borderRadius: '8px',
+                        border: 'none',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Legend
+                      iconType="circle"
+                      iconSize={8}
+                      wrapperStyle={{ fontSize: '11px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </motion.div>
     );
   };
