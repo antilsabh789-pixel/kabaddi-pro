@@ -258,9 +258,8 @@ router.post('/giveaway/participate', async (req, res) => {
     if (existing) return res.status(409).json({ error: 'Already participating in this round' });
 
     // Premium is "active" if the user has isPremium=true AND (no expiry OR expiry is in the future).
-    // This covers ALL premium plans — daily ₹2, weekly, monthly, yearly, lifetime.
-    // The check happens HERE, at participation time. The result is snapshotted into the
-    // GiveawayParticipant record (isPremium field) and never changes after that.
+    // Admins get premium features elsewhere but for giveaway, admin must also have
+    // active premium or referral entries — no free bypass for giveaway.
     const isPremiumActive = !!(user.isPremium && (!user.premiumExpiry || new Date(user.premiumExpiry) > new Date()));
 
     // FREE ENTRY: Every user gets 1 lifetime free entry (no premium, no referral needed).
@@ -272,7 +271,7 @@ router.post('/giveaway/participate', async (req, res) => {
     // 1. Free entry available → allow (no other requirements)
     // 2. Premium active → allow (free entry every round)
     // 3. Referral entries remaining → allow
-    // 4. Otherwise → block
+    // 4. Otherwise → block (even for admins)
     if (!freeEntryAvailable && !isPremiumActive) {
       const successfulReferrals = await countSuccessfulReferrals(userId);
       const participationsUsed = await countPastParticipations(userId);
