@@ -29,6 +29,7 @@ interface GiveawayStatus {
     startDate: string;
     endDate: string;
     status: string;
+    hasEnded?: boolean;
   };
   prizes: Prize[];
   participantCount: number;
@@ -258,6 +259,42 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
             <span>participating</span>
           </div>
         </Card>
+
+        {/* Round Ended banner — shown when timer expired but winners not yet selected */}
+        {status?.round?.hasEnded && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 p-4 shadow-lg shadow-red-500/20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <Trophy className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-black text-white">Round {status.round.roundNumber} Ended!</p>
+                <p className="text-xs text-white/80">
+                  {currentUser?.isAdmin
+                    ? 'Tap "Select Winners" in the admin panel to draw 3 winners and start the next round.'
+                    : 'Winners will be announced soon. Stay tuned!'}
+                </p>
+              </div>
+            </div>
+            {currentUser?.isAdmin && (
+              <button
+                onClick={handleSelectWinners}
+                disabled={selectingWinners}
+                className="w-full mt-3 py-2.5 rounded-xl bg-white text-red-600 font-black text-sm hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {selectingWinners ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Selecting...</>
+                ) : (
+                  <><Trophy className="w-4 h-4" /> Select 3 Winners Now</>
+                )}
+              </button>
+            )}
+          </motion.div>
+        )}
 
         {/* Free Entry Promo Banner — shown only for first-time users */}
         {status?.freeEntryAvailable && !status?.hasParticipated && (

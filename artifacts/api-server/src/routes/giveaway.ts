@@ -28,18 +28,13 @@ async function getOrCreateActiveRound() {
     round = await db.giveawayRound.create({
       data: { roundNumber: nextNumber, startDate, endDate, status: 'active' },
     });
-  } else if (round.endDate < now) {
-    // Round has ended but status wasn't updated. Update it.
-    await db.giveawayRound.update({ where: { id: round.id }, data: { status: 'completed' } });
-    // Create a new round
-    const nextNumber = round.roundNumber + 1;
-    const startDate = now;
-    const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
-    round = await db.giveawayRound.create({
-      data: { roundNumber: nextNumber, startDate, endDate, status: 'active' },
-    });
   }
-
+  // IMPORTANT: Do NOT auto-complete the round or auto-create the next round
+  // when the timer expires. The admin must manually select winners first.
+  // The round stays 'active' even after endDate so the admin can see
+  // "Round ended — select winners" in the UI. Once the admin calls
+  // POST /giveaway/admin/select-winners, THAT endpoint marks the round as
+  // 'completed' and creates the next round.
   return round;
 }
 
@@ -202,6 +197,7 @@ router.get('/giveaway/status', async (req, res) => {
         startDate: round.startDate,
         endDate: round.endDate,
         status: round.status,
+        hasEnded: new Date(round.endDate) < new Date(), // true if timer expired
       },
       prizes: PRIZES,
       participantCount,
