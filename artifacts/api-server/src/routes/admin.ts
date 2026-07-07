@@ -209,4 +209,99 @@ router.get('/admin/lookup-player', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/admin/players?adminId=...&page=1&limit=50&search=...
+ *
+ * Returns ALL registered players (role='player', isAdmin=false) — paginated,
+ * searchable by name / playerCode / phone. Admin sees full phone (for prize
+ * contact) + premium status + member-since date.
+ *
+ * Query params:
+ *   adminId (required) — must be an admin
+ *   page    (default 1)
+ *   limit   (default 50, max 200)
+ *   search  (optional) — case-insensitive match on name / playerCode / phone
+ *
+ * Response: {
+ *   players: [{ id, name, playerCode, phone, avatar, gender, isPremium,
+ *               premiumExpiry, premiumPlan, location, practiceGround, memberSince }],
+ *   total: number,     // total matching the filter (not just this page)
+ *   page: number,
+ *   limit: number,
+ *   totalPages: number,
+ * }
+ */
+router.get('/admin/players', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || '';
+    const page = Math.max(1, parseInt((req.query['page'] as string) || '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt((req.query['limit'] as string) || '50', 10)));
+    const search = ((req.query['search'] as string) || '').trim();
+
+    if (!adminId) return res.status(400).json({ error: 'adminId is required' });
+
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Build the where clause: only real players (no admins, no coaches),
+    // optionally narrowed by a search term.
+    const where: Record<string, unknown> = {
+      role: 'player',
+      isAdmin: false,
+    };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { playerCode: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, users] = await Promise.all([
+      db.user.count({ where }),
+      db.user.findMany({
+        where,
+        select: {
+          id: true, name: true, playerCode: true, phone: true, avatar: true,
+          isPremium: true, premiumExpiry: true, premiumPlan: true,
+          gender: true, weight: true, practiceGround: true, location: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' }, // newest first
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const players = users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      playerCode: u.playerCode,
+      phone: u.phone, // admin can see full phone for prize contact
+      avatar: u.avatar,
+      isPremium: u.isPremium,
+      premiumExpiry: u.premiumExpiry,
+      premiumPlan: u.premiumPlan,
+      gender: u.gender,
+      weight: u.weight,
+      practiceGround: u.practiceGround,
+      location: u.location,
+      memberSince: u.createdAt,
+    }));
+
+    return res.json({
+      players,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    console.error('Admin players list error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

@@ -390,6 +390,280 @@ function PlayerSearchPanel() {
   );
 }
 
+/**
+ * AllPlayersListScreen — Admin-only full-screen modal that lists EVERY
+ * registered player in the system (role='player', isAdmin=false). Backed by
+ * GET /api/admin/players with pagination + search. Each row is tappable and
+ * opens the player's full profile via the same `onViewPlayer` callback the
+ * other admin screens use.
+ */
+function AllPlayersListScreen({ onClose, onViewPlayer }: {
+  onClose: () => void;
+  onViewPlayer: (userId: string) => void;
+}) {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const { toast } = useToast();
+
+  interface AdminPlayer {
+    id: string;
+    name: string | null;
+    playerCode: string | null;
+    phone: string;
+    avatar: string | null;
+    isPremium: boolean;
+    premiumExpiry: string | null;
+    premiumPlan: string | null;
+    gender: string | null;
+    weight: string | null;
+    practiceGround: string | null;
+    location: string | null;
+    memberSince: string;
+  }
+
+  const [players, setPlayers] = useState<AdminPlayer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Debounce the search input so we don't fire a query on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // reset to first page whenever the search term changes
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const fetchPlayers = useCallback(async () => {
+    if (!currentUser?.id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        adminId: currentUser.id,
+        page: String(page),
+        limit: String(limit),
+      });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      // Cache-Control: no-store is set by the backend, but add a cache-busting
+      // param too so Vercel/CDNs never serve a stale list.
+      params.set('_t', String(Date.now()));
+
+      const res = await fetch(`/api/admin/players?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to load players');
+        setPlayers([]);
+        setTotal(0);
+        setTotalPages(1);
+      } else {
+        setPlayers(data.players || []);
+        setTotal(data.total || 0);
+        setTotalPages(data.totalPages || 1);
+      }
+    } catch {
+      setError('Network error. Please check your connection and try again.');
+      setPlayers([]);
+      setTotal(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser?.id, page, limit, debouncedSearch]);
+
+  useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
+
+  // Format helper — render member-since as "Jul 7, 2026"
+  const fmtDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return ''; }
+  };
+
+  // Helper — show premium badge if the player has active premium
+  const isPremiumActive = (p: AdminPlayer) => {
+    if (!p.isPremium) return false;
+    if (!p.premiumExpiry) return true; // lifetime
+    return new Date(p.premiumExpiry) > new Date();
+  };
+
+  const fmtPlan = (plan: string | null) => {
+    if (!plan) return 'Premium';
+    return plan.charAt(0).toUpperCase() + plan.slice(1);
+  };
+
+  // Initials for the avatar fallback
+  const initials = (name: string | null, code: string | null) => {
+    if (name && name.trim()) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      return name.slice(0, 2).toUpperCase();
+    }
+    if (code) return code.slice(-2);
+    return '??';
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col">
+      {/* ═══ HEADER ═══ */}
+      <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+              <Users className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">ALL PLAYERS</h1>
+              <p className="text-[10px] text-warm-500 dark:text-warm-400">{total.toLocaleString()} registered {total === 1 ? 'player' : 'players'}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Search bar */}
+        <div className="px-4 pb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, player code, or phone..."
+              className="w-full h-10 rounded-xl border-2 border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-900 pl-10 pr-4 text-sm text-warm-800 dark:text-warm-100 placeholder:text-warm-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ═══ PLAYER LIST ═══ */}
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {loading && players.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading players...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 mb-1">{error}</p>
+            <Button onClick={fetchPlayers} variant="outline" className="mt-4">Retry</Button>
+          </div>
+        ) : players.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Users className="w-12 h-12 text-warm-300 mb-3" />
+            <p className="text-sm text-warm-500 mb-1">
+              {debouncedSearch ? `No players match "${debouncedSearch}"` : 'No players found'}
+            </p>
+            {debouncedSearch && (
+              <Button onClick={() => setSearch('')} variant="outline" className="mt-3 text-xs h-8">Clear search</Button>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Result count line */}
+            <p className="text-[10px] text-warm-400 dark:text-warm-500 mb-2 px-1">
+              {loading ? 'Updating...' : `Showing ${((page - 1) * limit) + 1}–${Math.min(page * limit, total)} of ${total.toLocaleString()}`}
+            </p>
+
+            <div className="space-y-2">
+              {players.map((p) => {
+                const premium = isPremiumActive(p);
+                return (
+                  <motion.button
+                    key={p.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onClick={() => onViewPlayer(p.id)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-all text-left"
+                  >
+                    {/* Avatar / initials */}
+                    <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {p.avatar ? (
+                        <img src={p.avatar} alt={p.name || 'Player'} className="w-full h-full object-cover" />
+                      ) : (
+                        initials(p.name, p.playerCode)
+                      )}
+                    </div>
+
+                    {/* Name + code */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">
+                          {p.name || 'Unnamed Player'}
+                        </p>
+                        {premium && (
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
+                            <Crown className="w-2.5 h-2.5" />
+                            {fmtPlan(p.premiumPlan)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-mono text-warm-500 dark:text-warm-400">{p.playerCode || '—'}</span>
+                        <span className="text-[10px] text-warm-300">•</span>
+                        <span className="text-[10px] text-warm-500 dark:text-warm-400 truncate">{p.phone || 'no phone'}</span>
+                      </div>
+                      <p className="text-[9px] text-warm-400 dark:text-warm-500 mt-0.5">
+                        Joined {fmtDate(p.memberSince)}
+                        {p.location ? ` · ${p.location}` : ''}
+                      </p>
+                    </div>
+
+                    {/* Chevron */}
+                    <ChevronRight className="w-4 h-4 text-warm-400 shrink-0" />
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            {/* ═══ PAGINATION ═══ */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-5 mb-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1 || loading}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className="h-8 px-3 text-xs"
+                >
+                  Prev
+                </Button>
+                <span className="text-xs text-warm-500 dark:text-warm-400 px-2">
+                  Page {page} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === totalPages || loading}
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className="h-8 px-3 text-xs"
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GiftPremiumPanel() {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
@@ -693,6 +967,7 @@ export default function ProfileTab() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
+  const [showAllPlayers, setShowAllPlayers] = useState(false);
   const [showChallenges, setShowChallenges] = useState(false);
   const [showGrounds, setShowGrounds] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
@@ -1515,6 +1790,16 @@ export default function ProfileTab() {
         <PlayerProfileScreen
           userId={playerProfileUserId}
           onBack={() => { setShowPlayerProfile(false); setPlayerProfileUserId(null); }}
+        />
+      )}
+      {showAllPlayers && currentUser?.isAdmin && (
+        <AllPlayersListScreen
+          onClose={() => setShowAllPlayers(false)}
+          onViewPlayer={(userId: string) => {
+            setShowAllPlayers(false);
+            setPlayerProfileUserId(userId);
+            setShowPlayerProfile(true);
+          }}
         />
       )}
       </Portal>
@@ -3296,7 +3581,10 @@ export default function ProfileTab() {
             <Users className="w-4 h-4 text-emerald-500" />
             Players Dashboard
           </h3>
-          <Card className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30">
+          <Card
+            className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-500/10 transition-all"
+            onClick={() => setShowAllPlayers(true)}
+          >
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
                 <Users className="w-8 h-8 text-white" />
@@ -3308,8 +3596,9 @@ export default function ProfileTab() {
                 <p className="text-4xl font-black text-emerald-700 dark:text-emerald-400 leading-none tracking-tight">
                   {totalPlayers.toLocaleString()}
                 </p>
-                <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1.5">
-                  All registered players on Kabaddi Pro
+                <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1.5 flex items-center gap-1">
+                  <span>Tap to view all players</span>
+                  <ChevronRight className="w-3 h-3" />
                 </p>
               </div>
             </div>
