@@ -72,6 +72,8 @@ export interface ActiveMatch {
   awayTeam: string;
   homeTeamColor: string;
   awayTeamColor: string;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
   isLive: boolean;
   isPractice: boolean;
   gender?: string; // optional — no longer required (removed from UI)

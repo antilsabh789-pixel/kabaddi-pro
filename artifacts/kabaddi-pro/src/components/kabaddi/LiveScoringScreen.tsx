@@ -66,13 +66,17 @@ function MatchEndScreen({
           </h2>
           <div className="flex items-center justify-center gap-4 mt-4">
             <div className="text-center">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md" style={{ backgroundColor: homeColor }}>{homeTeam.charAt(0)}</div>
+              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md overflow-hidden" style={{ backgroundColor: homeColor }}>
+                {match?.homeTeamLogo ? <img src={match.homeTeamLogo} alt={homeTeam} className="w-full h-full object-cover" /> : homeTeam.charAt(0)}
+              </div>
               <p className="text-xs font-bold mt-1" style={{ color: homeColor }}>{homeTeam}</p>
               <p className="text-3xl font-black mt-1" style={{ color: homeColor }}>{homeScore}</p>
             </div>
             <span className="text-xl text-gray-300 font-bold">-</span>
             <div className="text-center">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md" style={{ backgroundColor: awayColor }}>{awayTeam.charAt(0)}</div>
+              <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md overflow-hidden" style={{ backgroundColor: awayColor }}>
+                {match?.awayTeamLogo ? <img src={match.awayTeamLogo} alt={awayTeam} className="w-full h-full object-cover" /> : awayTeam.charAt(0)}
+              </div>
               <p className="text-xs font-bold mt-1" style={{ color: awayColor }}>{awayTeam}</p>
               <p className="text-3xl font-black mt-1" style={{ color: awayColor }}>{awayScore}</p>
             </div>
@@ -1793,6 +1797,7 @@ export default function LiveScoringScreen() {
     side,
     teamName,
     teamColor,
+    teamLogo,
     score,
     raidPts,
     tacklePts,
@@ -1804,6 +1809,7 @@ export default function LiveScoringScreen() {
     side: 'home' | 'away';
     teamName: string;
     teamColor: string;
+    teamLogo?: string | null;
     score: number;
     raidPts: number;
     tacklePts: number;
@@ -1830,10 +1836,10 @@ export default function LiveScoringScreen() {
         <div className="flex items-center justify-between px-2 py-1.5 border-b" style={{ borderColor: `${teamColor}30`, backgroundColor: `${teamColor}10` }}>
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] shrink-0"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] shrink-0 overflow-hidden"
               style={{ backgroundColor: teamColor }}
             >
-              {teamName.charAt(0)}
+              {teamLogo ? <img src={teamLogo} alt={teamName} className="w-full h-full object-cover" /> : teamName.charAt(0)}
             </div>
             <span className="text-xs font-black text-white truncate" style={{ color: teamColor }}>
               {teamName}
@@ -2715,6 +2721,7 @@ export default function LiveScoringScreen() {
             side="home"
             teamName={match.homeTeam}
             teamColor={match.homeTeamColor}
+            teamLogo={match.homeTeamLogo}
             score={match.homeScore}
             raidPts={homeRaidPoints}
             tacklePts={homeTacklePoints}
@@ -2736,6 +2743,7 @@ export default function LiveScoringScreen() {
             side="away"
             teamName={match.awayTeam}
             teamColor={match.awayTeamColor}
+            teamLogo={match.awayTeamLogo}
             score={match.awayScore}
             raidPts={awayRaidPoints}
             tacklePts={awayTacklePoints}
