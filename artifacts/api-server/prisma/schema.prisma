@@ -516,6 +516,10 @@ model Academy {
   coachUser   User     @relation(fields: [coachUserId], references: [id])
   sundayHoliday Boolean @default(false)
   practiceSchedule String @default("one-time")
+  // Coach chooses which weekdays are holidays. Stored as a JSON string of
+  // weekday names: e.g. '["sun","mon"]'. Empty array = all days working.
+  // Backwards-compat: if empty, falls back to sundayHoliday boolean.
+  offDays     String   @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -548,9 +552,14 @@ model Attendance {
   user        User     @relation(fields: [userId], references: [id])
   date        DateTime
   isPresent   Boolean  @default(false)
+  // Session identifier: "morning", "evening", or "default" (single-session
+  // academies). Combined with (academyId, userId, date) for uniqueness so a
+  // player can have separate morning + evening attendance rows per day.
+  session     String   @default("default")
+  note        String?
   createdAt   DateTime @default(now())
 
-  @@unique([academyId, userId, date])
+  @@unique([academyId, userId, date, session])
   @@map("attendances")
 }
 
@@ -566,6 +575,16 @@ model FeeRecord {
   amount      Int      // amount in INR
   status      String   @default("pending") // pending, paid, overdue
   paidAt      DateTime?
+  // When the paid period ends. Computed when isPaid=true:
+  //   monthly  → paidAt + 30 days
+  //   yearly   → paidAt + 365 days
+  //   weekly   → paidAt + 7 days
+  //   daily    → paidAt + 1 day
+  // Used to compute "days left" in the coach fees dashboard.
+  expiryDate  DateTime?
+  // Period label: "monthly", "yearly", "weekly", "daily", "custom".
+  // Defaults to "monthly" for backwards compat with existing rows.
+  period      String   @default("monthly")
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

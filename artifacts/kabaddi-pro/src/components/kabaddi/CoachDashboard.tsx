@@ -30,6 +30,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Phone,
+  MessageCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +71,7 @@ interface AcademyData {
   coachUserId: string;
   sundayHoliday: boolean;
   practiceSchedule: string;
+  offDays?: string; // JSON string of weekday names: '["sun","mon"]', or '[]' for all-days-working
   players: AcademyPlayerData[];
   _count: { players: number };
   createdAt: string;
@@ -92,18 +95,47 @@ interface AttendanceRecord {
   phone: string | null;
   avatar: string | null;
   isPresent: boolean;
+  session?: string; // 'default' | 'morning' | 'evening'
+  note?: string | null;
 }
 
 interface FeeRecordData {
+  id: string; // backend 'id' field
+  academyId: string;
   userId: string;
-  name: string | null;
-  phone: string | null;
-  avatar: string | null;
-  feeId: string | null;
+  month: string;
   amount: number;
   status: string;
   paidAt: string | null;
+  expiryDate: string | null;
+  period: string;
   notes: string | null;
+  user: { id: string; name: string | null; avatar: string | null; phone: string | null };
+  // Convenience flat fields (populated by fetchFees for backwards-compat)
+  name?: string | null;
+  phone?: string | null;
+  avatar?: string | null;
+  feeId?: string | null;
+}
+
+// Player fee status as returned by GET /api/coach/fees/status — includes
+// days-left + isExpired so the UI can render the red dot.
+interface PlayerFeeStatus {
+  userId: string;
+  name: string | null;
+  avatar: string | null;
+  phone: string | null;
+  feeRecord: {
+    id: string;
+    amount: number;
+    status: string;
+    paidAt: string | null;
+    expiryDate: string | null;
+    period: string;
+    month: string;
+  } | null;
+  daysLeft: number | null; // null = never paid; positive = days left; negative = days expired
+  isExpired: boolean;
 }
 
 interface FeeSummary {
@@ -116,7 +148,6 @@ interface FeeSummary {
   pendingCount: number;
   overdueCount: number;
 }
-
 interface RewardData {
   id: string;
   userId: string;
@@ -201,15 +232,30 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
   const [newGroundName, setNewGroundName] = useState('');
   const [newSundayHoliday, setNewSundayHoliday] = useState(false);
   const [newPracticeSchedule, setNewPracticeSchedule] = useState<'one-time' | 'both-time'>('one-time');
+  // Multi-day holiday picker. Array of weekday short names: ['sun','mon',...].
+  // Empty array = all days working (no holidays).
+  const [newOffDays, setNewOffDays] = useState<string[]>([]);
+  // Edit-academy mode (so coach can change offDays after creation)
+  const [showEditAcademy, setShowEditAcademy] = useState(false);
+  const [editOffDays, setEditOffDays] = useState<string[]>([]);
 
   // Attendance state
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  // Which session we're currently marking. 'default' for one-time academies,
+  // 'morning' or 'evening' for both-time academies.
+  const [activeSession, setActiveSession] = useState<'default' | 'morning' | 'evening'>('default');
 
   // Fees state
   const [feeRecords, setFeeRecords] = useState<FeeRecordData[]>([]);
   const [feeSummary, setFeeSummary] = useState<FeeSummary | null>(null);
   const [feeMonth, setFeeMonth] = useState(new Date().toISOString().slice(0, 7));
+  // Player fee status list — every player with days-left + isExpired flag.
+  // Fetched from GET /api/coach/fees/status (separate from the monthly records).
+  const [playerFeeStatuses, setPlayerFeeStatuses] = useState<PlayerFeeStatus[]>([]);
+
+  // Player profile quick-view (call/WhatsApp from coach view)
+  const [playerProfileView, setPlayerProfileView] = useState<AcademyPlayerData | null>(null);
 
   // Rewards state
   const [rewards, setRewards] = useState<RewardData[]>([]);
@@ -289,8 +335,9 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
           location: newLocation || null,
           groundName: newGroundName || null,
           coachUserId,
-          sundayHoliday: newSundayHoliday,
+          sundayHoliday: newOffDays.includes('sun'), // backwards-compat: sundayHoliday reflects the new offDays array
           practiceSchedule: newPracticeSchedule,
+          offDays: newOffDays,
         }),
       });
       const data = await res.json();
@@ -300,6 +347,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
         setNewLocation('');
         setNewGroundName('');
         setNewSundayHoliday(false);
+        setNewOffDays([]);
         setNewPracticeSchedule('one-time');
         setAcademySubView('list');
         fetchAcademies();
@@ -308,6 +356,35 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       }
     } catch {
       toast({ title: 'Failed to create academy', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update an existing academy's offDays (and optionally other fields).
+  // Called from the Edit Academy sheet in the academy detail view.
+  const updateAcademyOffDays = async (academyId: string, offDays: string[]) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/academies/${academyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          offDays,
+          sundayHoliday: offDays.includes('sun'), // keep backwards-compat boolean in sync
+        }),
+      });
+      const data = await res.json();
+      if (data.academy) {
+        toast({ title: 'Holidays updated!' });
+        setAcademyDetail(data.academy);
+        setShowEditAcademy(false);
+        fetchAcademies();
+      } else {
+        toast({ title: 'Failed to update academy', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to update academy', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -431,22 +508,50 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       const m = month || feeMonth;
       const res = await fetch(`/api/coach/fees?academyId=${academyId}&month=${m}`);
       const data = await res.json();
-      // Backend returns { feeRecords: [...] } — not { records, summary }.
+      // Backend returns { feeRecords: [...] } with nested `user` object.
+      // Normalize into the flat FeeRecordData shape the UI expects.
       if (data.feeRecords) {
-        setFeeRecords(data.feeRecords);
-        // Derive summary from the records (backend doesn't return one).
-        const paid = data.feeRecords.filter((r: any) => r.status === 'paid');
-        const pending = data.feeRecords.filter((r: any) => r.status === 'pending');
-        const totalAmount = data.feeRecords.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
-        const paidAmount = paid.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+        const normalized: FeeRecordData[] = data.feeRecords.map((r: any) => ({
+          id: r.id,
+          academyId: r.academyId,
+          userId: r.userId,
+          month: r.month,
+          amount: r.amount || 0,
+          status: r.status || 'pending',
+          paidAt: r.paidAt || null,
+          expiryDate: r.expiryDate || null,
+          period: r.period || 'monthly',
+          notes: r.notes || null,
+          user: r.user || { id: r.userId, name: null, avatar: null, phone: null },
+          // Flat convenience fields (so old render code that reads record.name still works)
+          name: r.user?.name || null,
+          phone: r.user?.phone || null,
+          avatar: r.user?.avatar || null,
+          feeId: r.id,
+        }));
+        setFeeRecords(normalized);
+        // Derive summary with the CORRECT field names (matches FeeSummary interface).
+        // This was the root cause of the fees-tab white-screen crash.
+        const paid = normalized.filter((r) => r.status === 'paid');
+        const pending = normalized.filter((r) => r.status === 'pending');
+        const overdue = normalized.filter((r) => r.status === 'overdue');
+        const totalExpected = normalized.reduce((sum, r) => sum + (r.amount || 0), 0);
+        const collected = paid.reduce((sum, r) => sum + (r.amount || 0), 0);
+        const pendingAmt = pending.reduce((sum, r) => sum + (r.amount || 0), 0);
+        const overdueAmt = overdue.reduce((sum, r) => sum + (r.amount || 0), 0);
         setFeeSummary({
-          total: data.feeRecords.length,
-          paid: paid.length,
-          pending: pending.length,
-          totalAmount,
-          paidAmount,
-          pendingAmount: totalAmount - paidAmount,
+          totalExpected,
+          collected,
+          pending: pendingAmt,
+          overdue: overdueAmt,
+          totalStudents: normalized.length,
+          paidCount: paid.length,
+          pendingCount: pending.length,
+          overdueCount: overdue.length,
         });
+      } else {
+        setFeeRecords([]);
+        setFeeSummary(null);
       }
     } catch (err) {
       console.error('Fetch fees error:', err);
@@ -455,12 +560,29 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     }
   }, [feeMonth]);
 
+  // Fetch the per-player fee status (with days-left + isExpired) for the
+  // red-dot fee list. Calls GET /api/coach/fees/status.
+  const fetchPlayerFeeStatuses = useCallback(async (academyId: string) => {
+    try {
+      const res = await fetch(`/api/coach/fees/status?academyId=${academyId}`);
+      const data = await res.json();
+      if (data.players) {
+        setPlayerFeeStatuses(data.players);
+      } else {
+        setPlayerFeeStatuses([]);
+      }
+    } catch (err) {
+      console.error('Fetch player fee statuses error:', err);
+      setPlayerFeeStatuses([]);
+    }
+  }, []);
+
   const markFeePaid = async (feeId: string) => {
     if (!feeId) return;
     try {
       // Backend has no PUT route — POST /api/coach/fees upserts by (academyId, userId, month).
       // Find the existing record, then POST with isPaid: true to flip its status.
-      const existing = feeRecords.find((r) => r.id === feeId);
+      const existing = feeRecords.find((r) => r.id === feeId || r.feeId === feeId);
       if (!existing || !selectedAcademyId) return;
       const res = await fetch('/api/coach/fees', {
         method: 'POST',
@@ -471,11 +593,15 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
           month: existing.month,
           amount: existing.amount,
           isPaid: true,
+          period: existing.period || 'monthly',
         }),
       });
       if (res.ok) {
         toast({ title: 'Fee marked as paid!' });
-        if (selectedAcademyId) fetchFees(selectedAcademyId);
+        if (selectedAcademyId) {
+          fetchFees(selectedAcademyId);
+          fetchPlayerFeeStatuses(selectedAcademyId);
+        }
       }
     } catch {
       toast({ title: 'Failed to update fee', variant: 'destructive' });
@@ -605,10 +731,13 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
   useEffect(() => {
     if (!selectedAcademyId) return;
     if (activeTab === 'attendance') fetchAttendance(selectedAcademyId);
-    else if (activeTab === 'fees') fetchFees(selectedAcademyId);
+    else if (activeTab === 'fees') {
+      fetchFees(selectedAcademyId);
+      fetchPlayerFeeStatuses(selectedAcademyId);
+    }
     else if (activeTab === 'rewards') fetchRewards(selectedAcademyId);
     else if (activeTab === 'analytics') fetchAnalytics(selectedAcademyId);
-  }, [activeTab, selectedAcademyId, fetchAttendance, fetchFees, fetchRewards, fetchAnalytics]);
+  }, [activeTab, selectedAcademyId, fetchAttendance, fetchFees, fetchPlayerFeeStatuses, fetchRewards, fetchAnalytics]);
 
   // ─── Academy Selector ──────────────────────────────────
 
@@ -722,21 +851,55 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                 </button>
               </div>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-xl bg-white/10 dark:bg-white/5">
-              <div className="flex items-center gap-2">
-                <Sun className="w-4 h-4 text-brand-gold" />
-                <span className="text-sm font-medium text-warm-700 dark:text-warm-300">Sunday Holiday</span>
+            {/* Multi-day holiday picker — coach chooses ANY day(s) as holiday,
+                or picks "All days working" (empty selection = no holidays). */}
+            <div className="p-3 rounded-xl bg-white/10 dark:bg-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Sun className="w-4 h-4 text-brand-gold" />
+                  <span className="text-sm font-medium text-warm-700 dark:text-warm-300">Holiday Days</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNewOffDays([])}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-full transition-colors ${
+                    newOffDays.length === 0
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                  }`}
+                >
+                  All days working
+                </button>
               </div>
-              <button
-                onClick={() => setNewSundayHoliday(!newSundayHoliday)}
-                className="transition-transform"
-              >
-                {newSundayHoliday ? (
-                  <ToggleRight className="w-8 h-8 text-brand-green" />
-                ) : (
-                  <ToggleLeft className="w-8 h-8 text-warm-400" />
-                )}
-              </button>
+              <p className="text-[10px] text-warm-500 dark:text-warm-400 mb-2">
+                Tap the day(s) you want as holidays. Leave empty for no holidays.
+              </p>
+              <div className="grid grid-cols-7 gap-1">
+                {(['sun','mon','tue','wed','thu','fri','sat'] as const).map((day) => {
+                  const isOff = newOffDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        setNewOffDays(prev => isOff ? prev.filter(d => d !== day) : [...prev, day]);
+                      }}
+                      className={`p-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                        isOff
+                          ? 'bg-red-500 text-white'
+                          : 'bg-white/50 dark:bg-white/5 text-warm-600 dark:text-warm-300 hover:bg-white/80'
+                      }`}
+                    >
+                      {day.charAt(0)}
+                    </button>
+                  );
+                })}
+              </div>
+              {newOffDays.length > 0 && (
+                <p className="text-[10px] text-red-500 dark:text-red-400 mt-2 font-medium">
+                  {newOffDays.length === 1 ? `${newOffDays[0].toUpperCase()} is holiday` : `${newOffDays.length} holidays: ${newOffDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}`}
+                </p>
+              )}
             </div>
           </div>
 
@@ -798,12 +961,41 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                     <p className="text-sm font-bold text-warm-800 dark:text-warm-200 capitalize">{(academyDetail.practiceSchedule || 'one-time').replace('-', ' ')}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Sun className="w-4 h-4 text-brand-gold" />
-                  <div>
-                    <p className="text-xs text-warm-500">Sunday</p>
-                    <p className="text-sm font-bold text-warm-800 dark:text-warm-200">{academyDetail.sundayHoliday ? 'Holiday' : 'Practice'}</p>
+                <div className="flex items-center gap-2 col-span-2">
+                  <Sun className="w-4 h-4 text-brand-gold shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-warm-500">Holidays</p>
+                    <p className="text-sm font-bold text-warm-800 dark:text-warm-200 truncate">
+                      {(() => {
+                        try {
+                          const arr = JSON.parse(academyDetail.offDays || '[]');
+                          if (!Array.isArray(arr) || arr.length === 0) {
+                            // Backwards-compat: if offDays is empty, fall back to sundayHoliday
+                            return academyDetail.sundayHoliday ? 'Sunday' : 'All days working (no holidays)';
+                          }
+                          return arr.map((d: string) => d.charAt(0).toUpperCase() + d.slice(1)).join(', ');
+                        } catch {
+                          return academyDetail.sundayHoliday ? 'Sunday' : 'All days working (no holidays)';
+                        }
+                      })()}
+                    </p>
                   </div>
+                  <button
+                    onClick={() => {
+                      // Pre-fill editOffDays from the academy's current offDays
+                      try {
+                        const arr = JSON.parse(academyDetail.offDays || '[]');
+                        setEditOffDays(Array.isArray(arr) ? arr : (academyDetail.sundayHoliday ? ['sun'] : []));
+                      } catch {
+                        setEditOffDays(academyDetail.sundayHoliday ? ['sun'] : []);
+                      }
+                      setShowEditAcademy(true);
+                    }}
+                    className="shrink-0 p-1.5 rounded-lg bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300 hover:bg-warm-300"
+                    title="Edit holidays"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-brand-red" />
@@ -815,6 +1007,82 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Edit Holidays Sheet */}
+          <AnimatePresence>
+            {showEditAcademy && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4"
+                onClick={() => setShowEditAcademy(false)}
+              >
+                <motion.div
+                  initial={{ y: 50, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 50, opacity: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white dark:bg-warm-900 rounded-2xl p-5 w-full max-w-sm space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Edit Holidays</h3>
+                    <button onClick={() => setShowEditAcademy(false)} className="p-1 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800">
+                      <X className="w-4 h-4 text-warm-500" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-warm-500">Pick the day(s) your academy is closed:</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditOffDays([])}
+                      className={`text-[10px] font-bold px-2 py-1 rounded-full transition-colors ${
+                        editOffDays.length === 0
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                      }`}
+                    >
+                      All days working
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {(['sun','mon','tue','wed','thu','fri','sat'] as const).map((day) => {
+                      const isOff = editOffDays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            setEditOffDays(prev => isOff ? prev.filter(d => d !== day) : [...prev, day]);
+                          }}
+                          className={`p-2.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                            isOff
+                              ? 'bg-red-500 text-white'
+                              : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-300 hover:bg-warm-200'
+                          }`}
+                        >
+                          {day.charAt(0)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {editOffDays.length > 0 && (
+                    <p className="text-[10px] text-red-500 dark:text-red-400 font-medium">
+                      {editOffDays.length === 1 ? `${editOffDays[0].toUpperCase()} is holiday` : `${editOffDays.length} holidays: ${editOffDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}`}
+                    </p>
+                  )}
+                  <Button
+                    onClick={() => updateAcademyOffDays(academyDetail.id, editOffDays)}
+                    disabled={loading}
+                    className="w-full bg-brand-green hover:bg-brand-green-dark text-white"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                    Save Holidays
+                  </Button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Add Player */}
           <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
@@ -856,21 +1124,53 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                       key={p.id}
                       className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
                     >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-brand-green/20 flex items-center justify-center text-brand-green font-bold text-xs">
-                          {(p.user.name || '?')[0]?.toUpperCase()}
+                      <div
+                        className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
+                        onClick={() => setPlayerProfileView(p)}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-brand-green/20 flex items-center justify-center text-brand-green font-bold text-xs overflow-hidden shrink-0">
+                          {p.user.avatar ? (
+                            <img src={p.user.avatar} alt={p.user.name || 'Player'} className="w-full h-full object-cover" />
+                          ) : (
+                            (p.user.name || '?')[0]?.toUpperCase()
+                          )}
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-warm-800 dark:text-warm-200">{p.user.name || 'Unknown'}</p>
-                          <p className="text-[10px] text-warm-500">{p.user.phone || 'No phone'}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-warm-800 dark:text-warm-200 truncate">{p.user.name || 'Unknown'}</p>
+                          <p className="text-[10px] text-warm-500 truncate">{p.user.phone || 'No phone'}</p>
                         </div>
                       </div>
-                      <button
-                        onClick={() => removePlayerFromAcademy(p.userId)}
-                        className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-warm-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {p.user.phone && (
+                          <>
+                            {/* Call button — opens phone dialer */}
+                            <a
+                              href={`tel:${p.user.phone}`}
+                              className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-emerald-500 transition-colors"
+                              title={`Call ${p.user.phone}`}
+                            >
+                              <Phone className="w-3.5 h-3.5" />
+                            </a>
+                            {/* WhatsApp button — opens wa.me chat */}
+                            <a
+                              href={`https://wa.me/${p.user.phone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-500 transition-colors"
+                              title={`WhatsApp ${p.user.phone}`}
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </a>
+                          </>
+                        )}
+                        <button
+                          onClick={() => removePlayerFromAcademy(p.userId)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-warm-400 hover:text-red-500 transition-colors"
+                          title="Remove from academy"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -889,6 +1189,76 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
             <Trash2 className="w-4 h-4 mr-2" />
             Delete Academy
           </Button>
+
+          {/* Player Quick-Profile Modal — shows when coach taps a player row.
+              Lets coach call / WhatsApp directly without leaving the dashboard. */}
+          <AnimatePresence>
+            {playerProfileView && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4"
+                onClick={() => setPlayerProfileView(null)}
+              >
+                <motion.div
+                  initial={{ y: 50, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 50, opacity: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white dark:bg-warm-900 rounded-2xl p-5 w-full max-w-sm space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-bold text-warm-800 dark:text-warm-100">Player Details</h3>
+                    <button onClick={() => setPlayerProfileView(null)} className="p-1 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800">
+                      <X className="w-4 h-4 text-warm-500" />
+                    </button>
+                  </div>
+                  <div className="flex flex-col items-center text-center py-2">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-green to-brand-green-dark flex items-center justify-center text-white font-bold text-2xl overflow-hidden mb-3">
+                      {playerProfileView.user.avatar ? (
+                        <img src={playerProfileView.user.avatar} alt={playerProfileView.user.name || 'Player'} className="w-full h-full object-cover" />
+                      ) : (
+                        (playerProfileView.user.name || '?')[0]?.toUpperCase()
+                      )}
+                    </div>
+                    <p className="text-lg font-bold text-warm-800 dark:text-warm-100">{playerProfileView.user.name || 'Unknown Player'}</p>
+                    {playerProfileView.user.phone && (
+                      <p className="text-sm text-warm-500 dark:text-warm-400 mt-0.5">{playerProfileView.user.phone}</p>
+                    )}
+                    <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1">
+                      Joined {new Date(playerProfileView.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                  {/* Action buttons */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {playerProfileView.user.phone ? (
+                      <>
+                        <a
+                          href={`tel:${playerProfileView.user.phone}`}
+                          className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors"
+                        >
+                          <Phone className="w-4 h-4" />
+                          Call
+                        </a>
+                        <a
+                          href={`https://wa.me/${playerProfileView.user.phone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold text-sm transition-colors"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          WhatsApp
+                        </a>
+                      </>
+                    ) : (
+                      <p className="col-span-2 text-center text-xs text-warm-400 py-3">No phone number on file</p>
+                    )}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       );
     }
@@ -1305,6 +1675,108 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ─── Player Fee Status List (with days-left + red dot for expired) ───
+            This is the new "at-a-glance" view the user requested. It lists EVERY
+            player in the academy (not just those with a fee record this month),
+            shows how many days are left in their paid period, and shows a red dot
+            next to expired players so the coach can identify them instantly. */}
+        <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-bold text-warm-700 dark:text-warm-300 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-brand-green" />
+                All Players — Fee Status
+              </h3>
+              <span className="text-[9px] text-warm-500">
+                {playerFeeStatuses.filter(p => p.isExpired).length} expired · {playerFeeStatuses.filter(p => !p.isExpired && p.feeRecord).length} active
+              </span>
+            </div>
+            {playerFeeStatuses.length === 0 ? (
+              <div className="text-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-warm-400 mx-auto mb-2" />
+                <p className="text-xs text-warm-500">Loading fee statuses…</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-96 overflow-y-auto custom-scrollbar">
+                {/* Sort: expired first (red), then by days-left ascending, then never-paid */}
+                {[...playerFeeStatuses]
+                  .sort((a, b) => {
+                    // Expired players first, then active by days-left, then never-paid
+                    if (a.isExpired && !b.isExpired) return -1;
+                    if (!a.isExpired && b.isExpired) return 1;
+                    if (a.daysLeft === null && b.daysLeft !== null) return 1;
+                    if (a.daysLeft !== null && b.daysLeft === null) return -1;
+                    if (a.daysLeft !== null && b.daysLeft !== null) return a.daysLeft - b.daysLeft;
+                    return (a.name || '').localeCompare(b.name || '');
+                  })
+                  .map((p) => {
+                    const expired = p.isExpired;
+                    const neverPaid = !p.feeRecord;
+                    const daysLeft = p.daysLeft;
+                    return (
+                      <div
+                        key={p.userId}
+                        className={`flex items-center justify-between p-2.5 rounded-lg transition-colors ${
+                          expired
+                            ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40'
+                            : neverPaid
+                            ? 'bg-warm-50 dark:bg-warm-800/30'
+                            : 'bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {/* Red dot for expired, amber for never-paid, green for active */}
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                            expired ? 'bg-red-500 animate-pulse' : neverPaid ? 'bg-warm-400' : 'bg-emerald-500'
+                          }`} />
+                          <div className={`w-7 h-7 rounded-full overflow-hidden flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                            expired
+                              ? 'bg-red-100 dark:bg-red-900/40 text-red-600'
+                              : 'bg-brand-green/20 text-brand-green'
+                          }`}>
+                            {p.avatar ? (
+                              <img src={p.avatar} alt={p.name || 'Player'} className="w-full h-full object-cover" />
+                            ) : (
+                              (p.name || '?')[0]?.toUpperCase()
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className={`text-sm font-medium truncate ${expired ? 'text-red-700 dark:text-red-300' : 'text-warm-800 dark:text-warm-200'}`}>
+                              {p.name || 'Unknown'}
+                            </p>
+                            <p className="text-[10px] text-warm-500 truncate">
+                              {p.phone || 'No phone'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end shrink-0">
+                          {neverPaid ? (
+                            <span className="text-[10px] font-semibold text-warm-500">Never paid</span>
+                          ) : expired ? (
+                            <span className="text-[10px] font-bold text-red-600 dark:text-red-400">
+                              {daysLeft !== null && daysLeft < 0 ? `${Math.abs(daysLeft)}d expired` : 'Expired'}
+                            </span>
+                          ) : daysLeft !== null ? (
+                            <span className={`text-[10px] font-bold ${daysLeft <= 7 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                              {daysLeft}d left
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-warm-500">—</span>
+                          )}
+                          {p.feeRecord && (
+                            <span className="text-[9px] text-warm-400 capitalize">
+                              {p.feeRecord.period} · ₹{p.feeRecord.amount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Fee Records List */}
         {loading && feeRecords.length === 0 ? (

@@ -32,17 +32,39 @@ async function autoMigrate() {
     // showCoachBadge — added when the coach role was deprecated and replaced
     // with an opt-in cosmetic badge. Default false (no badge).
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "showCoachBadge" BOOLEAN NOT NULL DEFAULT false`,
+    // Academy.offDays — JSON array of weekday names that are holidays.
+    `ALTER TABLE "academies" ADD COLUMN IF NOT EXISTS "offDays" TEXT NOT NULL DEFAULT '[]'`,
+    // Attendance.session + note — supports morning/evening sessions per day.
+    `ALTER TABLE "attendances" ADD COLUMN IF NOT EXISTS "session" TEXT NOT NULL DEFAULT 'default'`,
+    `ALTER TABLE "attendances" ADD COLUMN IF NOT EXISTS "note" TEXT`,
+    // FeeRecord.expiryDate + period — for "days left" calculation in coach dashboard.
+    `ALTER TABLE "fee_records" ADD COLUMN IF NOT EXISTS "expiryDate" TIMESTAMP`,
+    `ALTER TABLE "fee_records" ADD COLUMN IF NOT EXISTS "period" TEXT NOT NULL DEFAULT 'monthly'`,
   ];
 
-  for (const sql of statements) {
+  // The Attendance table's unique constraint changed from
+  // (academyId, userId, date) → (academyId, userId, date, session).
+  // We need to drop the old constraint and add the new one. This is safe
+  // because the new column defaults to 'default', so existing rows get a
+  // unique value per (academyId, userId, date) tuple.
+  const constraintStatements = [
+    // Drop old constraint if it exists (PostgreSQL IF EXISTS)
+    `ALTER TABLE "attendances" DROP CONSTRAINT IF EXISTS "attendances_academyId_userId_date_key"`,
+    // Add new composite constraint
+    `ALTER TABLE "attendances" DROP CONSTRAINT IF EXISTS "attendances_academyId_userId_date_session_key"`,
+    `ALTER TABLE "attendances" ADD CONSTRAINT "attendances_academyId_userId_date_session_key" UNIQUE ("academyId", "userId", "date", "session")`,
+  ];
+
+  for (const sql of [...statements, ...constraintStatements]) {
     try {
       await db.$executeRawUnsafe(sql);
-      logger.info({ sql: sql.slice(0, 80) }, 'auto-migrate: applied');
+      logger.info({ sql: sql.slice(0, 100) }, 'auto-migrate: applied');
     } catch (err) {
-      // Log but don't crash — the column might already exist, or the DB user
-      // might not have ALTER permission (in which case the deploy must run
-      // `prisma db push` manually).
-      logger.warn({ err, sql: sql.slice(0, 80) }, 'auto-migrate: skipped (already exists or no permission)');
+      // Log but don't crash — the column might already exist, the constraint
+      // might already be in the desired state, or the DB user might lack
+      // ALTER permission (in which case the deploy must run `prisma db push`
+      // manually).
+      logger.warn({ err: String(err).slice(0, 200), sql: sql.slice(0, 100) }, 'auto-migrate: skipped');
     }
   }
 }
