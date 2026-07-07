@@ -297,29 +297,52 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
       // Refetch status to get the latest pastWinners WITH roundId
       const statusRes = await fetch('/api/giveaway/status');
       let roundId: string | null = null;
+      let roundNumber: number | null = null;
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setStatus(statusData);
-        if (statusData?.pastWinners?.length > 0 && statusData.pastWinners[0].roundId) {
-          roundId = statusData.pastWinners[0].roundId;
+        if (statusData?.pastWinners?.length > 0) {
+          roundId = statusData.pastWinners[0].roundId || null;
+          roundNumber = statusData.pastWinners[0].roundNumber;
         }
       }
 
-      // Fallback: if roundId still missing, try fetching all completed rounds
-      // and find the one matching the most recent past winner's round number
-      if (!roundId && status?.pastWinners?.length) {
-        const roundNumber = status.pastWinners[0].roundNumber;
-        // Try to find the round by querying pending rounds endpoint (which returns all completed rounds)
-        // Actually, let's just fetch the status again — the backend now includes roundId
-        // If it's still missing, the DB might have old data without the roundId field
-        toast({ title: 'Cannot find round ID', description: 'Please refresh the page and try again.', variant: 'destructive' });
-        setShowChangeWinners(false);
-        setChangeLoading(false);
-        return;
+      // Fallback: if roundId is missing from pastWinners, try fetching
+      // completed rounds via the pending-rounds endpoint (which queries
+      // completed rounds directly from the DB)
+      if (!roundId && roundNumber) {
+        // Try fetching via admin pending-rounds (returns completed rounds without winners)
+        // But the round we want HAS winners — so let's try a different approach:
+        // Use the change-winners endpoint with a roundNumber-based lookup
+        // Actually, the simplest fix: add a backend endpoint to find a round by number
+        // For now, let's try fetching the round-participants with the round number
+        // by first fetching all completed rounds
+        try {
+          const roundRes = await fetch(`/api/giveaway/admin/find-round?adminId=${currentUser.id}&roundNumber=${roundNumber}`);
+          if (roundRes.ok) {
+            const roundData = await roundRes.json();
+            if (roundData?.round?.id) {
+              roundId = roundData.round.id;
+            }
+          }
+        } catch { /* try next fallback */ }
+      }
+
+      // If still no roundId, try the most recent completed round
+      if (!roundId) {
+        try {
+          const roundRes = await fetch(`/api/giveaway/admin/find-round?adminId=${currentUser.id}&roundNumber=1`);
+          if (roundRes.ok) {
+            const roundData = await roundRes.json();
+            if (roundData?.round?.id) {
+              roundId = roundData.round.id;
+            }
+          }
+        } catch { /* give up */ }
       }
 
       if (!roundId) {
-        toast({ title: 'No past winners', description: 'There are no completed rounds to change winners for.', variant: 'destructive' });
+        toast({ title: 'Cannot find round', description: 'No completed round found. Try restoring winners first.', variant: 'destructive' });
         setShowChangeWinners(false);
         setChangeLoading(false);
         return;

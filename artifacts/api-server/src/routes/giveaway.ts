@@ -747,6 +747,34 @@ router.post('/giveaway/admin/reset', async (req, res) => {
 });
 
 /**
+ * GET /api/giveaway/admin/find-round?adminId=...&roundNumber=...
+ * ADMIN ONLY — finds a completed round by round number, returns its ID.
+ * Used by Change Winners to find the round ID when it's missing from pastWinners.
+ */
+router.get('/giveaway/admin/find-round', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || '';
+    const roundNumber = parseInt((req.query['roundNumber'] as string) || '0');
+    if (!adminId || !roundNumber) return res.status(400).json({ error: 'adminId and roundNumber are required' });
+
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const round = await db.giveawayRound.findFirst({
+      where: { roundNumber },
+      select: { id: true, roundNumber: true, status: true, winnersJson: true, endDate: true },
+    });
+
+    if (!round) return res.status(404).json({ error: `Round ${roundNumber} not found` });
+
+    return res.json({ round });
+  } catch (error) {
+    console.error('Giveaway find round error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/giveaway/admin/restore-round
  * ADMIN ONLY — Recreates a completed round with specific winners.
  * Used to restore rounds that were accidentally deleted by the old reset.
