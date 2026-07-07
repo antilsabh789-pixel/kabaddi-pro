@@ -527,19 +527,69 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     setLoading(true);
     try {
       const d = date || attendanceDate;
-      // Backend route is /api/coach/attendance (not /api/academies/:id/attendance).
-      // Both return { attendance: [...] }.
-      const res = await fetch(`/api/coach/attendance?academyId=${academyId}&date=${d}`);
-      const data = await res.json();
-      if (data.attendance) {
-        setAttendanceRecords(data.attendance);
+
+      // ─── CRITICAL FIX ───────────────────────────────────────────────
+      // The backend GET /api/coach/attendance returns ONLY players who
+      // already have an attendance row for that date. Newly-added players
+      // have ZERO attendance rows → they never appeared in the list → the
+      // coach couldn't mark them present.
+      //
+      // Fix: fetch the academy's FULL player roster in parallel, then MERGE
+      // the attendance records onto the roster. Players with no attendance
+      // record for the date are shown with isPresent:false (default state,
+      // ready for the coach to toggle).
+      const [attendanceRes, academyRes] = await Promise.all([
+        fetch(`/api/coach/attendance?academyId=${academyId}&date=${d}`),
+        fetch(`/api/academies/${academyId}`),
+      ]);
+
+      const attendanceData = await attendanceRes.json();
+      const academyData = await academyRes.json();
+
+      // Build a map of userId → attendance record for the selected date
+      const attendanceMap = new Map<string, { isPresent: boolean; session?: string; note?: string | null }>();
+      if (Array.isArray(attendanceData.attendance)) {
+        for (const rec of attendanceData.attendance) {
+          attendanceMap.set(rec.userId || rec.user?.id, {
+            isPresent: rec.isPresent,
+            session: rec.session,
+            note: rec.note,
+          });
+        }
+      }
+
+      // Build the merged attendance list from the FULL player roster.
+      // Each player gets an entry; if they have an attendance record for
+      // this date, use its isPresent value; otherwise default to false.
+      const roster: AttendanceRecord[] = [];
+      const players = academyData.academy?.players || academyDetail?.players || [];
+      for (const p of players) {
+        const userId = p.userId || p.user?.id;
+        if (!userId) continue;
+        const existing = attendanceMap.get(userId);
+        roster.push({
+          userId,
+          name: p.user?.name || null,
+          phone: p.user?.phone || null,
+          avatar: p.user?.avatar || null,
+          isPresent: existing ? existing.isPresent : false,
+          session: existing?.session || 'default',
+          note: existing?.note || null,
+        });
+      }
+
+      setAttendanceRecords(roster);
+
+      // Also refresh academyDetail if we got fresh data (so player list stays in sync)
+      if (academyData.academy) {
+        setAcademyDetail(academyData.academy);
       }
     } catch (err) {
       console.error('Fetch attendance error:', err);
     } finally {
       setLoading(false);
     }
-  }, [attendanceDate]);
+  }, [attendanceDate, academyDetail]);
 
   // Fetch a single player's attendance history (last N days) for the PnL-style
   // chart in the per-player attendance modal. Calls GET /api/coach/attendance/player.
