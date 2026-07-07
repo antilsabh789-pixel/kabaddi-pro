@@ -28,16 +28,28 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 }
 
 async function generatePlayerCode(): Promise<string> {
-  const lastUser = await db.user.findFirst({
-    where: { playerCode: { not: null } },
-    orderBy: { playerCode: 'desc' },
+  // Find the highest KP number currently in the DB
+  const users = await db.user.findMany({
+    where: { playerCode: { startsWith: 'KP' } },
     select: { playerCode: true },
   });
-  let nextNum = 1001;
-  if (lastUser?.playerCode) {
-    const match = lastUser.playerCode.match(/KP(\d+)/);
-    if (match) nextNum = parseInt(match[1]) + 1;
+
+  let maxNum = 1000;
+  for (const u of users) {
+    const match = u.playerCode?.match(/^KP(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > maxNum) maxNum = num;
+    }
   }
+
+  // Find the next available number (in case of gaps from deleted users)
+  let nextNum = maxNum + 1;
+  const existingCodes = new Set(users.map(u => u.playerCode));
+  while (existingCodes.has(`KP${nextNum}`)) {
+    nextNum++;
+  }
+
   return `KP${nextNum}`;
 }
 

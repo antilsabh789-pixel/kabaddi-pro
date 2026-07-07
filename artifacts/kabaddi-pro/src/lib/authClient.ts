@@ -78,7 +78,7 @@ function genId(): string {
 }
 
 function genPlayerCode(): string {
-  return `KP${Math.floor(100000 + Math.random() * 900000)}`;
+  return `KP${Math.floor(1001 + Math.random() * 8999)}`;
 }
 
 function publicUser(u: StoredUser): AuthUser {
@@ -353,8 +353,20 @@ export async function authRequest(payload: any): Promise<AuthResponse> {
       data: { error: `Unexpected server response (${res.status}). Please try again.` },
     };
   } catch (networkErr) {
-    // Backend unreachable (fetch threw) → fall back to mock
+    // Backend unreachable (fetch threw). For REGISTRATION, do NOT fall back
+    // to mock — it creates a fake user in localStorage that can't interact
+    // with the real backend (giveaway, matches, etc.). Show a clear error
+    // instead so the user knows to retry.
     void networkErr;
+    const action = payload?.action;
+    if (action === 'register') {
+      return {
+        ok: false,
+        status: 503,
+        data: { error: 'Cannot reach server. Please check your internet connection and try again.' },
+      };
+    }
+    // For other actions (login, check-phone), mock is less harmful
     return runMock(payload);
   }
 }
