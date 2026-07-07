@@ -746,4 +746,87 @@ router.post('/giveaway/admin/reset', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/giveaway/admin/restore-round
+ * ADMIN ONLY — Recreates a completed round with specific winners.
+ * Used to restore rounds that were accidentally deleted by the old reset.
+ *
+ * Body: { adminId, roundNumber, winnerPlayerCodes: string[], endDate? }
+ *   - roundNumber: e.g. 1 for Round 1
+ *   - winnerPlayerCodes: array of player codes like ['KP1015', 'KP1025', 'KP1017']
+ *   - endDate: optional ISO date string (defaults to 15 days ago)
+ */
+router.post('/giveaway/admin/restore-round', async (req, res) => {
+  try {
+    const { adminId, roundNumber, winnerPlayerCodes, endDate } = req.body;
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!roundNumber || !winnerPlayerCodes || !Array.isArray(winnerPlayerCodes) || winnerPlayerCodes.length === 0) {
+      return res.status(400).json({ error: 'roundNumber and winnerPlayerCodes array are required' });
+    }
+
+    // Check if a round with this number already exists
+    const existing = await db.giveawayRound.findFirst({ where: { roundNumber: parseInt(roundNumber) } });
+    if (existing) {
+      return res.status(409).json({ error: `Round ${roundNumber} already exists. Use Change Winners instead.` });
+    }
+
+    // Look up user IDs for the player codes
+    const users = await db.user.findMany({
+      where: { playerCode: { in: winnerPlayerCodes.map((c: string) => c.toUpperCase().trim()) } },
+      select: { id: true, playerCode: true, name: true },
+    });
+
+    if (users.length !== winnerPlayerCodes.length) {
+      const found = users.map(u => u.playerCode);
+      const missing = winnerPlayerCodes.filter((c: string) => !found.includes(c.toUpperCase().trim()));
+      return res.status(400).json({ error: `Could not find users with codes: ${missing.join(', ')}` });
+    }
+
+    // Preserve the order of winnerPlayerCodes
+    const winnerIds = winnerPlayerCodes.map((code: string) => {
+      const user = users.find(u => u.playerCode === code.toUpperCase().trim());
+      return user?.id;
+    }).filter(Boolean);
+
+    const winnersJson = JSON.stringify(winnerIds);
+
+    // Create the completed round with winners
+    const now = new Date();
+    const roundEndDate = endDate ? new Date(endDate) : new Date(now.getTime() - ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const roundStartDate = new Date(roundEndDate.getTime() - ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
+
+    const round = await db.giveawayRound.create({
+      data: {
+        roundNumber: parseInt(roundNumber),
+        startDate: roundStartDate,
+        endDate: roundEndDate,
+        status: 'completed',
+        winnersJson,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: `Round ${roundNumber} restored with ${winnerIds.length} winners.`,
+      round: {
+        id: round.id,
+        roundNumber: round.roundNumber,
+        winners: users.map((u, i) => ({
+          rank: i + 1,
+          prize: PRIZES[i]?.name || 'Prize',
+          playerCode: u.playerCode,
+          name: u.name,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Giveaway restore round error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

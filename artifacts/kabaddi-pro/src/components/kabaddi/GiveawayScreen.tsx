@@ -993,7 +993,52 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   variant="outline"
                   className="w-full border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold text-xs"
                 >
-                  🔄 Reset Giveaway (Start Fresh)
+                  🔄 Reset Giveaway (Start Fresh Round)
+                </Button>
+
+                {/* Restore Past Round */}
+                <Button
+                  onClick={async () => {
+                    const codes = prompt(
+                      'Restore a past round with winners.\n\n' +
+                      'Enter: round number, then winner player codes separated by commas.\n' +
+                      'Example: 1, KP1015, KP1025, KP1017\n\n' +
+                      'First code = 1st prize, second = 2nd, third = 3rd.'
+                    );
+                    if (!codes) return;
+                    const parts = codes.split(',').map(s => s.trim());
+                    const roundNum = parts[0];
+                    const winnerCodes = parts.slice(1);
+                    if (!roundNum || winnerCodes.length === 0) {
+                      toast({ title: 'Invalid input', description: 'Enter round number followed by player codes.', variant: 'destructive' });
+                      return;
+                    }
+                    try {
+                      const res = await fetch('/api/giveaway/admin/restore-round', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          adminId: currentUser?.id,
+                          roundNumber: roundNum,
+                          winnerPlayerCodes: winnerCodes,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        toast({ title: '✅ Round Restored!', description: data.message });
+                        fetchStatus();
+                        setShowAdminPanel(false);
+                      } else {
+                        toast({ title: 'Restore failed', description: data.error, variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Restore failed', variant: 'destructive' });
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl font-bold text-xs"
+                >
+                  📋 Restore Past Round Winners
                 </Button>
               </div>
               <div className="overflow-y-auto flex-1">
