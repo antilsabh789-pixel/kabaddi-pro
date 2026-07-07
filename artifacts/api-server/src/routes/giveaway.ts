@@ -370,6 +370,46 @@ router.get('/giveaway/admin/participants', async (req, res) => {
 });
 
 /**
+ * GET /api/giveaway/admin/pending-rounds?adminId=...
+ * ADMIN ONLY — returns all completed rounds that have NO winners selected yet.
+ * Used to let the admin select winners for past rounds that were auto-completed.
+ */
+router.get('/giveaway/admin/pending-rounds', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || '';
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Find all rounds that are completed but have no winners (winnersJson is null)
+    const pendingRounds = await db.giveawayRound.findMany({
+      where: {
+        status: 'completed',
+        winnersJson: null,
+      },
+      orderBy: { roundNumber: 'desc' },
+      include: {
+        _count: { select: { participants: true } },
+      },
+    });
+
+    return res.json({
+      rounds: pendingRounds.map(r => ({
+        id: r.id,
+        roundNumber: r.roundNumber,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        participantCount: r._count.participants,
+      })),
+    });
+  } catch (error) {
+    console.error('Giveaway pending rounds error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/giveaway/admin/select-winners
  * ADMIN ONLY — Randomly selects 3 winners from the current round.
  *
@@ -380,13 +420,31 @@ router.get('/giveaway/admin/participants', async (req, res) => {
  */
 router.post('/giveaway/admin/select-winners', async (req, res) => {
   try {
-    const { adminId } = req.body;
+    const { adminId, roundId } = req.body;
     const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
     if (!admin || !admin.isAdmin) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const round = await getOrCreateActiveRound();
+    // If roundId is provided, select winners for that specific round (covers
+    // past completed rounds that were auto-completed without winners).
+    // Otherwise, use the current active round.
+    let round;
+    let createNextRound = false;
+
+    if (roundId) {
+      round = await db.giveawayRound.findUnique({ where: { id: roundId } });
+      if (!round) return res.status(404).json({ error: 'Round not found' });
+      if (round.winnersJson) return res.status(400).json({ error: 'Winners already selected for this round' });
+      // Don't create a next round if we're selecting winners for a past round
+      // (the current active round already exists)
+      createNextRound = false;
+    } else {
+      round = await getOrCreateActiveRound();
+      // Only create next round if this is the active round (not a past one)
+      createNextRound = true;
+    }
+
     // Fetch ALL participants — no premium-status filter. Once a user is in, they're in.
     const participants = await db.giveawayParticipant.findMany({
       where: { giveawayRoundId: round.id },
@@ -398,8 +456,6 @@ router.post('/giveaway/admin/select-winners', async (req, res) => {
     }
 
     // Fisher-Yates shuffle — produces a uniform unbiased permutation.
-    // The old `sort(() => Math.random() - 0.5)` anti-pattern is biased and
-    // unfair for a real-prize draw.
     const shuffled = [...participants];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -415,13 +471,15 @@ router.post('/giveaway/admin/select-winners', async (req, res) => {
       data: { status: 'completed', winnersJson },
     });
 
-    // Create next round
-    const nextNumber = round.roundNumber + 1;
-    const now = new Date();
-    const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
-    await db.giveawayRound.create({
-      data: { roundNumber: nextNumber, startDate: now, endDate, status: 'active' },
-    });
+    // Only create next round if this was the active round
+    if (createNextRound) {
+      const nextNumber = round.roundNumber + 1;
+      const now = new Date();
+      const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
+      await db.giveawayRound.create({
+        data: { roundNumber: nextNumber, startDate: now, endDate, status: 'active' },
+      });
+    }
 
     return res.json({
       success: true,

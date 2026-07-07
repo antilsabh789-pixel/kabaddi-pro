@@ -61,6 +61,10 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminParticipants, setAdminParticipants] = useState<any[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [pendingRounds, setPendingRounds] = useState<Array<{
+    id: string; roundNumber: number; endDate: string; participantCount: number;
+  }>>([]);
+  const [selectingRoundId, setSelectedRoundId] = useState<string | null>(null);
   const [selectingWinners, setSelectingWinners] = useState(false);
 
   useBackButton(true, onClose);
@@ -149,6 +153,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
     setShowAdminPanel(true);
     setAdminLoading(true);
     try {
+      // Fetch current round participants
       const res = await fetch(`/api/giveaway/admin/participants?adminId=${currentUser.id}`);
       const data = await res.json();
       if (res.ok) {
@@ -157,27 +162,44 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
         toast({ title: 'Access Denied', description: data.error, variant: 'destructive' });
         setShowAdminPanel(false);
       }
+
+      // Also fetch pending rounds (completed rounds without winners)
+      const pendingRes = await fetch(`/api/giveaway/admin/pending-rounds?adminId=${currentUser.id}`);
+      if (pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        setPendingRounds(pendingData.rounds || []);
+      }
     } catch {
-      toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to load admin data', variant: 'destructive' });
     } finally {
       setAdminLoading(false);
     }
   };
 
-  const handleSelectWinners = async () => {
+  const handleSelectWinners = async (roundId?: string) => {
     if (!currentUser?.id) return;
-    if (!confirm('Select 3 random winners now? This will end the current round and start a new one.')) return;
+    if (!confirm(roundId
+      ? 'Select 3 random winners for this past round? Winners will be shown in the Past Winners section.'
+      : 'Select 3 random winners now? This will end the current round and start a new one.'
+    )) return;
+
+    const loadingId = roundId || 'current';
+    setSelectedRoundId(loadingId);
     setSelectingWinners(true);
     try {
       const res = await fetch('/api/giveaway/admin/select-winners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminId: currentUser.id }),
+        body: JSON.stringify({ adminId: currentUser.id, roundId: roundId || undefined }),
       });
       const data = await res.json();
       if (res.ok) {
-        toast({ title: '🎉 Winners Selected!', description: 'Check the admin panel for contact details' });
+        toast({ title: '🎉 Winners Selected!', description: 'Winners are now shown in the Past Winners section.' });
         fetchStatus();
+        // Refresh pending rounds
+        if (roundId) {
+          setPendingRounds(prev => prev.filter(r => r.id !== roundId));
+        }
         setShowAdminPanel(false);
       } else {
         toast({ title: 'Error', description: data.error, variant: 'destructive' });
@@ -186,6 +208,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
       toast({ title: 'Error', description: 'Failed to select winners', variant: 'destructive' });
     } finally {
       setSelectingWinners(false);
+      setSelectedRoundId(null);
     }
   };
 
@@ -572,12 +595,44 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                 </button>
               </div>
               <div className="p-3 border-b border-warm-200 dark:border-warm-700 space-y-2">
+                {/* Pending rounds (past completed rounds without winners) */}
+                {pendingRounds.length > 0 && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-2">
+                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                      <Trophy className="w-3.5 h-3.5" />
+                      Past Rounds Without Winners
+                    </p>
+                    {pendingRounds.map(r => (
+                      <div key={r.id} className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-warm-700 dark:text-warm-200">Round {r.roundNumber}</p>
+                          <p className="text-[10px] text-warm-400">
+                            {r.participantCount} participants · Ended {new Date(r.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleSelectWinners(r.id)}
+                          disabled={selectingWinners && selectingRoundId === r.id}
+                          className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:opacity-50 shrink-0 flex items-center gap-1"
+                        >
+                          {selectingWinners && selectingRoundId === r.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Trophy className="w-3 h-3" />
+                          )}
+                          Select
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <Button
-                  onClick={handleSelectWinners}
+                  onClick={() => handleSelectWinners()}
                   disabled={selectingWinners || adminParticipants.length < 3}
                   className="w-full bg-gradient-to-r from-brand-red to-brand-red-dark text-white rounded-xl font-bold"
                 >
-                  {selectingWinners ? <Loader2 className="w-4 h-4 animate-spin" /> : '🎲 Select 3 Random Winners'}
+                  {selectingWinners && !selectingRoundId ? <Loader2 className="w-4 h-4 animate-spin" /> : '🎲 Select 3 Random Winners (Current Round)'}
                 </Button>
                 {adminParticipants.length < 3 && (
                   <p className="text-[10px] text-amber-500 text-center">Need at least 3 participants to select winners</p>
