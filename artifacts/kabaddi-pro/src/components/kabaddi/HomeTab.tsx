@@ -657,6 +657,9 @@ export default function HomeTab() {
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
   const [showGiveaway, setShowGiveaway] = useState(false);
+  const [giveawayWinners, setGiveawayWinners] = useState<Array<{
+    roundNumber: number; rank: number; playerId: string; prize: string;
+  }>>([]);
 
   // Recent Matches state (practice + tournament combined)
   const [recentPracticeMatches, setRecentPracticeMatches] = useState<Array<{
@@ -696,6 +699,17 @@ export default function HomeTab() {
       .finally(() => setPracticeMatchesLoading(false));
   }, [currentUser?.id]);
 
+  // ─── Fetch giveaway winners for highlight ─────────────────────
+  useEffect(() => {
+    fetch('/api/giveaway/status')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.pastWinners?.length > 0) {
+          setGiveawayWinners(data.pastWinners.slice(0, 3)); // Show latest 3 winners
+        }
+      })
+      .catch(() => {});
+  }, []);
   // ─── Android Back Button Support ──────────────────────────────────
   // Each overlay pushes a browser history entry so the Android back button
   // closes the overlay instead of exiting the app.
@@ -2769,6 +2783,38 @@ export default function HomeTab() {
             </div>
           </div>
         </motion.button>
+
+        {/* Giveaway Winners Highlight */}
+        {giveawayWinners.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-2 bg-white dark:bg-warm-800 rounded-xl p-3 border border-amber-200 dark:border-amber-800/50"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Trophy className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                Recent Winners
+              </span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+              {giveawayWinners.map((w, i) => (
+                <div
+                  key={`${w.roundNumber}-${w.rank}`}
+                  className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-2.5 py-1.5 shrink-0"
+                >
+                  <span className={`text-[10px] font-black ${w.rank === 1 ? 'text-amber-500' : w.rank === 2 ? 'text-gray-400' : 'text-orange-600'}`}>
+                    {w.rank === 1 ? '🥇' : w.rank === 2 ? '🥈' : '🥉'}
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-warm-800 dark:text-warm-100 font-mono">{w.playerId}</span>
+                    <span className="text-[8px] text-warm-400">R{w.roundNumber} · {w.prize}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
       </section>
 
       {/* ─── Popular Players ─── */}
