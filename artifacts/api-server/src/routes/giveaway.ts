@@ -770,8 +770,11 @@ router.post('/giveaway/admin/restore-round', async (req, res) => {
 
     // Check if a round with this number already exists
     const existing = await db.giveawayRound.findFirst({ where: { roundNumber: parseInt(roundNumber) } });
-    if (existing) {
-      return res.status(409).json({ error: `Round ${roundNumber} already exists. Use Change Winners instead.` });
+    // If the round exists but has NO winners (winnersJson is null), we can
+    // restore winners onto it. If it already HAS winners, block to prevent
+    // accidental overwrite (use Change Winners for that).
+    if (existing && existing.winnersJson) {
+      return res.status(409).json({ error: `Round ${roundNumber} already has winners. Use Change Winners instead.` });
     }
 
     // Look up user IDs for the player codes
@@ -794,7 +797,29 @@ router.post('/giveaway/admin/restore-round', async (req, res) => {
 
     const winnersJson = JSON.stringify(winnerIds);
 
-    // Create the completed round with winners
+    // If the round exists (without winners), update it with winners + mark completed
+    if (existing) {
+      await db.giveawayRound.update({
+        where: { id: existing.id },
+        data: { status: 'completed', winnersJson },
+      });
+      return res.json({
+        success: true,
+        message: `Round ${roundNumber} winners restored.`,
+        round: {
+          id: existing.id,
+          roundNumber: existing.roundNumber,
+          winners: users.map((u, i) => ({
+            rank: i + 1,
+            prize: PRIZES[i]?.name || 'Prize',
+            playerCode: u.playerCode,
+            name: u.name,
+          })),
+        },
+      });
+    }
+
+    // Round doesn't exist — create a new completed round with winners
     const now = new Date();
     const roundEndDate = endDate ? new Date(endDate) : new Date(now.getTime() - ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
     const roundStartDate = new Date(roundEndDate.getTime() - ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
