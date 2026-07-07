@@ -543,14 +543,10 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       const academyData = await academyRes.json();
 
       // Determine if this academy runs both-time (morning + evening) sessions.
-      // We read it from the fresh academy data so the session tabs reflect any
-      // recent edits the coach made via the Edit Academy sheet.
-      const schedule = academyData.academy?.practiceSchedule || academyDetail?.practiceSchedule || 'one-time';
+      const schedule = academyData.academy?.practiceSchedule || 'one-time';
       const isBothTime = schedule === 'both-time';
 
       // Build a map of userId → { morning, evening, default } attendance state.
-      // The backend returns one Attendance row per (userId, date, session).
-      // For both-time academies there can be 2 rows per user (morning + evening).
       const attendanceMap = new Map<string, { morning: boolean; evening: boolean; defaultPresent: boolean }>();
       if (Array.isArray(attendanceData.attendance)) {
         for (const rec of attendanceData.attendance) {
@@ -567,11 +563,9 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
         }
       }
 
-      // Build the merged roster. For one-time academies only `present` is used.
-      // For both-time academies `morning` and `evening` are used (present is
-      // derived = morning || evening for the summary count).
+      // Build the merged roster.
       const roster: AttendanceRecord[] = [];
-      const players = academyData.academy?.players || academyDetail?.players || [];
+      const players = academyData.academy?.players || [];
       for (const p of players) {
         const userId = p.userId || p.user?.id;
         if (!userId) continue;
@@ -582,7 +576,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
             name: p.user?.name || null,
             phone: p.user?.phone || null,
             avatar: p.user?.avatar || null,
-            present: (existing?.morning || existing?.evening) || false,
+            present: !!(existing?.morning || existing?.evening),
             morning: existing?.morning || false,
             evening: existing?.evening || false,
           });
@@ -599,16 +593,31 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
 
       setAttendanceRecords(roster);
 
-      // Refresh academyDetail so the session-mode reflects any recent edits.
-      if (academyData.academy) {
-        setAcademyDetail(academyData.academy);
+      // ⚠️ DO NOT call setAcademyDetail unconditionally here — it would change
+      // the academyDetail reference, which changes the fetchAttendance useCallback
+      // reference, which retriggers the useEffect that calls fetchAttendance,
+      // causing an infinite loop that resets all local toggles every render.
+      // We only update academyDetail if the practiceSchedule actually changed
+      // (e.g. coach edited it in another tab). This is a rare event, so the
+      // loop doesn't sustain.
+      // We use a functional state update + ref to read the CURRENT value
+      // without depending on academyDetail in the dep array.
+      const newSchedule = academyData.academy?.practiceSchedule;
+      if (newSchedule) {
+        setAcademyDetail((prev) => {
+          if (prev && prev.practiceSchedule !== newSchedule) {
+            return { ...prev, practiceSchedule: newSchedule, offDays: academyData.academy.offDays, sundayHoliday: academyData.academy.sundayHoliday };
+          }
+          return prev;
+        });
       }
     } catch (err) {
       console.error('Fetch attendance error:', err);
     } finally {
       setLoading(false);
     }
-  }, [attendanceDate, academyDetail]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attendanceDate]);
 
   // Fetch a single player's attendance history (last N days) for the PnL-style
   // chart in the per-player attendance modal. Calls GET /api/coach/attendance/player.
@@ -632,18 +641,20 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
 
   const saveAttendance = async () => {
     if (!selectedAcademyId) return;
+    if (attendanceRecords.length === 0) {
+      toast({ title: 'No players to save attendance for', variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
-      // Backend POST /api/coach/attendance takes a SINGLE record at a time
-      // (academyId, userId, date, isPresent, session). For one-time academies
-      // we send one POST per player with session='default'. For both-time
-      // academies we send TWO POSTs per player (morning + evening).
+      // Read practiceSchedule from academyDetail (functional read to avoid stale closure).
+      // For one-time academies: one POST per player with session='default'.
+      // For both-time academies: TWO POSTs per player (morning + evening).
       const isBothTime = academyDetail?.practiceSchedule === 'both-time';
       const promises: Promise<Response>[] = [];
 
       for (const r of attendanceRecords) {
         if (isBothTime) {
-          // Send morning + evening as separate session records
           promises.push(fetch('/api/coach/attendance', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -651,7 +662,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
               academyId: selectedAcademyId,
               userId: r.userId,
               date: attendanceDate,
-              isPresent: r.morning || false,
+              isPresent: !!r.morning,
               session: 'morning',
             }),
           }));
@@ -662,12 +673,11 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
               academyId: selectedAcademyId,
               userId: r.userId,
               date: attendanceDate,
-              isPresent: r.evening || false,
+              isPresent: !!r.evening,
               session: 'evening',
             }),
           }));
         } else {
-          // One-time academy — single session
           promises.push(fetch('/api/coach/attendance', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -675,16 +685,24 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
               academyId: selectedAcademyId,
               userId: r.userId,
               date: attendanceDate,
-              isPresent: r.present,
+              isPresent: !!r.present,
               session: 'default',
             }),
           }));
         }
       }
 
-      await Promise.all(promises);
-      toast({ title: 'Attendance saved!' });
-    } catch {
+      const responses = await Promise.all(promises);
+      // Check if any response failed
+      const failed = responses.filter(r => !r.ok);
+      if (failed.length > 0) {
+        console.error('Some attendance saves failed:', failed.length, 'of', responses.length);
+        toast({ title: `⚠️ ${failed.length} record(s) failed to save`, variant: 'destructive' });
+      } else {
+        toast({ title: '✅ Attendance saved!' });
+      }
+    } catch (err) {
+      console.error('Save attendance error:', err);
       toast({ title: 'Failed to save attendance', variant: 'destructive' });
     } finally {
       setLoading(false);
