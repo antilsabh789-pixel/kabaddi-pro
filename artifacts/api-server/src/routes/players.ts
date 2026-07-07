@@ -94,7 +94,10 @@ router.get('/players/:id', async (req, res) => {
     });
     if (!user) return res.status(404).json({ error: 'Player not found' });
     const teamNames = user.teams.map((tm) => tm.team.name || tm.team.shortName || '').filter(Boolean);
-    const { teams, password, ...playerData } = user;
+    // SECURITY: Strip dateOfBirth — it's the password-reset verifier, so it
+    // must never be exposed to other users. Also strip password and any
+    // backend-only fields.
+    const { teams, password, dateOfBirth, phoneVerified, premiumPlan, premiumExpiry, isPremium, isAdmin, role, ...playerData } = user;
     const player = { ...playerData, phone: playerData.phone ? `****${playerData.phone.slice(-2)}` : null };
     return res.json({ player, profile: user.profile, teamNames });
   } catch (error) {

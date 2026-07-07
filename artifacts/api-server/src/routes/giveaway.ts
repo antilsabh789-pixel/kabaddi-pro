@@ -804,6 +804,17 @@ router.post('/giveaway/admin/restore-participants', async (req, res) => {
     }
 
     // Create participant records (skip if already exists)
+    // Look up each user's current isPremium so the snapshot is accurate —
+    // countPastParticipations uses isPremium:false to count referral-funded
+    // entries, so a stale false here would corrupt the free-entry math.
+    const userIds = users.map(u => u.id);
+    const userDetails = await db.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, isPremium: true, premiumExpiry: true },
+    });
+    const userPremiumMap = new Map(userDetails.map(u => [u.id, u]));
+    const now = new Date();
+
     let created = 0;
     let skipped = 0;
     for (const user of users) {
@@ -814,13 +825,18 @@ router.post('/giveaway/admin/restore-participants', async (req, res) => {
         skipped++;
         continue;
       }
+      // Snapshot the user's premium status AT THIS MOMENT. Premium status is
+      // point-in-time: a user who is premium when they participate gets
+      // isPremium=true recorded; we honor that snapshot for free-entry math.
+      const userDetail = userPremiumMap.get(user.id);
+      const isCurrentlyPremium = !!(userDetail?.isPremium && userDetail.premiumExpiry && new Date(userDetail.premiumExpiry) > now);
       await db.giveawayParticipant.create({
         data: {
           giveawayRoundId: roundId,
           userId: user.id,
           phone: user.phone,
           name: user.name,
-          isPremium: false,
+          isPremium: isCurrentlyPremium,
         },
       });
       created++;
@@ -866,6 +882,17 @@ router.post('/giveaway/admin/restore-round', async (req, res) => {
     // If the round exists (with or without winners), we OVERWRITE the winners.
     // This lets the admin change winners even when participants were deleted
     // (Change Winners requires participants, but Restore works by player code).
+
+    // SAFETY: refuse to "restore" the currently-active round. Restore is for
+    // recovering completed historical rounds. Restoring the active round would
+    // freeze it with whatever winners the admin typed — locking out real
+    // participants and skipping the proper select-winners flow that creates
+    // the next active round.
+    if (existing && existing.status === 'active') {
+      return res.status(400).json({
+        error: 'Cannot restore the active round. Use "Select Winners" instead — it will close this round AND open the next one.',
+      });
+    }
 
     // Look up user IDs for the player codes
     const users = await db.user.findMany({

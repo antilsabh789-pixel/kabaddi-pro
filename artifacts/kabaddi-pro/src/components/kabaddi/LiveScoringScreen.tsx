@@ -67,7 +67,7 @@ function MatchEndScreen({
           <div className="flex items-center justify-center gap-4 mt-4">
             <div className="text-center">
               <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md overflow-hidden" style={{ backgroundColor: homeColor }}>
-                {match?.homeTeamLogo ? <img src={match.homeTeamLogo} alt={homeTeam} className="w-full h-full object-cover" /> : homeTeam.charAt(0)}
+                {homeTeam.charAt(0)}
               </div>
               <p className="text-xs font-bold mt-1" style={{ color: homeColor }}>{homeTeam}</p>
               <p className="text-3xl font-black mt-1" style={{ color: homeColor }}>{homeScore}</p>
@@ -75,7 +75,7 @@ function MatchEndScreen({
             <span className="text-xl text-gray-300 font-bold">-</span>
             <div className="text-center">
               <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md overflow-hidden" style={{ backgroundColor: awayColor }}>
-                {match?.awayTeamLogo ? <img src={match.awayTeamLogo} alt={awayTeam} className="w-full h-full object-cover" /> : awayTeam.charAt(0)}
+                {awayTeam.charAt(0)}
               </div>
               <p className="text-xs font-bold mt-1" style={{ color: awayColor }}>{awayTeam}</p>
               <p className="text-3xl font-black mt-1" style={{ color: awayColor }}>{awayScore}</p>
@@ -951,15 +951,14 @@ export default function LiveScoringScreen() {
       });
     }
 
-    // Add batch events + update out players
-    addBatchEvents(events, {
-      raidingOutDelta: mutualOutRaiders,
-      defendingOutDelta: mutualOutDefenders,
-    });
-
-    // Update score
-    updateScore(raidingTeam, mutualOutDefenders);
-    updateScore(defendingTeam, mutualOutRaiders);
+    // Add batch events + let recalculateFromEvents rebuild the score + out queues.
+    // The mutualOut branch in recalculateFromEvents reads details.mutualOut,
+    // details.defendersOut, and details.raidersOut to revive the correct number
+    // of players from each team's out queue. No manual updateScore call needed —
+    // and updateScore is intentionally NOT destructured from the store here, so
+    // any call would crash the app. (Previous bug: updateScore(raidingTeam, ...)
+    // was a ReferenceError that crashed processMutualOut mid-flight.)
+    addBatchEvents(events);
 
     triggerFeedback(SoundType.RAID_POINT);
     toast({
@@ -1303,6 +1302,12 @@ export default function LiveScoringScreen() {
           variant: 'destructive',
           duration: 5000,
         });
+        // CRITICAL: Do NOT endMatch here. endMatch clears activeMatch from the
+        // store, which would wipe the local events/score/lineup and make
+        // retry impossible. Keep the match alive so the user can fix the issue
+        // (network, etc.) and tap "Save" again. Also do NOT show the end
+        // celebration — the match hasn't actually been saved yet.
+        return;
       }
     } catch (err) {
       console.error('Failed to save match:', err);
@@ -1312,8 +1317,11 @@ export default function LiveScoringScreen() {
         variant: 'destructive',
         duration: 5000,
       });
+      // Same as above — keep the match alive for retry.
+      return;
     }
 
+    // Save succeeded — NOW it's safe to clear local state and celebrate.
     addNotification(matchNotification(match.homeTeam, match.awayTeam, match.homeScore, match.awayScore, match.id));
     if (motm) setMotmPlayer(motm);
 
@@ -2612,8 +2620,8 @@ export default function LiveScoringScreen() {
               animate={isTimerPulsing ? { scale: [1, 1.05, 1] } : {}}
               transition={{ duration: 0.8, repeat: isTimerPulsing ? Infinity : 0 }}
             >
-              <Clock className="w-3 h-3" style={{ color: isTimerPulsing ? '#ef4444' : '#000000' }} />
-              <span className="text-sm font-black" style={{ color: isTimerPulsing ? '#ef4444' : '#000000' }}>
+              <Clock className="w-3 h-3" style={{ color: isTimerPulsing ? '#ef4444' : 'inherit' }} />
+              <span className="text-sm font-black" style={{ color: isTimerPulsing ? '#ef4444' : 'inherit' }}>
                 {!hasStartedRaiding ? '--:--' : formatTime(match.timer)}
               </span>
             </motion.div>

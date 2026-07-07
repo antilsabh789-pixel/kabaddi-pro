@@ -69,6 +69,9 @@ router.post('/auth', async (req, res) => {
       if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
       const dobRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dobRegex.test(dateOfBirth)) return res.status(400).json({ error: 'Date of birth must be in YYYY-MM-DD format' });
+      // Phone format validation — must be +91 followed by 10 digits (matches AuthScreen)
+      const phoneRegex = /^\+91\d{10}$/;
+      if (!phoneRegex.test(phone)) return res.status(400).json({ error: 'Phone number must be in +91XXXXXXXXXX format (12 digits total).' });
 
       const existingUser = await db.user.findUnique({ where: { phone } });
       if (existingUser) return res.status(409).json({ error: 'Phone number already registered. Please login instead.' });
@@ -121,7 +124,8 @@ router.post('/auth', async (req, res) => {
           }
 
           // Update the user's PlayerProfile with claimed stats
-          const updateData: Record<string, number> = {};
+          // Type allows atomic increment objects OR raw numbers.
+          const updateData: Record<string, { increment: number } | number> = {};
           if (agg.practice.matches.size > 0) {
             updateData.practiceMatches = { increment: agg.practice.matches.size };
             if (agg.practice.raids > 0) updateData.practiceTotalRaids = { increment: agg.practice.raids };
@@ -222,8 +226,10 @@ router.post('/auth', async (req, res) => {
                 data: {
                   isPremium: true,
                   premiumExpiry: referrerNewExpiry,
-                  // Don't downgrade a paying subscriber's plan label
-                  premiumPlan: referrer?.premiumPlan && referrer.premiumPlan !== 'referral' ? referrer.premiumPlan : 'referral',
+                  // Only preserve a non-referral plan label if the referrer is
+                  // CURRENTLY a paying subscriber (premium hasn't lapsed).
+                  // Otherwise stamp as 'referral' so UI badges are accurate.
+                  premiumPlan: (referrer?.isPremium && referrerExpiry && referrerExpiry > now && referrer?.premiumPlan && referrer.premiumPlan !== 'referral') ? referrer.premiumPlan : 'referral',
                 },
               }),
               db.user.update({
@@ -231,7 +237,7 @@ router.post('/auth', async (req, res) => {
                 data: {
                   isPremium: true,
                   premiumExpiry: referredNewExpiry,
-                  premiumPlan: referredUser?.premiumPlan && referredUser.premiumPlan !== 'referral' ? referredUser.premiumPlan : 'referral',
+                  premiumPlan: (referredUser?.isPremium && referredExpiry && referredExpiry > now && referredUser?.premiumPlan && referredUser.premiumPlan !== 'referral') ? referredUser.premiumPlan : 'referral',
                 },
               }),
             ]);
@@ -244,13 +250,18 @@ router.post('/auth', async (req, res) => {
         }
       }
 
-      // Re-fetch the user so the response reflects any premium upgrade from the referral.
-      const freshUser = referralApplied
-        ? await db.user.findUnique({ where: { id: user.id } })
-        : user;
-      const { password: _, ...userWithoutPassword } = freshUser || user;
+      // Re-fetch the user (with profile) so the response reflects any premium
+      // upgrade from the referral AND includes position/jerseyNumber (consistent
+      // with the login response shape). The user was just created above, so
+      // findUnique is guaranteed to return them.
+      const freshUser = (await db.user.findUnique({ where: { id: user.id }, include: { profile: true } }))!;
+      const { password: _, profile: __profile, ...userWithoutPassword } = freshUser;
       return res.json({
-        user: userWithoutPassword,
+        user: {
+          ...userWithoutPassword,
+          position: freshUser.profile?.position || null,
+          jerseyNumber: freshUser.profile?.jerseyNumber || null,
+        },
         referral: {
           applied: referralApplied,
           error: referralError,
@@ -293,22 +304,51 @@ router.post('/auth', async (req, res) => {
 
     if (action === 'update-details') {
       if (!userId) return res.status(400).json({ error: 'User ID is required' });
-      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'role', 'avatar', 'dateOfBirth', 'phone'];
+      // SECURITY: Sensitive fields (password, dateOfBirth, phone) are NOT
+      // editable through this endpoint. They require dedicated flows:
+      //   - password  → POST /auth action='reset-password' (DOB-verified)
+      //   - dateOfBirth → NEVER editable (it's the password-reset verifier)
+      //   - phone     → not supported via this endpoint to prevent account-takeover
+      // Allow only profile-display fields here.
+      const allowedFields = ['name', 'email', 'gender', 'weight', 'practiceGround', 'location', 'role', 'avatar'];
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
         if (body[field] !== undefined) updateData[field] = body[field];
       }
-      if (body.password) updateData.password = await hashPassword(body.password);
-      if (updateData.phone) {
-        const phoneRegex = /^\+91\d{10}$/;
-        if (!phoneRegex.test(updateData.phone as string)) return res.status(400).json({ error: 'Invalid phone number format. Must be +91 followed by 10 digits.' });
-        const existingUser = await db.user.findUnique({ where: { phone: updateData.phone as string } });
-        if (existingUser && existingUser.id !== userId) return res.status(409).json({ error: 'This phone number is already registered with another account.' });
+      // Profile-specific fields (stored on PlayerProfile, not User)
+      const profileFields = ['position', 'jerseyNumber'];
+      const profileData: Record<string, unknown> = {};
+      for (const field of profileFields) {
+        if (body[field] !== undefined) profileData[field] = body[field];
       }
-      if (Object.keys(updateData).length === 0) return res.status(400).json({ error: 'No fields to update' });
-      const user = await db.user.update({ where: { id: userId }, data: updateData });
-      const { password: _, ...userWithoutPassword } = user;
-      return res.json({ user: userWithoutPassword });
+      // Phone change is NOT supported here for security — phone is the user's
+      // unique login identifier and changing it via a generic update endpoint
+      // would allow account-takeover. If needed in the future, require an OTP
+      // flow on the new number.
+      if (Object.keys(updateData).length === 0 && Object.keys(profileData).length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+      // Apply User-table updates
+      if (Object.keys(updateData).length > 0) {
+        await db.user.update({ where: { id: userId }, data: updateData });
+      }
+      // Apply PlayerProfile-table updates (upsert ensures profile row exists)
+      if (Object.keys(profileData).length > 0) {
+        await db.playerProfile.upsert({
+          where: { userId },
+          create: { userId, ...profileData },
+          update: profileData,
+        });
+      }
+
+      const user = (await db.user.findUnique({ where: { id: userId }, include: { profile: true } }))!;
+      const { password: _, profile: __p, ...userWithoutPassword } = user;
+      return res.json({
+        user: {
+          ...userWithoutPassword,
+          position: user.profile?.position || null,
+          jerseyNumber: user.profile?.jerseyNumber || null,
+        },
+      });
     }
 
     if (action === 'check-phone') {
@@ -326,10 +366,20 @@ router.post('/auth', async (req, res) => {
 
 router.delete('/auth/delete-account', async (req, res) => {
   try {
-    const { userId } = req.body;
+    // SECURITY: Require password re-verification before deleting the account.
+    // Previously this endpoint trusted userId from the body, which let anyone
+    // who knew a userId delete any account. Now we require the user to type
+    // their password to confirm.
+    const { userId, password } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!password) return res.status(400).json({ error: 'Password is required to delete your account' });
+
     const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const passwordValid = await verifyPassword(password, user.password);
+    if (!passwordValid) return res.status(401).json({ error: 'Incorrect password' });
+
     await db.user.delete({ where: { id: userId } });
     return res.json({ message: 'Account deleted successfully' });
   } catch (error) {

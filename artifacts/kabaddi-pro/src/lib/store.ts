@@ -206,7 +206,7 @@ interface KabaddiState {
 
   // Toss State
   showToss: boolean;
-  tossMatchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds'> | null;
+  tossMatchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds' | 'yellowCardSuspensions' | 'redCardExpulsions' | 'greenCardWarnings'> | null;
 
   // Home Data cache
   homeData: HomeData;
@@ -354,11 +354,26 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
     // The points come from the raid_point event itself (1 per defender touched).
     if (evt.eventType === 'raid_point') {
       addPoints(side, evt.value);
-      const touchedIds: string[] = (details.touchedPlayerIds as string[]) || [];
       const defendingSide = side === 'home' ? 'away' : 'home';
-      for (const tid of touchedIds) { sendOut(defendingSide, tid); }
-      revive(side, evt.value);
-      emptyRaidCount[evt.teamId] = 0;
+
+      // MUTUAL OUT special case: when both teams have players out in the same
+      // raid, the details object carries `mutualOut: true` plus `defendersOut`
+      // (the count of defenders sent out) instead of an explicit touchedPlayerIds
+      // list. We trust the count and revive the corresponding number of raiders.
+      if (details.mutualOut === true) {
+        const defendersOut = (details.defendersOut as number) || evt.value || 0;
+        // We don't know which specific defenders were touched (the count came
+        // from the UI's mutual-out picker), but we can still revive the right
+        // number of raiders from the raiding team's out queue.
+        revive(side, defendersOut);
+        emptyRaidCount[evt.teamId] = 0;
+      } else {
+        // Standard raid point: send out each touched defender, revive N raiders.
+        const touchedIds: string[] = (details.touchedPlayerIds as string[]) || [];
+        for (const tid of touchedIds) { sendOut(defendingSide, tid); }
+        revive(side, evt.value);
+        emptyRaidCount[evt.teamId] = 0;
+      }
       // NOTE: All-out bonus is NOT auto-added here. The LiveScoringScreen
       // pushes an explicit 'all_out' event when all defenders are eliminated,
       // and that event's handler below adds the bonus + clears the queue.
@@ -381,10 +396,23 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
     // ─── TACKLE / SUPER TACKLE ───
     else if (evt.eventType === 'tackle_point' || evt.eventType === 'super_tackle') {
       addPoints(side, evt.value);
-      const raiderId = (details.raiderId as string) || evt.playerId;
       const raiderSide = side === 'home' ? 'away' : 'home';
-      sendOut(raiderSide, raiderId || '');
-      revive(side, evt.value);
+
+      // MUTUAL OUT special case: when both teams have players out in the same
+      // raid, the defending team's tackle_point event carries `mutualOut: true`
+      // plus `raidersOut` (the count of raiding-team players sent out, INCLUDING
+      // the raider). Standard tackle_point sends out 1 raider; mutual out sends
+      // out N raiders and revives N defenders.
+      if (details.mutualOut === true) {
+        const raidersOut = (details.raidersOut as number) || evt.value || 1;
+        const raiderId = (details.raiderId as string) || evt.playerId || '';
+        if (raiderId) sendOut(raiderSide, raiderId);
+        revive(side, raidersOut);
+      } else {
+        const raiderId = (details.raiderId as string) || evt.playerId;
+        sendOut(raiderSide, raiderId || '');
+        revive(side, evt.value);
+      }
       emptyRaidCount[evt.teamId] = 0;
       // NOTE: All-out bonus is handled by the explicit 'all_out' event
       // pushed by LiveScoringScreen — NOT auto-added here to avoid double-counting.
