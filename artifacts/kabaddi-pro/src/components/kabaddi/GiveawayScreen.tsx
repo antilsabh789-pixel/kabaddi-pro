@@ -66,6 +66,10 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
   }>>([]);
   const [selectingRoundId, setSelectedRoundId] = useState<string | null>(null);
   const [selectingWinners, setSelectingWinners] = useState(false);
+  // Manual winner selection
+  const [manualMode, setManualMode] = useState(false);
+  const [manualSelected, setManualSelected] = useState<string[]>([]); // user IDs
+  const [manualRoundId, setManualRoundId] = useState<string | null>(null);
 
   useBackButton(true, onClose);
 
@@ -210,6 +214,72 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
       setSelectingWinners(false);
       setSelectedRoundId(null);
     }
+  };
+
+  // ─── Manual winner selection ─────────────────────────────────
+  const toggleManualSelect = (userId: string) => {
+    setManualSelected(prev => {
+      if (prev.includes(userId)) return prev.filter(id => id !== userId);
+      if (prev.length >= 3) {
+        toast({ title: 'Max 3 winners', description: 'You can select up to 3 winners only.' });
+        return prev;
+      }
+      return [...prev, userId];
+    });
+  };
+
+  const handleManualSelectWinners = async () => {
+    if (!currentUser?.id || manualSelected.length === 0) return;
+    if (!confirm(`Set these ${manualSelected.length} player(s) as winners? This cannot be undone.`)) return;
+    setSelectingWinners(true);
+    try {
+      const res = await fetch('/api/giveaway/admin/select-winners-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: currentUser.id,
+          winnerIds: manualSelected,
+          roundId: manualRoundId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: '🎉 Winners Set!', description: 'Your selected winners are now shown in Past Winners.' });
+        fetchStatus();
+        setManualMode(false);
+        setManualSelected([]);
+        setManualRoundId(null);
+        setShowAdminPanel(false);
+        // Refresh pending rounds
+        if (manualRoundId) {
+          setPendingRounds(prev => prev.filter(r => r.id !== manualRoundId));
+        }
+      } else {
+        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to set winners', variant: 'destructive' });
+    } finally {
+      setSelectingWinners(false);
+    }
+  };
+
+  // Start manual selection for current round
+  const startManualMode = () => {
+    setManualMode(true);
+    setManualSelected([]);
+    setManualRoundId(null); // current active round
+  };
+
+  // Start manual selection for a past round
+  const startManualModeForRound = (roundId: string) => {
+    setManualMode(true);
+    setManualSelected([]);
+    setManualRoundId(roundId);
+    // Need to fetch participants for this past round
+    // For now, the admin sees current round participants — past round participants
+    // would need a separate fetch. We'll use the existing adminParticipants for current
+    // and show a note for past rounds.
   };
 
   if (loading) {
@@ -629,11 +699,83 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
 
                 <Button
                   onClick={() => handleSelectWinners()}
-                  disabled={selectingWinners || adminParticipants.length < 3}
+                  disabled={selectingWinners || adminParticipants.length < 3 || manualMode}
                   className="w-full bg-gradient-to-r from-brand-red to-brand-red-dark text-white rounded-xl font-bold"
                 >
-                  {selectingWinners && !selectingRoundId ? <Loader2 className="w-4 h-4 animate-spin" /> : '🎲 Select 3 Random Winners (Current Round)'}
+                  {selectingWinners && !selectingRoundId ? <Loader2 className="w-4 h-4 animate-spin" /> : '🎲 Select 3 Random Winners'}
                 </Button>
+
+                {/* Manual Select toggle */}
+                {!manualMode ? (
+                  <Button
+                    onClick={startManualMode}
+                    disabled={adminParticipants.length === 0 || selectingWinners}
+                    variant="outline"
+                    className="w-full border-brand-teal text-brand-teal hover:bg-brand-teal/5 rounded-xl font-bold"
+                  >
+                    <Check className="w-4 h-4 mr-1" /> Choose Winners Manually
+                  </Button>
+                ) : (
+                  <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-teal-700 dark:text-teal-400">
+                        ✋ Manual Mode — Tap to select ({manualSelected.length}/3)
+                      </p>
+                      <button
+                        onClick={() => { setManualMode(false); setManualSelected([]); }}
+                        className="text-[10px] text-warm-400 hover:text-warm-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+
+                    {/* Participant list for selection */}
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {adminParticipants.map((p) => {
+                        const isSelected = manualSelected.includes(p.userId);
+                        return (
+                          <button
+                            key={p.userId}
+                            onClick={() => toggleManualSelect(p.userId)}
+                            className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-all ${
+                              isSelected
+                                ? 'bg-teal-500 text-white'
+                                : 'bg-white dark:bg-warm-700 hover:bg-teal-50 dark:hover:bg-teal-900/30'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              isSelected ? 'border-white bg-white' : 'border-teal-400'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 text-teal-500" strokeWidth={3} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'}`}>
+                                {p.name || 'Unknown'}
+                              </p>
+                              <p className={`text-[9px] font-mono ${isSelected ? 'text-white/70' : 'text-warm-400'}`}>
+                                {p.playerCode || '—'} · {p.phone ? `****${p.phone.slice(-4)}` : 'No phone'}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <span className="text-[9px] font-black text-white bg-white/20 px-1.5 py-0.5 rounded-full">
+                                #{manualSelected.indexOf(p.userId) + 1}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Confirm button */}
+                    <Button
+                      onClick={handleManualSelectWinners}
+                      disabled={manualSelected.length === 0 || selectingWinners}
+                      className="w-full bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-bold"
+                    >
+                      {selectingWinners ? <Loader2 className="w-4 h-4 animate-spin" /> : `✅ Set ${manualSelected.length} Winner${manualSelected.length !== 1 ? 's' : ''}`}
+                    </Button>
+                  </div>
+                )}
                 {adminParticipants.length < 3 && (
                   <p className="text-[10px] text-amber-500 text-center">Need at least 3 participants to select winners</p>
                 )}

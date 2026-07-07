@@ -499,6 +499,92 @@ router.post('/giveaway/admin/select-winners', async (req, res) => {
 });
 
 /**
+ * POST /api/giveaway/admin/select-winners-manual
+ * ADMIN ONLY — Admin manually picks specific winners by user ID.
+ * Body: { adminId, winnerIds: string[], roundId? }
+ *
+ * Same as select-winners but the admin chooses who wins (no random shuffle).
+ * Used when the admin wants to override the random draw or pick specific players.
+ */
+router.post('/giveaway/admin/select-winners-manual', async (req, res) => {
+  try {
+    const { adminId, winnerIds, roundId } = req.body;
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!winnerIds || !Array.isArray(winnerIds) || winnerIds.length === 0) {
+      return res.status(400).json({ error: 'winnerIds array is required (1-3 winner IDs)' });
+    }
+    if (winnerIds.length > 3) {
+      return res.status(400).json({ error: 'Maximum 3 winners allowed' });
+    }
+
+    let round;
+    let createNextRound = false;
+
+    if (roundId) {
+      round = await db.giveawayRound.findUnique({ where: { id: roundId } });
+      if (!round) return res.status(404).json({ error: 'Round not found' });
+      if (round.winnersJson) return res.status(400).json({ error: 'Winners already selected for this round' });
+      createNextRound = false;
+    } else {
+      round = await getOrCreateActiveRound();
+      createNextRound = true;
+    }
+
+    // Verify all winnerIds are participants of this round
+    const participants = await db.giveawayParticipant.findMany({
+      where: { giveawayRoundId: round.id, userId: { in: winnerIds } },
+      include: { user: { select: { id: true, playerCode: true, name: true, phone: true } } },
+    });
+
+    if (participants.length !== winnerIds.length) {
+      const found = participants.map(p => p.userId);
+      const missing = winnerIds.filter((id: string) => !found.includes(id));
+      return res.status(400).json({ error: `Some winner IDs are not participants of this round: ${missing.join(', ')}` });
+    }
+
+    // Preserve the admin's chosen order (first = rank 1, etc.)
+    const orderedWinners = winnerIds.map((id: string) =>
+      participants.find(p => p.userId === id)
+    ).filter(Boolean);
+
+    const winnersJson = JSON.stringify(winnerIds);
+
+    await db.giveawayRound.update({
+      where: { id: round.id },
+      data: { status: 'completed', winnersJson },
+    });
+
+    if (createNextRound) {
+      const nextNumber = round.roundNumber + 1;
+      const now = new Date();
+      const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
+      await db.giveawayRound.create({
+        data: { roundNumber: nextNumber, startDate: now, endDate, status: 'active' },
+      });
+    }
+
+    return res.json({
+      success: true,
+      winners: orderedWinners.map((w: any, i: number) => ({
+        rank: i + 1,
+        prize: PRIZES[i]?.name || 'Prize',
+        playerCode: w.user.playerCode || w.user.id.slice(-6),
+        name: w.user.name,
+        phone: w.user.phone,
+        userId: w.user.id,
+      })),
+    });
+  } catch (error) {
+    console.error('Giveaway manual select winners error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/giveaway/admin/reset
  * ADMIN ONLY — Resets the entire giveaway system:
  *   1. Marks ALL existing rounds as 'completed'
