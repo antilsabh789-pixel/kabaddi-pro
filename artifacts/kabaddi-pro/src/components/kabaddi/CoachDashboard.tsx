@@ -94,9 +94,12 @@ interface AttendanceRecord {
   name: string | null;
   phone: string | null;
   avatar: string | null;
-  isPresent: boolean;
-  session?: string; // 'default' | 'morning' | 'evening'
-  note?: string | null;
+  // For one-time academies: only `present` is used.
+  // For both-time academies: `morning` and `evening` are used separately.
+  // `present` is kept for backwards-compat and as a fallback for one-time.
+  present: boolean;
+  morning?: boolean;
+  evening?: boolean;
 }
 
 interface FeeRecordData {
@@ -288,7 +291,6 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
   // Which session we're currently marking. 'default' for one-time academies,
   // 'morning' or 'evening' for both-time academies.
   const [activeSession, setActiveSession] = useState<'default' | 'morning' | 'evening'>('default');
-
   // Fees state
   const [feeRecords, setFeeRecords] = useState<FeeRecordData[]>([]);
   const [feeSummary, setFeeSummary] = useState<FeeSummary | null>(null);
@@ -528,16 +530,10 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     try {
       const d = date || attendanceDate;
 
-      // ─── CRITICAL FIX ───────────────────────────────────────────────
-      // The backend GET /api/coach/attendance returns ONLY players who
-      // already have an attendance row for that date. Newly-added players
-      // have ZERO attendance rows → they never appeared in the list → the
-      // coach couldn't mark them present.
-      //
-      // Fix: fetch the academy's FULL player roster in parallel, then MERGE
-      // the attendance records onto the roster. Players with no attendance
-      // record for the date are shown with isPresent:false (default state,
-      // ready for the coach to toggle).
+      // Fetch the academy's attendance records AND the full player roster in
+      // parallel. The attendance endpoint only returns players who already have
+      // a record for this date — we merge it with the roster so newly-added
+      // players appear too (defaulted to absent).
       const [attendanceRes, academyRes] = await Promise.all([
         fetch(`/api/coach/attendance?academyId=${academyId}&date=${d}`),
         fetch(`/api/academies/${academyId}`),
@@ -546,41 +542,64 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       const attendanceData = await attendanceRes.json();
       const academyData = await academyRes.json();
 
-      // Build a map of userId → attendance record for the selected date
-      const attendanceMap = new Map<string, { isPresent: boolean; session?: string; note?: string | null }>();
+      // Determine if this academy runs both-time (morning + evening) sessions.
+      // We read it from the fresh academy data so the session tabs reflect any
+      // recent edits the coach made via the Edit Academy sheet.
+      const schedule = academyData.academy?.practiceSchedule || academyDetail?.practiceSchedule || 'one-time';
+      const isBothTime = schedule === 'both-time';
+
+      // Build a map of userId → { morning, evening, default } attendance state.
+      // The backend returns one Attendance row per (userId, date, session).
+      // For both-time academies there can be 2 rows per user (morning + evening).
+      const attendanceMap = new Map<string, { morning: boolean; evening: boolean; defaultPresent: boolean }>();
       if (Array.isArray(attendanceData.attendance)) {
         for (const rec of attendanceData.attendance) {
-          attendanceMap.set(rec.userId || rec.user?.id, {
-            isPresent: rec.isPresent,
-            session: rec.session,
-            note: rec.note,
-          });
+          const uid = rec.userId || rec.user?.id;
+          if (!uid) continue;
+          if (!attendanceMap.has(uid)) {
+            attendanceMap.set(uid, { morning: false, evening: false, defaultPresent: false });
+          }
+          const entry = attendanceMap.get(uid)!;
+          const session = rec.session || 'default';
+          if (session === 'morning') entry.morning = rec.isPresent;
+          else if (session === 'evening') entry.evening = rec.isPresent;
+          else entry.defaultPresent = rec.isPresent;
         }
       }
 
-      // Build the merged attendance list from the FULL player roster.
-      // Each player gets an entry; if they have an attendance record for
-      // this date, use its isPresent value; otherwise default to false.
+      // Build the merged roster. For one-time academies only `present` is used.
+      // For both-time academies `morning` and `evening` are used (present is
+      // derived = morning || evening for the summary count).
       const roster: AttendanceRecord[] = [];
       const players = academyData.academy?.players || academyDetail?.players || [];
       for (const p of players) {
         const userId = p.userId || p.user?.id;
         if (!userId) continue;
         const existing = attendanceMap.get(userId);
-        roster.push({
-          userId,
-          name: p.user?.name || null,
-          phone: p.user?.phone || null,
-          avatar: p.user?.avatar || null,
-          isPresent: existing ? existing.isPresent : false,
-          session: existing?.session || 'default',
-          note: existing?.note || null,
-        });
+        if (isBothTime) {
+          roster.push({
+            userId,
+            name: p.user?.name || null,
+            phone: p.user?.phone || null,
+            avatar: p.user?.avatar || null,
+            present: (existing?.morning || existing?.evening) || false,
+            morning: existing?.morning || false,
+            evening: existing?.evening || false,
+          });
+        } else {
+          roster.push({
+            userId,
+            name: p.user?.name || null,
+            phone: p.user?.phone || null,
+            avatar: p.user?.avatar || null,
+            present: existing?.defaultPresent || false,
+          });
+        }
       }
 
       setAttendanceRecords(roster);
 
-      // Also refresh academyDetail if we got fresh data (so player list stays in sync)
+      // Refresh academyDetail so the session-mode reflects any recent edits.
       if (academyData.academy) {
         setAcademyDetail(academyData.academy);
       }
@@ -616,20 +635,53 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
     setLoading(true);
     try {
       // Backend POST /api/coach/attendance takes a SINGLE record at a time
-      // (academyId, userId, date, isPresent, note). The old code sent
-      // { records: [...] } which the backend ignored. Save each record in parallel.
-      const promises = attendanceRecords.map((r) =>
-        fetch('/api/coach/attendance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            academyId: selectedAcademyId,
-            userId: r.userId,
-            date: attendanceDate,
-            isPresent: r.isPresent,
-          }),
-        })
-      );
+      // (academyId, userId, date, isPresent, session). For one-time academies
+      // we send one POST per player with session='default'. For both-time
+      // academies we send TWO POSTs per player (morning + evening).
+      const isBothTime = academyDetail?.practiceSchedule === 'both-time';
+      const promises: Promise<Response>[] = [];
+
+      for (const r of attendanceRecords) {
+        if (isBothTime) {
+          // Send morning + evening as separate session records
+          promises.push(fetch('/api/coach/attendance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              academyId: selectedAcademyId,
+              userId: r.userId,
+              date: attendanceDate,
+              isPresent: r.morning || false,
+              session: 'morning',
+            }),
+          }));
+          promises.push(fetch('/api/coach/attendance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              academyId: selectedAcademyId,
+              userId: r.userId,
+              date: attendanceDate,
+              isPresent: r.evening || false,
+              session: 'evening',
+            }),
+          }));
+        } else {
+          // One-time academy — single session
+          promises.push(fetch('/api/coach/attendance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              academyId: selectedAcademyId,
+              userId: r.userId,
+              date: attendanceDate,
+              isPresent: r.present,
+              session: 'default',
+            }),
+          }));
+        }
+      }
+
       await Promise.all(promises);
       toast({ title: 'Attendance saved!' });
     } catch {
@@ -1624,10 +1676,60 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       );
     }
 
-    const presentCount = attendanceRecords.filter((r) => r.isPresent).length;
+    // Determine if this academy runs both-time (morning + evening) sessions.
+    const isBothTime = academyDetail?.practiceSchedule === 'both-time';
+
+    // Count present players based on the active session (or both for one-time).
+    const presentCount = isBothTime
+      ? attendanceRecords.filter((r) => activeSession === 'morning' ? r.morning : r.evening).length
+      : attendanceRecords.filter((r) => r.present).length;
     const totalCount = attendanceRecords.length;
     const percentage = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
-    const absentPlayers = attendanceRecords.filter((r) => !r.isPresent);
+
+    // One-click toggle for a single player's session.
+    // For one-time: toggles `present`. For both-time: toggles morning or evening
+    // based on the active session tab.
+    const togglePlayer = (userId: string) => {
+      setAttendanceRecords((prev) =>
+        prev.map((r) => {
+          if (r.userId !== userId) return r;
+          if (isBothTime) {
+            if (activeSession === 'morning') {
+              const newMorning = !r.morning;
+              return { ...r, morning: newMorning, present: !!(newMorning || r.evening) };
+            } else {
+              const newEvening = !r.evening;
+              return { ...r, evening: newEvening, present: !!(r.morning || newEvening) };
+            }
+          }
+          return { ...r, present: !r.present };
+        })
+      );
+    };
+
+    // Mark all present/absent for the active session
+    const markAll = (present: boolean) => {
+      setAttendanceRecords((prev) =>
+        prev.map((r) => {
+          if (isBothTime) {
+            if (activeSession === 'morning') {
+              return { ...r, morning: present, present: !!(present || r.evening) };
+            } else {
+              return { ...r, evening: present, present: !!(r.morning || present) };
+            }
+          }
+          return { ...r, present };
+        })
+      );
+    };
+
+    // Is the current player marked present for the active session?
+    const isPlayerPresent = (r: AttendanceRecord): boolean => {
+      if (isBothTime) {
+        return activeSession === 'morning' ? !!r.morning : !!r.evening;
+      }
+      return r.present;
+    };
 
     return (
       <motion.div
@@ -1638,7 +1740,35 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
       >
         {renderAcademySelector(true)}
 
-        {/* Date & Stats Header */}
+        {/* ─── Session Tabs (only for both-time academies) ─── */}
+        {isBothTime && (
+          <div className="grid grid-cols-2 gap-2 p-1 bg-white/10 dark:bg-white/5 rounded-xl">
+            <button
+              onClick={() => setActiveSession('morning')}
+              className={`py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${
+                activeSession === 'morning'
+                  ? 'bg-amber-500 text-white shadow-md'
+                  : 'text-warm-500 hover:bg-white/10'
+              }`}
+            >
+              <Sun className="w-4 h-4" />
+              Morning
+            </button>
+            <button
+              onClick={() => setActiveSession('evening')}
+              className={`py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${
+                activeSession === 'evening'
+                  ? 'bg-indigo-500 text-white shadow-md'
+                  : 'text-warm-500 hover:bg-white/10'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              Evening
+            </button>
+          </div>
+        )}
+
+        {/* ─── Date + Stats Header ─── */}
         <Card className="bg-gradient-to-r from-brand-green/10 to-brand-green/5 backdrop-blur-xl border-brand-green/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
@@ -1670,33 +1800,34 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
               <span className="text-sm font-bold text-brand-green">{percentage}%</span>
             </div>
             <p className="text-xs text-warm-500 mt-1">
+              {isBothTime ? `${activeSession === 'morning' ? 'Morning' : 'Evening'}: ` : ''}
               {presentCount} of {totalCount} present
             </p>
           </CardContent>
         </Card>
 
-        {/* Bulk Actions */}
+        {/* ─── One-click Bulk Actions ─── */}
         <div className="flex gap-2">
           <Button
             size="sm"
             className="flex-1 bg-brand-green hover:bg-brand-green-dark text-white text-xs"
-            onClick={() => setAttendanceRecords((prev) => prev.map((r) => ({ ...r, isPresent: true })))}
+            onClick={() => markAll(true)}
           >
             <Check className="w-3 h-3 mr-1" />
-            Mark All Present
+            All Present
           </Button>
           <Button
             size="sm"
             variant="outline"
             className="flex-1 border-warm-200 dark:border-warm-700 text-warm-600 dark:text-warm-300 text-xs"
-            onClick={() => setAttendanceRecords((prev) => prev.map((r) => ({ ...r, isPresent: false })))}
+            onClick={() => markAll(false)}
           >
             <X className="w-3 h-3 mr-1" />
-            Mark All Absent
+            All Absent
           </Button>
         </div>
 
-        {/* Player Attendance Grid */}
+        {/* ─── Player List — ONE-CLICK toggle ─── */}
         {loading && attendanceRecords.length === 0 ? (
           <div className="flex justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-brand-green" />
@@ -1706,98 +1837,79 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
             <CardContent className="p-6 text-center">
               <Users className="w-8 h-8 text-warm-300 mx-auto mb-2" />
               <p className="text-sm text-warm-500">No players in this academy</p>
+              <p className="text-[10px] text-warm-400 mt-1">Add players from the Academy tab first.</p>
             </CardContent>
           </Card>
         ) : (
           <Card className="bg-white/10 dark:bg-white/5 backdrop-blur-xl border-white/10">
             <CardContent className="p-3">
-              <div className="space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar">
-                {attendanceRecords.map((record) => (
-                  <div
-                    key={record.userId}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-                  >
-                    <div
-                      className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
-                      onClick={() => {
-                        // Open the per-player attendance history modal (PnL chart).
-                        if (!selectedAcademyId) return;
-                        setPlayerAttendanceView({
-                          userId: record.userId,
-                          name: record.name,
-                          phone: record.phone || null,
-                          avatar: record.avatar || null,
-                        });
-                        fetchPlayerAttendanceHistory(selectedAcademyId, record.userId);
-                      }}
+              <p className="text-[10px] text-warm-500 dark:text-warm-400 mb-2 px-1">
+                Tap a player to mark {isBothTime ? activeSession : ''} {isBothTime ? '' : 'present/absent'} →
+              </p>
+              <div className="space-y-1.5 max-h-80 overflow-y-auto custom-scrollbar">
+                {attendanceRecords.map((record) => {
+                  const present = isPlayerPresent(record);
+                  return (
+                    <button
+                      key={record.userId}
+                      onClick={() => togglePlayer(record.userId)}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-all active:scale-[0.98] ${
+                        present
+                          ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-300/40 dark:border-emerald-700/40'
+                          : 'bg-red-50 dark:bg-red-900/10 border border-red-200/30 dark:border-red-800/30'
+                      }`}
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden ${
-                        record.isPresent
-                          ? 'bg-brand-green/20 text-brand-green'
-                          : 'bg-red-100 dark:bg-red-900/20 text-red-500'
+                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden ${
+                          present
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-warm-200 dark:bg-warm-700 text-warm-500'
+                        }`}>
+                          {record.avatar ? (
+                            <img src={record.avatar} alt={record.name || 'Player'} className="w-full h-full object-cover" />
+                          ) : (
+                            (record.name || '?')[0]?.toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0 text-left">
+                          <p className={`text-sm font-medium truncate ${present ? 'text-emerald-700 dark:text-emerald-300' : 'text-warm-800 dark:text-warm-200'}`}>
+                            {record.name || 'Unknown'}
+                          </p>
+                          {/* For both-time, show both session states as small dots */}
+                          {isBothTime && (
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="flex items-center gap-0.5 text-[9px]">
+                                <span className={`w-1.5 h-1.5 rounded-full ${record.morning ? 'bg-amber-500' : 'bg-warm-300 dark:bg-warm-600'}`} />
+                                M
+                              </span>
+                              <span className="flex items-center gap-0.5 text-[9px]">
+                                <span className={`w-1.5 h-1.5 rounded-full ${record.evening ? 'bg-indigo-500' : 'bg-warm-300 dark:bg-warm-600'}`} />
+                                E
+                              </span>
+                            </div>
+                          )}
+                          {!isBothTime && record.phone && (
+                            <p className="text-[10px] text-warm-500 truncate">{record.phone}</p>
+                          )}
+                        </div>
+                      </div>
+                      {/* Big one-click status circle */}
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                        present
+                          ? 'bg-emerald-500 text-white shadow-md'
+                          : 'bg-warm-100 dark:bg-warm-800 text-warm-400'
                       }`}>
-                        {record.avatar ? (
-                          <img src={record.avatar} alt={record.name || 'Player'} className="w-full h-full object-cover" />
-                        ) : (
-                          (record.name || '?')[0]?.toUpperCase()
-                        )}
+                        {present ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-warm-800 dark:text-warm-200 truncate">
-                          {record.name || 'Unknown'}
-                        </p>
-                        {record.phone && (
-                          <p className="text-[10px] text-warm-500 truncate">{record.phone}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {/* Call + WhatsApp buttons (same as academy detail) */}
-                      {record.phone && (
-                        <>
-                          <a
-                            href={`tel:${record.phone}`}
-                            className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-emerald-500 transition-colors"
-                            title={`Call ${record.phone}`}
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                          </a>
-                          <a
-                            href={`https://wa.me/${record.phone.replace(/\D/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-500 transition-colors"
-                            title={`WhatsApp ${record.phone}`}
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                          </a>
-                        </>
-                      )}
-                      <button
-                        onClick={() =>
-                          setAttendanceRecords((prev) =>
-                            prev.map((r) =>
-                              r.userId === record.userId ? { ...r, isPresent: !r.isPresent } : r
-                            )
-                          )
-                        }
-                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
-                          record.isPresent
-                            ? 'bg-brand-green text-white shadow-md'
-                            : 'bg-warm-100 dark:bg-warm-800 text-warm-400'
-                        }`}
-                      >
-                        {record.isPresent ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Save Button */}
+        {/* ─── Save Button ─── */}
         <Button
           onClick={saveAttendance}
           disabled={loading || attendanceRecords.length === 0}
@@ -1807,40 +1919,9 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
           Save Attendance
         </Button>
 
-        {/* Missing Players & Notify Parents */}
-        {absentPlayers.length > 0 && (
-          <Card className="bg-red-50/50 dark:bg-red-900/10 backdrop-blur-xl border-red-200/30 dark:border-red-800/30">
-            <CardContent className="p-4 space-y-3">
-              <h3 className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
-                Missing Players ({absentPlayers.length})
-              </h3>
-              <div className="space-y-1">
-                {absentPlayers.map((p) => (
-                  <p key={p.userId} className="text-xs text-red-500 dark:text-red-400">
-                    • {p.name || 'Unknown'}
-                  </p>
-                ))}
-              </div>
-              <Button
-                onClick={() => {
-                  toast({ title: `Notification sent to ${absentPlayers.length} parents!` });
-                }}
-                size="sm"
-                className="w-full bg-red-500 hover:bg-red-600 text-white"
-              >
-                <Bell className="w-3 h-3 mr-1" />
-                Notify Parents
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         {/* ─── Per-Player Attendance History Modal (PnL-style chart) ───
-            Shows when coach taps a player row. Displays last 30 days as a grid
-            of color-coded cells: green = present, red = absent, gray = no record.
-            For "both-time" academies, each cell is split top/bottom (morning top
-            half, evening bottom half) so the coach can see both sessions. */}
+            Opens when coach long-presses / taps the player's avatar (not the
+            row — the row is the one-click toggle). Shows 30-day history. */}
         <AnimatePresence>
           {playerAttendanceView && (
             <motion.div
@@ -1904,9 +1985,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                   </div>
                 )}
 
-                {/* PnL-style 30-day grid.
-                    Each day is a cell. Green = present, red = absent, gray = no record.
-                    For "both-time" academies, each cell is split top (morning) / bottom (evening). */}
+                {/* PnL-style 30-day grid */}
                 {playerAttendanceLoading ? (
                   <div className="flex flex-col items-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-brand-green mb-2" />
@@ -1916,16 +1995,15 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                   <>
                     <div>
                       <p className="text-[10px] text-warm-500 mb-1.5 font-semibold uppercase tracking-wider">
-                        30-Day Chart {academyDetail?.practiceSchedule === 'both-time' && '(M = Morning, E = Evening)'}
+                        30-Day Chart {academyDetail?.practiceSchedule === 'both-time' && '(top = morning, bottom = evening)'}
                       </p>
                       <div className="grid grid-cols-7 gap-1">
                         {playerAttendanceHistory.history.map((day) => {
                           const sessions = day.sessions;
                           const hasRecord = sessions.length > 0;
-                          const isBothTime = academyDetail?.practiceSchedule === 'both-time';
+                          const isBoth = academyDetail?.practiceSchedule === 'both-time';
 
                           if (!hasRecord) {
-                            // No attendance recorded for this day — gray cell
                             return (
                               <div
                                 key={day.date}
@@ -1935,8 +2013,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                             );
                           }
 
-                          if (isBothTime) {
-                            // Split cell: top half = morning, bottom half = evening
+                          if (isBoth) {
                             const morning = sessions.find(s => s.session === 'morning');
                             const evening = sessions.find(s => s.session === 'evening');
                             return (
@@ -1945,13 +2022,12 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                                 className="aspect-square rounded overflow-hidden flex flex-col"
                                 title={`${day.date}\nMorning: ${morning ? (morning.isPresent ? 'Present' : 'Absent') : 'No record'}\nEvening: ${evening ? (evening.isPresent ? 'Present' : 'Absent') : 'No record'}`}
                               >
-                                <div className={`flex-1 ${morning ? (morning.isPresent ? 'bg-emerald-500' : 'bg-red-500') : 'bg-warm-200 dark:bg-warm-700'}`} />
-                                <div className={`flex-1 ${evening ? (evening.isPresent ? 'bg-emerald-500' : 'bg-red-500') : 'bg-warm-200 dark:bg-warm-700'}`} />
+                                <div className={`flex-1 ${morning ? (morning.isPresent ? 'bg-amber-500' : 'bg-red-500') : 'bg-warm-200 dark:bg-warm-700'}`} />
+                                <div className={`flex-1 ${evening ? (evening.isPresent ? 'bg-indigo-500' : 'bg-red-500') : 'bg-warm-200 dark:bg-warm-700'}`} />
                               </div>
                             );
                           }
 
-                          // Single-session academy — one color per day
                           const anyPresent = sessions.some(s => s.isPresent);
                           return (
                             <div
@@ -1963,7 +2039,7 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                         })}
                       </div>
                       {/* Legend */}
-                      <div className="flex items-center justify-center gap-3 mt-2 text-[9px] text-warm-500">
+                      <div className="flex items-center justify-center gap-3 mt-2 text-[9px] text-warm-500 flex-wrap">
                         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-500" /> Present</span>
                         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-500" /> Absent</span>
                         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-warm-100 dark:bg-warm-800" /> No record</span>
@@ -2003,8 +2079,6 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
                   )}
                   <button
                     onClick={() => {
-                      // Open the full player profile (same modal used in academy detail).
-                      // Reuse playerProfileView state which expects an AcademyPlayerData shape.
                       if (academyDetail?.players) {
                         const found = academyDetail.players.find(p => p.userId === playerAttendanceView.userId);
                         if (found) {
