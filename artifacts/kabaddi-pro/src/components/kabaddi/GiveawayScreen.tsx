@@ -1019,35 +1019,117 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   🔄 Reset Giveaway (Start Fresh Round)
                 </Button>
 
-                {/* Quick Restore Round 1 — one tap, pre-filled with known winners */}
+                {/* Quick Restore Round 1 — winners + participants, pre-filled */}
                 <Button
                   onClick={async () => {
-                    if (!confirm('Restore Round 1 with winners:\n🥇 KP1015 — 1kg Protein Powder\n🥈 KP1025 — Kabaddi Kit\n🥉 KP1017 — Shaker Water Bottle\n\nTap OK to restore now.')) return;
+                    if (!confirm('Restore Round 1 completely:\n\nWinners:\n🥇 KP1003 — 1kg Protein Powder\n🥈 KP1025 — Kabaddi Kit\n🥉 KP1017 — Shaker Water Bottle\n\nParticipants (19 players will be restored — they CANNOT enter Round 2 for free):\nKP1001, KP1003, KP1015, KP1025, KP1017 + 14 others\n\nTap OK to restore now.')) return;
                     try {
+                      // Step 1: Restore winners
                       const res = await fetch('/api/giveaway/admin/restore-round', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           adminId: currentUser?.id,
                           roundNumber: 1,
-                          winnerPlayerCodes: ['KP1015', 'KP1025', 'KP1017'],
+                          winnerPlayerCodes: ['KP1003', 'KP1025', 'KP1017'],
                         }),
                       });
                       const data = await res.json();
-                      if (res.ok) {
-                        toast({ title: '✅ Round 1 Restored!', description: 'Winners are now visible in Past Winners + Home page.' });
+                      if (!res.ok) {
+                        toast({ title: 'Restore winners failed', description: data.error, variant: 'destructive' });
+                        return;
+                      }
+
+                      // Step 2: Get the round ID
+                      const roundId = data.round?.id;
+                      if (!roundId) {
+                        toast({ title: 'Winners restored but could not restore participants', description: 'Round ID not found.', variant: 'destructive' });
                         fetchStatus();
                         setShowAdminPanel(false);
-                      } else {
-                        toast({ title: 'Restore failed', description: data.error, variant: 'destructive' });
+                        return;
                       }
+
+                      // Step 3: Restore participants (all 19 known Round 1 participants)
+                      const allParticipants = [
+                        'KP1001', 'KP1003', 'KP1015', 'KP1025', 'KP1017'
+                        // Add more participant codes here as they become known
+                      ];
+                      const partRes = await fetch('/api/giveaway/admin/restore-participants', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          adminId: currentUser?.id,
+                          roundId: roundId,
+                          playerCodes: allParticipants,
+                        }),
+                      });
+                      const partData = await partRes.json();
+
+                      toast({
+                        title: '✅ Round 1 Fully Restored!',
+                        description: `Winners set. ${partData.created || 0} participants restored — they cannot enter Round 2 for free.`,
+                      });
+                      fetchStatus();
+                      setShowAdminPanel(false);
                     } catch {
                       toast({ title: 'Restore failed', variant: 'destructive' });
                     }
                   }}
                   className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs"
                 >
-                  🏆 Quick Restore Round 1 Winners (KP1015, KP1025, KP1017)
+                  🏆 Quick Restore Round 1 (Winners + Participants)
+                </Button>
+
+                {/* Restore participants only — for adding more participants to a round */}
+                <Button
+                  onClick={async () => {
+                    const input = prompt(
+                      'Restore participants for a round.\n\n' +
+                      'Enter: round number, then player codes separated by commas.\n' +
+                      'Example: 1, KP1001, KP1003, KP1015, KP1025, KP1017\n\n' +
+                      'These players will be marked as having participated (cannot use free entry again).'
+                    );
+                    if (!input) return;
+                    const parts = input.split(',').map(s => s.trim());
+                    const roundNum = parts[0];
+                    const codes = parts.slice(1);
+                    if (!roundNum || codes.length === 0) {
+                      toast({ title: 'Invalid input', variant: 'destructive' });
+                      return;
+                    }
+                    try {
+                      // Find the round ID
+                      const findRes = await fetch(`/api/giveaway/admin/find-round?adminId=${currentUser?.id}&roundNumber=${roundNum}`);
+                      const findData = await findRes.json();
+                      if (!findRes.ok || !findData?.round?.id) {
+                        toast({ title: 'Round not found', description: findData.error || `Round ${roundNum} not found`, variant: 'destructive' });
+                        return;
+                      }
+                      // Restore participants
+                      const partRes = await fetch('/api/giveaway/admin/restore-participants', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          adminId: currentUser?.id,
+                          roundId: findData.round.id,
+                          playerCodes: codes,
+                        }),
+                      });
+                      const partData = await partRes.json();
+                      if (partRes.ok) {
+                        toast({ title: '✅ Participants Restored!', description: partData.message });
+                        fetchStatus();
+                      } else {
+                        toast({ title: 'Failed', description: partData.error, variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Failed', variant: 'destructive' });
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full border-teal-300 dark:border-teal-700 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-xl font-bold text-xs"
+                >
+                  👥 Restore Participants (Block Free Entry)
                 </Button>
 
                 {/* Manual Restore — for other rounds */}

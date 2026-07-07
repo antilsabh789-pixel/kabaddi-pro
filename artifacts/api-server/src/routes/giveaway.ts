@@ -775,6 +775,72 @@ router.get('/giveaway/admin/find-round', async (req, res) => {
 });
 
 /**
+ * POST /api/giveaway/admin/restore-participants
+ * ADMIN ONLY — Recreates participant records for a round from a list of player codes.
+ * Used when participants were deleted by the old reset (deleteMany) and need to be
+ * restored so the system knows they already used their free entry.
+ *
+ * Body: { adminId, roundId, playerCodes: string[] }
+ */
+router.post('/giveaway/admin/restore-participants', async (req, res) => {
+  try {
+    const { adminId, roundId, playerCodes } = req.body;
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!roundId || !playerCodes || !Array.isArray(playerCodes) || playerCodes.length === 0) {
+      return res.status(400).json({ error: 'roundId and playerCodes array are required' });
+    }
+
+    // Look up users by player codes
+    const users = await db.user.findMany({
+      where: { playerCode: { in: playerCodes.map((c: string) => c.toUpperCase().trim()) } },
+      select: { id: true, playerCode: true, name: true, phone: true },
+    });
+
+    if (users.length === 0) {
+      return res.status(400).json({ error: 'No users found with those player codes' });
+    }
+
+    // Create participant records (skip if already exists)
+    let created = 0;
+    let skipped = 0;
+    for (const user of users) {
+      const existing = await db.giveawayParticipant.findUnique({
+        where: { giveawayRoundId_userId: { giveawayRoundId: roundId, userId: user.id } },
+      });
+      if (existing) {
+        skipped++;
+        continue;
+      }
+      await db.giveawayParticipant.create({
+        data: {
+          giveawayRoundId: roundId,
+          userId: user.id,
+          phone: user.phone,
+          name: user.name,
+          isPremium: false,
+        },
+      });
+      created++;
+    }
+
+    return res.json({
+      success: true,
+      message: `Restored ${created} participants (${skipped} already existed) for this round.`,
+      created,
+      skipped,
+      totalParticipants: created + skipped,
+    });
+  } catch (error) {
+    console.error('Giveaway restore participants error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/giveaway/admin/restore-round
  * ADMIN ONLY — Recreates a completed round with specific winners.
  * Used to restore rounds that were accidentally deleted by the old reset.
