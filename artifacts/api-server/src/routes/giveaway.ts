@@ -180,6 +180,7 @@ router.get('/giveaway/status', async (req, res) => {
           const w = winners.find(u => u.id === winnerIds[i]);
           if (w) {
             pastWinners.push({
+              roundId: cr.id,
               roundNumber: cr.roundNumber,
               rank: i + 1,
               playerId: w.playerCode || w.id.slice(-6),
@@ -580,6 +581,116 @@ router.post('/giveaway/admin/select-winners-manual', async (req, res) => {
     });
   } catch (error) {
     console.error('Giveaway manual select winners error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/giveaway/admin/round-participants?adminId=...&roundId=...
+ * ADMIN ONLY — returns all participants for a specific round (including past rounds).
+ * Used by the 'Change Winners' feature to show who participated.
+ */
+router.get('/giveaway/admin/round-participants', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || '';
+    const roundId = (req.query['roundId'] as string) || '';
+    if (!adminId || !roundId) return res.status(400).json({ error: 'adminId and roundId are required' });
+
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const participants = await db.giveawayParticipant.findMany({
+      where: { giveawayRoundId: roundId },
+      include: {
+        user: { select: { id: true, playerCode: true, name: true, phone: true, isPremium: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json({
+      participants: participants.map(p => ({
+        id: p.id,
+        userId: p.user.id,
+        playerCode: p.user.playerCode,
+        name: p.user.name,
+        phone: p.user.phone,
+        isPremium: p.user.isPremium,
+        joinedAt: p.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.error('Giveaway round participants error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/giveaway/admin/change-winners
+ * ADMIN ONLY — Changes the winners of an already-completed round.
+ * Body: { adminId, roundId, winnerIds: string[] }
+ *
+ * Works on rounds that already have winnersJson set (overwrites it).
+ * Does NOT create a next round (the round is already completed).
+ * Used when the admin wants to correct or change the winners after
+ * they've already been selected.
+ */
+router.post('/giveaway/admin/change-winners', async (req, res) => {
+  try {
+    const { adminId, roundId, winnerIds } = req.body;
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (!roundId || !winnerIds || !Array.isArray(winnerIds) || winnerIds.length === 0) {
+      return res.status(400).json({ error: 'roundId and winnerIds (1-3 IDs) are required' });
+    }
+    if (winnerIds.length > 3) {
+      return res.status(400).json({ error: 'Maximum 3 winners allowed' });
+    }
+
+    const round = await db.giveawayRound.findUnique({ where: { id: roundId } });
+    if (!round) return res.status(404).json({ error: 'Round not found' });
+    if (round.status !== 'completed') return res.status(400).json({ error: 'Round is not completed yet' });
+
+    // Verify all winnerIds are participants of this round
+    const participants = await db.giveawayParticipant.findMany({
+      where: { giveawayRoundId: roundId, userId: { in: winnerIds } },
+      include: { user: { select: { id: true, playerCode: true, name: true, phone: true } } },
+    });
+
+    if (participants.length !== winnerIds.length) {
+      const found = participants.map(p => p.userId);
+      const missing = winnerIds.filter((id: string) => !found.includes(id));
+      return res.status(400).json({ error: `Some winner IDs are not participants of this round: ${missing.join(', ')}` });
+    }
+
+    // Overwrite the winners
+    const winnersJson = JSON.stringify(winnerIds);
+    await db.giveawayRound.update({
+      where: { id: roundId },
+      data: { winnersJson },
+    });
+
+    // Return winners in admin's chosen order
+    const orderedWinners = winnerIds.map((id: string) =>
+      participants.find(p => p.userId === id)
+    ).filter(Boolean);
+
+    return res.json({
+      success: true,
+      message: 'Winners updated successfully',
+      winners: orderedWinners.map((w: any, i: number) => ({
+        rank: i + 1,
+        prize: PRIZES[i]?.name || 'Prize',
+        playerCode: w.user.playerCode || w.user.id.slice(-6),
+        name: w.user.name,
+        phone: w.user.phone,
+        userId: w.user.id,
+      })),
+    });
+  } catch (error) {
+    console.error('Giveaway change winners error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

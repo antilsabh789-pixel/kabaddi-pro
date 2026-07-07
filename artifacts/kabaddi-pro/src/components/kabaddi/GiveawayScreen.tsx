@@ -44,6 +44,7 @@ interface GiveawayStatus {
   canParticipate?: boolean;
   blockReason?: '' | 'already_participated' | 'no_referrals' | 'no_entries_remaining';
   pastWinners: Array<{
+    roundId?: string;
     roundNumber: number;
     rank: number;
     playerId: string;
@@ -276,10 +277,80 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
     setManualMode(true);
     setManualSelected([]);
     setManualRoundId(roundId);
-    // Need to fetch participants for this past round
-    // For now, the admin sees current round participants — past round participants
-    // would need a separate fetch. We'll use the existing adminParticipants for current
-    // and show a note for past rounds.
+  };
+
+  // ─── Change winners for a completed round ────────────────────
+  const [showChangeWinners, setShowChangeWinners] = useState(false);
+  const [changeRoundParticipants, setChangeRoundParticipants] = useState<any[]>([]);
+  const [changeRoundId, setChangeRoundId] = useState<string | null>(null);
+  const [changeSelected, setChangeSelected] = useState<string[]>([]);
+  const [changeLoading, setChangeLoading] = useState(false);
+
+  const handleChangeWinnersStart = async () => {
+    if (!currentUser?.id || !status?.pastWinners?.length) return;
+    // Get the roundId from the first past winner entry
+    const roundId = status.pastWinners[0].roundId;
+    if (!roundId) {
+      toast({ title: 'Cannot find round ID', description: 'Please refresh and try again.', variant: 'destructive' });
+      return;
+    }
+
+    setChangeRoundId(roundId);
+    setChangeSelected([]);
+    setChangeLoading(true);
+    setShowChangeWinners(true);
+
+    try {
+      // Fetch participants for this round using the admin participants endpoint
+      // We need a way to get participants for a specific past round.
+      // The admin participants endpoint only returns the CURRENT round's participants.
+      // Let's fetch all participants for this round directly.
+      const res = await fetch(`/api/giveaway/admin/round-participants?adminId=${currentUser.id}&roundId=${roundId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setChangeRoundParticipants(data.participants || []);
+      } else {
+        toast({ title: 'Failed to load participants', variant: 'destructive' });
+        setShowChangeWinners(false);
+      }
+    } catch {
+      toast({ title: 'Failed to load participants', variant: 'destructive' });
+      setShowChangeWinners(false);
+    } finally {
+      setChangeLoading(false);
+    }
+  };
+
+  // Handle the actual change of winners
+  const handleChangeWinnersConfirm = async () => {
+    if (!currentUser?.id || !changeRoundId || changeSelected.length === 0) return;
+    if (!confirm(`Change winners to ${changeSelected.length} player(s)? This will overwrite the current winners.`)) return;
+    setChangeLoading(true);
+    try {
+      const res = await fetch('/api/giveaway/admin/change-winners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: currentUser.id,
+          roundId: changeRoundId,
+          winnerIds: changeSelected,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: '✅ Winners Changed!', description: 'Past winners have been updated.' });
+        fetchStatus();
+        setShowChangeWinners(false);
+        setChangeSelected([]);
+        setChangeRoundId(null);
+      } else {
+        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to change winners', variant: 'destructive' });
+    } finally {
+      setChangeLoading(false);
+    }
   };
 
   if (loading) {
@@ -617,10 +688,23 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
         {/* Past Winners */}
         {status?.pastWinners && status.pastWinners.length > 0 && (
           <div className="space-y-2">
-            <h3 className="text-sm font-black text-warm-800 dark:text-warm-100 flex items-center gap-2 px-1">
-              <Crown className="w-4 h-4 text-brand-gold" />
-              Past Winners
-            </h3>
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-black text-warm-800 dark:text-warm-100 flex items-center gap-2">
+                <Crown className="w-4 h-4 text-brand-gold" />
+                Past Winners
+              </h3>
+              {currentUser?.isAdmin && (
+                <button
+                  onClick={() => {
+                    // Enter change-winners mode: fetch participants for the round + show selection
+                    handleChangeWinnersStart();
+                  }}
+                  className="text-[10px] font-bold text-brand-teal hover:underline"
+                >
+                  Change Winners
+                </button>
+              )}
+            </div>
             {status.pastWinners.map((w, i) => (
               <div key={i} className="flex items-center gap-3 bg-white dark:bg-warm-800/50 rounded-xl p-2.5 border border-warm-100 dark:border-warm-700/50">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
@@ -641,6 +725,88 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           </div>
         )}
       </div>
+
+      {/* ═══ Change Winners Overlay ═══ */}
+      {showChangeWinners && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={() => { setShowChangeWinners(false); setChangeSelected([]); }}>
+          <div className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-gray-400 rounded-full mx-auto mb-4" />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-warm-800 dark:text-white flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-500" />
+                Change Winners
+              </h3>
+              <button onClick={() => { setShowChangeWinners(false); setChangeSelected([]); }} className="w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center">
+                <X className="w-4 h-4 text-warm-500" />
+              </button>
+            </div>
+            <p className="text-xs text-warm-400 mb-4">Tap to select new winners ({changeSelected.length}/3). Current winners will be replaced.</p>
+
+            {changeLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+              </div>
+            ) : changeRoundParticipants.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="w-10 h-10 text-warm-300 mx-auto mb-2" />
+                <p className="text-sm text-warm-500">No participants found for this round</p>
+              </div>
+            ) : (
+              <>
+                <div className="max-h-60 overflow-y-auto space-y-1 mb-4">
+                  {changeRoundParticipants.map((p) => {
+                    const isSelected = changeSelected.includes(p.userId);
+                    return (
+                      <button
+                        key={p.userId}
+                        onClick={() => {
+                          if (isSelected) {
+                            setChangeSelected(prev => prev.filter(id => id !== p.userId));
+                          } else if (changeSelected.length < 3) {
+                            setChangeSelected(prev => [...prev, p.userId]);
+                          } else {
+                            toast({ title: 'Max 3 winners', description: 'You can select up to 3 winners only.' });
+                          }
+                        }}
+                        className={`w-full flex items-center gap-2 p-2.5 rounded-lg text-left transition-all ${
+                          isSelected ? 'bg-amber-500 text-white' : 'bg-warm-50 dark:bg-warm-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isSelected ? 'border-white bg-white' : 'border-amber-400'
+                        }`}>
+                          {isSelected && <Check className="w-3 h-3 text-amber-500" strokeWidth={3} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'}`}>
+                            {p.name || 'Unknown'}
+                          </p>
+                          <p className={`text-[9px] font-mono ${isSelected ? 'text-white/70' : 'text-warm-400'}`}>
+                            {p.playerCode || '—'} · {p.phone ? `****${p.phone.slice(-4)}` : 'No phone'}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[9px] font-black text-white bg-white/20 px-1.5 py-0.5 rounded-full">
+                            #{changeSelected.indexOf(p.userId) + 1}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  onClick={handleChangeWinnersConfirm}
+                  disabled={changeSelected.length === 0 || changeLoading}
+                  className="w-full bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold"
+                >
+                  {changeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : `✅ Change to ${changeSelected.length} Winner${changeSelected.length !== 1 ? 's' : ''}`}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Admin Panel Modal */}
       <AnimatePresence>
