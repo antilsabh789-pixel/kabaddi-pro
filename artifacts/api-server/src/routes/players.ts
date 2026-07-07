@@ -270,7 +270,7 @@ router.get('/popular-players', async (req, res) => {
 
 router.get('/total-players', async (req, res) => {
   try {
-    const count = await db.user.count({ where: { role: 'player' } });
+    const count = await db.user.count({ where: { role: 'player', isAdmin: false } });
     return res.json({ count });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

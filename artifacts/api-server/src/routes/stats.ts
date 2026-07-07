@@ -6,7 +6,7 @@ const router = Router();
 router.get('/stats', async (req, res) => {
   try {
     const gender = (req.query['gender'] as string) || 'all';
-    const userWhere: Record<string, unknown> = { role: 'player' };
+    const userWhere: Record<string, unknown> = { role: 'player', isAdmin: false };
     if (gender && gender !== 'all') userWhere.gender = gender;
 
     const [totalPlayers, totalTeams, totalTournaments, totalMatches, liveMatchCount, completedMatchCount, upcomingMatchCount, aggregateStats] = await Promise.all([

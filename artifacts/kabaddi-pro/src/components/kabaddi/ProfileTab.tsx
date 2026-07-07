@@ -958,7 +958,8 @@ export default function ProfileTab() {
     if (!currentUser?.isAdmin) return;
     let cancelled = false;
     // Fetch total players for the admin dashboard tile
-    fetch('/api/stats')
+    // Use cache: 'no-store' to always get fresh data
+    fetch('/api/stats', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (!cancelled && typeof data.totalPlayers === 'number') {
