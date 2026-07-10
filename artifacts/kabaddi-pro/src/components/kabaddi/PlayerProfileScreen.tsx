@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Users, Star, Crown, Lock, Shield, Zap, Target,
   Trophy, MapPin, Flame, ChevronRight, Loader2, Share2, UserPlus,
-  Swords, Activity, Award, TrendingUp
+  Swords, Activity, Award, TrendingUp, Megaphone
 } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import { t } from '@/lib/i18n';
@@ -24,6 +24,7 @@ interface PlayerData {
   playerCode: string | null;
   gender: string | null;
   role: string;
+  showCoachBadge?: boolean;
   position: string | null;
   overallRating: number;
   totalPoints: number;
@@ -175,6 +176,7 @@ export default function PlayerProfileScreen({ userId, onBack }: PlayerProfileScr
           playerCode: data.player.playerCode || null,
           gender: data.player.gender || null,
           role: data.player.role || 'player',
+          showCoachBadge: data.player.showCoachBadge === true,
           position: data.profile?.position || null,
           overallRating: data.profile?.overallRating || 0,
           totalPoints: data.profile?.totalPoints || 0,
@@ -335,6 +337,11 @@ export default function PlayerProfileScreen({ userId, onBack }: PlayerProfileScr
                 {player.playerCode && (
                   <span className="text-[10px] font-bold text-white/60 bg-white/10 px-2 py-0.5 rounded-full">
                     {player.playerCode}
+                  </span>
+                )}
+                {player.showCoachBadge && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full border border-emerald-300/40 dark:border-emerald-700/40">
+                    <Megaphone className="w-2.5 h-2.5" />COACH
                   </span>
                 )}
                 {player.jerseyNumber && (

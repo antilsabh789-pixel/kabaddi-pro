@@ -138,6 +138,60 @@ router.get('/follow', async (req, res) => {
       return res.json({ following });
     }
 
+    // ── Search mode: find players by name/playerCode (excludes users the
+    //    current user is already following, so the result set is "suggested
+    //    players to follow"). Used by FollowScreen's "Follow Back" check and
+    //    SocialFeedScreen's "Suggested Players" rail. ──────────────────────
+    if (type === 'search') {
+      const search = ((req.query['search'] as string) || '').trim();
+      // Pull the user's existing followings so we can exclude them.
+      const myFollows = await db.follow.findMany({
+        where: { followerId: userId },
+        select: { followingId: true },
+      });
+      const excludeIds = [userId, ...myFollows.map((f) => f.followingId)];
+
+      // If a search term is provided, filter by name or playerCode (case-insensitive).
+      // Otherwise return the most recently joined players as suggestions.
+      const where = search
+        ? {
+            AND: [
+              { id: { notIn: excludeIds } },
+              { role: 'player' },
+              { isAdmin: false },
+              {
+                OR: [
+                  { name: { contains: search, mode: 'insensitive' as const } },
+                  { playerCode: { contains: search, mode: 'insensitive' as const } },
+                ],
+              },
+            ],
+          }
+        : {
+            AND: [
+              { id: { notIn: excludeIds } },
+              { role: 'player' },
+              { isAdmin: false },
+            ],
+          };
+
+      const players = await db.user.findMany({
+        where,
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, name: true, avatar: true, phone: true, gender: true, playerCode: true,
+          profile: { select: { position: true, jerseyNumber: true, overallRating: true, totalPoints: true, totalMatches: true } },
+        },
+      });
+
+      const masked = players.map((p) => ({
+        ...p,
+        phone: p.phone ? `****${p.phone.slice(-4)}` : '',
+      }));
+      return res.json({ players: masked });
+    }
+
     // ── Default: single-target check ──────────────────────────────────────
     if (!targetId) return res.status(400).json({ error: 'targetId or type is required' });
     const follow = await db.follow.findUnique({ where: { followerId_followingId: { followerId: userId, followingId: targetId } } });
@@ -477,7 +531,7 @@ router.post('/referrals', async (req, res) => {
         data: {
           isPremium: true,
           premiumExpiry: referrerNewExpiry,
-          premiumPlan: referrer?.premiumPlan && referrer.premiumPlan !== 'referral' ? referrer.premiumPlan : 'referral',
+          premiumPlan: (referrer?.isPremium && referrerExpiry && referrerExpiry > now && referrer?.premiumPlan && referrer.premiumPlan !== 'referral') ? referrer.premiumPlan : 'referral',
         },
       }),
       db.user.update({
@@ -485,7 +539,7 @@ router.post('/referrals', async (req, res) => {
         data: {
           isPremium: true,
           premiumExpiry: referredNewExpiry,
-          premiumPlan: referredUser?.premiumPlan && referredUser.premiumPlan !== 'referral' ? referredUser.premiumPlan : 'referral',
+          premiumPlan: (referredUser?.isPremium && referredExpiry && referredExpiry > now && referredUser?.premiumPlan && referredUser.premiumPlan !== 'referral') ? referredUser.premiumPlan : 'referral',
         },
       }),
     ]);

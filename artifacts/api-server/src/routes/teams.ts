@@ -509,20 +509,24 @@ router.post('/teams/join-requests/:id/accept', async (req, res) => {
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'pending') return res.status(400).json({ error: 'Request already processed' });
 
-    // Verify the accepter is a member of the team
-    const isMember = request.team.members.some(m => m.userId === userId);
-    if (!isMember) return res.status(403).json({ error: 'Only team members can accept requests' });
+    // Verify the accepter is the CAPTAIN of the team (not just any member).
+    // Previously this allowed ANY team member to accept/reject requests,
+    // which lets a malicious member admit anyone. Captain-only is the standard
+    // authorization for team-management operations.
+    const captain = await isCaptain(request.teamId, userId);
+    if (!captain) return res.status(403).json({ error: 'Only the team captain can accept join requests' });
 
     // Add the requesting user as a team member
     await db.teamMember.create({
       data: { teamId: request.teamId, userId: request.userId, isCaptain: false },
     });
 
-    // Mark request as accepted
-    await db.teamJoinRequest.update({
-      where: { id: requestId },
-      data: { status: 'accepted' },
-    });
+    // Hard-delete the request row instead of marking it 'accepted'.
+    // The TeamJoinRequest schema has a @@unique([teamId, userId, status])
+    // constraint — marking 'accepted' would collide with any future
+    // re-application (e.g. user leaves and re-requests). Hard-delete avoids
+    // this entirely and keeps the requests table clean.
+    await db.teamJoinRequest.delete({ where: { id: requestId } });
 
     return res.json({ success: true, message: 'Player added to team' });
   } catch (error) {
@@ -549,14 +553,13 @@ router.post('/teams/join-requests/:id/reject', async (req, res) => {
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'pending') return res.status(400).json({ error: 'Request already processed' });
 
-    // Verify the rejecter is a member of the team
-    const isMember = request.team.members.some(m => m.userId === userId);
-    if (!isMember) return res.status(403).json({ error: 'Only team members can reject requests' });
+    // Verify the rejecter is the CAPTAIN of the team (not just any member).
+    const captain = await isCaptain(request.teamId, userId);
+    if (!captain) return res.status(403).json({ error: 'Only the team captain can reject join requests' });
 
-    await db.teamJoinRequest.update({
-      where: { id: requestId },
-      data: { status: 'rejected' },
-    });
+    // Hard-delete the request row (see accept handler for the rationale —
+    // avoids the @@unique([teamId, userId, status]) collision on re-apply).
+    await db.teamJoinRequest.delete({ where: { id: requestId } });
 
     return res.json({ success: true, message: 'Request rejected' });
   } catch (error) {

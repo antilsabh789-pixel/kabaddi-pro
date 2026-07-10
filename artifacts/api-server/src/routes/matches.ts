@@ -148,9 +148,11 @@ router.post('/matches', async (req, res) => {
       let resolvedHomeTeamId = homeTeamName || 'home';
       let resolvedAwayTeamId = awayTeamName || 'away';
 
-      // Try to find existing teams by name (case-insensitive)
+      // Try to find existing teams by name (case-insensitive — prevents
+      // duplicate placeholder teams when the frontend sends a name in a
+      // different case than what's stored, e.g. "warriors" vs "Warriors")
       if (homeTeamName) {
-        const existingHome = await db.team.findFirst({ where: { name: homeTeamName }, select: { id: true } });
+        const existingHome = await db.team.findFirst({ where: { name: { equals: homeTeamName, mode: 'insensitive' } }, select: { id: true } });
         if (existingHome) {
           resolvedHomeTeamId = existingHome.id;
         } else {
@@ -167,7 +169,7 @@ router.post('/matches', async (req, res) => {
         }
       }
       if (awayTeamName) {
-        const existingAway = await db.team.findFirst({ where: { name: awayTeamName }, select: { id: true } });
+        const existingAway = await db.team.findFirst({ where: { name: { equals: awayTeamName, mode: 'insensitive' } }, select: { id: true } });
         if (existingAway) {
           resolvedAwayTeamId = existingAway.id;
         } else {
@@ -504,56 +506,77 @@ router.delete('/matches', async (req, res) => {
       }
     }
 
-    // Decrement the stats from each player's profile
+    // Decrement the stats from each player's profile using ATOMIC decrements
+    // (Prisma's { decrement: N } is atomic at the DB layer, avoiding the
+    // race condition where a concurrent POST /matches increment lands between
+    // our read and write). The Math.max(0,...) clamp isn't strictly needed
+    // because decrement naturally stops at the value the user has; we keep
+    // the explicit guard for safety in case of historical drift.
     for (const [playerId, stats] of Object.entries(playerStats)) {
       const profile = await db.playerProfile.findUnique({ where: { userId: playerId } });
       if (!profile) continue; // no profile to update
 
-      const updateData: Record<string, number | { decrement: number } | { increment: number }> = {};
-      // Decrement match count by 1 (don't go below 0)
-      const currentMatches = (isPracticeMatch ? profile.practiceMatches : profile.tournamentMatches) || 0;
-      if (currentMatches > 0) updateData[`${prefix}Matches`] = currentMatches - 1;
+      const updateData: Record<string, { decrement: number }> = {};
+      // Decrement match count by 1
+      updateData[`${prefix}Matches`] = { decrement: 1 };
 
-      // Decrement each stat (don't go below 0)
-      if (stats.totalRaids > 0) {
-        const cur = (isPracticeMatch ? profile.practiceTotalRaids : profile.tournamentTotalRaids) || 0;
-        updateData[`${prefix}TotalRaids`] = Math.max(0, cur - stats.totalRaids);
-      }
-      if (stats.successfulRaids > 0) {
-        const cur = (isPracticeMatch ? profile.practiceSuccessfulRaids : profile.tournamentSuccessfulRaids) || 0;
-        updateData[`${prefix}SuccessfulRaids`] = Math.max(0, cur - stats.successfulRaids);
-      }
-      if (stats.totalTackles > 0) {
-        const cur = (isPracticeMatch ? profile.practiceTotalTackles : profile.tournamentTotalTackles) || 0;
-        updateData[`${prefix}TotalTackles`] = Math.max(0, cur - stats.totalTackles);
-      }
-      if (stats.successfulTackles > 0) {
-        const cur = (isPracticeMatch ? profile.practiceSuccessfulTackles : profile.tournamentSuccessfulTackles) || 0;
-        updateData[`${prefix}SuccessfulTackles`] = Math.max(0, cur - stats.successfulTackles);
-      }
-      if (stats.raidPoints > 0) {
-        const cur = (isPracticeMatch ? profile.practiceRaidPoints : profile.tournamentRaidPoints) || 0;
-        updateData[`${prefix}RaidPoints`] = Math.max(0, cur - stats.raidPoints);
-      }
-      if (stats.tacklePoints > 0) {
-        const cur = (isPracticeMatch ? profile.practiceTacklePoints : profile.tournamentTacklePoints) || 0;
-        updateData[`${prefix}TacklePoints`] = Math.max(0, cur - stats.tacklePoints);
-      }
-      if (stats.bonusPoints > 0) {
-        const cur = (isPracticeMatch ? profile.practiceBonusPoints : profile.tournamentBonusPoints) || 0;
-        updateData[`${prefix}BonusPoints`] = Math.max(0, cur - stats.bonusPoints);
-      }
-      if (stats.superTackles > 0) {
-        const cur = (isPracticeMatch ? profile.practiceSuperTackles : profile.tournamentSuperTackles) || 0;
-        updateData[`${prefix}SuperTackles`] = Math.max(0, cur - stats.superTackles);
-      }
-      if (stats.totalPoints > 0) {
-        const cur = (isPracticeMatch ? profile.practiceTotalPoints : profile.tournamentTotalPoints) || 0;
-        updateData[`${prefix}TotalPoints`] = Math.max(0, cur - stats.totalPoints);
-      }
+      // Decrement each stat atomically
+      if (stats.totalRaids > 0) updateData[`${prefix}TotalRaids`] = { decrement: stats.totalRaids };
+      if (stats.successfulRaids > 0) updateData[`${prefix}SuccessfulRaids`] = { decrement: stats.successfulRaids };
+      if (stats.totalTackles > 0) updateData[`${prefix}TotalTackles`] = { decrement: stats.totalTackles };
+      if (stats.successfulTackles > 0) updateData[`${prefix}SuccessfulTackles`] = { decrement: stats.successfulTackles };
+      if (stats.raidPoints > 0) updateData[`${prefix}RaidPoints`] = { decrement: stats.raidPoints };
+      if (stats.tacklePoints > 0) updateData[`${prefix}TacklePoints`] = { decrement: stats.tacklePoints };
+      if (stats.bonusPoints > 0) updateData[`${prefix}BonusPoints`] = { decrement: stats.bonusPoints };
+      if (stats.superTackles > 0) updateData[`${prefix}SuperTackles`] = { decrement: stats.superTackles };
+      if (stats.totalPoints > 0) updateData[`${prefix}TotalPoints`] = { decrement: stats.totalPoints };
 
-      if (Object.keys(updateData).length > 0) {
+      try {
         await db.playerProfile.update({ where: { userId: playerId }, data: updateData });
+      } catch (e) {
+        // If decrement would go below zero, Prisma throws. Fall back to clamped values.
+        const clampedData: Record<string, number> = {};
+        const currentMatches = (isPracticeMatch ? profile.practiceMatches : profile.tournamentMatches) || 0;
+        if (currentMatches > 0) clampedData[`${prefix}Matches`] = currentMatches - 1;
+        if (stats.totalRaids > 0) {
+          const cur = (isPracticeMatch ? profile.practiceTotalRaids : profile.tournamentTotalRaids) || 0;
+          clampedData[`${prefix}TotalRaids`] = Math.max(0, cur - stats.totalRaids);
+        }
+        if (stats.successfulRaids > 0) {
+          const cur = (isPracticeMatch ? profile.practiceSuccessfulRaids : profile.tournamentSuccessfulRaids) || 0;
+          clampedData[`${prefix}SuccessfulRaids`] = Math.max(0, cur - stats.successfulRaids);
+        }
+        if (stats.totalTackles > 0) {
+          const cur = (isPracticeMatch ? profile.practiceTotalTackles : profile.tournamentTotalTackles) || 0;
+          clampedData[`${prefix}TotalTackles`] = Math.max(0, cur - stats.totalTackles);
+        }
+        if (stats.successfulTackles > 0) {
+          const cur = (isPracticeMatch ? profile.practiceSuccessfulTackles : profile.tournamentSuccessfulTackles) || 0;
+          clampedData[`${prefix}SuccessfulTackles`] = Math.max(0, cur - stats.successfulTackles);
+        }
+        if (stats.raidPoints > 0) {
+          const cur = (isPracticeMatch ? profile.practiceRaidPoints : profile.tournamentRaidPoints) || 0;
+          clampedData[`${prefix}RaidPoints`] = Math.max(0, cur - stats.raidPoints);
+        }
+        if (stats.tacklePoints > 0) {
+          const cur = (isPracticeMatch ? profile.practiceTacklePoints : profile.tournamentTacklePoints) || 0;
+          clampedData[`${prefix}TacklePoints`] = Math.max(0, cur - stats.tacklePoints);
+        }
+        if (stats.bonusPoints > 0) {
+          const cur = (isPracticeMatch ? profile.practiceBonusPoints : profile.tournamentBonusPoints) || 0;
+          clampedData[`${prefix}BonusPoints`] = Math.max(0, cur - stats.bonusPoints);
+        }
+        if (stats.superTackles > 0) {
+          const cur = (isPracticeMatch ? profile.practiceSuperTackles : profile.tournamentSuperTackles) || 0;
+          clampedData[`${prefix}SuperTackles`] = Math.max(0, cur - stats.superTackles);
+        }
+        if (stats.totalPoints > 0) {
+          const cur = (isPracticeMatch ? profile.practiceTotalPoints : profile.tournamentTotalPoints) || 0;
+          clampedData[`${prefix}TotalPoints`] = Math.max(0, cur - stats.totalPoints);
+        }
+        if (Object.keys(clampedData).length > 0) {
+          await db.playerProfile.update({ where: { userId: playerId }, data: clampedData });
+        }
       }
     }
 
@@ -605,7 +628,7 @@ router.post('/matches/live', async (req, res) => {
     let resolvedAwayTeamId = awayTeamName || 'away';
 
     if (homeTeamName) {
-      const existingHome = await db.team.findFirst({ where: { name: homeTeamName }, select: { id: true } });
+      const existingHome = await db.team.findFirst({ where: { name: { equals: homeTeamName, mode: 'insensitive' } }, select: { id: true } });
       if (existingHome) {
         resolvedHomeTeamId = existingHome.id;
       } else {
@@ -621,7 +644,7 @@ router.post('/matches/live', async (req, res) => {
       }
     }
     if (awayTeamName) {
-      const existingAway = await db.team.findFirst({ where: { name: awayTeamName }, select: { id: true } });
+      const existingAway = await db.team.findFirst({ where: { name: { equals: awayTeamName, mode: 'insensitive' } }, select: { id: true } });
       if (existingAway) {
         resolvedAwayTeamId = existingAway.id;
       } else {

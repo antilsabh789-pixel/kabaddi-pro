@@ -30,6 +30,7 @@ interface MatchEventDB {
   teamId: string;
   playerId?: string;
   playerPhone?: string | null;
+  playerName?: string | null;
   eventType: string;
   value: number;
   details?: string;
@@ -98,7 +99,7 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
   const { toast } = useToast();
   const [match, setMatch] = useState<MatchData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('awards');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -143,16 +144,36 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
   };
 
   // ── Player aggregation ─────────────────────────────────────────────────────
+  // IMPORTANT: We MUST include non-registered players too. Their events are
+  // saved with playerId=null and playerPhone set (e.g. "+91XXXXXXXXXX"). They
+  // appear in the scorecard keyed by their phone so users can see who scored
+  // even when those players haven't signed up yet. When they later register,
+  // the auth claim flow will link these events to their real userId.
   const playerMap = useCallback(() => {
-    if (!match) return { players: {} as Record<string, { id: string; name: string; teamId: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number }> , topRaiders: [] as any[], topDefenders: [] as any[] };
-    const players: Record<string, { id: string; name: string; teamId: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number }> = {};
+    if (!match) return { players: {} as Record<string, { id: string; name: string; teamId: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number; isGuest?: boolean }> , topRaiders: [] as any[], topDefenders: [] as any[] };
+    const players: Record<string, { id: string; name: string; teamId: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number; isGuest?: boolean }> = {};
     const scorerNames: Record<string, string> = {};
     for (const s of match.scorers) scorerNames[s.userId] = s.user.name;
 
     for (const evt of match.events) {
-      const pid = evt.playerId;
+      // Key by playerId when available, otherwise by playerPhone (prefixed to
+      // avoid collisions with real userIds). If neither exists, skip.
+      const pid = evt.playerId || (evt.playerPhone ? `guest_${evt.playerPhone}` : '');
       if (!pid) continue;
-      if (!players[pid]) players[pid] = { id: pid, name: scorerNames[pid] || pid.slice(0, 6), teamId: evt.teamId, raidPoints: 0, tacklePoints: 0, bonusPoints: 0, totalPoints: 0, raids: 0, tackles: 0, superTackles: 0 };
+      const isGuest = !evt.playerId && !!evt.playerPhone;
+      if (!players[pid]) {
+        // Display name: registered player → their stored name; guest → their
+        // stored name (from the event) or a masked phone label.
+        const maskedPhone = evt.playerPhone ? `Guest ****${evt.playerPhone.slice(-2)}` : 'Guest Player';
+        players[pid] = {
+          id: pid,
+          name: scorerNames[pid] || evt.playerName || maskedPhone,
+          teamId: evt.teamId,
+          raidPoints: 0, tacklePoints: 0, bonusPoints: 0, totalPoints: 0,
+          raids: 0, tackles: 0, superTackles: 0,
+          isGuest,
+        };
+      }
       const p = players[pid];
       const val = evt.value || 0;
       const meta = EVENT_META[evt.eventType];
@@ -579,7 +600,7 @@ function AwardCard({ title, icon: Icon, gradient, player, badge, onViewPlayer, p
 function PlayerScorecard({ teamName, teamColor, players, onViewPlayer }: {
   teamName: string;
   teamColor: string;
-  players: Array<{ id: string; name: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number }>;
+  players: Array<{ id: string; name: string; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; raids: number; tackles: number; superTackles: number; isGuest?: boolean }>;
   onViewPlayer?: (userId: string) => void;
 }) {
   const sorted = [...players].sort((a, b) => b.totalPoints - a.totalPoints);
@@ -611,10 +632,13 @@ function PlayerScorecard({ teamName, teamColor, players, onViewPlayer }: {
         sorted.map((p) => (
           <div
             key={p.id}
-            onClick={() => onViewPlayer?.(p.id)}
-            className={`grid grid-cols-12 gap-1 px-3 py-2 text-xs border-b border-warm-50 dark:border-warm-700/30 last:border-0 ${onViewPlayer ? 'cursor-pointer hover:bg-warm-50 dark:hover:bg-warm-700/30' : ''}`}
+            onClick={() => !p.isGuest && onViewPlayer?.(p.id)}
+            className={`grid grid-cols-12 gap-1 px-3 py-2 text-xs border-b border-warm-50 dark:border-warm-700/30 last:border-0 ${!p.isGuest && onViewPlayer ? 'cursor-pointer hover:bg-warm-50 dark:hover:bg-warm-700/30' : ''}`}
           >
-            <div className="col-span-4 font-semibold text-warm-800 dark:text-warm-100 truncate">{p.name}</div>
+            <div className="col-span-4 font-semibold text-warm-800 dark:text-warm-100 truncate flex items-center gap-1">
+              {p.name}
+              {p.isGuest && <span className="text-[8px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1 py-0.5 rounded font-bold">GUEST</span>}
+            </div>
             <div className="col-span-2 text-center text-warm-600 dark:text-warm-300">{p.raidPoints}</div>
             <div className="col-span-2 text-center text-warm-600 dark:text-warm-300">{p.tacklePoints}</div>
             <div className="col-span-2 text-center text-amber-500">{p.bonusPoints}</div>

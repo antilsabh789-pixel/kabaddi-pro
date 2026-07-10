@@ -517,7 +517,10 @@ export default function AuthScreen() {
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
-        goNext('role');
+        // Skip the role-selection stage — coach role is deprecated, everyone
+        // is a player. Go straight to the details form.
+        setSelectedRole('player');
+        goNext('details');
       }, 800);
     } catch {
       setError('Something went wrong. Please try again.');
@@ -632,24 +635,28 @@ export default function AuthScreen() {
   }, [gender, weight, practiceGround, coachLocation, position, selectedRole, setOnboarded]);
 
   // ── Role Get Started ──────────────────────────────────────────
+  // Coach role is DEPRECATED — everyone is a player now. The role-selection
+  // stage is skipped in the UI (see stage transition logic below), but we
+  // keep handleGetStarted for backward compat. It auto-stamps role='player'
+  // and goes straight to the details stage.
   const handleGetStarted = useCallback(async () => {
     setIsSubmitting(true);
     try {
       const currentUser = useKabaddiStore.getState().currentUser;
       if (currentUser?.id) {
+        // Force role='player' — backend will also force this on update.
         await authRequest({
           userId: currentUser.id,
           action: 'update-details',
-          role: selectedRole,
-        });
-        useKabaddiStore.getState().updateUser({ role: selectedRole });
+        }).catch(() => {});
+        useKabaddiStore.getState().updateUser({ role: 'player' });
       }
-      // Go to role-specific details
+      // Go straight to player details (no more coach-specific form)
       goNext('details');
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedRole, goNext]);
+  }, [goNext]);
 
   // ── Forgot Password: Verify with DOB ─────────────────────────
   const handleForgotVerify = useCallback(async () => {

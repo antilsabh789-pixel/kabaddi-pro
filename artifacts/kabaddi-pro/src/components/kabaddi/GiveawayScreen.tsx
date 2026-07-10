@@ -29,6 +29,7 @@ interface GiveawayStatus {
     startDate: string;
     endDate: string;
     status: string;
+    hasEnded?: boolean;
   };
   prizes: Prize[];
   participantCount: number;
@@ -43,6 +44,7 @@ interface GiveawayStatus {
   canParticipate?: boolean;
   blockReason?: '' | 'already_participated' | 'no_referrals' | 'no_entries_remaining';
   pastWinners: Array<{
+    roundId?: string;
     roundNumber: number;
     rank: number;
     playerId: string;
@@ -60,7 +62,15 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminParticipants, setAdminParticipants] = useState<any[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [pendingRounds, setPendingRounds] = useState<Array<{
+    id: string; roundNumber: number; endDate: string; participantCount: number;
+  }>>([]);
+  const [selectingRoundId, setSelectedRoundId] = useState<string | null>(null);
   const [selectingWinners, setSelectingWinners] = useState(false);
+  // Manual winner selection
+  const [manualMode, setManualMode] = useState(false);
+  const [manualSelected, setManualSelected] = useState<string[]>([]); // user IDs
+  const [manualRoundId, setManualRoundId] = useState<string | null>(null);
 
   useBackButton(true, onClose);
 
@@ -148,6 +158,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
     setShowAdminPanel(true);
     setAdminLoading(true);
     try {
+      // Fetch current round participants
       const res = await fetch(`/api/giveaway/admin/participants?adminId=${currentUser.id}`);
       const data = await res.json();
       if (res.ok) {
@@ -156,27 +167,44 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
         toast({ title: 'Access Denied', description: data.error, variant: 'destructive' });
         setShowAdminPanel(false);
       }
+
+      // Also fetch pending rounds (completed rounds without winners)
+      const pendingRes = await fetch(`/api/giveaway/admin/pending-rounds?adminId=${currentUser.id}`);
+      if (pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        setPendingRounds(pendingData.rounds || []);
+      }
     } catch {
-      toast({ title: 'Error', description: 'Failed to load participants', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to load admin data', variant: 'destructive' });
     } finally {
       setAdminLoading(false);
     }
   };
 
-  const handleSelectWinners = async () => {
+  const handleSelectWinners = async (roundId?: string) => {
     if (!currentUser?.id) return;
-    if (!confirm('Select 3 random winners now? This will end the current round and start a new one.')) return;
+    if (!confirm(roundId
+      ? 'Select 3 random winners for this past round? Winners will be shown in the Past Winners section.'
+      : 'Select 3 random winners now? This will end the current round and start a new one.'
+    )) return;
+
+    const loadingId = roundId || 'current';
+    setSelectedRoundId(loadingId);
     setSelectingWinners(true);
     try {
       const res = await fetch('/api/giveaway/admin/select-winners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminId: currentUser.id }),
+        body: JSON.stringify({ adminId: currentUser.id, roundId: roundId || undefined }),
       });
       const data = await res.json();
       if (res.ok) {
-        toast({ title: '🎉 Winners Selected!', description: 'Check the admin panel for contact details' });
+        toast({ title: '🎉 Winners Selected!', description: 'Winners are now shown in the Past Winners section.' });
         fetchStatus();
+        // Refresh pending rounds
+        if (roundId) {
+          setPendingRounds(prev => prev.filter(r => r.id !== roundId));
+        }
         setShowAdminPanel(false);
       } else {
         toast({ title: 'Error', description: data.error, variant: 'destructive' });
@@ -185,6 +213,190 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
       toast({ title: 'Error', description: 'Failed to select winners', variant: 'destructive' });
     } finally {
       setSelectingWinners(false);
+      setSelectedRoundId(null);
+    }
+  };
+
+  // ─── Manual winner selection ─────────────────────────────────
+  const toggleManualSelect = (userId: string) => {
+    setManualSelected(prev => {
+      if (prev.includes(userId)) return prev.filter(id => id !== userId);
+      if (prev.length >= 3) {
+        toast({ title: 'Max 3 winners', description: 'You can select up to 3 winners only.' });
+        return prev;
+      }
+      return [...prev, userId];
+    });
+  };
+
+  const handleManualSelectWinners = async () => {
+    if (!currentUser?.id || manualSelected.length === 0) return;
+    if (!confirm(`Set these ${manualSelected.length} player(s) as winners? This cannot be undone.`)) return;
+    setSelectingWinners(true);
+    try {
+      const res = await fetch('/api/giveaway/admin/select-winners-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: currentUser.id,
+          winnerIds: manualSelected,
+          roundId: manualRoundId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: '🎉 Winners Set!', description: 'Your selected winners are now shown in Past Winners.' });
+        fetchStatus();
+        setManualMode(false);
+        setManualSelected([]);
+        setManualRoundId(null);
+        setShowAdminPanel(false);
+        // Refresh pending rounds
+        if (manualRoundId) {
+          setPendingRounds(prev => prev.filter(r => r.id !== manualRoundId));
+        }
+      } else {
+        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to set winners', variant: 'destructive' });
+    } finally {
+      setSelectingWinners(false);
+    }
+  };
+
+  // Start manual selection for current round
+  const startManualMode = () => {
+    setManualMode(true);
+    setManualSelected([]);
+    setManualRoundId(null); // current active round
+  };
+
+  // Start manual selection for a past round
+  const startManualModeForRound = (roundId: string) => {
+    setManualMode(true);
+    setManualSelected([]);
+    setManualRoundId(roundId);
+  };
+
+  // ─── Change winners for a completed round ────────────────────
+  const [showChangeWinners, setShowChangeWinners] = useState(false);
+  const [changeRoundParticipants, setChangeRoundParticipants] = useState<any[]>([]);
+  const [changeRoundId, setChangeRoundId] = useState<string | null>(null);
+  const [changeSelected, setChangeSelected] = useState<string[]>([]);
+  const [changeLoading, setChangeLoading] = useState(false);
+
+  const handleChangeWinnersStart = async () => {
+    if (!currentUser?.id) return;
+
+    setChangeSelected([]);
+    setChangeLoading(true);
+    setShowChangeWinners(true);
+
+    try {
+      // Refetch status to get the latest pastWinners WITH roundId
+      const statusRes = await fetch('/api/giveaway/status');
+      let roundId: string | null = null;
+      let roundNumber: number | null = null;
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        setStatus(statusData);
+        if (statusData?.pastWinners?.length > 0) {
+          roundId = statusData.pastWinners[0].roundId || null;
+          roundNumber = statusData.pastWinners[0].roundNumber;
+        }
+      }
+
+      // Fallback: if roundId is missing from pastWinners, try fetching
+      // completed rounds via the pending-rounds endpoint (which queries
+      // completed rounds directly from the DB)
+      if (!roundId && roundNumber) {
+        // Try fetching via admin pending-rounds (returns completed rounds without winners)
+        // But the round we want HAS winners — so let's try a different approach:
+        // Use the change-winners endpoint with a roundNumber-based lookup
+        // Actually, the simplest fix: add a backend endpoint to find a round by number
+        // For now, let's try fetching the round-participants with the round number
+        // by first fetching all completed rounds
+        try {
+          const roundRes = await fetch(`/api/giveaway/admin/find-round?adminId=${currentUser.id}&roundNumber=${roundNumber}`);
+          if (roundRes.ok) {
+            const roundData = await roundRes.json();
+            if (roundData?.round?.id) {
+              roundId = roundData.round.id;
+            }
+          }
+        } catch { /* try next fallback */ }
+      }
+
+      // If still no roundId, try the most recent completed round
+      if (!roundId) {
+        try {
+          const roundRes = await fetch(`/api/giveaway/admin/find-round?adminId=${currentUser.id}&roundNumber=1`);
+          if (roundRes.ok) {
+            const roundData = await roundRes.json();
+            if (roundData?.round?.id) {
+              roundId = roundData.round.id;
+            }
+          }
+        } catch { /* give up */ }
+      }
+
+      if (!roundId) {
+        toast({ title: 'Cannot find round', description: 'No completed round found. Try restoring winners first.', variant: 'destructive' });
+        setShowChangeWinners(false);
+        setChangeLoading(false);
+        return;
+      }
+
+      setChangeRoundId(roundId);
+
+      // Fetch participants for this round
+      const res = await fetch(`/api/giveaway/admin/round-participants?adminId=${currentUser.id}&roundId=${roundId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setChangeRoundParticipants(data.participants || []);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        toast({ title: 'Failed to load participants', description: errData.error || 'Unknown error', variant: 'destructive' });
+        setShowChangeWinners(false);
+      }
+    } catch {
+      toast({ title: 'Failed to load participants', variant: 'destructive' });
+      setShowChangeWinners(false);
+    } finally {
+      setChangeLoading(false);
+    }
+  };
+
+  // Handle the actual change of winners
+  const handleChangeWinnersConfirm = async () => {
+    if (!currentUser?.id || !changeRoundId || changeSelected.length === 0) return;
+    if (!confirm(`Change winners to ${changeSelected.length} player(s)? This will overwrite the current winners.`)) return;
+    setChangeLoading(true);
+    try {
+      const res = await fetch('/api/giveaway/admin/change-winners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: currentUser.id,
+          roundId: changeRoundId,
+          winnerIds: changeSelected,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: '✅ Winners Changed!', description: 'Past winners have been updated.' });
+        fetchStatus();
+        setShowChangeWinners(false);
+        setChangeSelected([]);
+        setChangeRoundId(null);
+      } else {
+        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to change winners', variant: 'destructive' });
+    } finally {
+      setChangeLoading(false);
     }
   };
 
@@ -258,6 +470,42 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
             <span>participating</span>
           </div>
         </Card>
+
+        {/* Round Ended banner — shown when timer expired but winners not yet selected */}
+        {status?.round?.hasEnded && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 p-4 shadow-lg shadow-red-500/20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <Trophy className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-black text-white">Round {status.round.roundNumber} Ended!</p>
+                <p className="text-xs text-white/80">
+                  {currentUser?.isAdmin
+                    ? 'Tap "Select Winners" in the admin panel to draw 3 winners and start the next round.'
+                    : 'Winners will be announced soon. Stay tuned!'}
+                </p>
+              </div>
+            </div>
+            {currentUser?.isAdmin && (
+              <button
+                onClick={handleSelectWinners}
+                disabled={selectingWinners}
+                className="w-full mt-3 py-2.5 rounded-xl bg-white text-red-600 font-black text-sm hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {selectingWinners ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Selecting...</>
+                ) : (
+                  <><Trophy className="w-4 h-4" /> Select 3 Winners Now</>
+                )}
+              </button>
+            )}
+          </motion.div>
+        )}
 
         {/* Free Entry Promo Banner — shown only for first-time users */}
         {status?.freeEntryAvailable && !status?.hasParticipated && (
@@ -487,10 +735,23 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
         {/* Past Winners */}
         {status?.pastWinners && status.pastWinners.length > 0 && (
           <div className="space-y-2">
-            <h3 className="text-sm font-black text-warm-800 dark:text-warm-100 flex items-center gap-2 px-1">
-              <Crown className="w-4 h-4 text-brand-gold" />
-              Past Winners
-            </h3>
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-black text-warm-800 dark:text-warm-100 flex items-center gap-2">
+                <Crown className="w-4 h-4 text-brand-gold" />
+                Past Winners
+              </h3>
+              {currentUser?.isAdmin && (
+                <button
+                  onClick={() => {
+                    // Enter change-winners mode: fetch participants for the round + show selection
+                    handleChangeWinnersStart();
+                  }}
+                  className="text-[10px] font-bold text-brand-teal hover:underline"
+                >
+                  Change Winners
+                </button>
+              )}
+            </div>
             {status.pastWinners.map((w, i) => (
               <div key={i} className="flex items-center gap-3 bg-white dark:bg-warm-800/50 rounded-xl p-2.5 border border-warm-100 dark:border-warm-700/50">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
@@ -511,6 +772,88 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           </div>
         )}
       </div>
+
+      {/* ═══ Change Winners Overlay ═══ */}
+      {showChangeWinners && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={() => { setShowChangeWinners(false); setChangeSelected([]); }}>
+          <div className="w-full max-w-md bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-gray-400 rounded-full mx-auto mb-4" />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-warm-800 dark:text-white flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-500" />
+                Change Winners
+              </h3>
+              <button onClick={() => { setShowChangeWinners(false); setChangeSelected([]); }} className="w-8 h-8 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center">
+                <X className="w-4 h-4 text-warm-500" />
+              </button>
+            </div>
+            <p className="text-xs text-warm-400 mb-4">Tap to select new winners ({changeSelected.length}/3). Current winners will be replaced.</p>
+
+            {changeLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+              </div>
+            ) : changeRoundParticipants.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="w-10 h-10 text-warm-300 mx-auto mb-2" />
+                <p className="text-sm text-warm-500">No participants found for this round</p>
+              </div>
+            ) : (
+              <>
+                <div className="max-h-60 overflow-y-auto space-y-1 mb-4">
+                  {changeRoundParticipants.map((p) => {
+                    const isSelected = changeSelected.includes(p.userId);
+                    return (
+                      <button
+                        key={p.userId}
+                        onClick={() => {
+                          if (isSelected) {
+                            setChangeSelected(prev => prev.filter(id => id !== p.userId));
+                          } else if (changeSelected.length < 3) {
+                            setChangeSelected(prev => [...prev, p.userId]);
+                          } else {
+                            toast({ title: 'Max 3 winners', description: 'You can select up to 3 winners only.' });
+                          }
+                        }}
+                        className={`w-full flex items-center gap-2 p-2.5 rounded-lg text-left transition-all ${
+                          isSelected ? 'bg-amber-500 text-white' : 'bg-warm-50 dark:bg-warm-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isSelected ? 'border-white bg-white' : 'border-amber-400'
+                        }`}>
+                          {isSelected && <Check className="w-3 h-3 text-amber-500" strokeWidth={3} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'}`}>
+                            {p.name || 'Unknown'}
+                          </p>
+                          <p className={`text-[9px] font-mono ${isSelected ? 'text-white/70' : 'text-warm-400'}`}>
+                            {p.playerCode || '—'} · {p.phone ? `****${p.phone.slice(-4)}` : 'No phone'}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[9px] font-black text-white bg-white/20 px-1.5 py-0.5 rounded-full">
+                            #{changeSelected.indexOf(p.userId) + 1}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  onClick={handleChangeWinnersConfirm}
+                  disabled={changeSelected.length === 0 || changeLoading}
+                  className="w-full bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold"
+                >
+                  {changeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : `✅ Change to ${changeSelected.length} Winner${changeSelected.length !== 1 ? 's' : ''}`}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Admin Panel Modal */}
       <AnimatePresence>
@@ -535,19 +878,123 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                 </button>
               </div>
               <div className="p-3 border-b border-warm-200 dark:border-warm-700 space-y-2">
+                {/* Pending rounds (past completed rounds without winners) */}
+                {pendingRounds.length > 0 && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-2">
+                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                      <Trophy className="w-3.5 h-3.5" />
+                      Past Rounds Without Winners
+                    </p>
+                    {pendingRounds.map(r => (
+                      <div key={r.id} className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-warm-700 dark:text-warm-200">Round {r.roundNumber}</p>
+                          <p className="text-[10px] text-warm-400">
+                            {r.participantCount} participants · Ended {new Date(r.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleSelectWinners(r.id)}
+                          disabled={selectingWinners && selectingRoundId === r.id}
+                          className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:opacity-50 shrink-0 flex items-center gap-1"
+                        >
+                          {selectingWinners && selectingRoundId === r.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Trophy className="w-3 h-3" />
+                          )}
+                          Select
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <Button
-                  onClick={handleSelectWinners}
-                  disabled={selectingWinners || adminParticipants.length < 3}
+                  onClick={() => handleSelectWinners()}
+                  disabled={selectingWinners || adminParticipants.length < 3 || manualMode}
                   className="w-full bg-gradient-to-r from-brand-red to-brand-red-dark text-white rounded-xl font-bold"
                 >
-                  {selectingWinners ? <Loader2 className="w-4 h-4 animate-spin" /> : '🎲 Select 3 Random Winners'}
+                  {selectingWinners && !selectingRoundId ? <Loader2 className="w-4 h-4 animate-spin" /> : '🎲 Select 3 Random Winners'}
                 </Button>
+
+                {/* Manual Select toggle */}
+                {!manualMode ? (
+                  <Button
+                    onClick={startManualMode}
+                    disabled={adminParticipants.length === 0 || selectingWinners}
+                    variant="outline"
+                    className="w-full border-brand-teal text-brand-teal hover:bg-brand-teal/5 rounded-xl font-bold"
+                  >
+                    <Check className="w-4 h-4 mr-1" /> Choose Winners Manually
+                  </Button>
+                ) : (
+                  <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-teal-700 dark:text-teal-400">
+                        ✋ Manual Mode — Tap to select ({manualSelected.length}/3)
+                      </p>
+                      <button
+                        onClick={() => { setManualMode(false); setManualSelected([]); }}
+                        className="text-[10px] text-warm-400 hover:text-warm-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+
+                    {/* Participant list for selection */}
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {adminParticipants.map((p) => {
+                        const isSelected = manualSelected.includes(p.userId);
+                        return (
+                          <button
+                            key={p.userId}
+                            onClick={() => toggleManualSelect(p.userId)}
+                            className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-all ${
+                              isSelected
+                                ? 'bg-teal-500 text-white'
+                                : 'bg-white dark:bg-warm-700 hover:bg-teal-50 dark:hover:bg-teal-900/30'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              isSelected ? 'border-white bg-white' : 'border-teal-400'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 text-teal-500" strokeWidth={3} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-warm-800 dark:text-warm-100'}`}>
+                                {p.name || 'Unknown'}
+                              </p>
+                              <p className={`text-[9px] font-mono ${isSelected ? 'text-white/70' : 'text-warm-400'}`}>
+                                {p.playerCode || '—'} · {p.phone ? `****${p.phone.slice(-4)}` : 'No phone'}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <span className="text-[9px] font-black text-white bg-white/20 px-1.5 py-0.5 rounded-full">
+                                #{manualSelected.indexOf(p.userId) + 1}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Confirm button */}
+                    <Button
+                      onClick={handleManualSelectWinners}
+                      disabled={manualSelected.length === 0 || selectingWinners}
+                      className="w-full bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-bold"
+                    >
+                      {selectingWinners ? <Loader2 className="w-4 h-4 animate-spin" /> : `✅ Set ${manualSelected.length} Winner${manualSelected.length !== 1 ? 's' : ''}`}
+                    </Button>
+                  </div>
+                )}
                 {adminParticipants.length < 3 && (
                   <p className="text-[10px] text-amber-500 text-center">Need at least 3 participants to select winners</p>
                 )}
                 <Button
                   onClick={async () => {
-                    if (!confirm('Reset giveaway? This will delete ALL participants and start a fresh Round 1 with 15-day countdown.')) return;
+                    if (!confirm('Start a fresh giveaway round? This will end the current round and start a new one. Past rounds and winners are preserved.')) return;
                     try {
                       const res = await fetch('/api/giveaway/admin/reset', {
                         method: 'POST',
@@ -569,7 +1016,165 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   variant="outline"
                   className="w-full border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold text-xs"
                 >
-                  🔄 Reset Giveaway (Start Fresh)
+                  🔄 Reset Giveaway (Start Fresh Round)
+                </Button>
+
+                {/* Quick Restore Round 1 — winners + participants, pre-filled */}
+                <Button
+                  onClick={async () => {
+                    if (!confirm('Restore Round 1 completely:\n\nWinners:\n🥇 KP1003 — 1kg Protein Powder\n🥈 KP1025 — Kabaddi Kit\n🥉 KP1017 — Shaker Water Bottle\n\nParticipants (19 players will be restored — they CANNOT enter Round 2 for free):\nKP1001, KP1003, KP1015, KP1025, KP1017 + 14 others\n\nTap OK to restore now.')) return;
+                    try {
+                      // Step 1: Restore winners
+                      const res = await fetch('/api/giveaway/admin/restore-round', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          adminId: currentUser?.id,
+                          roundNumber: 1,
+                          winnerPlayerCodes: ['KP1003', 'KP1025', 'KP1017'],
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) {
+                        toast({ title: 'Restore winners failed', description: data.error, variant: 'destructive' });
+                        return;
+                      }
+
+                      // Step 2: Get the round ID
+                      const roundId = data.round?.id;
+                      if (!roundId) {
+                        toast({ title: 'Winners restored but could not restore participants', description: 'Round ID not found.', variant: 'destructive' });
+                        fetchStatus();
+                        setShowAdminPanel(false);
+                        return;
+                      }
+
+                      // Step 3: Restore participants (all 19 known Round 1 participants)
+                      const allParticipants = [
+                        'KP1001', 'KP1003', 'KP1015', 'KP1025', 'KP1017'
+                        // Add more participant codes here as they become known
+                      ];
+                      const partRes = await fetch('/api/giveaway/admin/restore-participants', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          adminId: currentUser?.id,
+                          roundId: roundId,
+                          playerCodes: allParticipants,
+                        }),
+                      });
+                      const partData = await partRes.json();
+
+                      toast({
+                        title: '✅ Round 1 Fully Restored!',
+                        description: `Winners set. ${partData.created || 0} participants restored — they cannot enter Round 2 for free.`,
+                      });
+                      fetchStatus();
+                      setShowAdminPanel(false);
+                    } catch {
+                      toast({ title: 'Restore failed', variant: 'destructive' });
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs"
+                >
+                  🏆 Quick Restore Round 1 (Winners + Participants)
+                </Button>
+
+                {/* Restore participants only — for adding more participants to a round */}
+                <Button
+                  onClick={async () => {
+                    const input = prompt(
+                      'Restore participants for a round.\n\n' +
+                      'Enter: round number, then player codes separated by commas.\n' +
+                      'Example: 1, KP1001, KP1003, KP1015, KP1025, KP1017\n\n' +
+                      'These players will be marked as having participated (cannot use free entry again).'
+                    );
+                    if (!input) return;
+                    const parts = input.split(',').map(s => s.trim());
+                    const roundNum = parts[0];
+                    const codes = parts.slice(1);
+                    if (!roundNum || codes.length === 0) {
+                      toast({ title: 'Invalid input', variant: 'destructive' });
+                      return;
+                    }
+                    try {
+                      // Find the round ID
+                      const findRes = await fetch(`/api/giveaway/admin/find-round?adminId=${currentUser?.id}&roundNumber=${roundNum}`);
+                      const findData = await findRes.json();
+                      if (!findRes.ok || !findData?.round?.id) {
+                        toast({ title: 'Round not found', description: findData.error || `Round ${roundNum} not found`, variant: 'destructive' });
+                        return;
+                      }
+                      // Restore participants
+                      const partRes = await fetch('/api/giveaway/admin/restore-participants', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          adminId: currentUser?.id,
+                          roundId: findData.round.id,
+                          playerCodes: codes,
+                        }),
+                      });
+                      const partData = await partRes.json();
+                      if (partRes.ok) {
+                        toast({ title: '✅ Participants Restored!', description: partData.message });
+                        fetchStatus();
+                      } else {
+                        toast({ title: 'Failed', description: partData.error, variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Failed', variant: 'destructive' });
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full border-teal-300 dark:border-teal-700 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-xl font-bold text-xs"
+                >
+                  👥 Restore Participants (Block Free Entry)
+                </Button>
+
+                {/* Manual Restore — for other rounds */}
+                <Button
+                  onClick={async () => {
+                    const codes = prompt(
+                      'Restore a past round with winners.\n\n' +
+                      'Enter: round number, then winner player codes separated by commas.\n' +
+                      'Example: 2, KP1020, KP1030, KP1040\n\n' +
+                      'First code = 1st prize, second = 2nd, third = 3rd.'
+                    );
+                    if (!codes) return;
+                    const parts = codes.split(',').map(s => s.trim());
+                    const roundNum = parts[0];
+                    const winnerCodes = parts.slice(1);
+                    if (!roundNum || winnerCodes.length === 0) {
+                      toast({ title: 'Invalid input', description: 'Enter round number followed by player codes.', variant: 'destructive' });
+                      return;
+                    }
+                    try {
+                      const res = await fetch('/api/giveaway/admin/restore-round', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          adminId: currentUser?.id,
+                          roundNumber: roundNum,
+                          winnerPlayerCodes: winnerCodes,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        toast({ title: '✅ Round Restored!', description: data.message });
+                        fetchStatus();
+                        setShowAdminPanel(false);
+                      } else {
+                        toast({ title: 'Restore failed', description: data.error, variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Restore failed', variant: 'destructive' });
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl font-bold text-xs"
+                >
+                  📋 Restore Other Round (Manual)
                 </Button>
               </div>
               <div className="overflow-y-auto flex-1">

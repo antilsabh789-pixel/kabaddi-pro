@@ -1,24 +1,18 @@
 /**
- * Auth Client — talks to the real backend when available, falls back to a
- * localStorage-backed mock when the backend is unreachable.
+ * Auth Client — talks to the real backend only.
  *
- * WHY: The kabaddi-pro Express api-server isn't always running in local dev /
- * preview environments. Without this fallback, every Login / Sign Up attempt
- * fails with a generic "Something went wrong" message because the fetch to
- * `/api/auth` throws a network error.
+ * IMPORTANT: This file used to fall back to a localStorage-backed mock when
+ * the backend was unreachable. That caused critical bugs in production:
+ *   - Mock login let users "log in" to stale fake accounts whose IDs weren't
+ *     in the real database, breaking every subsequent API call.
+ *   - Mock check-phone returned stale data, hiding the real backend's answer.
+ *   - Mock forgot-password-verify / reset-password gave users fake tokens
+ *     that the real backend would reject, trapping them in a broken flow.
  *
- * BEHAVIOR:
- *   1. Try the real `POST /api/auth` endpoint first.
- *   2. If the fetch throws (network error, backend down), fall back to the
- *      local mock implementation.
- *   3. The mock persists users in `localStorage` under `kabaddi-users`.
- *
- * DEMO-ONLY: The mock stores passwords in plain text. This is intentional for
- * local testing and is NEVER used in production — when the real backend is
- * reachable, the mock is bypassed entirely.
- *
- * Supported actions: check-phone, register, login, forgot-password-verify,
- * reset-password, update-details.
+ * The mock is now DISABLED for ALL actions. If the backend is unreachable,
+ * we return a clear 503 error so the user knows to retry. The mock code is
+ * preserved below for reference / future explicit demo mode, but it's never
+ * invoked automatically.
  */
 
 // ─── Types ─────────────────────────────────────────────────────────────
@@ -78,7 +72,7 @@ function genId(): string {
 }
 
 function genPlayerCode(): string {
-  return `KP${Math.floor(100000 + Math.random() * 900000)}`;
+  return `KP${Math.floor(1001 + Math.random() * 8999)}`;
 }
 
 function publicUser(u: StoredUser): AuthUser {
@@ -339,11 +333,16 @@ export async function authRequest(payload: any): Promise<AuthResponse> {
       return { ok: res.ok, status: res.status, data };
     }
 
-    // JSON parse failed. Treat as "backend not really reachable" only for
-    // status codes that indicate the endpoint itself isn't there.
+    // JSON parse failed. Treat as "backend not really reachable".
     // 404 = endpoint not mounted in dev; 502/503/504 = proxy/upstream errors.
+    // NEVER fall back to the mock — see file header for why. Surface a clear
+    // 503 so the user knows to retry.
     if (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 504) {
-      return runMock(payload);
+      return {
+        ok: false,
+        status: 503,
+        data: { error: 'Cannot reach server. Please check your internet connection and try again.' },
+      };
     }
     // Any other non-JSON status — surface as a generic error so the UI can
     // show something instead of silently using mock data.
@@ -353,14 +352,22 @@ export async function authRequest(payload: any): Promise<AuthResponse> {
       data: { error: `Unexpected server response (${res.status}). Please try again.` },
     };
   } catch (networkErr) {
-    // Backend unreachable (fetch threw) → fall back to mock
+    // Backend unreachable (fetch threw). NEVER fall back to the mock — see
+    // file header for why. Show a clear error so the user knows to retry.
     void networkErr;
-    return runMock(payload);
+    return {
+      ok: false,
+      status: 503,
+      data: { error: 'Cannot reach server. Please check your internet connection and try again.' },
+    };
   }
 }
 
 /**
- * Run the localStorage-backed mock. No-op guard for SSR / unsupported envs.
+ * Mock fallback is INTENTIONALLY DISABLED. The mock code below is preserved
+ * for future explicit demo mode (e.g. behind a `?demo=1` flag), but is no
+ * longer invoked automatically from `authRequest`. If you need to re-enable
+ * it, gate it behind an explicit flag — never auto-trigger on network errors.
  */
 function runMock(payload: any): AuthResponse {
   if (typeof window === 'undefined' || !window.localStorage) {

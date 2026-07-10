@@ -175,8 +175,9 @@ router.get('/admin/lookup-player', async (req, res) => {
     const user = await db.user.findUnique({
       where: { playerCode: code },
       select: {
-        id: true, name: true, playerCode: true,
+        id: true, name: true, playerCode: true, phone: true, avatar: true,
         isPremium: true, premiumExpiry: true, premiumPlan: true,
+        gender: true, weight: true, practiceGround: true, location: true,
         createdAt: true,
       },
     });
@@ -190,9 +191,15 @@ router.get('/admin/lookup-player', async (req, res) => {
         id: user.id,
         name: user.name,
         playerCode: user.playerCode,
+        phone: user.phone, // Admin can see full phone for prize contact
+        avatar: user.avatar,
         isPremium: user.isPremium,
         premiumExpiry: user.premiumExpiry,
         premiumPlan: user.premiumPlan,
+        gender: user.gender,
+        weight: user.weight,
+        practiceGround: user.practiceGround,
+        location: user.location,
         memberSince: user.createdAt,
       },
     });
@@ -202,55 +209,39 @@ router.get('/admin/lookup-player', async (req, res) => {
   }
 });
 
-// ─── Ad Settings ────────────────────────────────────────────────────────────
-
 /**
- * GET /api/ads/config
- * PUBLIC endpoint (no admin required) — returns the ad configuration so the
- * frontend can decide whether to show ads + which AdSense publisher ID to use.
+ * GET /api/admin/players?adminId=...&page=1&limit=50&search=...
  *
- * Returns: {
- *   adsEnabled: boolean,
- *   publisherId: string | null,   // e.g. "ca-pub-1234567890123456"
- *   homeBannerSlot: string | null,
- *   feedNativeSlot: string | null,
- *   profileBannerSlot: string | null,
+ * Returns ALL registered users EXCEPT admins — regardless of role (player,
+ * coach, etc.). The coach role is being deprecated; everyone is now treated
+ * as a player. Admin sees full phone (for prize contact) + premium status +
+ * member-since date.
+ *
+ * Query params:
+ *   adminId (required) — must be an admin
+ *   page    (default 1)
+ *   limit   (default 50, max 200)
+ *   search  (optional) — case-insensitive match on name / playerCode / phone
+ *   role    (optional) — filter by role ('player' | 'coach' | 'all'). Defaults
+ *            to 'all' so no one is hidden from the admin.
+ *
+ * Response: {
+ *   players: [{ id, name, playerCode, phone, avatar, gender, isPremium,
+ *               premiumExpiry, premiumPlan, role, location, practiceGround, memberSince }],
+ *   total: number,
+ *   page: number,
+ *   limit: number,
+ *   totalPages: number,
  * }
  */
-router.get('/ads/config', async (req, res) => {
+router.get('/admin/players', async (req, res) => {
   try {
-    const keys = ['ads_enabled', 'adsense_publisher_id', 'home_banner_slot', 'feed_native_slot', 'profile_banner_slot'];
-    const settings = await db.appSetting.findMany({ where: { key: { in: keys } } });
-    const map = new Map(settings.map(s => [s.key, s.value]));
+    const adminId = (req.query['adminId'] as string) || '';
+    const page = Math.max(1, parseInt((req.query['page'] as string) || '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt((req.query['limit'] as string) || '50', 10)));
+    const search = ((req.query['search'] as string) || '').trim();
+    const roleFilter = ((req.query['role'] as string) || 'all').toLowerCase();
 
-    return res.json({
-      adsEnabled: map.get('ads_enabled') === 'true',
-      publisherId: map.get('adsense_publisher_id') || null,
-      homeBannerSlot: map.get('home_banner_slot') || null,
-      feedNativeSlot: map.get('feed_native_slot') || null,
-      profileBannerSlot: map.get('profile_banner_slot') || null,
-    });
-  } catch (error) {
-    console.error('Ads config fetch error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
- * PUT /api/admin/ads/config
- * ADMIN ONLY — updates the ad configuration.
- *
- * Body: {
- *   adsEnabled?: boolean,
- *   publisherId?: string,         // "ca-pub-XXXXXXXXXXXXXXXX"
- *   homeBannerSlot?: string,      // AdSense slot ID for home banner
- *   feedNativeSlot?: string,      // AdSense slot ID for in-feed native ad
- *   profileBannerSlot?: string,   // AdSense slot ID for profile banner
- * }
- */
-router.put('/admin/ads/config', async (req, res) => {
-  try {
-    const { adminId, adsEnabled, publisherId, homeBannerSlot, feedNativeSlot, profileBannerSlot } = req.body;
     if (!adminId) return res.status(400).json({ error: 'adminId is required' });
 
     const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
@@ -258,25 +249,113 @@ router.put('/admin/ads/config', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Upsert each provided setting
-    const updates: { key: string; value: string }[] = [];
-    if (adsEnabled !== undefined) updates.push({ key: 'ads_enabled', value: adsEnabled ? 'true' : 'false' });
-    if (publisherId !== undefined) updates.push({ key: 'adsense_publisher_id', value: String(publisherId).trim() });
-    if (homeBannerSlot !== undefined) updates.push({ key: 'home_banner_slot', value: String(homeBannerSlot).trim() });
-    if (feedNativeSlot !== undefined) updates.push({ key: 'feed_native_slot', value: String(feedNativeSlot).trim() });
-    if (profileBannerSlot !== undefined) updates.push({ key: 'profile_banner_slot', value: String(profileBannerSlot).trim() });
+    // Build the where clause: everyone EXCEPT admins (so players + coaches +
+    // any future role all show up). Optionally narrow by an explicit role
+    // filter if the admin wants to see only one role.
+    const where: Record<string, unknown> = {
+      isAdmin: false,
+    };
+    if (roleFilter === 'player' || roleFilter === 'coach') {
+      where.role = roleFilter;
+    }
+    // roleFilter === 'all' (default) → no role filter, everyone shows up
 
-    for (const u of updates) {
-      await db.appSetting.upsert({
-        where: { key: u.key },
-        create: { key: u.key, value: u.value },
-        update: { value: u.value },
-      });
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { playerCode: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
-    return res.json({ success: true, message: `Updated ${updates.length} setting(s)` });
+    const [total, users] = await Promise.all([
+      db.user.count({ where }),
+      db.user.findMany({
+        where,
+        select: {
+          id: true, name: true, playerCode: true, phone: true, avatar: true,
+          isPremium: true, premiumExpiry: true, premiumPlan: true,
+          role: true, showCoachBadge: true,
+          gender: true, weight: true, practiceGround: true, location: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' }, // newest first
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const players = users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      playerCode: u.playerCode,
+      phone: u.phone, // admin can see full phone for prize contact
+      avatar: u.avatar,
+      isPremium: u.isPremium,
+      premiumExpiry: u.premiumExpiry,
+      premiumPlan: u.premiumPlan,
+      role: u.role,
+      showCoachBadge: u.showCoachBadge,
+      gender: u.gender,
+      weight: u.weight,
+      practiceGround: u.practiceGround,
+      location: u.location,
+      memberSince: u.createdAt,
+    }));
+
+    return res.json({
+      players,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
-    console.error('Ads config update error:', error);
+    console.error('Admin players list error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/admin/migrate-coaches-to-players
+ * ADMIN ONLY — One-time migration: set role='player' for every user whose
+ * role is currently 'coach'. The coach role is being deprecated; everyone is
+ * now a normal player (the Coach Corner feature is available to all).
+ *
+ * Body: { adminId }
+ * Returns: { success, migratedCount }
+ */
+router.post('/admin/migrate-coaches-to-players', async (req, res) => {
+  try {
+    const { adminId } = req.body;
+    if (!adminId) return res.status(400).json({ error: 'adminId is required' });
+
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = await db.user.updateMany({
+      where: { role: 'coach', isAdmin: false },
+      data: {
+        role: 'player',
+        // Preserve the coach identity cosmetically — the user asked for a
+        // "Coach Badge" toggle in the profile. Former coaches get the badge
+        // auto-enabled so they don't lose their identity; they can toggle it
+        // off in their profile editor if they don't want it.
+        showCoachBadge: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      migratedCount: result.count,
+      message: result.count === 0
+        ? 'No coaches to migrate — everyone is already a player.'
+        : `Migrated ${result.count} coach${result.count === 1 ? '' : 'es'} to player role.`,
+    });
+  } catch (error) {
+    console.error('Migrate coaches to players error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
