@@ -290,40 +290,42 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           </motion.div>
         )}
 
-        {/* Prizes */}
+        {/* Prizes — with images + rank badges */}
         <div className="space-y-2">
           <h3 className="text-sm font-black text-warm-800 dark:text-warm-100 flex items-center gap-2 px-1">
             <Trophy className="w-4 h-4 text-brand-gold" />
-            Prizes
+            Prizes & Rankings
           </h3>
-          {status?.prizes?.map((prize, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-            >
-              <Card className={`p-3 flex items-center gap-3 ${
-                i === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/10 border-yellow-300/50' :
-                i === 1 ? 'bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800/30 dark:to-slate-800/20 border-gray-300/50' :
-                'bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 border-orange-300/50'
-              }`}>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm ${
-                  i === 0 ? 'bg-gradient-to-br from-yellow-400 to-amber-500' :
-                  i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400' :
-                  'bg-gradient-to-br from-orange-400 to-amber-500'
+          {status?.prizes?.map((prize, i) => {
+            const prizeImages = ['/giveaway/prize-kit.png', '/giveaway/prize-protein.png', '/giveaway/prize-shoes.png', '/giveaway/prize-bottle.png', '/giveaway/prize-gift.png'];
+            const imgSrc = prizeImages[i] || prizeImages[4];
+            const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
+            return (
+              <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}>
+                <Card className={`p-3 flex items-center gap-3 ${
+                  i === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/10 border-yellow-300/50' :
+                  i === 1 ? 'bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800/30 dark:to-slate-800/20 border-gray-300/50' :
+                  i === 2 ? 'bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 border-orange-300/50' :
+                  'bg-white/50 dark:bg-warm-800/30 border-warm-200 dark:border-warm-700'
                 }`}>
-                  {prize.icon}
-                </div>
-                <div className="flex-1">
-                  <p className="text-[10px] font-bold text-warm-400 uppercase">
-                    {i === 0 ? '1st Prize' : i === 1 ? '2nd Prize' : '3rd Prize'}
-                  </p>
-                  <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{prize.name}</p>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
+                  <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${
+                    i === 0 ? 'bg-yellow-400 text-white' : i === 1 ? 'bg-gray-400 text-white' : i === 2 ? 'bg-orange-400 text-white' : 'bg-warm-200 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                  }`}>
+                    {rankEmoji}
+                  </div>
+                  <div className="w-14 h-14 rounded-xl overflow-hidden bg-white shadow-sm shrink-0 border border-warm-200/50 dark:border-warm-700/50">
+                    <img src={imgSrc} alt={prize.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold text-warm-400 uppercase">
+                      {i === 0 ? '1st Prize' : i === 1 ? '2nd Prize' : i === 2 ? '3rd Prize' : `${i + 1}th Prize`}
+                    </p>
+                    <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{prize.name}</p>
+                  </div>
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
 
         {/* Eligibility Card — Free Entry / Premium / Referral Required */}
@@ -426,32 +428,45 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           </Card>
         )}
 
-        {/* Participate Button */}
+        {/* Participate Button — BIG + CLEAR */}
         {!status?.hasParticipated ? (
-          <Button
-            onClick={handleParticipate}
-            disabled={participating || status?.canParticipate === false}
-            className="w-full h-14 bg-gradient-to-r from-brand-red to-brand-red-dark hover:opacity-90 text-white font-black text-base rounded-2xl shadow-lg shadow-brand-red/25 disabled:opacity-50 disabled:cursor-not-allowed"
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-2"
           >
-            {participating ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : status?.canParticipate === false ? (
-              <>
-                <Lock className="w-5 h-5 mr-2" />
-                {status?.isPremiumActive ? 'Already Participated' : 'Refer a Friend or Go Premium'}
-              </>
-            ) : status?.freeEntryAvailable ? (
-              <>
-                <Gift className="w-5 h-5 mr-2" />
-                Claim Your FREE Entry Now!
-              </>
-            ) : (
-              <>
-                <Gift className="w-5 h-5 mr-2" />
-                {status?.isPremiumActive ? 'Participate Now — Free for Premium!' : 'Use 1 Referral Entry & Participate'}
-              </>
+            <Button
+              onClick={handleParticipate}
+              disabled={participating || status?.canParticipate === false}
+              className="w-full h-16 bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-red hover:opacity-90 text-white font-black text-lg rounded-2xl shadow-xl shadow-brand-red/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            >
+              {participating ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : status?.canParticipate === false ? (
+                <>
+                  <Lock className="w-6 h-6" />
+                  {status?.isPremiumActive ? 'Already Participated' : 'Refer a Friend or Go Premium'}
+                </>
+              ) : status?.freeEntryAvailable ? (
+                <>
+                  <Gift className="w-6 h-6" />
+                  Claim FREE Entry Now!
+                </>
+              ) : (
+                <>
+                  <Gift className="w-6 h-6" />
+                  {status?.isPremiumActive ? 'Participate — Free for Premium!' : 'Participate Now!'}
+                </>
+              )}
+            </Button>
+            {!status?.canParticipate === false && (
+              <p className="text-center text-[10px] text-warm-500">
+                {status?.isPremiumActive
+                  ? 'You already entered this round. Wait for the next round!'
+                  : 'Refer a friend OR upgrade to Premium for free entries every round.'}
+              </p>
             )}
-          </Button>
+          </motion.div>
         ) : (
           <Card className="p-4 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800 text-center">
             <Check className="w-6 h-6 text-green-500 mx-auto mb-1" />
