@@ -30,6 +30,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- ─── Google AdSense ──────────────────────────────────────────
+         This script tag is required by Google AdSense for site ownership
+         verification AND for ad serving. It MUST be in the <head> of every
+         page (index.html ensures it loads on every route in this SPA).
+
+         TO ACTIVATE ADS:
+         1. Sign up at adsense.google.com + add your site
+         2. Replace YOUR_PUBLISHER_ID below with your ca-pub-XXXXXXXXXXXXXXXX
+         3. Google will verify your site (1-3 days)
+         4. Once verified, create ad units in AdSense + paste the slot IDs
+            in the app's Profile → Ad Settings panel
+
+         The AdBanner component (in the app) will use this same publisher ID
+         to render individual ad units. -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
     <script>
       // ─── Theme bootstrap — runs BEFORE any CSS/React loads ───────────
       // Reads the user's saved theme preference and applies the `.dark` class
