@@ -1615,68 +1615,51 @@ export default function HomeTab() {
       </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
-      {/* 🎁 GIVEAWAY BANNER — AT THE TOP, ATTRACTIVE WITH PRIZE IMAGES */}
+      {/* 🎁 GIVEAWAY BANNER — TOP, COMPACT, IMAGES ON SIDE */}
       {/* ═══════════════════════════════════════════ */}
-      <section className="px-4 mt-4">
+      <section className="px-4 mt-3">
         <motion.button
           onClick={() => setShowGiveaway(true)}
           whileTap={{ scale: 0.97 }}
-          className="w-full relative overflow-hidden rounded-2xl text-left shadow-xl"
-          style={{ background: 'linear-gradient(135deg, #DC2626 0%, #F59E0B 50%, #DC2626 100%)' }}
+          className="w-full relative overflow-hidden rounded-2xl text-left shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 40%, #F59E0B 100%)' }}
         >
-          {/* Shimmer overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
-          {/* Dark overlay for text readability */}
-          <div className="absolute inset-0 bg-black/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
 
-          <div className="relative z-10 p-4">
-            {/* Title row */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <motion.div
-                  animate={{ rotate: [0, -10, 10, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-                  className="text-2xl"
-                >
-                  🎁
-                </motion.div>
-                <div>
-                  <p className="text-white font-black text-base leading-tight">KABADDI PRO GIVEAWAY</p>
-                  <p className="text-white/80 text-[10px] font-medium">Win exclusive prizes every 15 days!</p>
+          <div className="relative z-10 flex items-center gap-3 p-3">
+            {/* Left side: prize images (small, stacked) */}
+            <div className="flex items-center gap-1 shrink-0">
+              <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/90 shadow-sm border border-white/30">
+                <img src="/giveaway/prize-kit.png" alt="Kabaddi Kit" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <div className="w-7 h-7 rounded-md overflow-hidden bg-white/90 shadow-sm border border-white/30">
+                  <img src="/giveaway/prize-shoes.png" alt="Shoes" className="w-full h-full object-cover" />
+                </div>
+                <div className="w-7 h-7 rounded-md overflow-hidden bg-white/90 shadow-sm border border-white/30">
+                  <img src="/giveaway/prize-protein.png" alt="Protein" className="w-full h-full object-cover" />
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-white/70 text-[8px] uppercase font-bold">Round ends in</p>
-                <p className="text-white font-black text-xl leading-none">15</p>
-                <p className="text-white/70 text-[8px] font-bold">DAYS</p>
+            </div>
+
+            {/* Center: big GIVEAWAY text */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="text-base">🎁</span>
+                <p className="text-white font-black text-xl leading-none tracking-tight">GIVEAWAY</p>
+              </div>
+              <p className="text-white/80 text-[9px] font-medium mt-0.5">Win Kit, Shoes, Protein & more</p>
+              <div className="mt-1.5 inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5">
+                <p className="text-white text-[9px] font-bold">⏱ 15 days left</p>
               </div>
             </div>
 
-            {/* Prize images row */}
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex-1 grid grid-cols-4 gap-1.5">
-                {[
-                  { src: '/giveaway/prize-kit.png', label: 'Kabaddi Kit' },
-                  { src: '/giveaway/prize-protein.png', label: 'Protein' },
-                  { src: '/giveaway/prize-shoes.png', label: 'Mat Shoes' },
-                  { src: '/giveaway/prize-bottle.png', label: 'Shaker' },
-                ].map((prize, i) => (
-                  <div key={i} className="relative">
-                    <div className="aspect-square rounded-lg overflow-hidden bg-white/90 shadow-md">
-                      <img src={prize.src} alt={prize.label} className="w-full h-full object-cover" />
-                    </div>
-                    <p className="text-white text-[7px] font-bold text-center mt-0.5 drop-shadow-lg">{prize.label}</p>
-                  </div>
-                ))}
+            {/* Right: tap to enter arrow */}
+            <div className="shrink-0 flex flex-col items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <ChevronRight className="w-4 h-4 text-white" />
               </div>
-            </div>
-
-            {/* CTA button */}
-            <div className="flex items-center justify-center">
-              <div className="bg-white text-brand-red font-black text-sm px-6 py-2 rounded-full shadow-lg flex items-center gap-1.5">
-                <Gift className="w-4 h-4" />
-                Participate Now — FREE
-              </div>
+              <p className="text-white/70 text-[7px] font-bold mt-0.5">TAP</p>
             </div>
           </div>
         </motion.button>
