@@ -471,6 +471,55 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           </div>
         </Card>
 
+        {/* ─── Participate Button — RIGHT BELOW TIMER (moved from bottom) ─── */}
+        {!status?.hasParticipated ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-2"
+          >
+            <Button
+              onClick={handleParticipate}
+              disabled={participating || status?.canParticipate === false}
+              className="w-full h-16 bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-red hover:opacity-90 text-white font-black text-lg rounded-2xl shadow-xl shadow-brand-red/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            >
+              {participating ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : status?.canParticipate === false ? (
+                <>
+                  <Lock className="w-6 h-6" />
+                  {status?.isPremiumActive ? 'Already Participated' : 'Refer a Friend or Go Premium'}
+                </>
+              ) : status?.freeEntryAvailable ? (
+                <>
+                  <Gift className="w-6 h-6" />
+                  Claim FREE Entry Now!
+                </>
+              ) : (
+                <>
+                  <Gift className="w-6 h-6" />
+                  {status?.isPremiumActive ? 'Participate — Free for Premium!' : 'Participate Now!'}
+                </>
+              )}
+            </Button>
+            {status?.canParticipate === false && (
+              <p className="text-center text-[10px] text-warm-500">
+                {status?.isPremiumActive
+                  ? 'You already entered this round. Wait for the next round!'
+                  : 'Refer a friend OR upgrade to Premium for free entries every round.'}
+              </p>
+            )}
+          </motion.div>
+        ) : (
+          <Card className="p-4 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800 text-center">
+            <Check className="w-6 h-6 text-green-500 mx-auto mb-1" />
+            <p className="text-sm font-bold text-green-700 dark:text-green-400">You're participating!</p>
+            <p className="text-[10px] text-green-600/80 dark:text-green-500/80 mt-0.5">
+              Winners are selected randomly when the timer ends. Good luck!
+            </p>
+          </Card>
+        )}
+
         {/* Round Ended banner — shown when timer expired but winners not yet selected */}
         {status?.round?.hasEnded && (
           <motion.div
@@ -493,7 +542,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
             </div>
             {currentUser?.isAdmin && (
               <button
-                onClick={handleSelectWinners}
+                onClick={() => handleSelectWinners()}
                 disabled={selectingWinners}
                 className="w-full mt-3 py-2.5 rounded-xl bg-white text-red-600 font-black text-sm hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
@@ -676,54 +725,7 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           </Card>
         )}
 
-        {/* Participate Button — BIG + CLEAR */}
-        {!status?.hasParticipated ? (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-2"
-          >
-            <Button
-              onClick={handleParticipate}
-              disabled={participating || status?.canParticipate === false}
-              className="w-full h-16 bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-red hover:opacity-90 text-white font-black text-lg rounded-2xl shadow-xl shadow-brand-red/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-            >
-              {participating ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : status?.canParticipate === false ? (
-                <>
-                  <Lock className="w-6 h-6" />
-                  {status?.isPremiumActive ? 'Already Participated' : 'Refer a Friend or Go Premium'}
-                </>
-              ) : status?.freeEntryAvailable ? (
-                <>
-                  <Gift className="w-6 h-6" />
-                  Claim FREE Entry Now!
-                </>
-              ) : (
-                <>
-                  <Gift className="w-6 h-6" />
-                  {status?.isPremiumActive ? 'Participate — Free for Premium!' : 'Participate Now!'}
-                </>
-              )}
-            </Button>
-            {!status?.canParticipate === false && (
-              <p className="text-center text-[10px] text-warm-500">
-                {status?.isPremiumActive
-                  ? 'You already entered this round. Wait for the next round!'
-                  : 'Refer a friend OR upgrade to Premium for free entries every round.'}
-              </p>
-            )}
-          </motion.div>
-        ) : (
-          <Card className="p-4 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800 text-center">
-            <Check className="w-6 h-6 text-green-500 mx-auto mb-1" />
-            <p className="text-sm font-bold text-green-700 dark:text-green-400">You're participating!</p>
-            <p className="text-[10px] text-green-600/80 dark:text-green-500/80 mt-0.5">
-              Winners are selected randomly when the timer ends. Good luck!
-            </p>
-          </Card>
-        )}
+        {/* (Participate button moved to top — below the timer) */}
 
         {/* Rules */}
         <Card className="p-4 bg-white dark:bg-warm-800/50">
