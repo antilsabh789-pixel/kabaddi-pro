@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil, Trash2, Search, UserPlus } from 'lucide-react';
+import { Camera, Edit3, Zap, Shield, Swords, Award, Loader2, Crown, Lock, Settings, LogOut, IndianRupee, TrendingUp, Users, CreditCard, Moon, Sun, BarChart3, Activity, MapPin, Gift, Swords as ChallengeIcon, Brain, Download, Vote, Briefcase, Calendar, Hash, Eye, EyeOff, Trophy, Copy, Check, ChevronRight, AlertTriangle, Share2, X, TrendingDown, Star, Clock, Target, Flame, Heart, Gauge, Sparkles, Flag, MessageCircle, Crosshair, Megaphone, Phone, Pencil, Trash2, Search, UserPlus, RefreshCw } from 'lucide-react';
 import { useKabaddiStore, type Language } from '@/lib/store';
 import Portal from '@/components/portal';
 
@@ -26,6 +26,8 @@ import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 import PremiumLock from './PremiumLock';
 import TeamManagementScreen from './TeamManagementScreen';
 import PlayerProfileScreen from './PlayerProfileScreen';
+import AdBanner from './AdBanner';
+import { authRequest } from '@/lib/authClient';
 import PlayerComparisonScreen from './PlayerComparisonScreen';
 import AdvancedStatsScreen from './AdvancedStatsScreen';
 import FollowScreen from './FollowScreen';
@@ -186,6 +188,534 @@ const GIFT_PLANS: GiftPlan[] = [
   { id: 'yearly',  label: '1 Year',     duration: '365 days',           days: 365, icon: Crown,    gradient: 'from-purple-400 to-fuchsia-500' },
   { id: 'lifetime',label: 'Lifetime',   duration: 'Never expires',      days: null,icon: Trophy,   gradient: 'from-yellow-400 to-amber-500' },
 ];
+
+// ════════════════════════════════════════════════════════════════
+// PLAYER SEARCH PANEL — admin-only module-level component
+// Search any player by their player code to see contact details
+// (name, phone, avatar, premium status, location, etc.)
+// Used by admin to contact winners for giveaway prize distribution.
+// ════════════════════════════════════════════════════════════════
+
+function PlayerSearchPanel() {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const { toast } = useToast();
+
+  const [searchCode, setSearchCode] = useState('');
+  const [result, setResult] = useState<{
+    id: string; name: string | null; playerCode: string | null;
+    phone: string; avatar: string | null;
+    isPremium: boolean; premiumExpiry: string | null; premiumPlan: string | null;
+    gender: string | null; weight: string | null;
+    practiceGround: string | null; location: string | null;
+    memberSince: string;
+  } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSearch = async () => {
+    if (!currentUser?.id || !searchCode.trim()) return;
+    setSearching(true);
+    setError('');
+    setResult(null);
+    try {
+      const res = await fetch(`/api/admin/lookup-player?adminId=${currentUser.id}&playerCode=${encodeURIComponent(searchCode.trim().toUpperCase())}`);
+      const data = await res.json();
+      if (res.ok && data.user) {
+        setResult(data.user);
+      } else {
+        setError(data.error || 'Player not found');
+      }
+    } catch {
+      setError('Search failed');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.35 }}
+    >
+      <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+        <Search className="w-4 h-4 text-brand-teal" />
+        Player Lookup
+      </h3>
+      <Card className="p-5 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/10 border-teal-200 dark:border-teal-800/30">
+        {/* Search input */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+          <input
+            type="text"
+            value={searchCode}
+            onChange={(e) => setSearchCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+            placeholder="ENTER PLAYER CODE (e.g. KP1001)"
+            maxLength={20}
+            className="w-full h-11 rounded-xl border-2 border-teal-200 dark:border-teal-800/50 bg-white dark:bg-warm-900 px-10 text-sm font-mono tracking-wider text-warm-800 dark:text-warm-100 uppercase placeholder:text-warm-400 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-400/20 transition-all"
+          />
+          {searching && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-teal-500" />
+          )}
+        </div>
+
+        <button
+          onClick={handleSearch}
+          disabled={searching || !searchCode.trim()}
+          className="w-full h-11 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:opacity-90 text-white font-bold text-sm disabled:opacity-40 flex items-center justify-center gap-2"
+        >
+          {searching ? <><Loader2 className="w-4 h-4 animate-spin" /> Searching...</> : <><Search className="w-4 h-4" /> Search Player</>}
+        </button>
+
+        {/* Error */}
+        {error && (
+          <p className="text-xs text-red-500 mt-3 flex items-center gap-1">
+            <X className="w-3 h-3" /> {error}
+          </p>
+        )}
+
+        {/* Result */}
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 p-4 rounded-xl bg-white dark:bg-warm-900 border border-teal-200 dark:border-teal-800/50 space-y-3"
+          >
+            {/* Player header */}
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shrink-0 overflow-hidden">
+                {result.avatar ? (
+                  <img src={result.avatar} alt={result.name || 'Player'} className="w-full h-full object-cover" />
+                ) : (
+                  (result.name || '?').charAt(0).toUpperCase()
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-black text-warm-800 dark:text-warm-100 truncate">
+                  {result.name || 'Unknown Player'}
+                </p>
+                <p className="text-xs text-warm-500 font-mono">{result.playerCode}</p>
+              </div>
+              {result.isPremium && (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-full flex items-center gap-0.5">
+                  <Crown className="w-2.5 h-2.5" /> {result.premiumPlan || 'PREMIUM'}
+                </span>
+              )}
+            </div>
+
+            {/* Contact details */}
+            <div className="space-y-2 border-t border-warm-100 dark:border-warm-700/50 pt-3">
+              <div className="flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                <span className="text-[10px] font-bold text-warm-400 uppercase">Phone</span>
+                <span className="text-sm font-mono font-bold text-warm-800 dark:text-warm-100 flex-1">{result.phone}</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(result.phone);
+                    toast({ title: 'Phone Copied!', description: result.phone });
+                  }}
+                  className="px-2 py-1 rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-600 text-[10px] font-bold hover:bg-teal-200"
+                >
+                  Copy
+                </button>
+              </div>
+
+              {result.gender && (
+                <div className="flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-warm-400 uppercase">Gender</span>
+                  <span className="text-sm text-warm-800 dark:text-warm-100 capitalize">{result.gender}</span>
+                </div>
+              )}
+
+              {result.weight && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-warm-400 uppercase w-14">Weight</span>
+                  <span className="text-sm text-warm-800 dark:text-warm-100">{result.weight}</span>
+                </div>
+              )}
+
+              {result.practiceGround && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-warm-400 uppercase">Ground</span>
+                  <span className="text-sm text-warm-800 dark:text-warm-100">{result.practiceGround}</span>
+                </div>
+              )}
+
+              {result.location && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-warm-400 uppercase">Location</span>
+                  <span className="text-sm text-warm-800 dark:text-warm-100">{result.location}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Calendar className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                <span className="text-[10px] font-bold text-warm-400 uppercase">Joined</span>
+                <span className="text-sm text-warm-800 dark:text-warm-100">
+                  {new Date(result.memberSince).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick actions */}
+            <div className="flex gap-2 pt-2 border-t border-warm-100 dark:border-warm-700/50">
+              <a
+                href={`tel:${result.phone}`}
+                className="flex-1 py-2 rounded-lg bg-teal-500 text-white text-xs font-bold text-center hover:bg-teal-600 flex items-center justify-center gap-1"
+              >
+                <Phone className="w-3.5 h-3.5" /> Call
+              </a>
+              <a
+                href={`https://wa.me/${result.phone.replace(/[^\d]/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2 rounded-lg bg-green-500 text-white text-xs font-bold text-center hover:bg-green-600 flex items-center justify-center gap-1"
+              >
+                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+              </a>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Helper text */}
+        {!result && !error && !searching && (
+          <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-2 leading-relaxed">
+            Enter a player's code (e.g. KP1001) to see their contact details — name, phone number, location. Use this to contact giveaway winners for prize delivery.
+          </p>
+        )}
+      </Card>
+    </motion.div>
+  );
+}
+
+/**
+ * AllPlayersListScreen — Admin-only full-screen modal that lists EVERY
+ * registered player in the system (role='player', isAdmin=false). Backed by
+ * GET /api/admin/players with pagination + search. Each row is tappable and
+ * opens the player's full profile via the same `onViewPlayer` callback the
+ * other admin screens use.
+ */
+function AllPlayersListScreen({ onClose, onViewPlayer }: {
+  onClose: () => void;
+  onViewPlayer: (userId: string) => void;
+}) {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const { toast } = useToast();
+
+  interface AdminPlayer {
+    id: string;
+    name: string | null;
+    playerCode: string | null;
+    phone: string;
+    avatar: string | null;
+    isPremium: boolean;
+    premiumExpiry: string | null;
+    premiumPlan: string | null;
+    role: string | null;
+    showCoachBadge: boolean;
+    gender: string | null;
+    weight: string | null;
+    practiceGround: string | null;
+    location: string | null;
+    memberSince: string;
+  }
+
+  const [players, setPlayers] = useState<AdminPlayer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [migrating, setMigrating] = useState(false);
+
+  // Debounce the search input so we don't fire a query on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // reset to first page whenever the search term changes
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const fetchPlayers = useCallback(async () => {
+    if (!currentUser?.id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        adminId: currentUser.id,
+        page: String(page),
+        limit: String(limit),
+      });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      // Cache-Control: no-store is set by the backend, but add a cache-busting
+      // param too so Vercel/CDNs never serve a stale list.
+      params.set('_t', String(Date.now()));
+
+      const res = await fetch(`/api/admin/players?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to load players');
+        setPlayers([]);
+        setTotal(0);
+        setTotalPages(1);
+      } else {
+        setPlayers(data.players || []);
+        setTotal(data.total || 0);
+        setTotalPages(data.totalPages || 1);
+      }
+    } catch {
+      setError('Network error. Please check your connection and try again.');
+      setPlayers([]);
+      setTotal(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser?.id, page, limit, debouncedSearch]);
+
+  useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
+
+  // Migrate all role='coach' users to role='player'. One-time admin action
+  // to clean up the deprecated coach role. Backend endpoint:
+  // POST /api/admin/migrate-coaches-to-players
+  const handleMigrateCoaches = async () => {
+    if (!currentUser?.id) return;
+    if (!confirm('This will convert ALL users currently marked as "coach" back to normal "player" role. They will keep all their data (matches, teams, stats). Continue?')) return;
+    setMigrating(true);
+    try {
+      const res = await fetch('/api/admin/migrate-coaches-to-players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: currentUser.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: '✅ Migration complete', description: data.message });
+        fetchPlayers(); // refresh the list
+      } else {
+        toast({ title: 'Migration failed', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Network error', description: 'Please try again.', variant: 'destructive' });
+    } finally {
+      setMigrating(false);
+    }
+  };
+
+  // Format helper — render member-since as "Jul 7, 2026"
+  const fmtDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return ''; }
+  };
+
+  // Helper — show premium badge if the player has active premium
+  const isPremiumActive = (p: AdminPlayer) => {
+    if (!p.isPremium) return false;
+    if (!p.premiumExpiry) return true; // lifetime
+    return new Date(p.premiumExpiry) > new Date();
+  };
+
+  const fmtPlan = (plan: string | null) => {
+    if (!plan) return 'Premium';
+    return plan.charAt(0).toUpperCase() + plan.slice(1);
+  };
+
+  // Initials for the avatar fallback
+  const initials = (name: string | null, code: string | null) => {
+    if (name && name.trim()) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      return name.slice(0, 2).toUpperCase();
+    }
+    if (code) return code.slice(-2);
+    return '??';
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col">
+      {/* ═══ HEADER ═══ */}
+      <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+              <Users className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">ALL PLAYERS</h1>
+              <p className="text-[10px] text-warm-500 dark:text-warm-400">{total.toLocaleString()} registered {total === 1 ? 'player' : 'players'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleMigrateCoaches}
+              disabled={migrating}
+              className="px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold hover:bg-amber-200 dark:hover:bg-amber-900/50 disabled:opacity-50 flex items-center gap-1"
+              title="Convert all users with role='coach' back to normal player role. One-time cleanup."
+            >
+              {migrating ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              {migrating ? 'Migrating...' : 'Migrate Coaches'}
+            </button>
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="px-4 pb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, player code, or phone..."
+              className="w-full h-10 rounded-xl border-2 border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-900 pl-10 pr-4 text-sm text-warm-800 dark:text-warm-100 placeholder:text-warm-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ═══ PLAYER LIST ═══ */}
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {loading && players.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading players...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 mb-1">{error}</p>
+            <Button onClick={fetchPlayers} variant="outline" className="mt-4">Retry</Button>
+          </div>
+        ) : players.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Users className="w-12 h-12 text-warm-300 mb-3" />
+            <p className="text-sm text-warm-500 mb-1">
+              {debouncedSearch ? `No players match "${debouncedSearch}"` : 'No players found'}
+            </p>
+            {debouncedSearch && (
+              <Button onClick={() => setSearch('')} variant="outline" className="mt-3 text-xs h-8">Clear search</Button>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Result count line */}
+            <p className="text-[10px] text-warm-400 dark:text-warm-500 mb-2 px-1">
+              {loading ? 'Updating...' : `Showing ${((page - 1) * limit) + 1}–${Math.min(page * limit, total)} of ${total.toLocaleString()}`}
+            </p>
+
+            <div className="space-y-2">
+              {players.map((p) => {
+                const premium = isPremiumActive(p);
+                return (
+                  <motion.button
+                    key={p.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onClick={() => onViewPlayer(p.id)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-all text-left"
+                  >
+                    {/* Avatar / initials */}
+                    <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {p.avatar ? (
+                        <img src={p.avatar} alt={p.name || 'Player'} className="w-full h-full object-cover" />
+                      ) : (
+                        initials(p.name, p.playerCode)
+                      )}
+                    </div>
+
+                    {/* Name + code */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">
+                          {p.name || 'Unnamed Player'}
+                        </p>
+                        {premium && (
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
+                            <Crown className="w-2.5 h-2.5" />
+                            {fmtPlan(p.premiumPlan)}
+                          </span>
+                        )}
+                        {p.role === 'coach' && (
+                          <span className="shrink-0 inline-flex items-center text-[9px] font-bold text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded-full" title="User still has role='coach' in DB. Tap 'Migrate Coaches' to convert to player role.">
+                            <RefreshCw className="w-2.5 h-2.5 mr-0.5" />PENDING MIGRATION
+                          </span>
+                        )}
+                        {p.showCoachBadge && (
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full" title="User has opted-in to display the Coach badge on their profile.">
+                            <Megaphone className="w-2.5 h-2.5" />COACH
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-mono text-warm-500 dark:text-warm-400">{p.playerCode || '—'}</span>
+                        <span className="text-[10px] text-warm-300">•</span>
+                        <span className="text-[10px] text-warm-500 dark:text-warm-400 truncate">{p.phone || 'no phone'}</span>
+                      </div>
+                      <p className="text-[9px] text-warm-400 dark:text-warm-500 mt-0.5">
+                        Joined {fmtDate(p.memberSince)}
+                        {p.location ? ` · ${p.location}` : ''}
+                      </p>
+                    </div>
+
+                    {/* Chevron */}
+                    <ChevronRight className="w-4 h-4 text-warm-400 shrink-0" />
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            {/* ═══ PAGINATION ═══ */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-5 mb-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1 || loading}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className="h-8 px-3 text-xs"
+                >
+                  Prev
+                </Button>
+                <span className="text-xs text-warm-500 dark:text-warm-400 px-2">
+                  Page {page} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === totalPages || loading}
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className="h-8 px-3 text-xs"
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function GiftPremiumPanel() {
   const currentUser = useKabaddiStore((s) => s.currentUser);
@@ -474,6 +1004,179 @@ function GiftPremiumPanel() {
   );
 }
 
+/**
+ * AdConfigPanel — Admin-only panel for configuring Google AdSense.
+ * Lets the admin:
+ *   - Toggle ads globally on/off
+ *   - Set the AdSense publisher ID (ca-pub-XXXXXXXXXXXXXXXX)
+ *   - Set ad slot IDs for each placement (home banner, feed native, profile banner)
+ *
+ * When ads are enabled + publisher ID is set, non-premium users see ads.
+ * Premium + admin users always get an ad-free experience.
+ */
+function AdConfigPanel() {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const { toast } = useToast();
+
+  const [adsEnabled, setAdsEnabled] = useState(false);
+  const [publisherId, setPublisherId] = useState('');
+  const [homeBannerSlot, setHomeBannerSlot] = useState('');
+  const [feedNativeSlot, setFeedNativeSlot] = useState('');
+  const [profileBannerSlot, setProfileBannerSlot] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Fetch current config on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/ads/config');
+        const data = await res.json();
+        setAdsEnabled(data.adsEnabled ?? false);
+        setPublisherId(data.publisherId || '');
+        setHomeBannerSlot(data.homeBannerSlot || '');
+        setFeedNativeSlot(data.feedNativeSlot || '');
+        setProfileBannerSlot(data.profileBannerSlot || '');
+      } catch {
+        // Non-critical — defaults are fine
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    if (!currentUser?.id) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/ads/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: currentUser.id,
+          adsEnabled,
+          publisherId: publisherId.trim(),
+          homeBannerSlot: homeBannerSlot.trim(),
+          feedNativeSlot: feedNativeSlot.trim(),
+          profileBannerSlot: profileBannerSlot.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: '✅ Ad settings saved!' });
+      } else {
+        toast({ title: data.error || 'Failed to save', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to save ad settings', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 }}>
+        <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-amber-500" />
+          Ad Settings
+        </h3>
+        <Card className="p-6 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800/30">
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+          </div>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 }}>
+      <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+        <BarChart3 className="w-4 h-4 text-amber-500" />
+        Ad Settings
+      </h3>
+      <Card className="p-5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800/30 space-y-4">
+        <p className="text-[11px] text-warm-500 dark:text-warm-400">
+          Configure Google AdSense to earn from ads. Premium + admin users always get an ad-free experience.
+        </p>
+
+        {/* Ads Enabled toggle */}
+        <div className="flex items-center justify-between p-3 rounded-xl bg-white/50 dark:bg-white/5">
+          <div>
+            <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Ads Enabled</p>
+            <p className="text-[10px] text-warm-500">Master switch — turn off to hide all ads immediately</p>
+          </div>
+          <button
+            onClick={() => setAdsEnabled(!adsEnabled)}
+            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${
+              adsEnabled ? 'bg-amber-500' : 'bg-warm-300 dark:bg-warm-700'
+            }`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${adsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+
+        {/* Publisher ID */}
+        <div>
+          <label className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5 block">
+            AdSense Publisher ID
+          </label>
+          <Input
+            value={publisherId}
+            onChange={(e) => setPublisherId(e.target.value)}
+            placeholder="ca-pub-XXXXXXXXXXXXXXXX"
+            className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm font-mono"
+          />
+          <p className="text-[10px] text-warm-400 mt-1">Found in your AdSense dashboard → Account → Account information</p>
+        </div>
+
+        {/* Ad Slot IDs */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider">Ad Slot IDs (from AdSense → Ads → By ad unit)</p>
+          <Input
+            value={homeBannerSlot}
+            onChange={(e) => setHomeBannerSlot(e.target.value)}
+            placeholder="Home Banner slot ID (e.g. 1234567890)"
+            className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+          />
+          <Input
+            value={feedNativeSlot}
+            onChange={(e) => setFeedNativeSlot(e.target.value)}
+            placeholder="In-Feed Native slot ID (optional)"
+            className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+          />
+          <Input
+            value={profileBannerSlot}
+            onChange={(e) => setProfileBannerSlot(e.target.value)}
+            placeholder="Profile Banner slot ID (optional)"
+            className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+          />
+        </div>
+
+        <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30">
+          <p className="text-[10px] text-blue-700 dark:text-blue-300 font-medium">
+            📖 <strong>How to get these:</strong>
+            <br />1. Sign up at <strong>adsense.google.com</strong> + verify your site
+            <br />2. Copy your Publisher ID (starts with ca-pub-)
+            <br />3. Create ad units (Ads → By ad unit → Create new) → copy each slot ID here
+            <br />4. Toggle "Ads Enabled" on + Save
+          </p>
+        </div>
+
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+          Save Ad Settings
+        </Button>
+      </Card>
+    </motion.div>
+  );
+}
+
 export default function ProfileTab() {
   const { currentUser, updateUser, logout } = useKabaddiStore();
   const language = useKabaddiStore((s) => s.language);
@@ -490,6 +1193,7 @@ export default function ProfileTab() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
+  const [showAllPlayers, setShowAllPlayers] = useState(false);
   const [showChallenges, setShowChallenges] = useState(false);
   const [showGrounds, setShowGrounds] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
@@ -536,6 +1240,7 @@ export default function ProfileTab() {
     practiceGround: currentUser?.practiceGround || '',
     position: '',
     jerseyNumber: '',
+    showCoachBadge: currentUser?.showCoachBadge ?? false,
   });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
@@ -755,7 +1460,8 @@ export default function ProfileTab() {
     if (!currentUser?.isAdmin) return;
     let cancelled = false;
     // Fetch total players for the admin dashboard tile
-    fetch('/api/stats')
+    // Use cache: 'no-store' to always get fresh data
+    fetch('/api/stats', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (!cancelled && typeof data.totalPlayers === 'number') {
@@ -813,6 +1519,7 @@ export default function ProfileTab() {
       practiceGround: currentUser?.practiceGround || '',
       position: currentUser?.position || profileData.position || '',
       jerseyNumber: (currentUser?.jerseyNumber || profileData.jerseyNumber)?.toString() || '',
+      showCoachBadge: currentUser?.showCoachBadge ?? false,
     });
   }, [currentUser, profileData.position, profileData.jerseyNumber, editOpen]);
 
@@ -906,6 +1613,7 @@ export default function ProfileTab() {
     const updatedWeight = editForm.weight ? (editForm.weight === 'open' ? 'open' : editForm.weight) : undefined;
     const updatedGender = editForm.gender || undefined;
     const updatedPracticeGround = editForm.practiceGround || undefined;
+    const updatedShowCoachBadge = !!editForm.showCoachBadge;
 
     // Update Zustand store with all fields (including position & jerseyNumber)
     updateUser({
@@ -914,6 +1622,7 @@ export default function ProfileTab() {
       practiceGround: updatedPracticeGround,
       position: updatedPosition,
       jerseyNumber: updatedJerseyNumber,
+      showCoachBadge: updatedShowCoachBadge,
     });
 
     // Update local profileData immediately for instant display
@@ -925,6 +1634,10 @@ export default function ProfileTab() {
     setProfileNotFound(false);
 
     try {
+      // Send ALL editable fields to /auth update-details (gender, weight,
+      // practiceGround, avatar, showCoachBadge) AND player-profile fields
+      // (position, jerseyNumber) to /players/:id. Two endpoints because the
+      // fields live on different tables.
       const updateBody: Record<string, unknown> = {
         gender: editForm.gender,
         weight: editForm.weight ? (editForm.weight === 'open' ? 'open' : editForm.weight) : undefined,
@@ -938,6 +1651,21 @@ export default function ProfileTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateBody),
       });
+
+      // ALSO send showCoachBadge (and other User-table fields) to /auth
+      // update-details — the showCoachBadge field lives on User, not on
+      // PlayerProfile, so /players/:id (which targets PlayerProfile) won't
+      // persist it. Fire-and-forget; if it fails the UI still shows the
+      // optimistic update.
+      try {
+        await authRequest({
+          userId: currentUser?.id,
+          action: 'update-details',
+          showCoachBadge: updatedShowCoachBadge,
+        });
+      } catch (e) {
+        console.error('Failed to save showCoachBadge:', e);
+      }
 
       // If save was successful, reload profile to get server-confirmed data
       if (res.ok && currentUser?.id) {
@@ -1155,7 +1883,11 @@ export default function ProfileTab() {
     {
       title: 'Team & Stats',
       items: [
-        ...(currentUser?.role === 'coach' ? [{ icon: Megaphone, label: 'Coach Dashboard', desc: 'Academy, attendance & fees', color: 'brand-green', premium: false, onClick: () => setShowCoachDashboard(true) }] : []),
+        // Coach Dashboard is now available to EVERYONE — the coach role is
+        // deprecated. Anyone (player or former-coach) can manage their academy,
+        // attendance, and fees from here. No role check, no premium gate on the
+        // menu entry itself (the CoachDashboard screen handles its own gating).
+        { icon: Megaphone, label: 'Coach Dashboard', desc: 'Academy, attendance & fees', color: 'brand-green', premium: false, onClick: () => setShowCoachDashboard(true) },
         { icon: Users, label: 'My Teams', desc: 'Manage your teams', color: 'brand-teal', premium: false, onClick: () => setShowTeamManagement(true) },
         { icon: BarChart3, label: 'Compare', desc: isPremium ? 'Player vs Player' : 'PRO only', color: 'brand-gold', premium: true, onClick: () => { if (!isPremium) { setShowUpgrade(true); return; } setShowPlayerComparison(true); } },
         { icon: Activity, label: 'My Stats', desc: 'View your stats', color: 'brand-red', premium: false, onClick: () => setShowStats(true) },
@@ -1311,6 +2043,16 @@ export default function ProfileTab() {
         <PlayerProfileScreen
           userId={playerProfileUserId}
           onBack={() => { setShowPlayerProfile(false); setPlayerProfileUserId(null); }}
+        />
+      )}
+      {showAllPlayers && currentUser?.isAdmin && (
+        <AllPlayersListScreen
+          onClose={() => setShowAllPlayers(false)}
+          onViewPlayer={(userId: string) => {
+            setShowAllPlayers(false);
+            setPlayerProfileUserId(userId);
+            setShowPlayerProfile(true);
+          }}
         />
       )}
       </Portal>
@@ -1475,7 +2217,7 @@ export default function ProfileTab() {
                   </div>
 
                   {/* Gender Selection - Players only */}
-                  {currentUser?.role !== 'coach' && (
+                  {(
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Gender</label>
                     <div className="grid grid-cols-2 gap-3">
@@ -1504,7 +2246,7 @@ export default function ProfileTab() {
                   )}
 
                   {/* Weight Category Selector - Players only */}
-                  {currentUser?.role !== 'coach' && (
+                  {(
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Weight Category</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -1601,7 +2343,7 @@ export default function ProfileTab() {
                   </div>
 
                   {/* Jersey Number - Players only */}
-                  {currentUser?.role !== 'coach' && (
+                  {(
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Jersey Number</label>
                     <div className="relative">
@@ -1620,7 +2362,7 @@ export default function ProfileTab() {
                   )}
 
                   {/* Position Selection with Visual Icons - Players only */}
-                  {currentUser?.role !== 'coach' && (
+                  {(
                   <div>
                     <label className="text-sm font-semibold text-warm-700 dark:text-warm-600 mb-2 block">Position</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -1647,6 +2389,45 @@ export default function ProfileTab() {
                   </div>
                   )}
 
+                  {/* Coach Badge Toggle — opt-in cosmetic badge on profile.
+                      Anyone can enable this. It does NOT change role or feature
+                      access; it just shows a "COACH" badge next to the user's
+                      name on their profile and in admin lists. */}
+                  <div className="p-3 rounded-xl border-2 border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-900/10">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+                          <Megaphone className="w-4.5 h-4.5 text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-warm-800 dark:text-warm-100 flex items-center gap-1.5">
+                            Show Coach Badge
+                          </p>
+                          <p className="text-[10px] text-warm-500 dark:text-warm-400 leading-tight">
+                            Display a "COACH" badge on your profile. Available to everyone — purely cosmetic.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={editForm.showCoachBadge}
+                        onClick={() => setEditForm(prev => ({ ...prev, showCoachBadge: !prev.showCoachBadge }))}
+                        className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${
+                          editForm.showCoachBadge
+                            ? 'bg-emerald-500'
+                            : 'bg-warm-300 dark:bg-warm-700'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${
+                            editForm.showCoachBadge ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
                   <Button
                     onClick={handleSaveProfile}
                     className="w-full bg-brand-red hover:bg-brand-red-dark text-white rounded-xl"
@@ -1672,6 +2453,11 @@ export default function ProfileTab() {
                   </Badge>
                 </span>
               )}
+              {currentUser?.showCoachBadge && (
+                <span className="inline-flex items-center gap-0.5 ml-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/90 text-white text-[8px] font-bold border border-emerald-400/50 shadow-sm">
+                  <Megaphone className="w-2.5 h-2.5" />COACH
+                </span>
+              )}
               {currentUser?.gender === 'male' ? (
                 <span className="text-blue-300">♂</span>
               ) : currentUser?.gender === 'female' ? (
@@ -1692,7 +2478,7 @@ export default function ProfileTab() {
             </h2>
 
             {/* Position badge with kabaddi-themed icon - Players only */}
-            {currentUser?.role !== 'coach' && (profileData.position || currentUser?.position) && (
+            {(profileData.position || currentUser?.position) && (
               <div className="flex items-center justify-center gap-1.5 mt-1.5">
                 <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 flex items-center gap-1.5">
                   <span className="text-sm">{getPositionIcon(profileData.position || currentUser?.position || '')}</span>
@@ -1706,7 +2492,7 @@ export default function ProfileTab() {
 
             {/* Weight & Practice Ground */}
             <div className="flex items-center justify-center gap-3 mt-1.5 text-white/70 text-xs">
-              {currentUser?.role !== 'coach' && currentUser?.weight && (
+              {currentUser?.weight && (
                 <span className="flex items-center gap-1">
                   <Activity className="w-3 h-3" />
                   {currentUser.weight === 'open' ? '♾️ Open' : `⚖️ ${currentUser.weight}`}
@@ -1722,7 +2508,7 @@ export default function ProfileTab() {
 
             {/* Badges Row */}
             <div className="flex items-center justify-center gap-2 mt-2">
-              {currentUser?.role !== 'coach' && (profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+              {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
                 <span className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-medium border border-white/20">
                   #{profileData.jerseyNumber || currentUser?.jerseyNumber}
                 </span>
@@ -2850,7 +3636,7 @@ export default function ProfileTab() {
           </div>
 
           {/* Weight - Players only */}
-          {currentUser?.role !== 'coach' && currentUser?.weight && (
+          {currentUser?.weight && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
@@ -2882,7 +3668,7 @@ export default function ProfileTab() {
           )}
 
           {/* Position - Players only */}
-          {currentUser?.role !== 'coach' && (profileData.position || currentUser?.position) && (
+          {(profileData.position || currentUser?.position) && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
@@ -2898,7 +3684,7 @@ export default function ProfileTab() {
           )}
 
           {/* Jersey - Players only */}
-          {currentUser?.role !== 'coach' && (profileData.jerseyNumber || currentUser?.jerseyNumber) && (
+          {(profileData.jerseyNumber || currentUser?.jerseyNumber) && (
             <div className="flex justify-between text-sm items-center py-1">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-warm-100 dark:bg-warm-200/50 flex items-center justify-center">
@@ -3092,7 +3878,13 @@ export default function ProfileTab() {
             <Users className="w-4 h-4 text-emerald-500" />
             Players Dashboard
           </h3>
-          <Card className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30">
+          <Card
+            className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800/30 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-500/10 transition-all active:scale-[0.98] select-none"
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowAllPlayers(true)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAllPlayers(true); } }}
+          >
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
                 <Users className="w-8 h-8 text-white" />
@@ -3104,8 +3896,9 @@ export default function ProfileTab() {
                 <p className="text-4xl font-black text-emerald-700 dark:text-emerald-400 leading-none tracking-tight">
                   {totalPlayers.toLocaleString()}
                 </p>
-                <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1.5">
-                  All registered players on Kabaddi Pro
+                <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1.5 flex items-center gap-1">
+                  <span>Tap to view all players</span>
+                  <ChevronRight className="w-3 h-3" />
                 </p>
               </div>
             </div>
@@ -3118,6 +3911,29 @@ export default function ProfileTab() {
       {/* Admin can gift premium to any user by their player code */}
       {/* ═══════════════════════════════════════════ */}
       {currentUser?.isAdmin && <GiftPremiumPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* PLAYER SEARCH PANEL - Admin Only */}
+      {/* Search any player by ID to see contact details */}
+      {/* ═══════════════════════════════════════════ */}
+      {currentUser?.isAdmin && <PlayerSearchPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* AD SETTINGS PANEL - Admin Only */}
+      {/* Admin configures AdSense publisher ID + ad slots */}
+      {/* ═══════════════════════════════════════════ */}
+      {currentUser?.isAdmin && <AdConfigPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* AD BANNER — shown to non-premium, non-admin users */}
+      {/* ═══════════════════════════════════════════ */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.32 }}
+      >
+        <AdBanner placement="profile" className="rounded-xl overflow-hidden" />
+      </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
       {/* 10. LOGOUT BUTTON with Confirmation Dialog */}

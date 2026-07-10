@@ -377,15 +377,14 @@ export default function Home() {
   }
 
   if (isAuthenticated && isOnboarded && !hasCompletedOnboarding) {
-    if (currentUser?.role === 'coach') {
-      completeOnboarding();
-    } else {
-      return (
-        <Suspense fallback={<BrandedLoadingScreen />}>
-          <OnboardingWizard />
-        </Suspense>
-      );
-    }
+    // Coach role is deprecated — everyone goes through the standard
+    // onboarding wizard now. (Previously coaches skipped onboarding, but
+    // since everyone is a player now, no special-casing is needed.)
+    return (
+      <Suspense fallback={<BrandedLoadingScreen />}>
+        <OnboardingWizard />
+      </Suspense>
+    );
   }
 
   if (showToss && tossMatchConfig) {

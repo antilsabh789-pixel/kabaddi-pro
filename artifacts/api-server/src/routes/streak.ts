@@ -122,23 +122,16 @@ router.get('/streak', async (req, res) => {
       claimedMilestones = JSON.parse(streak?.claimedMilestones || '[]');
     } catch { claimedMilestones = []; }
 
-    // Build the reward roadmap with claim status
-    const milestones = getAllMilestones().map((m) => ({
-      ...m,
-      // A milestone is "claimable" if the user's current streak >= the milestone day
-      // AND they haven't claimed it yet.
-      isClaimed: claimedMilestones.includes(m.day),
-      isClaimable: currentStreak >= m.day && !claimedMilestones.includes(m.day),
-      isLocked: currentStreak < m.day,
-    }));
-
     // Auto-fix: if the streak is broken (last check-in was more than 1 day ago),
     // reset it to 0. This runs lazily on every GET so the UI is always accurate.
+    // IMPORTANT: This MUST run BEFORE building the milestones roadmap so the
+    // isClaimable / isLocked flags reflect the post-reset streak (otherwise a
+    // user with a broken 30-day streak would see all milestones claimable but
+    // be rejected by /streak/claim when their currentStreak is actually 0).
     let effectiveStreak = currentStreak;
     if (lastCheckIn) {
       const daysSince = daysBetween(new Date(), lastCheckIn);
       if (daysSince > 1 && currentStreak > 0) {
-        // Streak is broken — reset in DB
         effectiveStreak = 0;
         if (streak) {
           await db.userStreak.update({
@@ -148,6 +141,15 @@ router.get('/streak', async (req, res) => {
         }
       }
     }
+
+    // Build the reward roadmap with claim status — uses effectiveStreak so a
+    // broken streak correctly shows future milestones as locked.
+    const milestones = getAllMilestones().map((m) => ({
+      ...m,
+      isClaimed: claimedMilestones.includes(m.day),
+      isClaimable: effectiveStreak >= m.day && !claimedMilestones.includes(m.day),
+      isLocked: effectiveStreak < m.day,
+    }));
 
     return res.json({
       currentStreak: effectiveStreak,
@@ -197,52 +199,66 @@ router.post('/streak/check-in', async (req, res) => {
         },
       });
     } else {
+      // Race-safe same-day check-in guard: do a conditional update that only
+      // succeeds if lastCheckIn is from a PREVIOUS day. If two concurrent
+      // requests arrive at the same moment, only one of them will see
+      // result.count === 1 — the other gets count:0 and is treated as a
+      // no-op. This prevents inflating totalCheckIns from a double-tap.
       const now = new Date();
-      const lastCheckIn = streak.lastCheckIn;
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const updated = await db.userStreak.updateMany({
+        where: {
+          userId,
+          OR: [
+            { lastCheckIn: null },
+            { lastCheckIn: { lt: startOfToday } },
+          ],
+        },
+        data: (() => {
+          // Compute the new streak based on the existing streak + lastCheckIn.
+          // We have to do this in JS because Prisma can't compute "yesterday"
+          // in SQL. The conditional update above guarantees only one writer
+          // wins, so the JS read we did earlier (streak.currentStreak /
+          // streak.lastCheckIn) is still valid for the winning writer.
+          let newStreak = 1;
+          if (streak.lastCheckIn) {
+            const daysSince = daysBetween(now, streak.lastCheckIn);
+            if (daysSince === 1) newStreak = streak.currentStreak + 1;
+          }
+          return {
+            currentStreak: newStreak,
+            longestStreak: Math.max(streak.longestStreak, newStreak),
+            totalCheckIns: streak.totalCheckIns + 1,
+            lastCheckIn: now,
+          };
+        })(),
+      });
 
-      if (isCheckedInToday(lastCheckIn)) {
-        // Already checked in today — no-op
+      if (updated.count === 0) {
+        // Either already checked in today, or another concurrent request won.
+        // Either way, return the current state as a no-op.
+        const fresh = await db.userStreak.findUnique({ where: { userId } });
         return res.json({
           success: true,
           alreadyCheckedIn: true,
-          currentStreak: streak.currentStreak,
-          longestStreak: streak.longestStreak,
-          totalCheckIns: streak.totalCheckIns,
-          lastCheckIn: streak.lastCheckIn,
+          currentStreak: fresh?.currentStreak || 0,
+          longestStreak: fresh?.longestStreak || 0,
+          totalCheckIns: fresh?.totalCheckIns || 0,
+          lastCheckIn: fresh?.lastCheckIn || null,
         });
       }
 
-      // Compute new streak
-      let newStreak = 1;
-      if (lastCheckIn) {
-        const daysSince = daysBetween(now, lastCheckIn);
-        if (daysSince === 1) {
-          // Consecutive day — increment
-          newStreak = streak.currentStreak + 1;
-        } else {
-          // Gap > 1 day — reset to 1
-          newStreak = 1;
-        }
-      }
-
-      streak = await db.userStreak.update({
-        where: { userId },
-        data: {
-          currentStreak: newStreak,
-          longestStreak: Math.max(streak.longestStreak, newStreak),
-          totalCheckIns: streak.totalCheckIns + 1,
-          lastCheckIn: now,
-        },
-      });
+      // Re-fetch the updated streak so we have the freshest values
+      streak = (await db.userStreak.findUnique({ where: { userId } }))!;
     }
 
     return res.json({
       success: true,
       alreadyCheckedIn: false,
-      currentStreak: streak.currentStreak,
-      longestStreak: streak.longestStreak,
-      totalCheckIns: streak.totalCheckIns,
-      lastCheckIn: streak.lastCheckIn,
+      currentStreak: streak!.currentStreak,
+      longestStreak: streak!.longestStreak,
+      totalCheckIns: streak!.totalCheckIns,
+      lastCheckIn: streak!.lastCheckIn,
     });
   } catch (error) {
     console.error('POST /streak/check-in error:', error);

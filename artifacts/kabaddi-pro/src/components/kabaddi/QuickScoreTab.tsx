@@ -17,6 +17,7 @@ interface UserTeam {
   name: string;
   shortName: string | null;
   color: string | null;
+  logo?: string | null;
   members?: DbPlayer[];
 }
 
@@ -28,6 +29,8 @@ interface MatchConfig {
   awayTeam: string;
   homeTeamColor: string;
   awayTeamColor: string;
+  homeTeamLogo: string | null;
+  awayTeamLogo: string | null;
   homeLineup: MatchPlayer[];
   awayLineup: MatchPlayer[];
   liveStreamUrl: string;
@@ -430,6 +433,8 @@ export default function QuickScoreTab() {
     awayTeam: '',
     homeTeamColor: '#DC2626',
     awayTeamColor: '#1E293B',
+    homeTeamLogo: null,
+    awayTeamLogo: null,
     homeLineup: [],
     awayLineup: [],
     liveStreamUrl: '',
@@ -647,16 +652,17 @@ export default function QuickScoreTab() {
     return undefined;}, [awayTeamCode]);
 
   // Select a team (works for both home/away) — fetches roster and auto-populates lineup
-  const selectTeam = async (team: UserTeam | { id: string; name: string; shortName: string | null; teamCode: string | null; color: string | null; memberCount?: number }, side: 'home' | 'away') => {
+  const selectTeam = async (team: UserTeam | { id: string; name: string; shortName: string | null; teamCode: string | null; color: string | null; logo?: string | null; memberCount?: number }, side: 'home' | 'away') => {
     const teamColor = team.color || (side === 'home' ? config.homeTeamColor : config.awayTeamColor);
+    const teamLogo = (team as { logo?: string | null }).logo || null;
     if (side === 'home') {
-      setConfig(prev => ({ ...prev, homeTeam: team.name, homeTeamColor: teamColor }));
+      setConfig(prev => ({ ...prev, homeTeam: team.name, homeTeamColor: teamColor, homeTeamLogo: teamLogo }));
       setHomeTeamId(team.id);
       setHomeTeamCode((team as { teamCode?: string | null }).teamCode || '');
       setHomeTeamSearchResults([]);
       setShowHomeSuggestions(false);
     } else {
-      setConfig(prev => ({ ...prev, awayTeam: team.name, awayTeamColor: teamColor }));
+      setConfig(prev => ({ ...prev, awayTeam: team.name, awayTeamColor: teamColor, awayTeamLogo: teamLogo }));
       setAwayTeamId(team.id);
       setAwayTeamCode((team as { teamCode?: string | null }).teamCode || '');
       setAwayTeamSearchResults([]);
@@ -765,6 +771,8 @@ export default function QuickScoreTab() {
       awayTeam: config.awayTeam,
       homeTeamColor: config.homeTeamColor,
       awayTeamColor: config.awayTeamColor,
+      homeTeamLogo: config.homeTeamLogo,
+      awayTeamLogo: config.awayTeamLogo,
       isPractice: true,
             weightCategory: weightType === 'open' ? 'open' : weightInput.trim(),
       halfDuration: config.halfDuration,
@@ -1288,15 +1296,19 @@ export default function QuickScoreTab() {
                 {config.homeTeam ? (
                   <button
                     onClick={() => {
-                      setConfig(prev => ({ ...prev, homeTeam: '', homeLineup: [], homeTeamColor: '#DC2626' }));
+                      setConfig(prev => ({ ...prev, homeTeam: '', homeLineup: [], homeTeamColor: '#DC2626', homeTeamLogo: null }));
                       setHomeTeamId(null);
                       setHomeTeamCode('');
                     }}
                     className="w-24 h-24 rounded-2xl flex flex-col items-center justify-center shadow-lg relative overflow-hidden"
                     style={{ backgroundColor: config.homeTeamColor }}
                   >
-                    <span className="text-white font-black text-lg text-center px-1 truncate max-w-full">{config.homeTeam}</span>
-                    <span className="text-white/60 text-[10px] mt-1">tap to change</span>
+                    {config.homeTeamLogo ? (
+                      <img src={config.homeTeamLogo} alt={config.homeTeam} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white font-black text-lg text-center px-1 truncate max-w-full">{config.homeTeam}</span>
+                    )}
+                    <span className="text-white/60 text-[10px] mt-1 z-10 bg-black/30 px-1.5 py-0.5 rounded">tap to change</span>
                   </button>
                 ) : (
                   <button
@@ -1329,15 +1341,19 @@ export default function QuickScoreTab() {
                 {config.awayTeam ? (
                   <button
                     onClick={() => {
-                      setConfig(prev => ({ ...prev, awayTeam: '', awayLineup: [], awayTeamColor: '#1E293B' }));
+                      setConfig(prev => ({ ...prev, awayTeam: '', awayLineup: [], awayTeamColor: '#1E293B', awayTeamLogo: null }));
                       setAwayTeamId(null);
                       setAwayTeamCode('');
                     }}
                     className="w-24 h-24 rounded-2xl flex flex-col items-center justify-center shadow-lg relative overflow-hidden"
                     style={{ backgroundColor: config.awayTeamColor }}
                   >
-                    <span className="text-white font-black text-lg text-center px-1 truncate max-w-full">{config.awayTeam}</span>
-                    <span className="text-white/60 text-[10px] mt-1">tap to change</span>
+                    {config.awayTeamLogo ? (
+                      <img src={config.awayTeamLogo} alt={config.awayTeam} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white font-black text-lg text-center px-1 truncate max-w-full">{config.awayTeam}</span>
+                    )}
+                    <span className="text-white/60 text-[10px] mt-1 z-10 bg-black/30 px-1.5 py-0.5 rounded">tap to change</span>
                   </button>
                 ) : (
                   <button

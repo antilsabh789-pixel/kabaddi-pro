@@ -26,6 +26,7 @@ model User {
   weight         String?  // e.g., "65kg", "70kg"
   practiceGround String?  // practice ground / academy name
   location       String?  // city / area for coaches
+  showCoachBadge Boolean  @default(false) // opt-in cosmetic coach badge on profile — does NOT change role or feature access
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -40,6 +41,7 @@ model User {
   sentNotifications Notification[] @relation("NotificationSender")
   activities        Activity[]
   userAchievements  UserAchievement[]
+  academyAnnouncements AcademyAnnouncement[] // announcements this user (coach) has posted
   sentChallenges    Challenge[]   @relation("ChallengeSender")
   receivedChallenges Challenge[]  @relation("ChallengeReceiver")
   referralsMade     Referral[]    @relation("ReferralReferrer")
@@ -515,6 +517,10 @@ model Academy {
   coachUser   User     @relation(fields: [coachUserId], references: [id])
   sundayHoliday Boolean @default(false)
   practiceSchedule String @default("one-time")
+  // Coach chooses which weekdays are holidays. Stored as a JSON string of
+  // weekday names: e.g. '["sun","mon"]'. Empty array = all days working.
+  // Backwards-compat: if empty, falls back to sundayHoliday boolean.
+  offDays     String   @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -523,6 +529,7 @@ model Academy {
   feeRecords     FeeRecord[]
   rewards        StudentReward[]
   parentContacts ParentContact[]
+  announcements AcademyAnnouncement[]
 
   @@map("academies")
 }
@@ -547,9 +554,14 @@ model Attendance {
   user        User     @relation(fields: [userId], references: [id])
   date        DateTime
   isPresent   Boolean  @default(false)
+  // Session identifier: "morning", "evening", or "default" (single-session
+  // academies). Combined with (academyId, userId, date) for uniqueness so a
+  // player can have separate morning + evening attendance rows per day.
+  session     String   @default("default")
+  note        String?
   createdAt   DateTime @default(now())
 
-  @@unique([academyId, userId, date])
+  @@unique([academyId, userId, date, session])
   @@map("attendances")
 }
 
@@ -565,6 +577,16 @@ model FeeRecord {
   amount      Int      // amount in INR
   status      String   @default("pending") // pending, paid, overdue
   paidAt      DateTime?
+  // When the paid period ends. Computed when isPaid=true:
+  //   monthly  → paidAt + 30 days
+  //   yearly   → paidAt + 365 days
+  //   weekly   → paidAt + 7 days
+  //   daily    → paidAt + 1 day
+  // Used to compute "days left" in the coach fees dashboard.
+  expiryDate  DateTime?
+  // Period label: "monthly", "yearly", "weekly", "daily", "custom".
+  // Defaults to "monthly" for backwards compat with existing rows.
+  period      String   @default("monthly")
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -603,6 +625,25 @@ model ParentContact {
 
   @@unique([userId, academyId])
   @@map("parent_contacts")
+}
+
+// ─── Academy Announcements ───────────────────────────────────────
+// Coach posts an announcement → all academy players see it + get a
+// Notification row so it appears in their bell icon.
+
+model AcademyAnnouncement {
+  id          String   @id @default(cuid())
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  coachUserId String   // the coach who posted it
+  coachUser   User     @relation(fields: [coachUserId], references: [id])
+  title       String
+  message     String
+  // Optional: if the coach schedules it for a future date. Null = immediate.
+  scheduledAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("academy_announcements")
 }
 
 // ─── Match Transfer / Scorer Handoff ─────────────────────────────
@@ -803,4 +844,16 @@ model TeamJoinRequest {
   user User @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, userId, status]) // One pending request per user per team
+}
+
+// ─── App Settings (key-value store) ──────────────────────────────────
+// Used for global config like AdSense publisher ID, ad toggle, etc.
+// Keyed by a string key so we can add new settings without migrations.
+
+model AppSetting {
+  key       String   @id  // e.g. "adsense_publisher_id", "ads_enabled"
+  value     String   // stored as string; parse on read
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
 }
