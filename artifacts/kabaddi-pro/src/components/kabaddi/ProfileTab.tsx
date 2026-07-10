@@ -26,6 +26,7 @@ import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 import PremiumLock from './PremiumLock';
 import TeamManagementScreen from './TeamManagementScreen';
 import PlayerProfileScreen from './PlayerProfileScreen';
+import AdBanner from './AdBanner';
 import { authRequest } from '@/lib/authClient';
 import PlayerComparisonScreen from './PlayerComparisonScreen';
 import AdvancedStatsScreen from './AdvancedStatsScreen';
@@ -3916,6 +3917,23 @@ export default function ProfileTab() {
       {/* Search any player by ID to see contact details */}
       {/* ═══════════════════════════════════════════ */}
       {currentUser?.isAdmin && <PlayerSearchPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* AD SETTINGS PANEL - Admin Only */}
+      {/* Admin configures AdSense publisher ID + ad slots */}
+      {/* ═══════════════════════════════════════════ */}
+      {currentUser?.isAdmin && <AdConfigPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* AD BANNER — shown to non-premium, non-admin users */}
+      {/* ═══════════════════════════════════════════ */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.32 }}
+      >
+        <AdBanner placement="profile" className="rounded-xl overflow-hidden" />
+      </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
       {/* 10. LOGOUT BUTTON with Confirmation Dialog */}
