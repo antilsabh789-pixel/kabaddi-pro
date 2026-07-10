@@ -109,7 +109,7 @@ router.post('/auth', async (req, res) => {
           }
 
           // Update the user's PlayerProfile with claimed stats
-          const updateData: Record<string, number> = {};
+          const updateData: Record<string, { increment: number } | number> = {};
           if (agg.practice.matches.size > 0) {
             updateData.practiceMatches = { increment: agg.practice.matches.size };
             if (agg.practice.raids > 0) updateData.practiceTotalRaids = { increment: agg.practice.raids };

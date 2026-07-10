@@ -26,6 +26,7 @@ import PremiumUpgradeScreen from './PremiumUpgradeScreen';
 import PremiumLock from './PremiumLock';
 import TeamManagementScreen from './TeamManagementScreen';
 import PlayerProfileScreen from './PlayerProfileScreen';
+import AdBanner from './AdBanner';
 import PlayerComparisonScreen from './PlayerComparisonScreen';
 import AdvancedStatsScreen from './AdvancedStatsScreen';
 import FollowScreen from './FollowScreen';
@@ -469,6 +470,179 @@ function GiftPremiumPanel() {
             Enter a player's code (e.g. KP1001) to look them up, then choose a premium plan to gift them for free.
           </p>
         )}
+      </Card>
+    </motion.div>
+  );
+}
+
+/**
+ * AdConfigPanel — Admin-only panel for configuring Google AdSense.
+ * Lets the admin:
+ *   - Toggle ads globally on/off
+ *   - Set the AdSense publisher ID (ca-pub-XXXXXXXXXXXXXXXX)
+ *   - Set ad slot IDs for each placement (home banner, feed native, profile banner)
+ *
+ * When ads are enabled + publisher ID is set, non-premium users see ads.
+ * Premium + admin users always get an ad-free experience.
+ */
+function AdConfigPanel() {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const { toast } = useToast();
+
+  const [adsEnabled, setAdsEnabled] = useState(false);
+  const [publisherId, setPublisherId] = useState('');
+  const [homeBannerSlot, setHomeBannerSlot] = useState('');
+  const [feedNativeSlot, setFeedNativeSlot] = useState('');
+  const [profileBannerSlot, setProfileBannerSlot] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Fetch current config on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/ads/config');
+        const data = await res.json();
+        setAdsEnabled(data.adsEnabled ?? false);
+        setPublisherId(data.publisherId || '');
+        setHomeBannerSlot(data.homeBannerSlot || '');
+        setFeedNativeSlot(data.feedNativeSlot || '');
+        setProfileBannerSlot(data.profileBannerSlot || '');
+      } catch {
+        // Non-critical — defaults are fine
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    if (!currentUser?.id) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/ads/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: currentUser.id,
+          adsEnabled,
+          publisherId: publisherId.trim(),
+          homeBannerSlot: homeBannerSlot.trim(),
+          feedNativeSlot: feedNativeSlot.trim(),
+          profileBannerSlot: profileBannerSlot.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: '✅ Ad settings saved!' });
+      } else {
+        toast({ title: data.error || 'Failed to save', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to save ad settings', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 }}>
+        <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-amber-500" />
+          Ad Settings
+        </h3>
+        <Card className="p-6 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800/30">
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+          </div>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 }}>
+      <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+        <BarChart3 className="w-4 h-4 text-amber-500" />
+        Ad Settings
+      </h3>
+      <Card className="p-5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-200 dark:border-amber-800/30 space-y-4">
+        <p className="text-[11px] text-warm-500 dark:text-warm-400">
+          Configure Google AdSense to earn from ads. Premium + admin users always get an ad-free experience.
+        </p>
+
+        {/* Ads Enabled toggle */}
+        <div className="flex items-center justify-between p-3 rounded-xl bg-white/50 dark:bg-white/5">
+          <div>
+            <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Ads Enabled</p>
+            <p className="text-[10px] text-warm-500">Master switch — turn off to hide all ads immediately</p>
+          </div>
+          <button
+            onClick={() => setAdsEnabled(!adsEnabled)}
+            className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${
+              adsEnabled ? 'bg-amber-500' : 'bg-warm-300 dark:bg-warm-700'
+            }`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${adsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+
+        {/* Publisher ID */}
+        <div>
+          <label className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-1.5 block">
+            AdSense Publisher ID
+          </label>
+          <Input
+            value={publisherId}
+            onChange={(e) => setPublisherId(e.target.value)}
+            placeholder="ca-pub-XXXXXXXXXXXXXXXX"
+            className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm font-mono"
+          />
+          <p className="text-[10px] text-warm-400 mt-1">Found in your AdSense dashboard → Account → Account information</p>
+        </div>
+
+        {/* Ad Slot IDs */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider">Ad Slot IDs (from AdSense → Ads → By ad unit)</p>
+          <Input
+            value={homeBannerSlot}
+            onChange={(e) => setHomeBannerSlot(e.target.value)}
+            placeholder="Home Banner slot ID (e.g. 1234567890)"
+            className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+          />
+          <Input
+            value={feedNativeSlot}
+            onChange={(e) => setFeedNativeSlot(e.target.value)}
+            placeholder="In-Feed Native slot ID (optional)"
+            className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+          />
+          <Input
+            value={profileBannerSlot}
+            onChange={(e) => setProfileBannerSlot(e.target.value)}
+            placeholder="Profile Banner slot ID (optional)"
+            className="bg-white/50 dark:bg-white/5 border-warm-200 dark:border-warm-700 text-sm"
+          />
+        </div>
+
+        <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30">
+          <p className="text-[10px] text-blue-700 dark:text-blue-300 font-medium">
+            📖 <strong>How to get these:</strong>
+            <br />1. Sign up at <strong>adsense.google.com</strong> + verify your site
+            <br />2. Copy your Publisher ID (starts with ca-pub-)
+            <br />3. Create ad units (Ads → By ad unit → Create new) → copy each slot ID here
+            <br />4. Toggle "Ads Enabled" on + Save
+          </p>
+        </div>
+
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+          Save Ad Settings
+        </Button>
       </Card>
     </motion.div>
   );
@@ -3118,6 +3292,23 @@ export default function ProfileTab() {
       {/* Admin can gift premium to any user by their player code */}
       {/* ═══════════════════════════════════════════ */}
       {currentUser?.isAdmin && <GiftPremiumPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* AD SETTINGS PANEL - Admin Only */}
+      {/* Admin configures AdSense publisher ID + ad slots */}
+      {/* ═══════════════════════════════════════════ */}
+      {currentUser?.isAdmin && <AdConfigPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* AD BANNER — shown to non-premium, non-admin users */}
+      {/* ═══════════════════════════════════════════ */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.32 }}
+      >
+        <AdBanner placement="profile" className="rounded-xl overflow-hidden" />
+      </motion.div>
 
       {/* ═══════════════════════════════════════════ */}
       {/* 10. LOGOUT BUTTON with Confirmation Dialog */}

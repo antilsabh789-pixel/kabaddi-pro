@@ -57,7 +57,7 @@ router.get('/matches', async (req, res) => {
       try {
         const user = await db.user.findUnique({ where: { id: userId }, select: { phone: true } });
         if (user?.phone) {
-          where.OR.push({ events: { some: { playerPhone: user.phone } } });
+          (where.OR as unknown[]).push({ events: { some: { playerPhone: user.phone } } });
         }
       } catch {
         // Non-critical
@@ -352,7 +352,8 @@ router.post('/matches', async (req, res) => {
       });
 
       // Update the appropriate stats (practice or tournament)
-      const updateData: Record<string, number> = {};
+      // Type allows atomic increment objects OR raw numbers.
+      const updateData: Record<string, { increment: number } | number> = {};
       updateData[`${prefix}Matches`] = { increment: 1 };
       if (stats.totalRaids > 0) updateData[`${prefix}TotalRaids`] = { increment: stats.totalRaids };
       if (stats.successfulRaids > 0) updateData[`${prefix}SuccessfulRaids`] = { increment: stats.successfulRaids };
@@ -508,7 +509,7 @@ router.delete('/matches', async (req, res) => {
       const profile = await db.playerProfile.findUnique({ where: { userId: playerId } });
       if (!profile) continue; // no profile to update
 
-      const updateData: Record<string, number> = {};
+      const updateData: Record<string, number | { decrement: number } | { increment: number }> = {};
       // Decrement match count by 1 (don't go below 0)
       const currentMatches = (isPracticeMatch ? profile.practiceMatches : profile.tournamentMatches) || 0;
       if (currentMatches > 0) updateData[`${prefix}Matches`] = currentMatches - 1;

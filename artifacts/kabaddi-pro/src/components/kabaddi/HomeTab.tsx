@@ -66,6 +66,7 @@ import Portal from '@/components/portal';
 import { useToast } from '@/hooks/use-toast';
 import { useBackButton } from '@/hooks/use-back-button';
 import PremiumUpgradeScreen from './PremiumUpgradeScreen';
+import AdBanner from './AdBanner';
 import LeaderboardScreen from './LeaderboardScreen';
 import TeamsLeaderboardScreen from './TeamsLeaderboardScreen';
 import MatchAwardsScreen from './MatchAwardsScreen';
@@ -2106,6 +2107,13 @@ export default function HomeTab() {
           <div className="section-gradient-separator" />
         </div>
       )}
+
+      {/* ─── Ad Banner (between live matches and recent results) ───
+          Hidden for premium users + admins (ad-free perk).
+          Hidden globally if admin hasn't enabled ads or configured AdSense. */}
+      <section className="px-4 mt-6">
+        <AdBanner placement="home" className="rounded-xl overflow-hidden" />
+      </section>
 
       {/* ─── Recent Results / Match History ─── */}
       {!loading && recentMatches.length > 0 && (

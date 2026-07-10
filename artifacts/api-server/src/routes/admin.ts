@@ -202,4 +202,83 @@ router.get('/admin/lookup-player', async (req, res) => {
   }
 });
 
+// ─── Ad Settings ────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/config
+ * PUBLIC endpoint (no admin required) — returns the ad configuration so the
+ * frontend can decide whether to show ads + which AdSense publisher ID to use.
+ *
+ * Returns: {
+ *   adsEnabled: boolean,
+ *   publisherId: string | null,   // e.g. "ca-pub-1234567890123456"
+ *   homeBannerSlot: string | null,
+ *   feedNativeSlot: string | null,
+ *   profileBannerSlot: string | null,
+ * }
+ */
+router.get('/ads/config', async (req, res) => {
+  try {
+    const keys = ['ads_enabled', 'adsense_publisher_id', 'home_banner_slot', 'feed_native_slot', 'profile_banner_slot'];
+    const settings = await db.appSetting.findMany({ where: { key: { in: keys } } });
+    const map = new Map(settings.map(s => [s.key, s.value]));
+
+    return res.json({
+      adsEnabled: map.get('ads_enabled') === 'true',
+      publisherId: map.get('adsense_publisher_id') || null,
+      homeBannerSlot: map.get('home_banner_slot') || null,
+      feedNativeSlot: map.get('feed_native_slot') || null,
+      profileBannerSlot: map.get('profile_banner_slot') || null,
+    });
+  } catch (error) {
+    console.error('Ads config fetch error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PUT /api/admin/ads/config
+ * ADMIN ONLY — updates the ad configuration.
+ *
+ * Body: {
+ *   adsEnabled?: boolean,
+ *   publisherId?: string,         // "ca-pub-XXXXXXXXXXXXXXXX"
+ *   homeBannerSlot?: string,      // AdSense slot ID for home banner
+ *   feedNativeSlot?: string,      // AdSense slot ID for in-feed native ad
+ *   profileBannerSlot?: string,   // AdSense slot ID for profile banner
+ * }
+ */
+router.put('/admin/ads/config', async (req, res) => {
+  try {
+    const { adminId, adsEnabled, publisherId, homeBannerSlot, feedNativeSlot, profileBannerSlot } = req.body;
+    if (!adminId) return res.status(400).json({ error: 'adminId is required' });
+
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Upsert each provided setting
+    const updates: { key: string; value: string }[] = [];
+    if (adsEnabled !== undefined) updates.push({ key: 'ads_enabled', value: adsEnabled ? 'true' : 'false' });
+    if (publisherId !== undefined) updates.push({ key: 'adsense_publisher_id', value: String(publisherId).trim() });
+    if (homeBannerSlot !== undefined) updates.push({ key: 'home_banner_slot', value: String(homeBannerSlot).trim() });
+    if (feedNativeSlot !== undefined) updates.push({ key: 'feed_native_slot', value: String(feedNativeSlot).trim() });
+    if (profileBannerSlot !== undefined) updates.push({ key: 'profile_banner_slot', value: String(profileBannerSlot).trim() });
+
+    for (const u of updates) {
+      await db.appSetting.upsert({
+        where: { key: u.key },
+        create: { key: u.key, value: u.value },
+        update: { value: u.value },
+      });
+    }
+
+    return res.json({ success: true, message: `Updated ${updates.length} setting(s)` });
+  } catch (error) {
+    console.error('Ads config update error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

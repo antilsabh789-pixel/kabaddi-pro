@@ -804,3 +804,15 @@ model TeamJoinRequest {
 
   @@unique([teamId, userId, status]) // One pending request per user per team
 }
+
+// ─── App Settings (key-value store) ──────────────────────────────────
+// Used for global config like AdSense publisher ID, ad toggle, etc.
+// Keyed by a string key so we can add new settings without migrations.
+
+model AppSetting {
+  key       String   @id  // e.g. "adsense_publisher_id", "ads_enabled"
+  value     String   // stored as string; parse on read
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
