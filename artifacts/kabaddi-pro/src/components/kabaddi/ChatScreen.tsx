@@ -92,7 +92,7 @@ const POLL_INTERVAL_MS = 8000; // poll for new messages every 8s
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════
 
-export default function ChatScreen() {
+export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const language = useKabaddiStore((s) => s.language);
   const addNotification = useKabaddiStore((s) => s.addNotification);
@@ -273,6 +273,7 @@ export default function ChatScreen() {
             onStartConversation={startConversation}
             onRefresh={fetchThreads}
             language={language}
+            onClose={onClose}
           />
         )}
       </AnimatePresence>
@@ -298,12 +299,13 @@ interface InboxViewProps {
   onStartConversation: (u: PublicUser) => void;
   onRefresh: () => void;
   language: 'en' | 'hi';
+  onClose?: () => void;
 }
 
 function InboxView({
   threads, loading, currentUser, searchQuery, setSearchQuery,
   searchResults, searching, showNewChat, setShowNewChat,
-  onOpenThread, onStartConversation, onRefresh, language,
+  onOpenThread, onStartConversation, onRefresh, language, onClose,
 }: InboxViewProps) {
   const totalUnread = threads.reduce((sum, t) => sum + (t.unreadCount || 0), 0);
 
@@ -333,6 +335,15 @@ function InboxView({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {onClose && (
+              <button
+                onClick={onClose}
+                aria-label="Close chat"
+                className="w-9 h-9 rounded-full bg-warm-100 dark:bg-warm-800 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onRefresh}
               aria-label="Refresh"

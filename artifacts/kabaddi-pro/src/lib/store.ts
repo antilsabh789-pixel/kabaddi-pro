@@ -140,7 +140,7 @@ export interface ActiveMatch {
   awayStartingP: number;          // Team B's starting player count
 }
 
-export type TabId = 'home' | 'tournaments' | 'quick-score' | 'profile' | 'chat';
+export type TabId = 'home' | 'tournaments' | 'quick-score' | 'profile';
 
 // Notification types
 export type NotificationType = 'match_start' | 'match_result' | 'achievement' | 'premium' | 'general' | 'chat';

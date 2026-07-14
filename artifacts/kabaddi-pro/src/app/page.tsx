@@ -13,7 +13,6 @@ const HomeTab = lazy(() => import('@/components/kabaddi/HomeTab'));
 const TournamentsTab = lazy(() => import('@/components/kabaddi/TournamentsTab'));
 const QuickScoreTab = lazy(() => import('@/components/kabaddi/QuickScoreTab'));
 const ProfileTab = lazy(() => import('@/components/kabaddi/ProfileTab'));
-const ChatScreen = lazy(() => import('@/components/kabaddi/ChatScreen'));
 const LiveScoringScreen = lazy(() => import('@/components/kabaddi/LiveScoringScreen'));
 const TossScreen = lazy(() => import('@/components/kabaddi/TossScreen'));
 const BottomNav = lazy(() => import('@/components/kabaddi/BottomNav'));
@@ -234,11 +233,11 @@ export default function Home() {
   // Chat unread count is polled separately (see useEffect below).
   const unreadCount = notifications.filter((n) => !n.read).length + chatUnreadCount;
 
-  // ─── Poll chat threads for unread count (bell + tab badge) ─────────
-  // Skip when the user is on the Chat tab (its own poller handles it)
-  // or during a live match / toss (no distractions while scoring).
+  // ─── Poll chat threads for unread count (bell + HomeTab badge) ─────
+  // Skip during a live match / toss (no distractions while scoring).
+  // The HomeTab's Player Chat card surfaces this same count via prop.
   useEffect(() => {
-    if (!currentUser?.id || activeTab === 'chat' || activeMatch?.isLive || showToss) {
+    if (!currentUser?.id || activeMatch?.isLive || showToss) {
       setChatUnreadCount(0);
       return;
     }
@@ -261,7 +260,7 @@ export default function Home() {
     poll();
     const id = setInterval(poll, 15000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [currentUser?.id, activeTab, activeMatch?.isLive, showToss]);
+  }, [currentUser?.id, activeMatch?.isLive, showToss]);
 
   // ─── Android Back Button Support ──────────────────────────────────
   // Prevents the back button from exiting the app when overlays are open.
@@ -499,10 +498,9 @@ export default function Home() {
 
           <main className="flex-1 overflow-y-auto pb-20">
             <Suspense fallback={<TabLoadingSpinner />}>
-              {activeTab === 'home' && <HomeTab />}
+              {activeTab === 'home' && <HomeTab chatUnreadCount={chatUnreadCount} />}
               {activeTab === 'tournaments' && <TournamentsTab />}
               {activeTab === 'quick-score' && <QuickScoreTab />}
-              {activeTab === 'chat' && <ChatScreen />}
               {activeTab === 'profile' && <ProfileTab />}
             </Suspense>
           </main>
@@ -511,7 +509,6 @@ export default function Home() {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             hasLiveMatch={!!activeMatch?.isLive}
-            chatUnreadCount={chatUnreadCount}
           />
 
           <Portal>

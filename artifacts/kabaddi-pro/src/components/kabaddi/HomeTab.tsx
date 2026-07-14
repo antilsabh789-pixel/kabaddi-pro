@@ -118,6 +118,7 @@ import TotalPlayersBanner from './TotalPlayersBanner';
 import PopularPlayersSection from './PopularPlayersSection';
 import PlayerProfileScreen from './PlayerProfileScreen';
 import GiveawayScreen from './GiveawayScreen';
+import ChatScreen from './ChatScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -573,7 +574,7 @@ function CountdownTimer({ targetDate }: { targetDate: string | null }) {
 
 type GenderFilter = 'all' | 'boys' | 'girls';
 
-export default function HomeTab() {
+export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: number } = {}) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const fetchHomeData = useKabaddiStore((s) => s.fetchHomeData);
   const homeData = useKabaddiStore((s) => s.homeData);
@@ -658,6 +659,7 @@ export default function HomeTab() {
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
   const [showGiveaway, setShowGiveaway] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [giveawayWinners, setGiveawayWinners] = useState<Array<{
     roundNumber: number; rank: number; playerId: string; prize: string;
   }>>([]);
@@ -761,6 +763,7 @@ export default function HomeTab() {
   useBackButton(showGrounds, () => setShowGrounds(false));
   useBackButton(showComparison, () => setShowComparison(false));
   useBackButton(showGiveaway, () => setShowGiveaway(false));
+  useBackButton(showChat, () => setShowChat(false));
 
   // ─── Pull-to-Refresh State ───
   const [pullDistance, setPullDistance] = useState(0);
@@ -1449,6 +1452,11 @@ export default function HomeTab() {
             });
           }}
         />
+      )}
+      {showChat && (
+        <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto">
+          <ChatScreen onClose={() => setShowChat(false)} />
+        </div>
       )}
       </Portal>
 
@@ -3122,6 +3130,35 @@ export default function HomeTab() {
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Replay</p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">Watch again</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Player Chat - red for community chat (any player, anytime) */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Card
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-amber-50/60 dark:from-red-900/20 dark:to-amber-900/15 relative overflow-hidden group card-hover-lift"
+              onClick={() => setShowChat(true)}
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-gold" />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-brand-gold/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              {chatUnreadCount > 0 && (
+                <span className="absolute top-2 right-2 z-20 min-w-[18px] h-[18px] rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-brand-red/40 badge-pulse-prominent">
+                  {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                </span>
+              )}
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-gold/20 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
+                  <MessageCircle className="w-4.5 h-4.5 text-brand-red" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Player Chat</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Chat with any player</p>
                 </div>
               </div>
             </Card>
