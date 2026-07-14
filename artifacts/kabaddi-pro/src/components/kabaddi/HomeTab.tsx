@@ -1627,17 +1627,18 @@ export default function HomeTab() {
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_4s_ease-in-out_infinite]" />
 
           <div className="relative z-10 flex items-center gap-3 p-3">
-            {/* Left side: prize images (small, stacked) */}
+            {/* Left side: prize images (small, stacked). Order matches the actual
+                prize ranking: 1st = Protein Powder, 2nd = Kabaddi Kit, 3rd = Shaker Bottle. */}
             <div className="flex items-center gap-1 shrink-0">
               <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/90 shadow-sm border border-white/30">
-                <img src="/giveaway/prize-kit.png" alt="Kabaddi Kit" className="w-full h-full object-cover" />
+                <img src="/giveaway/prize-protein.png" alt="1kg Protein Powder" className="w-full h-full object-cover" />
               </div>
               <div className="flex flex-col gap-1">
                 <div className="w-7 h-7 rounded-md overflow-hidden bg-white/90 shadow-sm border border-white/30">
-                  <img src="/giveaway/prize-shoes.png" alt="Shoes" className="w-full h-full object-cover" />
+                  <img src="/giveaway/prize-kit.png" alt="Kabaddi Kit" className="w-full h-full object-cover" />
                 </div>
                 <div className="w-7 h-7 rounded-md overflow-hidden bg-white/90 shadow-sm border border-white/30">
-                  <img src="/giveaway/prize-protein.png" alt="Protein" className="w-full h-full object-cover" />
+                  <img src="/giveaway/prize-bottle.png" alt="Shaker Water Bottle" className="w-full h-full object-cover" />
                 </div>
               </div>
             </div>
@@ -1648,7 +1649,7 @@ export default function HomeTab() {
                 <span className="text-base">🎁</span>
                 <p className="text-white font-black text-xl leading-none tracking-tight">GIVEAWAY</p>
               </div>
-              <p className="text-white/80 text-[9px] font-medium mt-0.5">Win Kit, Shoes, Protein & more</p>
+              <p className="text-white/80 text-[9px] font-medium mt-0.5">Win Protein, Kit, Shaker Bottle & more</p>
               <div className="mt-1.5 inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5">
                 <p className="text-white text-[9px] font-bold">⏱ 15 days left</p>
               </div>

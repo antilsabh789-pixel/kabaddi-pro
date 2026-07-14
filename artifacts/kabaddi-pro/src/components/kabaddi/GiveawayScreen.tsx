@@ -594,8 +594,26 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
             Prizes & Rankings
           </h3>
           {status?.prizes?.map((prize, i) => {
-            const prizeImages = ['/giveaway/prize-kit.png', '/giveaway/prize-protein.png', '/giveaway/prize-shoes.png', '/giveaway/prize-bottle.png', '/giveaway/prize-gift.png'];
-            const imgSrc = prizeImages[i] || prizeImages[4];
+            // Image mapping — by prize name (robust to backend reordering),
+            // with positional fallback. Order matches the backend PRIZES list:
+            //   1st = 1kg Protein Powder     -> /giveaway/prize-protein.png
+            //   2nd = Kabaddi Kit            -> /giveaway/prize-kit.png
+            //   3rd = Shaker Water Bottle    -> /giveaway/prize-bottle.png
+            const PRIZE_IMG_BY_NAME: Array<{ keys: string[]; img: string }> = [
+              { keys: ['protein', 'powder', 'whey', 'mass'], img: '/giveaway/prize-protein.png' },
+              { keys: ['kit', 'gear', 'equipment', 'jersey', 'guard'], img: '/giveaway/prize-kit.png' },
+              { keys: ['bottle', 'shaker', 'shekher', 'sipper', 'flask'], img: '/giveaway/prize-bottle.png' },
+              { keys: ['shoes', 'footwear', 'sneaker', 'boot'], img: '/giveaway/prize-shoes.png' },
+            ];
+            const FALLBACK_IMG = '/giveaway/prize-gift.png';
+            const POSITIONAL_FALLBACK = [
+              '/giveaway/prize-protein.png',
+              '/giveaway/prize-kit.png',
+              '/giveaway/prize-bottle.png',
+            ];
+            const prizeNameLower = (prize.name || '').toLowerCase();
+            const nameMatch = PRIZE_IMG_BY_NAME.find((p) => p.keys.some((k) => prizeNameLower.includes(k)));
+            const imgSrc = nameMatch?.img || POSITIONAL_FALLBACK[i] || FALLBACK_IMG;
             const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
             return (
               <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}>
