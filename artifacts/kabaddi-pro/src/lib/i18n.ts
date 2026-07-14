@@ -169,6 +169,7 @@ export const translations: TranslationMap = {
   'nav.home': { en: 'Home', hi: 'होम' },
   'nav.tournaments': { en: 'Tournaments', hi: 'टूर्नामेंट' },
   'nav.quickScore': { en: 'Quick Score', hi: 'क्विक स्कोर' },
+  'nav.chat': { en: 'Chat', hi: 'चैट' },
   'nav.profile': { en: 'Profile', hi: 'प्रोफ़ाइल' },
 
   // ─── Notifications ───

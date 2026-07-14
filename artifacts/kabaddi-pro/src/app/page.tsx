@@ -13,6 +13,7 @@ const HomeTab = lazy(() => import('@/components/kabaddi/HomeTab'));
 const TournamentsTab = lazy(() => import('@/components/kabaddi/TournamentsTab'));
 const QuickScoreTab = lazy(() => import('@/components/kabaddi/QuickScoreTab'));
 const ProfileTab = lazy(() => import('@/components/kabaddi/ProfileTab'));
+const ChatScreen = lazy(() => import('@/components/kabaddi/ChatScreen'));
 const LiveScoringScreen = lazy(() => import('@/components/kabaddi/LiveScoringScreen'));
 const TossScreen = lazy(() => import('@/components/kabaddi/TossScreen'));
 const BottomNav = lazy(() => import('@/components/kabaddi/BottomNav'));
@@ -222,9 +223,45 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  // Unread count for the Chat tab badge — polled from the backend every
+  // 15s so the user sees new DMs even when not on the Chat tab. Stays at
+  // 0 when the user is actively on the Chat tab (the tab's own poller
+  // handles live updates there).
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications } =
     useKabaddiStore();
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Bell icon counts both in-app notifications AND unread chat messages.
+  // Chat unread count is polled separately (see useEffect below).
+  const unreadCount = notifications.filter((n) => !n.read).length + chatUnreadCount;
+
+  // ─── Poll chat threads for unread count (bell + tab badge) ─────────
+  // Skip when the user is on the Chat tab (its own poller handles it)
+  // or during a live match / toss (no distractions while scoring).
+  useEffect(() => {
+    if (!currentUser?.id || activeTab === 'chat' || activeMatch?.isLive || showToss) {
+      setChatUnreadCount(0);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/chat/threads?userId=${currentUser.id}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const total: number = (data.threads || []).reduce(
+          (sum: number, t: any) => sum + (t.unreadCount || 0),
+          0,
+        );
+        setChatUnreadCount(total);
+      } catch {
+        /* ignore polling errors */
+      }
+    };
+    poll();
+    const id = setInterval(poll, 15000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [currentUser?.id, activeTab, activeMatch?.isLive, showToss]);
 
   // ─── Android Back Button Support ──────────────────────────────────
   // Prevents the back button from exiting the app when overlays are open.
@@ -465,6 +502,7 @@ export default function Home() {
               {activeTab === 'home' && <HomeTab />}
               {activeTab === 'tournaments' && <TournamentsTab />}
               {activeTab === 'quick-score' && <QuickScoreTab />}
+              {activeTab === 'chat' && <ChatScreen />}
               {activeTab === 'profile' && <ProfileTab />}
             </Suspense>
           </main>
@@ -473,6 +511,7 @@ export default function Home() {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             hasLiveMatch={!!activeMatch?.isLive}
+            chatUnreadCount={chatUnreadCount}
           />
 
           <Portal>

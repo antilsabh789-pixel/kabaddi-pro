@@ -13,6 +13,7 @@ import coachRouter from "./coach";
 import miscRouter from "./misc";
 import giveawayRouter from "./giveaway";
 import streakRouter from "./streak";
+import chatRouter from "./chat";
 import adminRouter from "./admin";
 
 const router: IRouter = Router();
@@ -31,6 +32,7 @@ router.use(coachRouter);
 router.use(miscRouter);
 router.use(giveawayRouter);
 router.use(streakRouter);
+router.use(chatRouter);
 router.use(adminRouter);
 
 export default router;

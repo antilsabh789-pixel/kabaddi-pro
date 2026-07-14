@@ -84,6 +84,113 @@ async function autoMigrate() {
     `CREATE INDEX IF NOT EXISTS "academy_announcements_academyId_idx" ON "academy_announcements"("academyId")`,
   ];
 
+  // ─── Chat tables (player-to-player DMs + block + report) ────────────
+  // Created here so the server can boot on Vercel/Railway without a
+  // separate `prisma db push` step. All statements are idempotent.
+  const chatTableStatements = [
+    // ChatThread — one row per 1:1 conversation
+    `CREATE TABLE IF NOT EXISTS "ChatThread" (
+      "id" TEXT NOT NULL,
+      "userAId" TEXT NOT NULL,
+      "userBId" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "ChatThread_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "ChatThread_userAId_userBId_key" ON "ChatThread"("userAId", "userBId")`,
+    `CREATE INDEX IF NOT EXISTS "ChatThread_userBId_idx" ON "ChatThread"("userBId")`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatThread" ADD CONSTRAINT "ChatThread_userAId_fkey"
+        FOREIGN KEY ("userAId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatThread" ADD CONSTRAINT "ChatThread_userBId_fkey"
+        FOREIGN KEY ("userBId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    // ChatMessage — one row per message in a thread
+    `CREATE TABLE IF NOT EXISTS "ChatMessage" (
+      "id" TEXT NOT NULL,
+      "threadId" TEXT NOT NULL,
+      "senderId" TEXT NOT NULL,
+      "content" TEXT NOT NULL,
+      "isRead" BOOLEAN NOT NULL DEFAULT false,
+      "readAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "ChatMessage_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "ChatMessage_threadId_createdAt_idx" ON "ChatMessage"("threadId", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "ChatMessage_senderId_idx" ON "ChatMessage"("senderId")`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatMessage" ADD CONSTRAINT "ChatMessage_threadId_fkey"
+        FOREIGN KEY ("threadId") REFERENCES "ChatThread"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatMessage" ADD CONSTRAINT "ChatMessage_senderId_fkey"
+        FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    // ChatBlock — "I don't want to receive messages from this person"
+    `CREATE TABLE IF NOT EXISTS "ChatBlock" (
+      "id" TEXT NOT NULL,
+      "blockerId" TEXT NOT NULL,
+      "blockedId" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "ChatBlock_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "ChatBlock_blockerId_blockedId_key" ON "ChatBlock"("blockerId", "blockedId")`,
+    `CREATE INDEX IF NOT EXISTS "ChatBlock_blockedId_idx" ON "ChatBlock"("blockedId")`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatBlock" ADD CONSTRAINT "ChatBlock_blockerId_fkey"
+        FOREIGN KEY ("blockerId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatBlock" ADD CONSTRAINT "ChatBlock_blockedId_fkey"
+        FOREIGN KEY ("blockedId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    // ChatReport — escalations from players, reviewed by admins
+    `CREATE TABLE IF NOT EXISTS "ChatReport" (
+      "id" TEXT NOT NULL,
+      "reporterId" TEXT NOT NULL,
+      "reportedId" TEXT NOT NULL,
+      "threadId" TEXT,
+      "messageId" TEXT,
+      "reason" TEXT NOT NULL,
+      "details" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "reviewedBy" TEXT,
+      "reviewedAt" TIMESTAMP(3),
+      "adminNote" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "ChatReport_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "ChatReport_status_createdAt_idx" ON "ChatReport"("status", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "ChatReport_reportedId_idx" ON "ChatReport"("reportedId")`,
+    `CREATE INDEX IF NOT EXISTS "ChatReport_reporterId_idx" ON "ChatReport"("reporterId")`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatReport" ADD CONSTRAINT "ChatReport_reporterId_fkey"
+        FOREIGN KEY ("reporterId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatReport" ADD CONSTRAINT "ChatReport_reportedId_fkey"
+        FOREIGN KEY ("reportedId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "ChatReport" ADD CONSTRAINT "ChatReport_reviewedBy_fkey"
+        FOREIGN KEY ("reviewedBy") REFERENCES "User"("id") ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+  ];
+
+  for (const sql of chatTableStatements) {
+    try {
+      await db.$executeRawUnsafe(sql);
+      logger.info({ sql: sql.slice(0, 100) }, 'auto-migrate: applied chat table');
+    } catch (err) {
+      logger.warn({ err: String(err).slice(0, 200), sql: sql.slice(0, 100) }, 'auto-migrate: chat table skipped');
+    }
+  }
+
   for (const sql of [...statements, ...constraintStatements, ...tableStatements]) {
     try {
       await db.$executeRawUnsafe(sql);

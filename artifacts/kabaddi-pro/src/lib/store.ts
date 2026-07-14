@@ -140,10 +140,10 @@ export interface ActiveMatch {
   awayStartingP: number;          // Team B's starting player count
 }
 
-export type TabId = 'home' | 'tournaments' | 'quick-score' | 'profile';
+export type TabId = 'home' | 'tournaments' | 'quick-score' | 'profile' | 'chat';
 
 // Notification types
-export type NotificationType = 'match_start' | 'match_result' | 'achievement' | 'premium' | 'general';
+export type NotificationType = 'match_start' | 'match_result' | 'achievement' | 'premium' | 'general' | 'chat';
 
 export interface AppNotification {
   id: string;
@@ -153,6 +153,8 @@ export interface AppNotification {
   timestamp: number;
   read: boolean;
   matchId?: string; // for match_start/match_result notifications — used to open the scorecard
+  threadId?: string; // for chat notifications — used to open the conversation
+  fromUserId?: string; // for chat notifications — sender's userId
 }
 
 export type Language = 'en' | 'hi';

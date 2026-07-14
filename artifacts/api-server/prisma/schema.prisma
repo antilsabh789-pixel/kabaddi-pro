@@ -56,6 +56,15 @@ model User {
   parentContacts    ParentContact[]
   matchComments     MatchComment[]
   matchPhotos       MatchPhoto[]
+  // ── Chat (DM) relations
+  chatThreadsA       ChatThread[]   @relation("ChatThreadUserA")
+  chatThreadsB       ChatThread[]   @relation("ChatThreadUserB")
+  chatMessagesSent   ChatMessage[]  @relation("ChatMessageSender")
+  chatBlocksMade     ChatBlock[]    @relation("ChatBlockBlocker")
+  chatBlocksReceived ChatBlock[]    @relation("ChatBlockBlocked")
+  chatReportsMade    ChatReport[]   @relation("ChatReportReporter")
+  chatReportsAgainst ChatReport[]   @relation("ChatReportReported")
+  chatReportsReviewed ChatReport[]  @relation("ChatReportReviewer")
   quizAttempts      QuizAttempt[]
   playerLocation    PlayerLocation?
   leaderboardEntries LeaderboardSeasonEntry[]
@@ -856,4 +865,87 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 
   @@map("app_settings")
+}
+
+// ─── Player-to-Player Chat (DMs) ────────────────────────────────────
+// Allows any two players to start a 1:1 conversation. Includes block
+// (muting a user from messaging you again) and report (escalating to
+// admins). Reports are reviewed from the admin profile panel.
+
+model ChatThread {
+  id        String   @id @default(cuid())
+  // Two participants. userAId is canonically the user who initiated
+  // the thread, but ordering isn't enforced for lookups — both
+  // userA and userB can fetch the thread.
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userA    User          @relation("ChatThreadUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User          @relation("ChatThreadUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  // One thread per pair (sorted canonically — see backend for ordering)
+  @@unique([userAId, userBId])
+  @@index([userBId])
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  threadId   String
+  senderId   String
+  content    String   // 1..2000 chars
+  // Read receipts — sender-side ack that the recipient has seen it.
+  // Kept simple: boolean per message; updated by recipient when they
+  // GET /chat/threads/:id/messages
+  isRead     Boolean  @default(false)
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User       @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@index([senderId])
+}
+
+model ChatBlock {
+  // "I don't want to receive messages from this person anymore."
+  // Blocker is the one who blocked; blocked is the one being blocked.
+  id         String   @id @default(cuid())
+  blockerId  String
+  blockedId  String
+  createdAt  DateTime @default(now())
+
+  blocker User @relation("ChatBlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked  User @relation("ChatBlockBlocked",  fields: [blockedId],  references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model ChatReport {
+  // A user reports another user (optionally tied to a specific message).
+  // Admins review from the Profile tab → "Chat Reports" panel.
+  id           String   @id @default(cuid())
+  reporterId   String
+  reportedId   String
+  threadId     String?
+  messageId    String?
+  reason       String   // spam | abuse | harassment | inappropriate | other
+  details      String?  // free-text explanation
+  status       String   @default("pending") // pending | reviewing | actioned | dismissed
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  adminNote    String?
+  createdAt    DateTime @default(now())
+
+  reporter   User  @relation("ChatReportReporter",  fields: [reporterId], references: [id], onDelete: Cascade)
+  reported   User  @relation("ChatReportReported",  fields: [reportedId], references: [id], onDelete: Cascade)
+  reviewer   User? @relation("ChatReportReviewer",  fields: [reviewedBy],  references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([reportedId])
+  @@index([reporterId])
 }

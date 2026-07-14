@@ -2,14 +2,15 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home as HomeIcon, Trophy, PlusCircle, User, Crown } from 'lucide-react';
+import { Home as HomeIcon, Trophy, PlusCircle, User, Crown, MessageCircle } from 'lucide-react';
 import { useKabaddiStore } from '@/lib/store';
 import { t } from '@/lib/i18n';
 
 interface BottomNavProps {
   activeTab: string;
-  setActiveTab: (tab: 'home' | 'tournaments' | 'quick-score' | 'profile') => void;
+  setActiveTab: (tab: 'home' | 'tournaments' | 'quick-score' | 'profile' | 'chat') => void;
   hasLiveMatch: boolean;
+  chatUnreadCount?: number;
 }
 
 // Ripple effect component for tab press
@@ -34,10 +35,11 @@ const tabs = [
   { id: 'home' as const, labelKey: 'nav.home', icon: HomeIcon, ariaLabel: 'Home tab' },
   { id: 'tournaments' as const, labelKey: 'nav.tournaments', icon: Trophy, ariaLabel: 'Tournaments tab' },
   { id: 'quick-score' as const, labelKey: 'nav.quickScore', icon: PlusCircle, ariaLabel: 'Quick Score - start or view live match' },
+  { id: 'chat' as const, labelKey: 'nav.chat', icon: MessageCircle, ariaLabel: 'Chat tab' },
   { id: 'profile' as const, labelKey: 'nav.profile', icon: User, ariaLabel: 'Profile tab' },
 ];
 
-export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: BottomNavProps) {
+export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch, chatUnreadCount = 0 }: BottomNavProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const language = useKabaddiStore((s) => s.language);
   const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
@@ -73,7 +75,7 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
     return undefined;}, [showLiveTooltip, tooltipDismissed]);
 
   const handleTabClick = useCallback(
-    (tabId: 'home' | 'tournaments' | 'quick-score' | 'profile', e: React.MouseEvent<HTMLButtonElement>) => {
+    (tabId: 'home' | 'tournaments' | 'quick-score' | 'profile' | 'chat', e: React.MouseEvent<HTMLButtonElement>) => {
       // Create ripple effect
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -144,7 +146,7 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
             layoutId="nav-sliding-indicator"
             style={{
               width: '20%',
-              left: `${activeTabIndex * 25}%`,
+              left: `${activeTabIndex * 20}%`,
             }}
             transition={{ type: 'spring', stiffness: 350, damping: 30 }}
           >
@@ -332,6 +334,17 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
                         <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-brand-gold/80 flex items-center justify-center">
                           <Crown className="w-1.5 h-1.5 text-white" />
                         </div>
+                      )}
+
+                      {/* Unread badge on Chat tab */}
+                      {tab.id === 'chat' && chatUnreadCount > 0 && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full bg-brand-red text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-brand-red/40 badge-pulse-prominent"
+                        >
+                          {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                        </motion.div>
                       )}
                     </motion.div>
 

@@ -47,6 +47,7 @@ import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchHistoryTimeline from './MatchHistoryTimeline';
 import CoachDashboard from './CoachDashboard';
 import ImageCropDialog from './ImageCropDialog';
+import ChatReportsPanel from './ChatReportsPanel';
 import { t } from '@/lib/i18n';
 
 const POSITIONS = [
@@ -3911,6 +3912,12 @@ export default function ProfileTab() {
       {/* Admin can gift premium to any user by their player code */}
       {/* ═══════════════════════════════════════════ */}
       {currentUser?.isAdmin && <GiftPremiumPanel />}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* CHAT REPORTS PANEL - Admin Only */}
+      {/* Review player-submitted chat reports and take action */}
+      {/* ═══════════════════════════════════════════ */}
+      {currentUser?.isAdmin && <ChatReportsPanel />}
 
       {/* ═══════════════════════════════════════════ */}
       {/* PLAYER SEARCH PANEL - Admin Only */}

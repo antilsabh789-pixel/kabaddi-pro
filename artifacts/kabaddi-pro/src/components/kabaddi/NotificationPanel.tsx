@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-type CategoryFilter = 'all' | 'match' | 'achievement' | 'premium' | 'general';
+type CategoryFilter = 'all' | 'match' | 'achievement' | 'premium' | 'general' | 'chat';
 
 interface CategoryTab {
   id: CategoryFilter;
@@ -39,10 +39,11 @@ interface CategoryTab {
 }
 
 const CATEGORY_TABS: CategoryTab[] = [
-  { id: 'all', label: 'All', types: ['match_start', 'match_result', 'achievement', 'premium', 'general'] },
+  { id: 'all', label: 'All', types: ['match_start', 'match_result', 'achievement', 'premium', 'general', 'chat'] },
   { id: 'match', label: 'Matches', types: ['match_start', 'match_result'] },
   { id: 'achievement', label: 'Achievements', types: ['achievement'] },
   { id: 'premium', label: 'Premium', types: ['premium'] },
+  { id: 'chat', label: 'Chat', types: ['chat'] },
   { id: 'general', label: 'General', types: ['general'] },
 ];
 
@@ -52,6 +53,7 @@ const NOTIFICATION_ICONS: Record<NotificationType, typeof Bell> = {
   achievement: Trophy,
   premium: Crown,
   general: Bell,
+  chat: MessageCircle,
 };
 
 const NOTIFICATION_BORDER_COLORS: Record<NotificationType, string> = {
@@ -60,6 +62,7 @@ const NOTIFICATION_BORDER_COLORS: Record<NotificationType, string> = {
   achievement: 'border-l-brand-gold',
   premium: 'border-l-brand-gold',
   general: 'border-l-warm-400',
+  chat: 'border-l-brand-red',
 };
 
 const NOTIFICATION_ICON_BG: Record<NotificationType, string> = {
@@ -68,6 +71,7 @@ const NOTIFICATION_ICON_BG: Record<NotificationType, string> = {
   achievement: 'bg-brand-gold/15 text-brand-gold-dark dark:text-brand-gold',
   premium: 'bg-brand-gold/15 text-brand-gold-dark dark:text-brand-gold',
   general: 'bg-warm-200 dark:bg-warm-300/30 text-warm-500 dark:text-warm-400',
+  chat: 'bg-brand-red/15 text-brand-red',
 };
 
 const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
@@ -76,15 +80,17 @@ const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   achievement: 'Achievement',
   premium: 'Premium',
   general: 'General',
+  chat: 'New Message',
 };
 
-const GROUP_ORDER: NotificationType[] = ['match_start', 'match_result', 'achievement', 'premium', 'general'];
+const GROUP_ORDER: NotificationType[] = ['match_start', 'match_result', 'achievement', 'premium', 'chat', 'general'];
 
 const EMPTY_STATE_MESSAGES: Record<CategoryFilter, { title: string; subtitle: string }> = {
   all: { title: 'No notifications', subtitle: "You'll see match results and achievements here" },
   match: { title: 'No match updates', subtitle: 'Match notifications will appear when games go live or finish' },
   achievement: { title: 'No achievements yet', subtitle: 'Keep playing to unlock achievements!' },
   premium: { title: 'No premium alerts', subtitle: 'Premium feature updates will show here' },
+  chat: { title: 'No chat messages', subtitle: 'New direct messages from other players will appear here' },
   general: { title: 'All caught up!', subtitle: 'General announcements will appear here' },
 };
 
