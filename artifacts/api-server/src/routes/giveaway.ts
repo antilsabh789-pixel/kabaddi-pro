@@ -542,6 +542,91 @@ router.get('/giveaway/admin/participants', async (req, res) => {
 });
 
 /**
+ * GET /api/giveaway/admin/all-participants?adminId=...
+ * ADMIN ONLY — returns participants from EVERY round (current + completed),
+ * grouped by round. Use this in the admin panel so the admin can see all
+ * users who have ever entered the giveaway, even after winners have been
+ * selected for a round.
+ *
+ * Response shape:
+ *   {
+ *     rounds: [{
+ *       id, roundNumber, status, startDate, endDate,
+ *       winnerIds: string[],            // [] if no winners selected yet
+ *       participants: [{
+ *         id, userId, playerCode, name, phone, isPremium, joinedAt, isWinner
+ *       }]
+ *     }],
+ *     totalParticipants: number,       // sum across all rounds
+ *     uniqueParticipants: number       // distinct users across all rounds
+ *   }
+ */
+router.get('/giveaway/admin/all-participants', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || '';
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Fetch every round, newest first, with its participants.
+    const rounds = await db.giveawayRound.findMany({
+      orderBy: { roundNumber: 'desc' },
+      include: {
+        participants: {
+          include: {
+            user: { select: { id: true, playerCode: true, name: true, phone: true, isPremium: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    const roundsPayload = rounds.map((r) => {
+      const winnerIds: string[] = r.winnersJson ? (() => {
+        try { return JSON.parse(r.winnersJson) as string[]; } catch { return []; }
+      })() : [];
+
+      const winnerSet = new Set(winnerIds);
+
+      return {
+        id: r.id,
+        roundNumber: r.roundNumber,
+        status: r.status,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        winnerIds,
+        participants: r.participants.map((p) => ({
+          id: p.id,
+          userId: p.user.id,
+          playerCode: p.user.playerCode,
+          name: p.user.name,
+          phone: p.user.phone,
+          isPremium: p.user.isPremium,
+          joinedAt: p.createdAt,
+          isWinner: winnerSet.has(p.user.id),
+        })),
+      };
+    });
+
+    const totalParticipants = roundsPayload.reduce((sum, r) => sum + r.participants.length, 0);
+    const uniqueUserIdSet = new Set<string>();
+    for (const r of roundsPayload) {
+      for (const p of r.participants) uniqueUserIdSet.add(p.userId);
+    }
+
+    return res.json({
+      rounds: roundsPayload,
+      totalParticipants,
+      uniqueParticipants: uniqueUserIdSet.size,
+    });
+  } catch (error) {
+    console.error('Giveaway admin all-participants error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /api/giveaway/admin/pending-rounds?adminId=...
  * ADMIN ONLY — returns all completed rounds that have NO winners selected yet.
  * Used to let the admin select winners for past rounds that were auto-completed.

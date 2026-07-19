@@ -273,7 +273,10 @@ router.get('/popular-players', async (req, res) => {
 
 router.get('/total-players', async (req, res) => {
   try {
-    const count = await db.user.count({ where: { role: 'player', isAdmin: false } });
+    // Count EVERY non-admin user. We used to filter role='player', which hid
+    // legacy users still marked role='coach' (pre-migration) and made the
+    // "Our Kabaddi Family" banner show 0 even when there were real users.
+    const count = await db.user.count({ where: { isAdmin: false } });
     return res.json({ count });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

@@ -63,6 +63,31 @@ export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScre
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminParticipants, setAdminParticipants] = useState<any[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
+  // Participants from EVERY round (current + completed), grouped by round.
+  // This is what makes the admin panel show all 15+ historical participants
+  // instead of just the current active round (which may be empty after
+  // winners were selected for the previous round).
+  const [allRounds, setAllRounds] = useState<Array<{
+    id: string;
+    roundNumber: number;
+    status: string;
+    startDate: string;
+    endDate: string;
+    winnerIds: string[];
+    participants: Array<{
+      id: string;
+      userId: string;
+      playerCode: string;
+      name: string;
+      phone: string;
+      isPremium: boolean;
+      joinedAt: string;
+      isWinner: boolean;
+    }>;
+  }>>([]);
+  const [allRoundsTotal, setAllRoundsTotal] = useState<number>(0);
+  const [allRoundsUnique, setAllRoundsUnique] = useState<number>(0);
+  const [showAllRounds, setShowAllRounds] = useState(false);
   const [pendingRounds, setPendingRounds] = useState<Array<{
     id: string; roundNumber: number; endDate: string; participantCount: number;
   }>>([]);
@@ -209,6 +234,22 @@ export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScre
       } else {
         toast({ title: 'Access Denied', description: data.error, variant: 'destructive' });
         setShowAdminPanel(false);
+      }
+
+      // Fetch ALL participants across ALL rounds (current + completed).
+      // This is the key fix for "admin shows 0 participants" — even if the
+      // current active round has 0 participants, the admin can still see
+      // every user who has ever entered the giveaway here.
+      try {
+        const allRes = await fetch(`/api/giveaway/admin/all-participants?adminId=${currentUser.id}`);
+        if (allRes.ok) {
+          const allData = await allRes.json();
+          setAllRounds(allData.rounds || []);
+          setAllRoundsTotal(allData.totalParticipants || 0);
+          setAllRoundsUnique(allData.uniqueParticipants || 0);
+        }
+      } catch (allErr) {
+        console.error('Failed to fetch all-round participants:', allErr);
       }
 
       // Also fetch pending rounds (completed rounds without winners)
@@ -1261,23 +1302,159 @@ export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScre
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-brand-red" />
                   </div>
-                ) : adminParticipants.length === 0 ? (
-                  <p className="text-center text-warm-400 text-sm py-8">No participants yet</p>
                 ) : (
-                  adminParticipants.map((p, i) => (
-                    <div key={p.id} className="flex items-center gap-3 p-3 border-b border-warm-100 dark:border-warm-700/50">
-                      <span className="text-xs font-mono text-warm-400 w-6">{i + 1}.</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-warm-800 dark:text-warm-100">
-                          {p.name || 'Unknown'} <span className="text-warm-400 font-normal">({p.playerCode})</span>
-                        </p>
-                        <p className="text-xs text-brand-teal">{p.phone}</p>
-                      </div>
-                      {p.isPremium && (
-                        <Badge className="bg-brand-gold/20 text-brand-gold text-[8px]">PRO</Badge>
-                      )}
+                  <>
+                    {/* Tab switcher: Current Round vs All Rounds */}
+                    <div className="flex border-b border-warm-200 dark:border-warm-700 sticky top-0 bg-white dark:bg-warm-800 z-10">
+                      <button
+                        onClick={() => setShowAllRounds(false)}
+                        className={`flex-1 py-2.5 text-xs font-bold transition-colors ${
+                          !showAllRounds
+                            ? 'text-brand-red border-b-2 border-brand-red'
+                            : 'text-warm-400 hover:text-warm-600'
+                        }`}
+                      >
+                        Current Round ({adminParticipants.length})
+                      </button>
+                      <button
+                        onClick={() => setShowAllRounds(true)}
+                        className={`flex-1 py-2.5 text-xs font-bold transition-colors ${
+                          showAllRounds
+                            ? 'text-brand-red border-b-2 border-brand-red'
+                            : 'text-warm-400 hover:text-warm-600'
+                        }`}
+                      >
+                        All Rounds ({allRoundsTotal})
+                      </button>
                     </div>
-                  ))
+
+                    {!showAllRounds ? (
+                      /* ─── Current Round participants (existing behavior) ─── */
+                      adminParticipants.length === 0 ? (
+                        <p className="text-center text-warm-400 text-sm py-8">
+                          No participants in the current round yet.
+                          <br />
+                          <span className="text-[10px]">Switch to “All Rounds” to see everyone who has ever entered.</span>
+                        </p>
+                      ) : (
+                        adminParticipants.map((p, i) => (
+                          <div key={p.id} className="flex items-center gap-3 p-3 border-b border-warm-100 dark:border-warm-700/50">
+                            <span className="text-xs font-mono text-warm-400 w-6">{i + 1}.</span>
+                            <div className="flex-1">
+                              <p className="text-sm font-bold text-warm-800 dark:text-warm-100">
+                                {p.name || 'Unknown'} <span className="text-warm-400 font-normal">({p.playerCode})</span>
+                              </p>
+                              <p className="text-xs text-brand-teal">{p.phone}</p>
+                              <p className="text-[9px] text-warm-400 mt-0.5">
+                                Joined {new Date(p.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            </div>
+                            {p.isPremium && (
+                              <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[8px]">PAID</Badge>
+                            )}
+                          </div>
+                        ))
+                      )
+                    ) : (
+                      /* ─── All Rounds view (NEW — shows every participant from every round) ─── */
+                      <>
+                        {/* Summary card */}
+                        <div className="m-3 p-3 rounded-xl bg-gradient-to-br from-brand-red/5 to-brand-teal/5 border border-warm-200 dark:border-warm-700">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-warm-500 font-bold">Total Entries</p>
+                              <p className="text-2xl font-black text-brand-red">{allRoundsTotal}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] uppercase tracking-wider text-warm-500 font-bold">Unique Players</p>
+                              <p className="text-2xl font-black text-brand-teal">{allRoundsUnique}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] uppercase tracking-wider text-warm-500 font-bold">Rounds</p>
+                              <p className="text-2xl font-black text-warm-700 dark:text-warm-200">{allRounds.length}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {allRounds.length === 0 ? (
+                          <p className="text-center text-warm-400 text-sm py-8">No giveaway rounds found.</p>
+                        ) : (
+                          allRounds.map((round) => (
+                            <div key={round.id} className="border-b border-warm-200 dark:border-warm-700">
+                              {/* Round header */}
+                              <div className={`px-3 py-2 flex items-center justify-between ${
+                                round.status === 'active'
+                                  ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                                  : round.winnerIds.length > 0
+                                    ? 'bg-warm-50 dark:bg-warm-700/30'
+                                    : 'bg-amber-50 dark:bg-amber-900/20'
+                              }`}>
+                                <div>
+                                  <p className="text-xs font-bold text-warm-800 dark:text-warm-100">
+                                    Round {round.roundNumber}
+                                    {round.status === 'active' && (
+                                      <span className="ml-2 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">● Live</span>
+                                    )}
+                                    {round.status === 'completed' && round.winnerIds.length > 0 && (
+                                      <span className="ml-2 text-[9px] font-bold text-warm-500 uppercase">✓ Completed</span>
+                                    )}
+                                    {round.status === 'completed' && round.winnerIds.length === 0 && (
+                                      <span className="ml-2 text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase">⚠ No Winners</span>
+                                    )}
+                                  </p>
+                                  <p className="text-[9px] text-warm-400">
+                                    {round.participants.length} participant{round.participants.length !== 1 ? 's' : ''}
+                                    {' · '}
+                                    {new Date(round.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                    {' → '}
+                                    {new Date(round.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                  </p>
+                                </div>
+                                {round.winnerIds.length > 0 && (
+                                  <Badge className="bg-brand-gold/20 text-brand-gold text-[8px] shrink-0">
+                                    <Trophy className="w-2.5 h-2.5 mr-0.5" />
+                                    {round.winnerIds.length} winner{round.winnerIds.length !== 1 ? 's' : ''}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {/* Round participants */}
+                              {round.participants.length === 0 ? (
+                                <p className="text-center text-warm-400 text-[10px] py-3">No participants in this round</p>
+                              ) : (
+                                round.participants.map((p, i) => (
+                                  <div key={p.id} className={`flex items-center gap-3 p-3 border-b border-warm-100 dark:border-warm-700/30 ${
+                                    p.isWinner ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''
+                                  }`}>
+                                    <span className="text-xs font-mono text-warm-400 w-6">{i + 1}.</span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">
+                                        {p.name || 'Unknown'}
+                                        {p.isWinner && (
+                                          <span className="ml-1.5 text-[9px] font-black text-amber-600 dark:text-amber-400">
+                                            🏆 WINNER
+                                          </span>
+                                        )}
+                                      </p>
+                                      <p className="text-[10px] font-mono text-warm-500 dark:text-warm-400 truncate">
+                                        {p.playerCode || '—'} · {p.phone || 'No phone'}
+                                      </p>
+                                      <p className="text-[9px] text-warm-400 mt-0.5">
+                                        Joined {new Date(p.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                      </p>
+                                    </div>
+                                    {p.isPremium && (
+                                      <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[8px] shrink-0">PAID</Badge>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             </motion.div>

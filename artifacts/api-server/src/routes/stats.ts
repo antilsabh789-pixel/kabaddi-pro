@@ -6,7 +6,12 @@ const router = Router();
 router.get('/stats', async (req, res) => {
   try {
     const gender = (req.query['gender'] as string) || 'all';
-    const userWhere: Record<string, unknown> = { role: 'player', isAdmin: false };
+    // Count EVERY non-admin user as a "player". Previously this filtered by
+    // role='player', which silently hid legacy users whose role is still
+    // 'coach' (pre-migration) and made the admin dashboard show "0 users"
+    // even when the database had real registered users. The admin /players
+    // endpoint already counts everyone who isn't an admin — this matches.
+    const userWhere: Record<string, unknown> = { isAdmin: false };
     if (gender && gender !== 'all') userWhere.gender = gender;
 
     const [totalPlayers, totalTeams, totalTournaments, totalMatches, liveMatchCount, completedMatchCount, upcomingMatchCount, aggregateStats] = await Promise.all([
