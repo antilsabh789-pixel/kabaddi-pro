@@ -34,15 +34,15 @@ interface GiveawayStatus {
   prizes: Prize[];
   participantCount: number;
   hasParticipated: boolean;
-  // Eligibility info
-  isPremiumActive?: boolean;
+  // Eligibility info (post-premium-removal: premium tier no longer exists)
   successfulReferrals?: number;
-  participationsUsed?: number;
-  entriesRemaining?: number;
+  referralEntriesUsed?: number;
+  referralEntriesRemaining?: number;
   freeEntryAvailable?: boolean;
   hasUsedFreeEntry?: boolean;
   canParticipate?: boolean;
-  blockReason?: '' | 'already_participated' | 'no_referrals' | 'no_entries_remaining';
+  blockReason?: '' | 'already_participated' | 'payment_required';
+  entryFeeInr?: string; // '2.00'
   pastWinners: Array<{
     roundId?: string;
     roundNumber: number;
@@ -52,12 +52,13 @@ interface GiveawayStatus {
   }>;
 }
 
-export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenReferral }: GiveawayScreenProps) {
+export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScreenProps) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
   const [status, setStatus] = useState<GiveawayStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [participating, setParticipating] = useState(false);
+  const [payingEntryFee, setPayingEntryFee] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminParticipants, setAdminParticipants] = useState<any[]>([]);
@@ -116,6 +117,12 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
 
   const handleParticipate = async () => {
     if (!currentUser?.id) return;
+    // If the user needs to pay ₹2 (no free entry, no referral entries left),
+    // redirect to the payment flow instead of calling /participate.
+    if (status?.blockReason === 'payment_required' && !status?.freeEntryAvailable && !(status?.referralEntriesRemaining && status.referralEntriesRemaining > 0)) {
+      handlePayEntryFee();
+      return;
+    }
     setParticipating(true);
     try {
       const res = await fetch('/api/giveaway/participate', {
@@ -125,13 +132,14 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
       });
       const data = await res.json();
       if (!res.ok) {
-        // Show a more helpful toast with action button when user is blocked
-        if (data.blockReason === 'no_referrals' || data.blockReason === 'no_entries_remaining') {
+        if (data.blockReason === 'payment_required') {
+          // Backend says they need to pay ₹2 — surface a toast + auto-open the payment flow.
           toast({
-            title: '⚠️ Referral or Premium Required',
-            description: data.error,
-            variant: 'destructive',
+            title: '₹2 Entry Fee Required',
+            description: data.error || 'Pay ₹2 to participate in this round.',
+            variant: 'default',
           });
+          handlePayEntryFee();
         } else {
           toast({ title: 'Cannot participate', description: data.error, variant: 'destructive' });
         }
@@ -150,6 +158,41 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
       toast({ title: 'Error', description: 'Failed to participate', variant: 'destructive' });
     } finally {
       setParticipating(false);
+    }
+  };
+
+  // ─── Pay ₹2 entry fee via Cashfree ────────────────────────────
+  // Creates a ₹2 order on the backend, then redirects to Cashfree's hosted
+  // checkout. On success, Cashfree redirects back to /?giveaway_payment=success&order_id=...
+  // and the top-level page.tsx handler calls /api/giveaway/verify-entry-payment
+  // which auto-enters the user into the round.
+  const handlePayEntryFee = async () => {
+    if (!currentUser?.id) return;
+    setPayingEntryFee(true);
+    try {
+      const res = await fetch('/api/giveaway/create-entry-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Could not start payment', description: data.error, variant: 'destructive' });
+        return;
+      }
+      if (!data.paymentSessionId) {
+        toast({ title: 'Payment error', description: 'No payment session returned.', variant: 'destructive' });
+        return;
+      }
+      // Redirect to Cashfree hosted checkout via the existing /api/payments/checkout
+      // endpoint which works in WebView + browser. We pass the session id + env.
+      const checkoutUrl = `/api/payments/checkout?session_id=${encodeURIComponent(data.paymentSessionId)}&env=${encodeURIComponent(data.env || 'sandbox')}&order_id=${encodeURIComponent(data.orderId)}`;
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      console.error('Giveaway entry fee error:', err);
+      toast({ title: 'Error', description: 'Failed to start ₹2 payment', variant: 'destructive' });
+    } finally {
+      setPayingEntryFee(false);
     }
   };
 
@@ -480,33 +523,46 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           >
             <Button
               onClick={handleParticipate}
-              disabled={participating || status?.canParticipate === false}
+              disabled={participating || payingEntryFee || status?.canParticipate === false}
               className="w-full h-16 bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-red hover:opacity-90 text-white font-black text-lg rounded-2xl shadow-xl shadow-brand-red/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
             >
               {participating ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
+              ) : payingEntryFee ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  Starting ₹2 Payment...
+                </>
               ) : status?.canParticipate === false ? (
                 <>
                   <Lock className="w-6 h-6" />
-                  {status?.isPremiumActive ? 'Already Participated' : 'Refer a Friend or Go Premium'}
+                  Already Participated
                 </>
               ) : status?.freeEntryAvailable ? (
                 <>
                   <Gift className="w-6 h-6" />
                   Claim FREE Entry Now!
                 </>
+              ) : status?.blockReason === 'payment_required' ? (
+                <>
+                  <Zap className="w-6 h-6" />
+                  Pay ₹{status?.entryFeeInr || '2.00'} & Participate
+                </>
               ) : (
                 <>
                   <Gift className="w-6 h-6" />
-                  {status?.isPremiumActive ? 'Participate — Free for Premium!' : 'Participate Now!'}
+                  Participate Now!
                 </>
               )}
             </Button>
             {status?.canParticipate === false && (
               <p className="text-center text-[10px] text-warm-500">
-                {status?.isPremiumActive
-                  ? 'You already entered this round. Wait for the next round!'
-                  : 'Refer a friend OR upgrade to Premium for free entries every round.'}
+                You already entered this round. Wait for the next round!
+              </p>
+            )}
+            {status?.blockReason === 'payment_required' && (
+              <p className="text-center text-[10px] text-amber-600 dark:text-amber-400">
+                Your free entry has been used and you have no referral entries left. ₹{status?.entryFeeInr || '2.00'} entry fee applies — OR refer a friend to enter free.
               </p>
             )}
           </motion.div>
@@ -643,16 +699,14 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
           })}
         </div>
 
-        {/* Eligibility Card — Free Entry / Premium / Referral Required */}
+        {/* Eligibility Card — Free Entry / Referral entries / ₹2 payment */}
         {currentUser && (
           <Card className={`p-4 ${
             status?.freeEntryAvailable
               ? 'bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-900/20 dark:to-fuchsia-900/10 border-violet-300/50'
-              : status?.isPremiumActive
-              ? 'bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-300/50'
-              : status?.entriesRemaining && status.entriesRemaining > 0
+              : (status?.referralEntriesRemaining && status.referralEntriesRemaining > 0)
               ? 'bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/10 border-emerald-300/50'
-              : 'bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/10 border-red-300/50'
+              : 'bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border-amber-300/50'
           }`}>
             {/* FREE ENTRY available — first-time user, no requirements */}
             {status?.freeEntryAvailable ? (
@@ -666,57 +720,39 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                     <Badge className="bg-violet-500/20 text-violet-700 dark:text-violet-300 text-[8px] font-bold px-1.5">FREE</Badge>
                   </p>
                   <p className="text-[11px] text-violet-600/80 dark:text-violet-400/80 mt-0.5">
-                    Your first giveaway entry is on us — no premium, no referral needed. Just tap below!
+                    Your first giveaway entry is on us — no referral, no ₹2 fee. Just tap below!
                   </p>
                 </div>
               </div>
-            ) : status?.isPremiumActive ? (
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shrink-0">
-                  <Crown className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-                    Premium Member
-                    <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[8px] font-bold px-1.5">PRO</Badge>
-                  </p>
-                  <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-0.5">
-                    Free entry every round — no referral needed.
-                  </p>
-                </div>
-              </div>
-            ) : status?.entriesRemaining && status.entriesRemaining > 0 ? (
-              /* Non-premium WITH remaining referral entries */
+            ) : (status?.referralEntriesRemaining && status.referralEntriesRemaining > 0) ? (
+              /* User WITH remaining referral entries — referral path available */
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shrink-0">
                   <UserPlus className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                    {status.entriesRemaining} giveaway {status.entriesRemaining === 1 ? 'entry' : 'entries'} remaining
+                    {status.referralEntriesRemaining} giveaway {status.referralEntriesRemaining === 1 ? 'entry' : 'entries'} remaining
                   </p>
                   <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">
-                    Earned from {status.successfulReferrals} successful {status.successfulReferrals === 1 ? 'referral' : 'referrals'} · {status.participationsUsed} used
+                    Earned from {status.successfulReferrals} successful {status.successfulReferrals === 1 ? 'referral' : 'referrals'} · {status.referralEntriesUsed} used
                   </p>
                 </div>
               </div>
             ) : (
-              /* Non-premium WITH NO entries remaining — show upgrade/refer CTA */
+              /* No free entry, no referral entries left — must pay ₹2 (OR refer a friend first) */
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-400 to-orange-500 flex items-center justify-center shrink-0">
-                    <Lock className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shrink-0">
+                    <Zap className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-red-700 dark:text-red-300">
-                      {status?.blockReason === 'no_referrals'
-                        ? 'Free entry used — refer a friend'
-                        : 'All referral entries used'}
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                      Pay ₹{status?.entryFeeInr || '2.00'} to Enter
+                      <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[8px] font-bold px-1.5">ENTRY FEE</Badge>
                     </p>
-                    <p className="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">
-                      {status?.blockReason === 'no_referrals'
-                        ? 'Your free entry has been used. Refer a friend or upgrade to Premium to participate again.'
-                        : `You've used all ${status?.successfulReferrals || 0} of your referral entries. Refer more friends or upgrade to Premium.`}
+                    <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+                      Your free entry has been used and you have no referral entries left. Pay just ₹{status?.entryFeeInr || '2.00'} to enter this round — OR refer a friend below to enter free.
                     </p>
                   </div>
                 </div>
@@ -731,11 +767,15 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => onUpgradeToPremium?.()}
+                    onClick={handlePayEntryFee}
+                    disabled={payingEntryFee}
                     className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:opacity-90 text-white h-9 text-xs"
                   >
-                    <Crown className="w-3.5 h-3.5 mr-1" />
-                    Go Premium
+                    {payingEntryFee ? (
+                      <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Starting...</>
+                    ) : (
+                      <><Zap className="w-3.5 h-3.5 mr-1" /> Pay ₹{status?.entryFeeInr || '2.00'}</>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -752,17 +792,21 @@ export default function GiveawayScreen({ onClose, onUpgradeToPremium, onOpenRefe
             How It Works
           </h4>
           <div className="space-y-2 text-[11px] text-warm-500 dark:text-warm-400">
+            <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-700/30">
+              <p className="font-bold text-violet-700 dark:text-violet-400 text-xs mb-1">🎁 STEP 1 — Your First Entry is FREE</p>
+              <p>Every new user gets 1 lifetime free entry — no referral, no ₹2 fee. Just tap Participate!</p>
+            </div>
             <div className="p-2 rounded-lg bg-brand-teal/10 border border-brand-teal/20">
-              <p className="font-bold text-brand-teal-dark dark:text-brand-teal text-xs mb-1">🤝 STEP 1 — Refer a Friend (REQUIRED for free users)</p>
-              <p>Share your referral code with friends. When they sign up, you earn 1 giveaway entry + 7 days Premium FREE for both of you!</p>
+              <p className="font-bold text-brand-teal-dark dark:text-brand-teal text-xs mb-1">🤝 OPTION A — Refer a Friend</p>
+              <p>Share your referral code. Each successful referral = 1 free giveaway entry (across all rounds).</p>
             </div>
             <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/30">
-              <p className="font-bold text-amber-700 dark:text-amber-400 text-xs mb-1">👑 OR — Buy Premium (₹2/day)</p>
-              <p>Premium members get free entry every round — no referral needed!</p>
+              <p className="font-bold text-amber-700 dark:text-amber-400 text-xs mb-1">⚡ OPTION B — Pay ₹{status?.entryFeeInr || '2.00'} Entry Fee</p>
+              <p>No referral? No problem. Pay just ₹{status?.entryFeeInr || '2.00'} to enter this round. The entire app is otherwise free.</p>
             </div>
             <p>✅ 3 winners selected randomly every 15 days</p>
             <p>🔄 1 referral = 1 entry (used across all rounds — refer more to enter more!)</p>
-            <p>🔒 Entry is locked in even if premium expires</p>
+            <p>🔒 Entry is locked in once you participate — even if the round ends later</p>
             <p>🔒 Only player IDs shown for winners — privacy protected</p>
           </div>
         </Card>

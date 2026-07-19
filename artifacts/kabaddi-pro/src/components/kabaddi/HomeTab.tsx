@@ -1481,28 +1481,10 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                 PRO
               </span>
             </h1>
-            {isPremium && (
-              <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[9px] border-0 font-bold px-1.5 py-0 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
-                <Crown className="w-2.5 h-2.5 mr-0.5" />
-                PRO
-              </Badge>
-            )}
+            {/* All features are free now — no PRO badge or "Go Premium" button. */}
           </div>
           <div className="flex items-center gap-2">
-            {!isPremium && (
-              <button
-                onClick={() => {
-                  setUpgradeFeature('Premium Features');
-                  setShowUpgrade(true);
-                }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-gradient-to-r from-brand-gold-dark via-brand-gold to-brand-gold-light text-white text-[10px] font-bold shadow-md shadow-brand-gold/30 active:scale-95 transition-transform relative overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_2.5s_ease-in-out_infinite]" />
-                <Crown className="w-3 h-3 relative z-10" />
-                <span className="relative z-10">PRO</span>
-              </button>
-            )}
+            {/* Premium CTA removed — every feature is free for all users. */}
             <button
               onClick={() => setShowSearch(true)}
               className="p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors search-focus-ring focus:outline-none"
@@ -1546,14 +1528,10 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
               <span>{t('home.greeting', language)}</span>
             </p>
             <h2 className="text-2xl font-black text-warm-800 dark:text-warm-100 mt-0.5 flex items-center gap-2">
-              <span className={`bg-gradient-to-r from-warm-800 via-brand-red-dark to-warm-800 dark:from-warm-100 dark:via-brand-red-light dark:to-warm-100 bg-clip-text text-transparent ${isPremium ? '!from-brand-gold !via-brand-gold-light !to-brand-gold' : ''}`}>
+              <span className="bg-gradient-to-r from-warm-800 via-brand-red-dark to-warm-800 dark:from-warm-100 dark:via-brand-red-light dark:to-warm-100 bg-clip-text text-transparent">
                 {currentUser?.name ?? 'Player'}
               </span>
-              {isPremium && (
-                <Badge className="bg-gradient-to-r from-brand-gold to-brand-gold-dark text-white text-[8px] border-0 font-bold px-1 py-0 ml-0.5">
-                  <Crown className="w-2.5 h-2.5 mr-0.5" />PRO
-                </Badge>
-              )}
+              {/* PRO badge removed — every feature is free for all users now. */}
               {/* Position Badge */}
               {currentUser?.role && (
                 <motion.span
@@ -2598,18 +2576,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
             </h3>
             <Zap className="w-4 h-4 text-brand-gold" />
           </div>
-          {!isPremium && (
-            <button
-              onClick={() => {
-                setUpgradeFeature('Player Stats');
-                setShowUpgrade(true);
-              }}
-              className="flex items-center gap-1 text-[10px] font-bold text-brand-gold"
-            >
-              <Lock className="w-3 h-3" />
-              Full Stats
-            </button>
-          )}
+          {/* "Full Stats" premium lock button removed — all stats are free now. */}
         </div>
 
         {loading ? (
@@ -2714,13 +2681,6 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                             >
                               {player.title}
                             </Badge>
-                            {!isPremium && (
-                              <Badge className="bg-brand-gold/20 text-brand-gold text-[8px] border-0 px-1.5 py-0 mb-1 relative overflow-hidden">
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_2s_ease-in-out_infinite]" />
-                                <Lock className="w-2 h-2 mr-0.5" />
-                                PRO
-                              </Badge>
-                            )}
                           </div>
                           <p className="text-warm-800 dark:text-warm-100 font-bold text-sm truncate">
                             {player.name}
@@ -2736,12 +2696,6 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                           <p className="text-warm-500 dark:text-warm-400 text-[10px] mt-0.5">
                             {player.statLabel}
                           </p>
-                          {!isPremium && (
-                            <p className="text-brand-gold text-[9px] mt-1 font-semibold flex items-center justify-end gap-0.5">
-                              <BarChart3 className="w-2.5 h-2.5" />
-                              Tap for stats
-                            </p>
-                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -3047,24 +3001,10 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
           >
             <Card
               className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg hover:shadow-brand-red/10 border-warm-200 dark:border-warm-700 bg-gradient-to-br from-red-50/80 to-warm-50 dark:from-red-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
-              onClick={() => {
-                if (!isPremium) {
-                  setUpgradeFeature('Compare Teams');
-                  setShowUpgrade(true);
-                  return;
-                }
-                setShowComparison(true);
-              }}
+              onClick={() => setShowComparison(true)}
             >
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-red to-brand-red/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-brand-red/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              {!isPremium && (
-                <div className="absolute top-2 right-2 z-20">
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-md shadow-yellow-400/30">
-                    <Lock className="w-3 h-3 text-white" />
-                  </div>
-                </div>
-              )}
               <div className="flex items-center gap-3 relative z-10">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-red/30 to-brand-red/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-brand-red/20 transition-shadow">
                   <Swords className="w-4.5 h-4.5 text-brand-red" />
@@ -3072,7 +3012,6 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100 flex items-center gap-1">
                     Compare Teams
-                    {!isPremium && <span className="text-[8px] font-extrabold text-yellow-600 dark:text-yellow-400 bg-yellow-400/20 dark:bg-yellow-400/10 px-1 rounded">PRO</span>}
                   </p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">Head-to-head</p>
                 </div>
@@ -3560,7 +3499,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
             </Card>
           </motion.div>
 
-          {/* Coach Dashboard - available to everyone (premium-gated for non-admins) */}
+          {/* Coach Dashboard - available to everyone (all features free now) */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -3568,36 +3507,18 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
           >
             <Card
               className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg relative overflow-hidden group card-hover-lift bg-gradient-to-br from-teal-50/80 to-warm-50 dark:from-teal-900/20 dark:to-warm-800 border-warm-200 dark:border-warm-700"
-              onClick={() => {
-                // Admins always have access; everyone else needs premium.
-                // (Coach role is deprecated — everyone is a player now.)
-                if (!currentUser?.isAdmin && !isPremium) {
-                  setUpgradeFeature("Coach Dashboard");
-                  setShowUpgrade(true);
-                  return;
-                }
-                setShowCoachesCorner(true);
-              }}
+              onClick={() => setShowCoachesCorner(true)}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-gold/8 to-transparent animate-[shimmer_5.5s_ease-in-out_infinite]" />
               <div className="absolute inset-0 rounded-lg ring-1 ring-brand-gold/15" />
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-teal to-brand-gold" />
-              {!isPremium && !currentUser?.isAdmin && (
-                <div className="absolute top-2 right-2 z-20">
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-md shadow-yellow-400/30">
-                    <Lock className="w-3 h-3 text-white" />
-                  </div>
-                </div>
-              )}
               <div className="flex items-center gap-3 relative z-10">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center relative shadow-sm group-hover:shadow-md transition-shadow shrink-0 bg-gradient-to-br from-brand-teal/30 to-brand-teal/10 shadow-brand-teal/20">
                   <Megaphone className="w-4.5 h-4.5 text-brand-teal" />
-                  {!isPremium && !currentUser?.isAdmin && <Lock className="w-2.5 h-2.5 text-brand-gold absolute -top-1 -right-1 lock-icon drop-shadow-sm" />}
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-warm-800 dark:text-warm-100 flex items-center gap-1">
                     {t('coach.title', language)}
-                    {!isPremium && !currentUser?.isAdmin && <span className="text-[8px] font-extrabold text-yellow-600 dark:text-yellow-400 bg-yellow-400/20 dark:bg-yellow-400/10 px-1 rounded">PRO</span>}
                   </p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">
                     {t('coach.manageTeam', language)}

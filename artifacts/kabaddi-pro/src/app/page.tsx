@@ -354,30 +354,63 @@ export default function Home() {
     }
   }, [isAuthenticated, currentUser?.id, updateUser]);
 
-  // Auto-check premium expiry on app load
+  // ─── Handle Giveaway ₹2 entry-fee payment return ────────────────────
+  // Cashfree redirects back to /?giveaway_payment=success&order_id=... after
+  // the user pays the ₹2 giveaway entry fee. We verify the payment server-side
+  // and the backend auto-enters the user into the current round.
   useEffect(() => {
-    if (!isAuthenticated || !currentUser?.id || !currentUser.isPremium) return;
+    if (!isAuthenticated || !currentUser?.id) return;
 
-    if (currentUser.premiumExpiry && new Date(currentUser.premiumExpiry) < new Date()) {
-      updateUser({ isPremium: false, premiumExpiry: null, premiumPlan: null });
-      return;
+    const params = new URLSearchParams(window.location.search);
+    const giveawayPayment = params.get('giveaway_payment');
+    const orderId = params.get('order_id');
+
+    if (giveawayPayment && orderId) {
+      // Clean the URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('giveaway_payment');
+      url.searchParams.delete('order_id');
+      url.searchParams.delete('cf_order_id');
+      window.history.replaceState({}, '', url.toString());
+
+      if (giveawayPayment === 'success' || giveawayPayment === 'redirect') {
+        fetch('/api/giveaway/verify-entry-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              // Surface a toast — the user will see the green "You're participating!" card
+              // when they next open the Giveaway screen.
+              console.log('[giveaway] Entry fee paid, user auto-entered into round.');
+            } else {
+              console.warn('[giveaway] Payment verification returned non-success:', data);
+            }
+          })
+          .catch(err => console.error('[giveaway] Entry fee verification error:', err));
+      }
     }
+  }, [isAuthenticated, currentUser?.id]);
 
-    fetch(`/api/premium?userId=${currentUser.id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.expired || !data.isPremium) {
-          updateUser({ isPremium: false, premiumExpiry: null, premiumPlan: null });
-        } else if (data.premiumExpiry !== currentUser.premiumExpiry) {
-          updateUser({
-            isPremium: data.isPremium,
-            premiumExpiry: data.premiumExpiry,
-            premiumPlan: data.premiumPlan,
-          });
-        }
-      })
-      .catch(() => {});
-  }, [isAuthenticated, currentUser?.id, currentUser?.isPremium, currentUser?.premiumExpiry, updateUser]);
+  // ─── All-free refactor: mark every authenticated user as "premium" ───
+  // As of the all-free refactor there is no premium tier — every feature is
+  // free for all users. We keep the `isPremium` field on CurrentUser (legacy
+  // code path) and just force it to `true` on app load so every
+  // `currentUser.isPremium` check across the app evaluates to `true`.
+  // This also catches stale persisted sessions in localStorage that still
+  // have isPremium=false from before the refactor.
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
+    if (!currentUser.isPremium || currentUser.premiumExpiry || currentUser.premiumPlan !== 'lifetime') {
+      updateUser({
+        isPremium: true,
+        premiumExpiry: null,
+        premiumPlan: 'lifetime',
+      });
+    }
+  }, [isAuthenticated, currentUser?.id, currentUser?.isPremium, currentUser?.premiumExpiry, currentUser?.premiumPlan, updateUser]);
 
   useEffect(() => {
     const mainEl = document.querySelector('main');

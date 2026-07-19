@@ -316,23 +316,7 @@ export default function BottomNav({ activeTab, setActiveTab, hasLiveMatch }: Bot
                         strokeWidth={isActive ? 2.5 : 2}
                       />
 
-                      {/* Premium crown indicator on Profile tab - enhanced */}
-                      {isProfile && isPremium && (
-                        <motion.div
-                          className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-brand-gold flex items-center justify-center shadow-sm shadow-brand-gold/30"
-                          animate={{ y: [0, -1, 0] }}
-                          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                        >
-                          <Crown className="w-2 h-2 text-white" />
-                        </motion.div>
-                      )}
-
-                      {/* Premium lock indicator on Tournaments tab for free users */}
-                      {tab.id === 'tournaments' && !isPremium && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-brand-gold/80 flex items-center justify-center">
-                          <Crown className="w-1.5 h-1.5 text-white" />
-                        </div>
-                      )}
+                      {/* Premium crown indicators removed — every feature is free now. */}
 
                     </motion.div>
 

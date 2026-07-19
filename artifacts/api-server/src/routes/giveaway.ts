@@ -11,6 +11,31 @@ const PRIZES = [
 ];
 
 /**
+ * ₹2 giveaway entry fee (in paise — Cashfree expects integer paise).
+ * This is the ONLY payment in the app now — every other feature is free.
+ */
+const GIVEAWAY_ENTRY_FEE_PAISE = 200; // ₹2.00
+const GIVEAWAY_ENTRY_FEE_INR = '2.00';
+
+/**
+ * Cashfree config (mirrored from payments.ts so this route can create + verify
+ * its own ₹2 orders without reaching into another router's private helper).
+ */
+function getCashfreeConfig() {
+  const cashfreeIsLive = process.env['CASHFREE_IS_LIVE'];
+  const cashfreeEnv = process.env['CASHFREE_ENV'];
+  const isProduction = cashfreeIsLive === 'true' || cashfreeIsLive === '1' || cashfreeEnv === 'production';
+  return {
+    appId: (process.env['CASHFREE_APP_ID'] || '').trim(),
+    secretKey: (process.env['CASHFREE_SECRET_KEY'] || '').trim(),
+    apiVersion: process.env['CASHFREE_API_VERSION'] || '2023-08-01',
+    baseUrl: isProduction ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg',
+    env: isProduction ? 'production' : 'sandbox',
+    isProduction,
+  };
+}
+
+/**
  * Get or create the active giveaway round.
  */
 async function getOrCreateActiveRound() {
@@ -40,7 +65,7 @@ async function getOrCreateActiveRound() {
 
 /**
  * Count a user's SUCCESSFUL referrals (where someone actually signed up using their code).
- * Each successful referral = 1 giveaway participation entry for non-premium users.
+ * Each successful referral = 1 giveaway participation entry.
  */
 async function countSuccessfulReferrals(userId: string): Promise<number> {
   // A referral is "successful" when referredId is not null (someone signed up using the code)
@@ -50,41 +75,20 @@ async function countSuccessfulReferrals(userId: string): Promise<number> {
 }
 
 /**
- * Count how many giveaway rounds a non-premium user has ALREADY used their referral entries on.
- * This is across ALL rounds (past + current), so a user with 3 referrals who has participated
- * in 2 rounds has 1 entry remaining.
- *
- * IMPORTANT: Only counts participations where isPremium=FALSE (i.e. referral-funded entries).
- * Participations where the user was premium at entry time (e.g. they bought a ₹2 daily premium)
- * do NOT consume referral entries — those were "free" entries earned by being premium that day.
- *
- * FREE-ENTRY ADJUSTMENT: Every user gets 1 LIFETIME FREE entry (no premium, no referral required).
- * If the user's first-ever participation was non-premium, it was the "free entry" and does NOT
- * consume a referral slot. We subtract 1 from the count in that case.
+ * Count how many giveaway rounds a user has ALREADY entered using a REFERRAL entry.
+ * We track this by writing `isPremium=false` on referral-funded entries and
+ * `isPremium=true` on ₹2-fee-funded entries (the legacy field name is reused
+ * as a "paid entry" flag — it has nothing to do with the old premium tier
+ * anymore).
  */
-async function countPastParticipations(userId: string): Promise<number> {
-  const nonPremiumCount = await db.giveawayParticipant.count({
+async function countReferralEntriesUsed(userId: string): Promise<number> {
+  return db.giveawayParticipant.count({
     where: { userId, isPremium: false },
   });
-
-  // Check if the user's FIRST participation was non-premium (i.e. it was the free entry).
-  // If so, that participation did NOT consume a referral slot — subtract it.
-  const firstParticipation = await db.giveawayParticipant.findFirst({
-    where: { userId },
-    orderBy: { createdAt: 'asc' },
-    select: { isPremium: true },
-  });
-
-  if (firstParticipation && !firstParticipation.isPremium) {
-    return Math.max(0, nonPremiumCount - 1);
-  }
-  return nonPremiumCount;
 }
 
 /**
- * Count ALL past participations by this user (premium + non-premium).
- * Used to determine if the user has used their 1 lifetime free entry.
- * If totalParticipations > 0, the free entry has been used.
+ * Count ALL past participations by this user (referral + paid).
  */
 async function countAllPastParticipations(userId: string): Promise<number> {
   return db.giveawayParticipant.count({
@@ -95,7 +99,14 @@ async function countAllPastParticipations(userId: string): Promise<number> {
 /**
  * GET /api/giveaway/status
  * Returns the current active round, time remaining, participant count, prizes,
- * and the user's eligibility info (premium status, referral entries, remaining entries).
+ * and the user's eligibility info (referral entries remaining, whether they can pay ₹2).
+ *
+ * NEW RULE (post-premium removal):
+ *   - Every user gets ONE FREE entry the first time they ever participate.
+ *   - After that, each round requires EITHER:
+ *       (a) at least 1 unused successful referral, OR
+ *       (b) a ₹2 entry fee (paid via Cashfree through /giveaway/create-entry-order).
+ *   - There is no more "premium tier" — premium status is irrelevant for giveaway entry.
  */
 router.get('/giveaway/status', async (req, res) => {
   try {
@@ -106,14 +117,14 @@ router.get('/giveaway/status', async (req, res) => {
     });
 
     let hasParticipated = false;
-    let isPremiumActive = false;
     let successfulReferrals = 0;
-    let participationsUsed = 0;
-    let entriesRemaining = 0;
+    let referralEntriesUsed = 0;
+    let referralEntriesRemaining = 0;
     let canParticipate = false;
     let blockReason = '';
     let freeEntryAvailable = false;
     let hasUsedFreeEntry = false;
+    const entryFeeInr = GIVEAWAY_ENTRY_FEE_INR;
 
     if (userId) {
       const existing = await db.giveawayParticipant.findUnique({
@@ -121,18 +132,11 @@ router.get('/giveaway/status', async (req, res) => {
       });
       hasParticipated = !!existing;
 
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        select: { isPremium: true, premiumExpiry: true },
-      });
-      isPremiumActive = !!(user?.isPremium && (!user.premiumExpiry || new Date(user.premiumExpiry) > new Date()));
-
       successfulReferrals = await countSuccessfulReferrals(userId);
-      participationsUsed = await countPastParticipations(userId);
-      entriesRemaining = Math.max(0, successfulReferrals - participationsUsed);
+      referralEntriesUsed = await countReferralEntriesUsed(userId);
+      referralEntriesRemaining = Math.max(0, successfulReferrals - referralEntriesUsed);
 
-      // FREE ENTRY: Every user gets 1 lifetime free entry (no premium, no referral needed).
-      // The free entry is available if the user has NEVER participated in ANY round before.
+      // Every user gets 1 LIFETIME FREE entry (no referral, no ₹2 fee).
       const totalPastParticipations = await countAllPastParticipations(userId);
       hasUsedFreeEntry = totalPastParticipations > 0;
       freeEntryAvailable = !hasUsedFreeEntry;
@@ -140,24 +144,25 @@ router.get('/giveaway/status', async (req, res) => {
       // Participation rules (evaluated in priority order):
       // 1. Already in this round → blocked
       // 2. Free entry available → allowed (no other requirements)
-      // 3. Premium active → allowed (free entry every round)
-      // 4. Referral entries remaining → allowed
-      // 5. Otherwise → blocked
+      // 3. Referral entries remaining → allowed (referral path)
+      // 4. Otherwise → still allowed via ₹2 fee (frontend will offer the option).
+      //    The backend never blocks a logged-in user from entering because they can
+      //    always pay ₹2. We only set blockReason for the UI to know which CTA to show.
       if (hasParticipated) {
         canParticipate = false;
         blockReason = 'already_participated';
       } else if (freeEntryAvailable) {
         canParticipate = true;
         blockReason = '';
-      } else if (isPremiumActive) {
+      } else if (referralEntriesRemaining > 0) {
         canParticipate = true;
-        blockReason = '';
-      } else if (entriesRemaining > 0) {
-        canParticipate = true;
-        blockReason = '';
+        blockReason = ''; // referral path available
       } else {
-        canParticipate = false;
-        blockReason = successfulReferrals === 0 ? 'no_referrals' : 'no_entries_remaining';
+        // No referral entries left — user must pay ₹2. Backend still reports
+        // canParticipate=true because the ₹2 path is always open. The frontend
+        // uses blockReason to decide which button to show (Pay ₹2 vs Participate).
+        canParticipate = true;
+        blockReason = 'payment_required';
       }
     }
 
@@ -204,14 +209,14 @@ router.get('/giveaway/status', async (req, res) => {
       participantCount,
       hasParticipated,
       // Eligibility info for the current user
-      isPremiumActive,
       successfulReferrals,
-      participationsUsed,
-      entriesRemaining,
+      referralEntriesUsed,
+      referralEntriesRemaining,
       freeEntryAvailable, // true if user hasn't used their 1 lifetime free entry
       hasUsedFreeEntry,
       canParticipate,
-      blockReason, // '', 'already_participated', 'no_referrals', 'no_entries_remaining'
+      blockReason, // '', 'already_participated', 'payment_required'
+      entryFeeInr, // '2.00' — shown in the UI
       pastWinners,
     });
   } catch (error) {
@@ -222,21 +227,17 @@ router.get('/giveaway/status', async (req, res) => {
 
 /**
  * POST /api/giveaway/participate
- * User joins the current giveaway round.
+ * User joins the current giveaway round using a REFERRAL entry (or their one-time free entry).
  *
- * Rules:
- * - Premium members (ANY active plan: daily ₹2, weekly, monthly, yearly, lifetime):
- *   free entry, every round. The premium status is checked AT THE MOMENT of participation.
- *   Once the GiveawayParticipant record is created, it is PERMANENT — even if the user's
- *   premium expires minutes later, they remain a participant in this round and can win.
- *   This ensures users who buy a ₹2 daily premium specifically to enter the giveaway
- *   are not penalized if the daily plan expires before the round ends (15 days later).
+ * Rules (post-premium removal):
+ *   - If the user has never participated in ANY round before → FREE entry (lifetime, one-time).
+ *   - Else if the user has at least 1 unused successful referral → consume one referral entry.
+ *   - Else → REJECT with blockReason='payment_required'. The frontend should redirect to
+ *     /giveaway/create-entry-order to collect the ₹2 fee instead.
  *
- * - Non-premium members: must have at least 1 successful referral that hasn't been "used" yet.
- *   Each successful referral = 1 participation entry (across all rounds, not per-round).
- *
- * The `isPremium` field on the GiveawayParticipant record is a SNAPSHOT of the user's
- * premium status at participation time. It is NOT updated when premium expires.
+ * The `isPremium` field on GiveawayParticipant is now used as a "paid entry" flag:
+ *   - isPremium=false → referral-funded entry (free entry counts as referral-funded here)
+ *   - isPremium=true  → ₹2-fee-funded entry (set by /giveaway/verify-entry-payment)
  */
 router.post('/giveaway/participate', async (req, res) => {
   try {
@@ -245,7 +246,7 @@ router.post('/giveaway/participate', async (req, res) => {
 
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { id: true, phone: true, name: true, isPremium: true, premiumExpiry: true, premiumPlan: true },
+      select: { id: true, phone: true, name: true },
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -257,55 +258,36 @@ router.post('/giveaway/participate', async (req, res) => {
     });
     if (existing) return res.status(409).json({ error: 'Already participating in this round' });
 
-    // Premium is "active" if the user has isPremium=true AND (no expiry OR expiry is in the future).
-    // Admins get premium features elsewhere but for giveaway, admin must also have
-    // active premium or referral entries — no free bypass for giveaway.
-    const isPremiumActive = !!(user.isPremium && (!user.premiumExpiry || new Date(user.premiumExpiry) > new Date()));
-
-    // FREE ENTRY: Every user gets 1 lifetime free entry (no premium, no referral needed).
-    // Check if the user has EVER participated before. If not, this is their free entry.
+    // FREE ENTRY: 1 lifetime free entry for brand-new users.
     const totalPastParticipations = await countAllPastParticipations(userId);
     const freeEntryAvailable = totalPastParticipations === 0;
 
-    // Enforce the participation rule:
-    // 1. Free entry available → allow (no other requirements)
-    // 2. Premium active → allow (free entry every round)
-    // 3. Referral entries remaining → allow
-    // 4. Otherwise → block (even for admins)
-    if (!freeEntryAvailable && !isPremiumActive) {
+    if (!freeEntryAvailable) {
+      // Need a referral entry — if none left, reject and tell the client to pay ₹2.
       const successfulReferrals = await countSuccessfulReferrals(userId);
-      const participationsUsed = await countPastParticipations(userId);
-      const entriesRemaining = Math.max(0, successfulReferrals - participationsUsed);
+      const referralEntriesUsed = await countReferralEntriesUsed(userId);
+      const referralEntriesRemaining = Math.max(0, successfulReferrals - referralEntriesUsed);
 
-      if (entriesRemaining <= 0) {
-        if (successfulReferrals === 0) {
-          return res.status(403).json({
-            error: 'Your free entry has been used. Refer a friend or buy a ₹2 daily premium to participate again!',
-            blockReason: 'no_referrals',
-            successfulReferrals,
-            entriesRemaining: 0,
-          });
-        } else {
-          return res.status(403).json({
-            error: `You've used all ${successfulReferrals} of your referral entries. Refer more friends, or buy a ₹2 daily premium to participate in this round.`,
-            blockReason: 'no_entries_remaining',
-            successfulReferrals,
-            entriesRemaining: 0,
-          });
-        }
+      if (referralEntriesRemaining <= 0) {
+        return res.status(403).json({
+          error: 'No referral entries left. Pay a ₹2 entry fee to participate in this round.',
+          blockReason: 'payment_required',
+          successfulReferrals,
+          referralEntriesRemaining: 0,
+          entryFeeInr: GIVEAWAY_ENTRY_FEE_INR,
+        });
       }
     }
 
-    // Create the participant record — isPremium is a SNAPSHOT at this moment.
-    // Even if the user's premium expires 1 minute later, this record stays
-    // and they remain eligible to win when the round ends.
+    // Create the participant record. isPremium=false means "referral-funded entry"
+    // (which includes the one-time free entry — both are non-paid).
     await db.giveawayParticipant.create({
       data: {
         giveawayRoundId: round.id,
         userId: user.id,
         phone: user.phone,
         name: user.name,
-        isPremium: isPremiumActive, // snapshot — permanent
+        isPremium: false,
       },
     });
 
@@ -313,19 +295,209 @@ router.post('/giveaway/participate', async (req, res) => {
       where: { giveawayRoundId: round.id },
     });
 
+    const successfulReferrals = await countSuccessfulReferrals(userId);
+    const referralEntriesUsed = await countReferralEntriesUsed(userId);
+    const referralEntriesRemaining = Math.max(0, successfulReferrals - referralEntriesUsed);
+
     return res.json({
       success: true,
       participantCount,
-      // Return updated eligibility so frontend can refresh state without a separate fetch
-      isPremiumActive,
-      premiumPlan: user.premiumPlan,
-      freeEntryAvailable: false, // just used it
-      // countPastParticipations already includes the participation we just created,
-      // so no extra `- 1` needed here — the math mirrors /status exactly.
-      entriesRemaining: isPremiumActive ? null : Math.max(0, (await countSuccessfulReferrals(userId)) - (await countPastParticipations(userId))),
+      freeEntryAvailable: false, // just used it (either the lifetime free one or a referral slot)
+      referralEntriesRemaining,
+      entryFundedBy: freeEntryAvailable ? 'free_entry' : 'referral',
     });
   } catch (error) {
     console.error('Giveaway participate error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/giveaway/create-entry-order
+ * Creates a Cashfree order for the ₹2 giveaway entry fee.
+ *
+ * Body: { userId, returnUrl? }
+ * Returns: { orderId, paymentSessionId, cfOrderId, amount, env }
+ *
+ * The frontend redirects to Cashfree's hosted checkout using the session id.
+ * On success, Cashfree redirects back to returnUrl with ?order_id=...
+ * The frontend then calls /giveaway/verify-entry-payment to confirm + auto-enter the round.
+ */
+router.post('/giveaway/create-entry-order', async (req, res) => {
+  try {
+    const { userId, returnUrl } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, phone: true, email: true },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const round = await getOrCreateActiveRound();
+
+    // Refuse if already in this round — no need to charge them again.
+    const existing = await db.giveawayParticipant.findUnique({
+      where: { giveawayRoundId_userId: { giveawayRoundId: round.id, userId } },
+    });
+    if (existing) {
+      return res.status(409).json({ error: 'You are already participating in this round.' });
+    }
+
+    const config = getCashfreeConfig();
+    if (!config.appId || !config.secretKey) {
+      return res.status(500).json({ error: 'Payment gateway not configured on the server.' });
+    }
+
+    const orderId = `KP_GIVEAWAY_${user.id.slice(-6)}_${Date.now()}`;
+    const amountInr = GIVEAWAY_ENTRY_FEE_INR;
+
+    const cashfreePayload = {
+      order_id: orderId,
+      order_amount: parseFloat(amountInr),
+      order_currency: 'INR',
+      customer_details: {
+        customer_id: user.id,
+        customer_name: user.name || 'Kabaddi Pro User',
+        customer_phone: (user.phone || '').replace(/\D/g, '').slice(-10),
+        customer_email: user.email || `${user.id}@kabaddipro.app`,
+      },
+      order_meta: {
+        return_url: returnUrl || `${process.env['APP_URL'] || ''}/?giveaway_payment=success&order_id={order_id}`,
+      },
+      order_note: `Giveaway Round ${round.roundNumber} entry fee`,
+    };
+
+    const cfResponse = await fetch(`${config.baseUrl}/orders`, {
+      method: 'POST',
+      headers: {
+        'x-client-id': config.appId,
+        'x-client-secret': config.secretKey,
+        'x-api-version': config.apiVersion,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(cashfreePayload),
+    });
+
+    if (!cfResponse.ok) {
+      const err = await cfResponse.text();
+      console.error('Cashfree giveaway order creation failed:', err);
+      return res.status(502).json({ error: 'Payment gateway error', details: err });
+    }
+
+    const cfOrder = await cfResponse.json() as { payment_session_id?: string; cf_order_id?: string };
+
+    // Persist the order so /verify-entry-payment can find it. The `plan` field
+    // is reused as 'giveaway_entry' to distinguish from the legacy premium plans.
+    await db.payment.create({
+      data: {
+        userId: user.id,
+        cashfreeOrderId: orderId,
+        plan: 'giveaway_entry',
+        amount: GIVEAWAY_ENTRY_FEE_PAISE,
+        status: 'pending',
+      },
+    });
+
+    return res.json({
+      orderId,
+      paymentSessionId: cfOrder.payment_session_id,
+      sessionId: cfOrder.payment_session_id,
+      cfOrderId: cfOrder.cf_order_id,
+      amount: amountInr,
+      env: config.env,
+    });
+  } catch (error) {
+    console.error('Giveaway create-entry-order error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/giveaway/verify-entry-payment
+ * Verifies a ₹2 Cashfree order, marks the Payment as paid, AND auto-enters the user
+ * into the current giveaway round as a paid entry (isPremium=true on the participant row).
+ *
+ * Body: { orderId }
+ * Returns: { success, participantCount, entryFundedBy: 'paid' }
+ */
+router.post('/giveaway/verify-entry-payment', async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) return res.status(400).json({ error: 'orderId is required' });
+
+    const payment = await db.payment.findUnique({ where: { cashfreeOrderId: orderId } });
+    if (!payment) return res.status(400).json({ error: 'Payment order not found' });
+    if (payment.plan !== 'giveaway_entry') {
+      return res.status(400).json({ error: 'This order is not a giveaway entry fee.' });
+    }
+
+    // Already processed (idempotent — return success without re-entering)
+    if (payment.status === 'success') {
+      const round = await getOrCreateActiveRound();
+      const existing = await db.giveawayParticipant.findUnique({
+        where: { giveawayRoundId_userId: { giveawayRoundId: round.id, userId: payment.userId } },
+      });
+      if (existing) {
+        return res.json({ success: true, alreadyEntered: true, participantCount: await db.giveawayParticipant.count({ where: { giveawayRoundId: round.id } }) });
+      }
+    }
+
+    const config = getCashfreeConfig();
+    const cfResponse = await fetch(`${config.baseUrl}/orders/${orderId}`, {
+      method: 'GET',
+      headers: {
+        'x-client-id': config.appId,
+        'x-client-secret': config.secretKey,
+        'x-api-version': config.apiVersion,
+      },
+    });
+
+    if (!cfResponse.ok) return res.status(502).json({ error: 'Could not verify payment with gateway' });
+    const cfOrder = await cfResponse.json() as { order_status?: string };
+
+    if (cfOrder.order_status !== 'PAID') {
+      return res.json({ success: false, status: cfOrder.order_status });
+    }
+
+    // Mark the payment as paid.
+    await db.payment.update({ where: { id: payment.id }, data: { status: 'success' } });
+
+    // Auto-enter the user into the current round as a paid entry.
+    const user = await db.user.findUnique({
+      where: { id: payment.userId },
+      select: { id: true, phone: true, name: true },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const round = await getOrCreateActiveRound();
+    const existing = await db.giveawayParticipant.findUnique({
+      where: { giveawayRoundId_userId: { giveawayRoundId: round.id, userId: user.id } },
+    });
+    if (!existing) {
+      await db.giveawayParticipant.create({
+        data: {
+          giveawayRoundId: round.id,
+          userId: user.id,
+          phone: user.phone,
+          name: user.name,
+          isPremium: true, // paid entry — distinguished from referral-funded entries
+        },
+      });
+    }
+
+    const participantCount = await db.giveawayParticipant.count({
+      where: { giveawayRoundId: round.id },
+    });
+
+    return res.json({
+      success: true,
+      alreadyEntered: !!existing,
+      participantCount,
+      entryFundedBy: 'paid',
+    });
+  } catch (error) {
+    console.error('Giveaway verify-entry-payment error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -803,18 +975,12 @@ router.post('/giveaway/admin/restore-participants', async (req, res) => {
       return res.status(400).json({ error: 'No users found with those player codes' });
     }
 
-    // Create participant records (skip if already exists)
-    // Look up each user's current isPremium so the snapshot is accurate —
-    // countPastParticipations uses isPremium:false to count referral-funded
-    // entries, so a stale false here would corrupt the free-entry math.
-    const userIds = users.map(u => u.id);
-    const userDetails = await db.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true, isPremium: true, premiumExpiry: true },
-    });
-    const userPremiumMap = new Map(userDetails.map(u => [u.id, u]));
-    const now = new Date();
-
+    // Create participant records (skip if already exists).
+    // Post-premium-removal: all entries are either referral-funded or paid.
+    // For restored historical participants we default isPremium=false
+    // (referral-funded) since we have no way to know how they originally
+    // entered. The admin can use "Change Winners" if they need to correct
+    // anything.
     let created = 0;
     let skipped = 0;
     for (const user of users) {
@@ -825,18 +991,13 @@ router.post('/giveaway/admin/restore-participants', async (req, res) => {
         skipped++;
         continue;
       }
-      // Snapshot the user's premium status AT THIS MOMENT. Premium status is
-      // point-in-time: a user who is premium when they participate gets
-      // isPremium=true recorded; we honor that snapshot for free-entry math.
-      const userDetail = userPremiumMap.get(user.id);
-      const isCurrentlyPremium = !!(userDetail?.isPremium && userDetail.premiumExpiry && new Date(userDetail.premiumExpiry) > now);
       await db.giveawayParticipant.create({
         data: {
           giveawayRoundId: roundId,
           userId: user.id,
           phone: user.phone,
           name: user.name,
-          isPremium: isCurrentlyPremium,
+          isPremium: false, // referral-funded entry (default for restored participants)
         },
       });
       created++;
