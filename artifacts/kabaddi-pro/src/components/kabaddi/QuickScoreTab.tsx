@@ -10,6 +10,7 @@ import { useKabaddiStore, type MatchPlayer } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import ScorerTransferScreen from './ScorerTransferScreen';
 
 interface UserTeam {
@@ -424,6 +425,10 @@ function FormationPlayer({ player, teamColor, allPlayers, size = 'normal' }: { p
 
 export default function QuickScoreTab() {
   const { initiateToss, currentUser } = useKabaddiStore();
+  // BUGFIX (scoring-audit §5): useToast was never imported/destructured, so
+  // every validation toast in this component (add-unregistered-player flow,
+  // team-code lookup) crashed at runtime with ReferenceError: toast is not defined.
+  const { toast } = useToast();
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<MatchConfig>({
         weightCategory: '',

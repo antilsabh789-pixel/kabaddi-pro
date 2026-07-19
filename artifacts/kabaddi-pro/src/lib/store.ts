@@ -362,12 +362,30 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
       // MUTUAL OUT special case: when both teams have players out in the same
       // raid, the details object carries `mutualOut: true` plus `defendersOut`
       // (the count of defenders sent out) instead of an explicit touchedPlayerIds
-      // list. We trust the count and revive the corresponding number of raiders.
+      // list. We trust the count, send N defenders from the active on-court list
+      // to the out queue (pop from end of lineup order), and revive the
+      // corresponding number of raiders.
       if (details.mutualOut === true) {
         const defendersOut = (details.defendersOut as number) || evt.value || 0;
-        // We don't know which specific defenders were touched (the count came
-        // from the UI's mutual-out picker), but we can still revive the right
-        // number of raiders from the raiding team's out queue.
+        // BUGFIX (scoring-audit §4.2): Previously we only revived raiders but
+        // never sent the N defenders to the out queue. That left the defending
+        // team's outPlayerIds stale, which corrupts super-tackle / all-out /
+        // revival logic for the rest of the match.
+        //
+        // We don't have specific defender IDs for mutual-out (the UI only sends
+        // a count), so pop N defenders from the END of the active on-court list
+        // (the last players in lineup order — approximates "last touched").
+        const defendingLineup = defendingSide === 'home' ? match.homeLineup : match.awayLineup;
+        const defendingOutIds = defendingSide === 'home' ? homeOutPlayerIds : awayOutPlayerIds;
+        const defendingOnCourtActive = defendingLineup
+          .slice(0, match.playersPerSide || 7)
+          .filter(p => !defendingOutIds.includes(p.id));
+        // Take the LAST N active defenders (most recently added in lineup order)
+        const defendersToSendOut = defendingOnCourtActive.slice(-defendersOut);
+        for (const p of defendersToSendOut) {
+          sendOut(defendingSide, p.id);
+        }
+        // Revive the corresponding number of raiders
         revive(side, defendersOut);
         emptyRaidCount[evt.teamId] = 0;
       } else {
@@ -416,7 +434,14 @@ function recalculateFromEvents(match: ActiveMatch, events: MatchEvent[]) {
         sendOut(raiderSide, raiderId || '');
         revive(side, evt.value);
       }
-      emptyRaidCount[evt.teamId] = 0;
+      // BUGFIX (scoring-audit §4.1): A tackle ends the raider's raid and
+      // therefore RESOLVES the raiding team's empty-raid streak. Previously
+      // this reset emptyRaidCount[evt.teamId] (the DEFENDING/scoring team),
+      // which was wrong: it left the raiding team stuck in do-or-die for
+      // their next raid, and incorrectly cleared the defending team's streak.
+      // The raiding team is the OPPOSITE side of `side` (the scoring team).
+      const raidingTeamId = side === 'home' ? match.awayTeamId : match.homeTeamId;
+      emptyRaidCount[raidingTeamId] = 0;
       // NOTE: All-out bonus is handled by the explicit 'all_out' event
       // pushed by LiveScoringScreen — NOT auto-added here to avoid double-counting.
     }

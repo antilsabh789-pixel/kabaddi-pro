@@ -296,7 +296,14 @@ router.post('/matches', async (req, res) => {
           ps.totalPoints += val;
           break;
         case 'super_tackle':
+          // BUGFIX (scoring-audit §4.8): super_tackle should ALSO increment
+          // totalTackles and successfulTackles, just like tackle_point does.
+          // Previously only superTackles was bumped, which depressed the
+          // player's tackle success rate and made stored stats diverge from
+          // the live in-match stats shown on the scoring screen.
           ps.tacklePoints += val;
+          ps.totalTackles += 1;
+          ps.successfulTackles += 1;
           ps.superTackles += 1;
           ps.totalPoints += val;
           break;
@@ -498,7 +505,9 @@ router.delete('/matches', async (req, res) => {
         case 'tackle_point':
           ps.tacklePoints += val; ps.totalTackles += 1; ps.successfulTackles += 1; ps.totalPoints += val; break;
         case 'super_tackle':
-          ps.tacklePoints += val; ps.superTackles += 1; ps.totalPoints += val; break;
+          // BUGFIX (scoring-audit §4.8): mirror the POST handler — also
+          // decrement totalTackles + successfulTackles for super_tackle.
+          ps.tacklePoints += val; ps.totalTackles += 1; ps.successfulTackles += 1; ps.superTackles += 1; ps.totalPoints += val; break;
         case 'do_or_die_raid':
           break;
         case 'empty_raid':

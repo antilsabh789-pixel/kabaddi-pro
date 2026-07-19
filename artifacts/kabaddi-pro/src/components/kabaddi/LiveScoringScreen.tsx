@@ -845,11 +845,19 @@ export default function LiveScoringScreen() {
   const isTimerPulsing = match.timer > 0 && match.timer < 60 && hasStartedRaiding && !isPaused;
 
   // Split lineup: first playersPerSide = on court, rest = substitutes
+  // BUGFIX (scoring-audit §4.5): also exclude red-carded players from
+  // onCourtActive. Previously they were still counted, which inflated the
+  // active count and corrupted super-tackle / all-out detection thresholds.
   const splitLineup = (lineup: MatchPlayer[], outIds: string[]) => {
     const onCourt = lineup.slice(0, match.playersPerSide || 7);
     const substitutes = lineup.slice(match.playersPerSide || 7);
-    const onCourtActive = onCourt.filter(p => !outIds.includes(p.id));
-    const onCourtOut = onCourt.filter(p => outIds.includes(p.id));
+    // Build the set of excluded player IDs (tackled/self-out + red-carded)
+    const excludedIds = new Set<string>(outIds);
+    for (const expulsion of match.redCardExpulsions) {
+      excludedIds.add(expulsion.playerId);
+    }
+    const onCourtActive = onCourt.filter(p => !excludedIds.has(p.id));
+    const onCourtOut = onCourt.filter(p => excludedIds.has(p.id));
     return { onCourt, substitutes, onCourtActive, onCourtOut };
   };
 
@@ -1153,8 +1161,10 @@ export default function LiveScoringScreen() {
       consecutiveEmptyRaidsRef.current[raidingTeamId] = 0;
     }
     if (result === 'caught') {
-      // Defending team scored, reset THEIR counter
-      consecutiveEmptyRaidsRef.current[defendingTeamId] = 0;
+      // BUGFIX (scoring-audit §4.1): The raider was tackled, which ends
+      // their raid and resolves their empty-raid streak. Reset the
+      // RAIDING team's counter (not the defending team's).
+      consecutiveEmptyRaidsRef.current[raidingTeamId] = 0;
     }
 
     // ═══ DO-OR-DIE LOGIC (per team) ═══
@@ -1522,12 +1532,23 @@ export default function LiveScoringScreen() {
   const handleSuperTackle = () => {
     if (!match) return;
     const teamId = defendingTeam === 'home' ? match.homeTeamId : match.awayTeamId;
-    addEvent({
-      matchId: match.id, eventType: 'super_tackle', teamId,
-      half: match.currentHalf, value: 1,
-    });
+    // BUGFIX (scoring-audit §4.3): A super tackle is worth +2 total (1 tackle
+    // point + 1 super-tackle bonus). Previously this pushed only a single
+    // super_tackle event with value=1, giving +1 (wrong). The auto path in
+    // processRaidResult correctly pushes both tackle_point(1) + super_tackle(1).
+    // Mirror that here so manual super tackles award +2.
+    addBatchEvents([
+      {
+        matchId: match.id, eventType: 'tackle_point', teamId,
+        half: match.currentHalf, value: 1,
+      },
+      {
+        matchId: match.id, eventType: 'super_tackle', teamId,
+        half: match.currentHalf, value: 1,
+      },
+    ]);
     triggerFeedback(SoundType.WHISTLE);
-    setEventConfirm({ message: `${defendingTeamName} +1 Super Tackle!`, teamColor: defendingTeamColor });
+    setEventConfirm({ message: `${defendingTeamName} +2 Super Tackle!`, teamColor: defendingTeamColor });
   };
 
   // Self-out handler — handles BOTH raider and defender self-out
