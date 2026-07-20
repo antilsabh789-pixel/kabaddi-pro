@@ -407,13 +407,74 @@ router.get('/grounds', async (req, res) => {
 
 router.post('/grounds', async (req, res) => {
   try {
-    const { name, address, city, state, latitude, longitude } = req.body;
-    const lat = latitude ?? req.body.lat ?? null;
-    const lng = longitude ?? req.body.lng ?? null;
+    const { name, address, city, state, surface, amenities, addedBy } = req.body;
+    const mapLink: string | undefined = req.body.mapLink;
+    const { latitude, longitude } = req.body;
+
+    // Parse lat/lng: accept explicit values, OR extract from a Google Maps URL.
+    let lat: number | null = null;
+    let lng: number | null = null;
+    if (typeof req.body.lat === 'number' || (typeof req.body.lat === 'string' && req.body.lat.trim())) {
+      const v = parseFloat(req.body.lat);
+      if (!Number.isNaN(v)) lat = v;
+    }
+    if (typeof req.body.lng === 'number' || (typeof req.body.lng === 'string' && req.body.lng.trim())) {
+      const v = parseFloat(req.body.lng);
+      if (!Number.isNaN(v)) lng = v;
+    }
+    if (latitude !== undefined) {
+      const v = parseFloat(latitude);
+      if (!Number.isNaN(v)) lat = v;
+    }
+    if (longitude !== undefined) {
+      const v = parseFloat(longitude);
+      if (!Number.isNaN(v)) lng = v;
+    }
+
+    // Extract coordinates from a Google Maps URL if direct lat/lng not provided.
+    // Supports: @lat,lng (place URLs), ?q=lat,lng, &query=lat,lng (search URLs).
+    if (mapLink && (lat === null || lng === null)) {
+      try {
+        const atMatch = mapLink.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+        if (atMatch) {
+          lat = parseFloat(atMatch[1]);
+          lng = parseFloat(atMatch[2]);
+        } else {
+          const qMatch = mapLink.match(/[?&](?:q|query)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+          if (qMatch) {
+            lat = parseFloat(qMatch[1]);
+            lng = parseFloat(qMatch[2]);
+          }
+        }
+      } catch {
+        // Ignore parse errors — lat/lng stay null, which is fine (mapLink still saved)
+      }
+    }
+
     if (!name) return res.status(400).json({ error: 'name is required' });
-    const ground = await db.ground.create({ data: { name, address: address || null, city: city || null, state: state || null, lat, lng } });
+
+    // Amenities may arrive as an array (from the new form) or already-stringified JSON.
+    const amenitiesValue: string | null = Array.isArray(amenities)
+      ? JSON.stringify(amenities)
+      : (typeof amenities === 'string' ? amenities : null);
+
+    const ground = await db.ground.create({
+      data: {
+        name,
+        address: address || null,
+        city: city || null,
+        state: state || null,
+        lat,
+        lng,
+        mapLink: mapLink || null,
+        surface: surface || null,
+        amenities: amenitiesValue,
+        addedBy: addedBy || null,
+      },
+    });
     return res.json({ ground });
   } catch (error) {
+    console.error('create ground error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

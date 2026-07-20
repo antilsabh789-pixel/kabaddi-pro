@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -23,6 +23,8 @@ import {
   Star,
   Clock,
   Layers,
+  Map as MapIcon,
+  List,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +32,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useKabaddiStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
+
+// Lazy-load the map view — Leaflet is ~150 KB and not needed on first paint.
+// Code-splitting keeps the initial bundle small for users who only browse the list.
+const GroundsMapView = lazy(() => import('./GroundsMapView'));
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -43,6 +49,7 @@ interface Ground {
   amenities: string | null;
   lat: number | null;
   lng: number | null;
+  mapLink: string | null;
   createdAt: string;
   _count: { matches: number };
   matches?: Array<{
@@ -67,8 +74,7 @@ interface GroundFormState {
   city: string;
   state: string;
   surface: string;
-  lat: string;
-  lng: string;
+  mapLink: string;
   hasLights: boolean;
   hasChangingRoom: boolean;
   hasSeating: boolean;
@@ -438,17 +444,30 @@ function GroundDetailView({
         )}
 
         {/* Full Address */}
-        {ground.address && (
+        {(ground.address || ground.mapLink) && (
           <Card className="border-warm-200 dark:border-warm-700">
             <CardContent className="p-4">
               <h4 className="font-bold text-warm-800 dark:text-warm-100 text-sm mb-2">Address</h4>
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-brand-red shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm text-warm-700 dark:text-warm-200">{ground.address}</p>
-                  <p className="text-xs text-warm-500 dark:text-warm-400">{[ground.city, ground.state].filter(Boolean).join(', ')}</p>
+              {ground.address && (
+                <div className="flex items-start gap-2 mb-2">
+                  <MapPin className="w-4 h-4 text-brand-red shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-warm-700 dark:text-warm-200">{ground.address}</p>
+                    <p className="text-xs text-warm-500 dark:text-warm-400">{[ground.city, ground.state].filter(Boolean).join(', ')}</p>
+                  </div>
                 </div>
-              </div>
+              )}
+              {ground.mapLink && (
+                <a
+                  href={ground.mapLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg bg-brand-teal/10 dark:bg-brand-teal/20 text-brand-teal text-xs font-semibold hover:bg-brand-teal/20 dark:hover:bg-brand-teal/30 transition-colors"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  Open in Google Maps
+                </a>
+              )}
             </CardContent>
           </Card>
         )}
@@ -571,11 +590,11 @@ function AddGroundForm({
         <CardContent className="p-4 space-y-3">
           <h3 className="font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2">
             <Plus className="w-4 h-4 text-brand-teal" />
-            New Ground Details
+            New Ground / Academy Details
           </h3>
 
           <Input
-            placeholder="Ground name *"
+            placeholder="Ground / Academy name *"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600"
@@ -647,26 +666,21 @@ function AddGroundForm({
             </div>
           </div>
 
-          {/* Location (optional) */}
+          {/* Location (optional) — Google Maps link instead of raw lat/lng */}
           <div>
-            <label className="text-[10px] font-bold text-warm-500 dark:text-warm-400 mb-1.5 block uppercase tracking-wider">Location (Optional)</label>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="text-[10px] font-bold text-warm-500 dark:text-warm-400 mb-1.5 block uppercase tracking-wider">Location on Map (Optional)</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-warm-400" />
               <Input
-                placeholder="Latitude"
-                type="number"
-                value={form.lat}
-                onChange={(e) => setForm({ ...form, lat: e.target.value })}
-                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-xs"
-              />
-              <Input
-                placeholder="Longitude"
-                type="number"
-                value={form.lng}
-                onChange={(e) => setForm({ ...form, lng: e.target.value })}
-                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-xs"
+                placeholder="Paste Google Maps link"
+                value={form.mapLink}
+                onChange={(e) => setForm({ ...form, mapLink: e.target.value })}
+                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-xs pl-9"
               />
             </div>
-            <p className="text-[9px] text-warm-400 dark:text-warm-500 mt-1">Add coordinates to enable distance-based sorting</p>
+            <p className="text-[9px] text-warm-400 dark:text-warm-500 mt-1">
+              Open Google Maps → right-click the spot → copy link, then paste here.
+            </p>
           </div>
 
           <Button
@@ -675,7 +689,7 @@ function AddGroundForm({
             className="w-full bg-brand-teal hover:bg-brand-teal-dark text-white"
           >
             {adding ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-            {adding ? 'Adding...' : 'Add Ground'}
+            {adding ? 'Adding...' : 'Add Ground / Academy'}
           </Button>
         </CardContent>
       </Card>
@@ -701,6 +715,7 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
   const [adding, setAdding] = useState(false);
   const [selectedGroundId, setSelectedGroundId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const [form, setForm] = useState<GroundFormState>({
@@ -709,8 +724,7 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
     city: '',
     state: '',
     surface: 'mat',
-    lat: '',
-    lng: '',
+    mapLink: '',
     hasLights: false,
     hasChangingRoom: false,
     hasSeating: false,
@@ -798,15 +812,14 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
           state: form.state || undefined,
           surface: form.surface,
           amenities: amenities.length > 0 ? amenities : undefined,
-          lat: form.lat ? parseFloat(form.lat) : undefined,
-          lng: form.lng ? parseFloat(form.lng) : undefined,
+          mapLink: form.mapLink.trim() || undefined,
           addedBy: currentUser?.id,
         }),
       });
 
       if (res.ok) {
-        toast({ title: 'Ground Added!', description: `${form.name} is now available for matches` });
-        setForm({ name: '', address: '', city: '', state: '', surface: 'mat', lat: '', lng: '', hasLights: false, hasChangingRoom: false, hasSeating: false, hasParking: false });
+        toast({ title: 'Added!', description: `${form.name} is now available for matches` });
+        setForm({ name: '', address: '', city: '', state: '', surface: 'mat', mapLink: '', hasLights: false, hasChangingRoom: false, hasSeating: false, hasParking: false });
         setShowAddForm(false);
         loadGrounds();
       } else {
@@ -854,7 +867,7 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
                 <div className="flex items-center justify-between px-4 py-4">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-5 h-5 text-white" />
-                    <h1 className="text-lg font-bold text-white">Grounds & Venues</h1>
+                    <h1 className="text-lg font-bold text-white">Grounds & Academies</h1>
                   </div>
                   <button onClick={onClose} className="p-2 rounded-full hover:bg-white/20 transition-colors">
                     <X className="w-5 h-5 text-white" />
@@ -900,7 +913,7 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
                   className="flex-1 border-dashed border-brand-teal/40 text-brand-teal hover:bg-brand-teal/5 h-9 text-xs"
                 >
                   <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  {showAddForm ? 'Cancel' : 'Add Ground'}
+                  {showAddForm ? 'Cancel' : 'Add Ground / Academy'}
                 </Button>
                 <Button
                   onClick={() => setShowFilters(!showFilters)}
@@ -1009,31 +1022,79 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
                 )}
               </AnimatePresence>
 
-              {/* Grounds List */}
-              <div className="px-4 py-4 space-y-3">
-                {loading ? (
-                  [1, 2, 3].map((i) => (
-                    <div key={i} className="h-24 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse border-l-4 border-l-warm-300 dark:border-l-warm-600" />
-                  ))
-                ) : grounds.length === 0 ? (
-                  <Card className="p-8 text-center bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700">
-                    <Building2 className="w-10 h-10 text-warm-300 dark:text-warm-600 mx-auto mb-3" />
-                    <p className="text-warm-600 dark:text-warm-300 font-medium">No grounds found</p>
-                    <p className="text-warm-400 dark:text-warm-500 text-sm mt-1">Add a ground to get started!</p>
-                  </Card>
-                ) : (
-                  grounds.map((ground) => (
-                    <GroundCard
-                      key={ground.id}
-                      ground={ground}
-                      userLat={userLat}
-                      userLng={userLng}
-                      onSelect={onSelect}
-                      onViewDetail={setSelectedGroundId}
-                    />
-                  ))
-                )}
-              </div>
+              {/* List / Map View Toggle */}
+              {!loading && grounds.length > 0 && (
+                <div className="px-4 pt-3">
+                  <div className="inline-flex rounded-lg border border-warm-200 dark:border-warm-700 bg-warm-50 dark:bg-warm-800 p-0.5">
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
+                        viewMode === 'list'
+                          ? 'bg-white dark:bg-warm-700 text-warm-800 dark:text-warm-100 shadow-sm'
+                          : 'text-warm-500 dark:text-warm-400'
+                      }`}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      List
+                    </button>
+                    <button
+                      onClick={() => setViewMode('map')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
+                        viewMode === 'map'
+                          ? 'bg-white dark:bg-warm-700 text-warm-800 dark:text-warm-100 shadow-sm'
+                          : 'text-warm-500 dark:text-warm-400'
+                      }`}
+                    >
+                      <MapIcon className="w-3.5 h-3.5" />
+                      Map
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Grounds List OR Map View */}
+              {viewMode === 'map' && !loading && grounds.length > 0 ? (
+                <Suspense
+                  fallback={
+                    <div className="px-4 py-10 flex flex-col items-center gap-2 text-warm-500 dark:text-warm-400">
+                      <Loader2 className="w-5 h-5 animate-spin text-brand-teal" />
+                      <p className="text-xs">Loading map…</p>
+                    </div>
+                  }
+                >
+                  <GroundsMapView
+                    grounds={grounds}
+                    userLat={userLat}
+                    userLng={userLng}
+                    onViewDetail={setSelectedGroundId}
+                  />
+                </Suspense>
+              ) : (
+                <div className="px-4 py-4 space-y-3">
+                  {loading ? (
+                    [1, 2, 3].map((i) => (
+                      <div key={i} className="h-24 bg-warm-100 dark:bg-warm-800 rounded-xl animate-pulse border-l-4 border-l-warm-300 dark:border-l-warm-600" />
+                    ))
+                  ) : grounds.length === 0 ? (
+                    <Card className="p-8 text-center bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700">
+                      <Building2 className="w-10 h-10 text-warm-300 dark:text-warm-600 mx-auto mb-3" />
+                      <p className="text-warm-600 dark:text-warm-300 font-medium">No grounds found</p>
+                      <p className="text-warm-400 dark:text-warm-500 text-sm mt-1">Add a ground to get started!</p>
+                    </Card>
+                  ) : (
+                    grounds.map((ground) => (
+                      <GroundCard
+                        key={ground.id}
+                        ground={ground}
+                        userLat={userLat}
+                        userLng={userLng}
+                        onSelect={onSelect}
+                        onViewDetail={setSelectedGroundId}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

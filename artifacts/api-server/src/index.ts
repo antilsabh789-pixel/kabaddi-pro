@@ -40,6 +40,10 @@ async function autoMigrate() {
     // FeeRecord.expiryDate + period — for "days left" calculation in coach dashboard.
     `ALTER TABLE "fee_records" ADD COLUMN IF NOT EXISTS "expiryDate" TIMESTAMP`,
     `ALTER TABLE "fee_records" ADD COLUMN IF NOT EXISTS "period" TEXT NOT NULL DEFAULT 'monthly'`,
+    // Ground.mapLink — raw Google Maps URL pasted by user. Optional. Used to
+    // open the location directly in Google Maps instead of asking the user for
+    // raw latitude/longitude (which was a poor UX in the Add Ground form).
+    `ALTER TABLE "Ground" ADD COLUMN IF NOT EXISTS "mapLink" TEXT`,
   ];
 
   // The Attendance table's unique constraint changed from

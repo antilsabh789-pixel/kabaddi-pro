@@ -375,6 +375,7 @@ model Ground {
   state       String?
   lat         Float?
   lng         Float?
+  mapLink     String?  // raw Google Maps URL pasted by user (optional)
   surface     String?  // mat, mud, grass, synthetic
   amenities   String?  // JSON: changing_room, lights, seating, parking, etc.
   addedBy     String?  // userId who added
