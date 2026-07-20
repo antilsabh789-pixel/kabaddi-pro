@@ -479,4 +479,205 @@ router.post('/grounds', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/grounds/:id
+ * Body or query: { userId } — the caller's user ID.
+ *
+ * Authorization:
+ *   - The user who originally added the ground (`addedBy` matches `userId`), OR
+ *   - Any admin (`isAdmin: true` on the User record)
+ *
+ * Both can delete any ground. This is intentional — the spec says "who added
+ * academy can delete it and admin also delete any of them".
+ *
+ * Returns: { success: true, deleted: <groundId> }
+ */
+router.delete('/grounds/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = (req.body?.userId ?? req.query['userId']) as string | undefined;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Fetch the caller so we can check admin status.
+    const caller = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, isAdmin: true },
+    });
+    if (!caller) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Fetch the ground to check ownership.
+    const ground = await db.ground.findUnique({
+      where: { id },
+      select: { id: true, addedBy: true, name: true },
+    });
+    if (!ground) {
+      return res.status(404).json({ error: 'Ground not found' });
+    }
+
+    const isOwner = ground.addedBy === userId;
+    const isAdmin = caller.isAdmin === true;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Only the user who added this ground or an admin can delete it' });
+    }
+
+    // Cascade-delete is configured on Match.groundId in schema.prisma (onDelete: SetNull
+    // for matches, see Match model), so this is safe. We use delete which throws if the
+    // row has restrictive FKs.
+    await db.ground.delete({ where: { id } });
+
+    return res.json({ success: true, deleted: id, name: ground.name });
+  } catch (error) {
+    console.error('delete ground error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/academies/public
+ *
+ * Returns ALL academies (from Coach Corner) for display on the public
+ * Find Ground / Academy screen. Each academy is normalized to look like a
+ * Ground record so the frontend can render both in one list/map.
+ *
+ * The Academy model has: name, location (text address — freeform),
+ * groundName, coachUserId. There is no lat/lng/mapLink column on Academy.
+ * We try to extract coordinates from the `location` text (if it happens to
+ * contain a Google Maps URL) — otherwise the academy is shown with no
+ * coordinates and the user can still tap it to view details. The frontend
+ * will offer a "Open in Google Maps" button that searches the address text
+ * on maps.google.com as a fallback when no direct mapLink is available.
+ *
+ * No auth required — academy names and cities are already public (they appear
+ * on coach profiles and tournament pages).
+ */
+router.get('/academies/public', async (req, res) => {
+  try {
+    const academies = await db.academy.findMany({
+      include: {
+        coachUser: { select: { id: true, name: true, phone: true, avatar: true } },
+        _count: { select: { players: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    // Normalize each academy to a "ground-like" shape.
+    const normalized = academies.map((a) => {
+      // Try to extract a Google Maps URL or coordinates from the location string.
+      // Coaches may have pasted a maps link into the location field.
+      const locStr = a.location || '';
+      let mapLink: string | null = null;
+      let lat: number | null = null;
+      let lng: number | null = null;
+
+      if (locStr) {
+        // Case 1: the location is itself a URL
+        if (/^https?:\/\//i.test(locStr)) {
+          mapLink = locStr;
+          const atMatch = locStr.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+          if (atMatch) {
+            lat = parseFloat(atMatch[1]);
+            lng = parseFloat(atMatch[2]);
+          } else {
+            const qMatch = locStr.match(/[?&](?:q|query)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+            if (qMatch) {
+              lat = parseFloat(qMatch[1]);
+              lng = parseFloat(qMatch[2]);
+            }
+          }
+        } else {
+          // Case 2: the location is a plain text address (e.g. "Kothrud, Pune")
+          // No coordinates — frontend will offer a "Search on Google Maps" link
+          // built from the URL-encoded address.
+        }
+      }
+
+      return {
+        id: a.id,
+        name: a.name,
+        address: a.location || null,
+        city: null,
+        state: null,
+        surface: null,
+        amenities: null,
+        lat,
+        lng,
+        mapLink,
+        createdAt: a.createdAt.toISOString(),
+        // Extra fields specific to academies
+        isAcademy: true,
+        coachUserId: a.coachUserId,
+        coachName: a.coachUser?.name || null,
+        coachAvatar: a.coachUser?.avatar || null,
+        groundName: a.groundName || null,
+        playerCount: a._count?.players ?? 0,
+        addedBy: a.coachUserId, // for delete-permission checks
+        _count: { matches: 0 },
+        matches: [],
+      };
+    });
+
+    return res.json({ academies: normalized });
+  } catch (error) {
+    console.error('public academies fetch error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/academies/:id
+ * Body: { userId }
+ *
+ * Authorization:
+ *   - The coach who created the academy (`coachUserId` matches `userId`), OR
+ *   - Any admin.
+ */
+router.delete('/academies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = (req.body?.userId ?? req.query['userId']) as string | undefined;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const caller = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, isAdmin: true },
+    });
+    if (!caller) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const academy = await db.academy.findUnique({
+      where: { id },
+      select: { id: true, coachUserId: true, name: true },
+    });
+    if (!academy) {
+      return res.status(404).json({ error: 'Academy not found' });
+    }
+
+    const isOwner = academy.coachUserId === userId;
+    const isAdmin = caller.isAdmin === true;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Only the coach who created this academy or an admin can delete it' });
+    }
+
+    // Academy has cascade deletes configured (players, attendance, etc.)
+    await db.academy.delete({ where: { id } });
+
+    return res.json({ success: true, deleted: id, name: academy.name });
+  } catch (error) {
+    console.error('delete academy error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

@@ -25,6 +25,10 @@ import {
   Layers,
   Map as MapIcon,
   List,
+  Trash2,
+  GraduationCap,
+  User,
+  ExternalLink,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -51,6 +55,14 @@ interface Ground {
   lng: number | null;
   mapLink: string | null;
   createdAt: string;
+  addedBy?: string | null;
+  // Academy-specific fields (only set when isAcademy === true)
+  isAcademy?: boolean;
+  coachName?: string | null;
+  coachAvatar?: string | null;
+  coachUserId?: string | null;
+  groundName?: string | null;
+  playerCount?: number;
   _count: { matches: number };
   matches?: Array<{
     id: string;
@@ -154,6 +166,52 @@ function formatDistance(lat1: number, lng1: number, lat2: number, lng2: number):
   return d < 1 ? `${Math.round(d * 1000)}m` : `${d.toFixed(1)}km`;
 }
 
+/**
+ * Build a working Google Maps URL from a Ground/Academy record.
+ *
+ * Priority:
+ * 1. If `mapLink` is set and starts with http(s)://, use it directly.
+ * 2. If `lat`/`lng` are set, build a https://www.google.com/maps/search/?api=1&query=LAT,LNG URL.
+ * 3. Otherwise, build a search URL from name + address + city + state.
+ *
+ * This fixes a bug where the previous "Open in Google Maps" button rendered
+ * an <a> tag with `href={ground.mapLink}` — but `mapLink` was sometimes empty
+ * (so the click did nothing) or was a `maps.app.goo.gl` short link that
+ * silently failed in some WebView environments. Always returning a fully
+ * qualified https URL ensures the link opens consistently.
+ */
+function buildGoogleMapsUrl(ground: Ground): string | null {
+  // 1. Direct mapLink
+  if (ground.mapLink && /^https?:\/\//i.test(ground.mapLink)) {
+    return ground.mapLink;
+  }
+  // 2. Coordinates
+  if (ground.lat !== null && ground.lng !== null) {
+    return `https://www.google.com/maps/search/?api=1&query=${ground.lat},${ground.lng}`;
+  }
+  // 3. Address-text search
+  const parts = [ground.name, ground.address, ground.city, ground.state].filter(Boolean);
+  if (parts.length === 0) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(parts.join(', '))}`;
+}
+
+/**
+ * Open Google Maps for a ground/academy. Uses window.open with the URL
+ * returned by buildGoogleMapsUrl. Falls back to window.location.href if
+ * the popup is blocked (some in-app WebViews block window.open).
+ */
+function openGoogleMaps(ground: Ground) {
+  const url = buildGoogleMapsUrl(ground);
+  if (!url) return false;
+  // Try opening in a new tab first.
+  const newTab = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!newTab) {
+    // Popup blocked — navigate the current tab.
+    window.location.href = url;
+  }
+  return true;
+}
+
 function getSurfaceBorderClass(surface: string | null): string {
   if (!surface) return 'border-l-warm-300 dark:border-l-warm-600';
   const config = SURFACE_CONFIG[surface];
@@ -240,6 +298,11 @@ function GroundCard({
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
+                {ground.isAcademy && (
+                  <div className="w-5 h-5 rounded-md bg-brand-teal/10 dark:bg-brand-teal/20 flex items-center justify-center shrink-0" title="Academy">
+                    <GraduationCap className="w-3 h-3 text-brand-teal" />
+                  </div>
+                )}
                 <h4 className="font-bold text-warm-800 dark:text-warm-100 truncate">{ground.name}</h4>
                 {ground._count.matches > 0 && (
                   <div className="flex items-center gap-0.5 shrink-0">
@@ -259,6 +322,14 @@ function GroundCard({
               {ground.address && ground.address !== [ground.city, ground.state].filter(Boolean).join(', ') && (
                 <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-0.5 truncate">{ground.address}</p>
               )}
+              {ground.isAcademy && ground.coachName && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <User className="w-3 h-3 text-warm-400 dark:text-warm-500 shrink-0" />
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400 truncate">
+                    Coach: <span className="font-semibold">{ground.coachName}</span>
+                  </p>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-2">
               {userLat !== null && userLng !== null && ground.lat !== null && ground.lng !== null && (
@@ -273,16 +344,27 @@ function GroundCard({
             </div>
           </div>
 
-          {/* Surface badge + match count + amenities */}
+          {/* Surface badge + match count + amenities + academy player count */}
           <div className="flex items-center gap-1.5 flex-wrap">
+            {ground.isAcademy && (
+              <Badge className="text-[9px] font-semibold border-0 px-1.5 py-0 bg-brand-teal/10 dark:bg-brand-teal/20 text-brand-teal">
+                Academy
+              </Badge>
+            )}
             {surfaceConfig && (
               <Badge className={`${getSurfaceBadgeClass(ground.surface)} text-[9px] font-semibold border-0 px-1.5 py-0`}>
                 {surfaceConfig.label}
               </Badge>
             )}
-            <Badge variant="secondary" className="text-[9px] bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 border-0 px-1.5 py-0">
-              {ground._count.matches} match{ground._count.matches !== 1 ? 'es' : ''}
-            </Badge>
+            {ground.isAcademy ? (
+              <Badge variant="secondary" className="text-[9px] bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 border-0 px-1.5 py-0">
+                {ground.playerCount ?? 0} player{(ground.playerCount ?? 0) !== 1 ? 's' : ''}
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-[9px] bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300 border-0 px-1.5 py-0">
+                {ground._count.matches} match{ground._count.matches !== 1 ? 'es' : ''}
+              </Badge>
+            )}
             {amenities.map((a) => {
               const config = AMENITY_CONFIG[a];
               if (!config) return null;
@@ -312,6 +394,8 @@ function GroundDetailView({
   onSelect,
   onClose,
   onBack,
+  canDelete,
+  onDelete,
 }: {
   ground: Ground;
   userLat: number | null;
@@ -319,11 +403,15 @@ function GroundDetailView({
   onSelect?: (groundId: string, groundName: string) => void;
   onClose: () => void;
   onBack: () => void;
+  canDelete?: boolean;
+  onDelete?: (ground: Ground) => void;
 }) {
   const amenities = parseAmenities(ground.amenities);
   const surfaceConfig = ground.surface ? SURFACE_CONFIG[ground.surface] : null;
   const upcomingMatches = (ground.matches || []).filter((m) => m.status === 'upcoming' || m.status === 'live');
   const recentMatches = (ground.matches || []).filter((m) => m.status === 'completed').slice(0, 5);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const mapsUrl = buildGoogleMapsUrl(ground);
 
   return (
     <motion.div
@@ -335,6 +423,7 @@ function GroundDetailView({
     >
       {/* Hero Section */}
       <div className={`relative overflow-hidden ${
+        ground.isAcademy ? 'bg-gradient-to-br from-brand-teal to-brand-teal-dark' :
         ground.surface === 'mat' ? 'bg-gradient-to-br from-teal-600 to-teal-800 dark:from-teal-800 dark:to-teal-950' :
         ground.surface === 'mud' ? 'bg-gradient-to-br from-amber-600 to-amber-800 dark:from-amber-800 dark:to-amber-950' :
         ground.surface === 'grass' ? 'bg-gradient-to-br from-green-600 to-green-800 dark:from-green-800 dark:to-green-950' :
@@ -367,11 +456,26 @@ function GroundDetailView({
             </div>
           </div>
 
+          {ground.isAcademy && (
+            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider mb-2">
+              <GraduationCap className="w-3 h-3" />
+              Academy
+            </div>
+          )}
+
           <h2 className="text-2xl font-black text-white mb-1">{ground.name}</h2>
           {(ground.address || ground.city || ground.state) && (
             <div className="flex items-center gap-1.5 text-white/80 text-sm">
               <MapPin className="w-3.5 h-3.5 shrink-0" />
               <span>{[ground.address, ground.city, ground.state].filter(Boolean).join(', ')}</span>
+            </div>
+          )}
+
+          {/* Coach info (academies only) */}
+          {ground.isAcademy && ground.coachName && (
+            <div className="flex items-center gap-1.5 text-white/80 text-sm mt-1.5">
+              <User className="w-3.5 h-3.5 shrink-0" />
+              <span>Coach: <span className="font-semibold text-white">{ground.coachName}</span></span>
             </div>
           )}
 
@@ -385,11 +489,19 @@ function GroundDetailView({
 
           {/* Quick stats row */}
           <div className="flex items-center gap-4 mt-4">
-            <div className="flex items-center gap-1.5 text-white/90">
-              <Trophy className="w-4 h-4" />
-              <span className="text-sm font-bold">{ground._count.matches}</span>
-              <span className="text-xs text-white/70">matches</span>
-            </div>
+            {ground.isAcademy ? (
+              <div className="flex items-center gap-1.5 text-white/90">
+                <User className="w-4 h-4" />
+                <span className="text-sm font-bold">{ground.playerCount ?? 0}</span>
+                <span className="text-xs text-white/70">players</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-white/90">
+                <Trophy className="w-4 h-4" />
+                <span className="text-sm font-bold">{ground._count.matches}</span>
+                <span className="text-xs text-white/70">matches</span>
+              </div>
+            )}
             {surfaceConfig && (
               <Badge className={`${getSurfaceBadgeClass(ground.surface)} text-xs font-semibold border-0`}>
                 <Layers className="w-3 h-3 mr-1" />
@@ -443,30 +555,83 @@ function GroundDetailView({
           </Card>
         )}
 
-        {/* Full Address */}
-        {(ground.address || ground.mapLink) && (
+        {/* Location — always show this card if we have any location info, even just coordinates */}
+        {(ground.address || ground.city || ground.state || ground.lat !== null || mapsUrl) && (
           <Card className="border-warm-200 dark:border-warm-700">
             <CardContent className="p-4">
-              <h4 className="font-bold text-warm-800 dark:text-warm-100 text-sm mb-2">Address</h4>
-              {ground.address && (
+              <h4 className="font-bold text-warm-800 dark:text-warm-100 text-sm mb-2">Location</h4>
+              {(ground.address || ground.city || ground.state) && (
                 <div className="flex items-start gap-2 mb-2">
                   <MapPin className="w-4 h-4 text-brand-red shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm text-warm-700 dark:text-warm-200">{ground.address}</p>
+                    {ground.address && <p className="text-sm text-warm-700 dark:text-warm-200">{ground.address}</p>}
                     <p className="text-xs text-warm-500 dark:text-warm-400">{[ground.city, ground.state].filter(Boolean).join(', ')}</p>
                   </div>
                 </div>
               )}
-              {ground.mapLink && (
-                <a
-                  href={ground.mapLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg bg-brand-teal/10 dark:bg-brand-teal/20 text-brand-teal text-xs font-semibold hover:bg-brand-teal/20 dark:hover:bg-brand-teal/30 transition-colors"
+              {ground.lat !== null && ground.lng !== null && (
+                <p className="text-[10px] text-warm-400 dark:text-warm-500 mb-2">
+                  Coordinates: {ground.lat.toFixed(5)}, {ground.lng.toFixed(5)}
+                </p>
+              )}
+              {mapsUrl && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const ok = openGoogleMaps(ground);
+                    if (!ok) {
+                      // No location info at all — shouldn't happen because the button is only
+                      // rendered when mapsUrl exists, but defensive.
+                      window.alert('No location info available for this ground.');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 mt-1 px-3 py-2 rounded-lg bg-brand-teal/10 dark:bg-brand-teal/20 text-brand-teal text-xs font-semibold hover:bg-brand-teal/20 dark:hover:bg-brand-teal/30 transition-colors"
                 >
                   <Navigation className="w-3.5 h-3.5" />
                   Open in Google Maps
-                </a>
+                  <ExternalLink className="w-3 h-3 ml-0.5 opacity-70" />
+                </button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Delete button — only shown to the owner or admins */}
+        {canDelete && onDelete && (
+          <Card className="border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20">
+            <CardContent className="p-4">
+              {!confirmingDelete ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(true)}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete {ground.isAcademy ? 'Academy' : 'Ground'}
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-red-700 dark:text-red-300 font-medium text-center">
+                    Are you sure? This will permanently delete {ground.isAcademy ? 'this academy and all its player/attendance/fee records' : `"${ground.name}"`}.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(false)}
+                      className="flex-1 px-3 py-2 rounded-lg bg-warm-100 dark:bg-warm-700 text-warm-700 dark:text-warm-200 text-xs font-semibold hover:bg-warm-200 dark:hover:bg-warm-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { onDelete(ground); setConfirmingDelete(false); }}
+                      className="flex-1 px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors"
+                    >
+                      Yes, Delete
+                    </button>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -772,11 +937,37 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
         params.set('lat', userLat.toString());
         params.set('lng', userLng.toString());
       }
-      const res = await fetch(`/api/grounds?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setGrounds(data.grounds || []);
+      // Fetch grounds + academies in parallel so both appear in the list/map.
+      // Academies don't support the same filters (surface/amenity), so we always
+      // fetch all of them and filter on the client when a filter is active.
+      const [groundsRes, academiesRes] = await Promise.all([
+        fetch(`/api/grounds?${params.toString()}`),
+        fetch('/api/academies/public'),
+      ]);
+
+      const groundsData = groundsRes.ok ? (await groundsRes.json()).grounds || [] : [];
+      const academiesData = academiesRes.ok ? (await academiesRes.json()).academies || [] : [];
+
+      // Merge academies into the grounds list. Apply client-side filters to academies:
+      // - Surface filter: hide academies (they have no surface field) unless 'all'.
+      // - Amenity filter: hide academies if a specific amenity is selected.
+      // - Search filter: match name, address, coachName.
+      let filteredAcademies: Ground[] = academiesData;
+      if (surfaceFilter !== 'all' || amenityFilter) {
+        filteredAcademies = [];
+      } else if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
+        filteredAcademies = academiesData.filter(
+          (a: Ground) =>
+            a.name?.toLowerCase().includes(q) ||
+            a.address?.toLowerCase().includes(q) ||
+            a.coachName?.toLowerCase().includes(q) ||
+            a.city?.toLowerCase().includes(q) ||
+            a.state?.toLowerCase().includes(q),
+        );
       }
+
+      setGrounds([...groundsData, ...filteredAcademies]);
     } catch (err) {
       console.error('Failed to load grounds:', err);
     } finally {
@@ -833,8 +1024,41 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
     }
   };
 
+  const handleDeleteGround = async (ground: Ground) => {
+    if (!currentUser?.id) {
+      toast({ title: 'Please log in to delete', variant: 'destructive' });
+      return;
+    }
+    try {
+      // Academies use /api/academies/:id, regular grounds use /api/grounds/:id.
+      const endpoint = ground.isAcademy ? `/api/academies/${ground.id}` : `/api/grounds/${ground.id}`;
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      if (res.ok) {
+        toast({ title: 'Deleted', description: `${ground.name} has been removed` });
+        setSelectedGroundId(null);
+        loadGrounds();
+      } else {
+        const data = await res.json().catch(() => ({ error: 'Delete failed' }));
+        toast({ title: 'Could not delete', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Network error — try again', variant: 'destructive' });
+    }
+  };
+
   // Selected ground detail
   const selectedGround = selectedGroundId ? grounds.find((g) => g.id === selectedGroundId) : null;
+
+  // Permission check: owner OR admin can delete.
+  const canDeleteSelected = !!currentUser && !!selectedGround && (
+    currentUser.isAdmin === true ||
+    selectedGround.addedBy === currentUser.id ||
+    (selectedGround.isAcademy && selectedGround.coachUserId === currentUser.id)
+  );
 
   // ─── Render ─────────────────────────────────────────────────────
   return (
@@ -902,6 +1126,8 @@ export default function GroundsScreen({ onClose, onSelect }: { onClose: () => vo
               onSelect={onSelect}
               onClose={onClose}
               onBack={() => setSelectedGroundId(null)}
+              canDelete={canDeleteSelected}
+              onDelete={handleDeleteGround}
             />
           ) : (
             <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

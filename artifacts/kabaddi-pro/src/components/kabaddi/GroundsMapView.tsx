@@ -23,6 +23,26 @@ interface Ground {
   lng: number | null;
   mapLink: string | null;
   _count: { matches: number };
+  // Academy-specific fields
+  isAcademy?: boolean;
+  coachName?: string | null;
+  playerCount?: number;
+}
+
+/**
+ * Build a Google Maps URL from a ground/academy record.
+ * Mirrors the helper in GroundsScreen.tsx so the map popup's "Open in Google Maps"
+ * button always opens something useful — even for academies with only a text
+ * address (no coordinates, no mapLink).
+ */
+function buildGoogleMapsUrl(g: Ground): string | null {
+  if (g.mapLink && /^https?:\/\//i.test(g.mapLink)) return g.mapLink;
+  if (g.lat !== null && g.lng !== null) {
+    return `https://www.google.com/maps/search/?api=1&query=${g.lat},${g.lng}`;
+  }
+  const parts = [g.name, g.address, g.city, g.state].filter(Boolean);
+  if (parts.length === 0) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(parts.join(', '))}`;
 }
 
 interface GroundsMapViewProps {
@@ -148,25 +168,39 @@ export default function GroundsMapView({ grounds, userLat, userLng, onViewDetail
             )}
 
             {/* Ground pins */}
-            {groundsWithIcons.map(({ ground, icon }) => (
+            {groundsWithIcons.map(({ ground, icon }) => {
+              const mapsUrl = buildGoogleMapsUrl(ground);
+              return (
               <Marker key={ground.id} position={[ground.lat!, ground.lng!]} icon={icon}>
                 <Popup>
                   <div style={{ minWidth: '180px', fontSize: '12px' }}>
+                    {ground.isAcademy && (
+                      <div style={{ display: 'inline-block', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#0d9488', color: 'white', fontSize: '9px', fontWeight: 700, letterSpacing: '0.05em', marginBottom: '4px' }}>
+                        ACADEMY
+                      </div>
+                    )}
                     <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '4px', color: '#1c1917' }}>
                       {ground.name}
                     </div>
-                    {(ground.city || ground.state) && (
+                    {(ground.city || ground.state || ground.address) && (
                       <div style={{ color: '#78716c', marginBottom: '6px' }}>
-                        {[ground.city, ground.state].filter(Boolean).join(', ')}
+                        {[ground.address, ground.city, ground.state].filter(Boolean).join(', ')}
                       </div>
                     )}
-                    {ground.surface && (
+                    {ground.isAcademy && ground.coachName && (
+                      <div style={{ color: '#78716c', marginBottom: '6px' }}>
+                        Coach: <strong>{ground.coachName}</strong>
+                      </div>
+                    )}
+                    {ground.surface && !ground.isAcademy && (
                       <div style={{ display: 'inline-block', padding: '2px 6px', borderRadius: '4px', backgroundColor: SURFACE_COLORS[ground.surface] || '#78716c', color: 'white', fontSize: '10px', fontWeight: 600, marginBottom: '6px' }}>
                         {ground.surface.toUpperCase()}
                       </div>
                     )}
                     <div style={{ color: '#78716c', marginBottom: '8px' }}>
-                      {ground._count.matches} match{ground._count.matches !== 1 ? 'es' : ''}
+                      {ground.isAcademy
+                        ? `${ground.playerCount ?? 0} player${(ground.playerCount ?? 0) !== 1 ? 's' : ''}`
+                        : `${ground._count.matches} match${ground._count.matches !== 1 ? 'es' : ''}`}
                     </div>
                     <button
                       onClick={() => onViewDetail(ground.id)}
@@ -185,9 +219,9 @@ export default function GroundsMapView({ grounds, userLat, userLng, onViewDetail
                     >
                       View Details
                     </button>
-                    {ground.mapLink && (
+                    {mapsUrl && (
                       <a
-                        href={ground.mapLink}
+                        href={mapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -212,7 +246,8 @@ export default function GroundsMapView({ grounds, userLat, userLng, onViewDetail
                   </div>
                 </Popup>
               </Marker>
-            ))}
+              );
+            })}
           </MapContainer>
         </div>
 
