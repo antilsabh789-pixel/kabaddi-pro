@@ -124,7 +124,11 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
   useEffect(() => { fetchMatch(); }, [fetchMatch]);
 
   // ── Delete match ───────────────────────────────────────────────────────────
-  const canDeleteMatch = !!(currentUser?.id && match?.scorers?.some((s) => s.userId === currentUser.id));
+  // Admin can delete ANY match; otherwise only a scorer of that match can delete it.
+  const canDeleteMatch = !!(currentUser?.id && (
+    currentUser?.isAdmin === true ||
+    match?.scorers?.some((s) => s.userId === currentUser.id)
+  ));
 
   const handleDeleteMatch = async () => {
     if (!currentUser?.id || !matchId) return;
@@ -267,7 +271,12 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
         </div>
         {deleteConfirm && (
           <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
-            <p className="text-xs font-bold text-red-700 dark:text-red-400 mb-2">⚠️ Delete this match? This will reverse all player stats. This cannot be undone.</p>
+            <p className="text-xs font-bold text-red-700 dark:text-red-400 mb-2">
+              ⚠️ Delete this match? This will reverse all player stats. This cannot be undone.
+              {currentUser?.isAdmin && !match?.scorers?.some((s) => s.userId === currentUser.id) && (
+                <span className="block mt-1 text-[10px] text-red-500 dark:text-red-400">Admin override — you are deleting a match scored by another user.</span>
+              )}
+            </p>
             <div className="flex gap-2">
               <button onClick={() => setDeleteConfirm(false)} disabled={deleting} className="flex-1 py-2 rounded-lg border border-warm-300 dark:border-warm-600 text-warm-600 font-semibold text-xs">Cancel</button>
               <button onClick={handleDeleteMatch} disabled={deleting} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs disabled:opacity-50">{deleting ? 'Deleting...' : 'Yes, Delete'}</button>

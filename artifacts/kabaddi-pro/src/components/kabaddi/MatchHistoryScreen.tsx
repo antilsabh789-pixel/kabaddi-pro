@@ -25,11 +25,13 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useKabaddiStore } from '@/lib/store';
+import { useToast } from '@/hooks/use-toast';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -332,8 +334,17 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [totalFromApi, setTotalFromApi] = useState(0);
+  // Admin "view all" mode — when true, fetch all matches (no userId filter).
+  // Only admins can toggle this. Defaults to true for admins so they immediately
+  // see the global feed and can moderate any match.
+  const [adminViewAll, setAdminViewAll] = useState<boolean>(!!currentUser?.isAdmin);
+  // Delete confirmation + in-flight state for inline card delete
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const PAGE_SIZE = 10;
+  const isAdmin = !!currentUser?.isAdmin;
 
   // Fetch matches
   const fetchMatches = useCallback(
@@ -350,7 +361,10 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
         params.set('offset', currentOffset.toString());
         params.set('status', 'completed');
 
-        if (userId) {
+        // Admin in "view all" mode fetches every match. Otherwise (normal users,
+        // or admin who turned off view-all) filter by the current user's participation.
+        const shouldFilterByUser = !(isAdmin && adminViewAll);
+        if (userId && shouldFilterByUser) {
           params.set('userId', userId);
         }
 
@@ -375,7 +389,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
         setLoadingMore(false);
       }
     },
-    [userId]
+    [userId, isAdmin, adminViewAll]
   );
 
   useEffect(() => {
@@ -529,6 +543,39 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
   // Toggle expand
   const handleMatchClick = (matchId: string) => {
     setExpandedMatchId((prev) => (prev === matchId ? null : matchId));
+  };
+
+  // ── Delete match (inline from feed card) ─────────────────────────────────
+  // Backend enforces: scorer of the match OR admin can delete. We mirror that
+  // check here for UI affordance (hide the button entirely otherwise).
+  const canDeleteMatch = (match: MatchItem): boolean => {
+    if (!currentUser?.id) return false;
+    if (isAdmin) return true;
+    return match.scorers.some((s) => s.userId === currentUser.id);
+  };
+
+  const handleDeleteMatch = async (match: MatchItem) => {
+    if (!currentUser?.id) return;
+    setDeletingId(match.id);
+    try {
+      const res = await fetch('/api/matches', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: match.id, userId: currentUser.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: 'Delete failed', description: data?.error || 'Could not delete match', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Match deleted', description: 'Player stats have been reversed.' });
+      setMatches((prev) => prev.filter((m) => m.id !== match.id));
+      setPendingDeleteId(null);
+    } catch {
+      toast({ title: 'Delete failed', variant: 'destructive' });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   // Navigate to Quick Score
@@ -731,10 +778,72 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                 )}
               </div>
               <div className="flex items-center gap-1 text-[10px] text-warm-400 dark:text-warm-500">
+                {/* Admin / scorer delete button. stopPropagation so it doesn't toggle expand. */}
+                {canDeleteMatch(match) && pendingDeleteId !== match.id && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPendingDeleteId(match.id);
+                    }}
+                    disabled={deletingId === match.id}
+                    title={isAdmin && !match.scorers.some((s) => s.userId === currentUser?.id) ? 'Admin: delete this match' : 'Delete this match'}
+                    className="mr-1 px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    {isAdmin && 'Del'}
+                  </button>
+                )}
                 <Calendar className="w-3 h-3" />
                 {formatMatchDate(match.completedAt || match.createdAt)}
               </div>
             </div>
+
+            {/* Delete confirmation banner (inline) */}
+            <AnimatePresence>
+              {pendingDeleteId === match.id && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div
+                    className="mt-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="text-[11px] font-bold text-red-700 dark:text-red-400 mb-2">
+                      ⚠️ Delete this match?
+                      <span className="block text-[10px] font-medium text-red-500 dark:text-red-400 mt-0.5">
+                        This will reverse all player stats. Cannot be undone.
+                        {isAdmin && !match.scorers.some((s) => s.userId === currentUser?.id) && (
+                          <span className="block mt-0.5">Admin override — match scored by another user.</span>
+                        )}
+                      </span>
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setPendingDeleteId(null); }}
+                        disabled={deletingId === match.id}
+                        className="flex-1 py-1.5 rounded-md border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300 font-semibold text-[11px]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteMatch(match); }}
+                        disabled={deletingId === match.id}
+                        className="flex-1 py-1.5 rounded-md bg-red-500 hover:bg-red-600 text-white font-bold text-[11px] disabled:opacity-50"
+                      >
+                        {deletingId === match.id ? 'Deleting…' : 'Yes, Delete'}
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Teams & Score */}
             <div className="flex items-center justify-between">
@@ -1157,14 +1266,34 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
             >
               <ChevronLeft className="w-5 h-5 text-warm-700 dark:text-warm-200" />
             </motion.button>
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="text-lg font-black text-warm-800 dark:text-warm-100">
-                Match History
+                {isAdmin && adminViewAll ? 'All Matches (Admin)' : 'Match History'}
               </h1>
               <p className="text-[10px] text-warm-500 dark:text-warm-400">
-                {stats.total} match{stats.total !== 1 ? 'es' : ''} played
+                {isAdmin && adminViewAll
+                  ? `Moderating every match in the system · ${stats.total} shown`
+                  : `${stats.total} match${stats.total !== 1 ? 'es' : ''} played`}
               </p>
             </div>
+            {/* Admin-only toggle: switch between global moderation feed and personal matches */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOffset(0);
+                  setAdminViewAll((v) => !v);
+                }}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${
+                  adminViewAll
+                    ? 'bg-brand-red text-white hover:bg-brand-red-dark'
+                    : 'bg-warm-200 dark:bg-warm-700 text-warm-700 dark:text-warm-200 hover:bg-warm-300 dark:hover:bg-warm-600'
+                }`}
+                title={adminViewAll ? 'Showing every match in the system (admin view)' : 'Showing only your matches'}
+              >
+                {adminViewAll ? '🌐 All Matches' : '👤 My Matches'}
+              </button>
+            )}
           </div>
         </header>
 
