@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../lib/db';
+import { findOrCreateProvisionalUser } from '../lib/provisional-user';
 
 const router = Router();
 
@@ -308,6 +309,56 @@ router.post('/player-location', async (req, res) => {
     });
     return res.json({ location });
   } catch (error) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/players/provisional
+ * Body: { phone, name?, jerseyNumber?, createdByUserId? }
+ *
+ * Find-or-create a provisional User for a non-registered player added by
+ * phone number (during match scoring or coach academy roster management).
+ * Returns the user id + playerCode + provisional flag.
+ *
+ * If the phone already belongs to a real (registered) user, that user is
+ * returned as-is — so the caller can treat both cases the same way: "give me
+ * the user id for this phone, creating a placeholder if needed".
+ *
+ * See lib/provisional-user.ts for the full rationale.
+ */
+router.post('/players/provisional', async (req, res) => {
+  try {
+    const { phone, name, jerseyNumber, createdByUserId } = req.body || {};
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ error: 'phone is required' });
+    }
+    // Normalize: accept digits-only or +91XXXXXXXXXX. We store in +91 format
+    // to match the auth endpoint's expectation, so a later signup with the
+    // same phone finds this row.
+    const digits = phone.replace(/\D/g, '');
+    let normalized = phone;
+    if (digits.length === 10) normalized = `+91${digits}`;
+    else if (digits.length > 10) normalized = `+${digits}`;
+    else return res.status(400).json({ error: 'phone must be at least 10 digits' });
+
+    const user = await findOrCreateProvisionalUser({
+      phone: normalized,
+      name: typeof name === 'string' ? name : undefined,
+      jerseyNumber: typeof jerseyNumber === 'number' ? jerseyNumber : undefined,
+      createdByUserId: typeof createdByUserId === 'string' ? createdByUserId : undefined,
+    });
+    return res.json({
+      user: {
+        id: user.id,
+        playerCode: user.playerCode,
+        name: user.name,
+        phone: user.phone,
+        provisional: user.provisional,
+      },
+    });
+  } catch (error) {
+    console.error('POST /players/provisional error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

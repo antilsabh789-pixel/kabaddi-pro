@@ -21,6 +21,9 @@ export interface CurrentUser {
   premiumPlan?: string | null;
   isAdmin?: boolean;
   showCoachBadge?: boolean;
+  // True for placeholder accounts created when a scorer or coach added this
+  // phone before the user registered. Always false after the user signs up.
+  provisional?: boolean;
   createdAt?: number;
 }
 

@@ -74,7 +74,139 @@ router.post('/auth', async (req, res) => {
       if (!phoneRegex.test(phone)) return res.status(400).json({ error: 'Phone number must be in +91XXXXXXXXXX format (12 digits total).' });
 
       const existingUser = await db.user.findUnique({ where: { phone } });
-      if (existingUser) return res.status(409).json({ error: 'Phone number already registered. Please login instead.' });
+      if (existingUser) {
+        // ── Provisional user upgrade path ───────────────────────────────
+        // If a scorer or coach previously added this phone as a non-registered
+        // player, we created a "provisional" placeholder User row (password='',
+        // provisional=true). Now that the real player is registering with this
+        // phone, we UPGRADE that row in place — set the real password, fill in
+        // any missing fields (name/dob/gender/weight), and flip provisional to
+        // false. They keep the same id + playerCode, so all match events,
+        // academy memberships, attendance, fee records etc. that pointed at the
+        // provisional row are automatically theirs.
+        if (!existingUser.provisional) {
+          return res.status(409).json({ error: 'Phone number already registered. Please login instead.' });
+        }
+
+        const upgraded = await db.user.update({
+          where: { id: existingUser.id },
+          data: {
+            password: await hashPassword(password),
+            name: name || existingUser.name,
+            email: email || null,
+            dateOfBirth,
+            gender: gender || null,
+            weight: weight || null,
+            practiceGround: practiceGround || null,
+            role: 'player',
+            phoneVerified: true,
+            provisional: false,
+          },
+        });
+
+        // Ensure a PlayerProfile exists (it should, since findOrCreateProvisionalUser
+        // makes one, but guard against legacy rows).
+        await db.playerProfile.upsert({
+          where: { userId: upgraded.id },
+          update: {},
+          create: { userId: upgraded.id },
+        });
+
+        // Claim any legacy playerPhone-keyed events (pre-provisional-feature
+        // events saved with playerId=null). Same logic as the new-user path below.
+        try {
+          const pendingEvents = await db.matchEvent.findMany({
+            where: { playerPhone: phone },
+            include: { match: { select: { isPractice: true } } },
+          });
+
+          if (pendingEvents.length > 0) {
+            const agg = {
+              practice: { matches: new Set<string>(), raids: 0, successfulRaids: 0, tackles: 0, successfulTackles: 0, raidPoints: 0, tacklePoints: 0, bonusPoints: 0, superTackles: 0, totalPoints: 0 },
+              tournament: { matches: new Set<string>(), raids: 0, successfulRaids: 0, tackles: 0, successfulTackles: 0, raidPoints: 0, tacklePoints: 0, bonusPoints: 0, superTackles: 0, totalPoints: 0 },
+            };
+
+            for (const evt of pendingEvents) {
+              const bucket = evt.match.isPractice ? agg.practice : agg.tournament;
+              bucket.matches.add(evt.matchId);
+              const val = evt.value || 0;
+              switch (evt.eventType) {
+                case 'raid_point':
+                  bucket.raidPoints += val; bucket.raids += 1; bucket.successfulRaids += 1; bucket.totalPoints += val; break;
+                case 'bonus_point':
+                  bucket.bonusPoints += val; bucket.totalPoints += val; break;
+                case 'tackle_point':
+                  bucket.tacklePoints += val; bucket.tackles += 1; bucket.successfulTackles += 1; bucket.totalPoints += val; break;
+                case 'super_tackle':
+                  bucket.tacklePoints += val; bucket.superTackles += 1; bucket.totalPoints += val; break;
+                case 'empty_raid':
+                  bucket.raids += 1; break;
+              }
+            }
+
+            const updateData: Record<string, { increment: number }> = {};
+            if (agg.practice.matches.size > 0) {
+              updateData.practiceMatches = { increment: agg.practice.matches.size };
+              if (agg.practice.raids > 0) updateData.practiceTotalRaids = { increment: agg.practice.raids };
+              if (agg.practice.successfulRaids > 0) updateData.practiceSuccessfulRaids = { increment: agg.practice.successfulRaids };
+              if (agg.practice.tackles > 0) updateData.practiceTotalTackles = { increment: agg.practice.tackles };
+              if (agg.practice.successfulTackles > 0) updateData.practiceSuccessfulTackles = { increment: agg.practice.successfulTackles };
+              if (agg.practice.raidPoints > 0) updateData.practiceRaidPoints = { increment: agg.practice.raidPoints };
+              if (agg.practice.tacklePoints > 0) updateData.practiceTacklePoints = { increment: agg.practice.tacklePoints };
+              if (agg.practice.bonusPoints > 0) updateData.practiceBonusPoints = { increment: agg.practice.bonusPoints };
+              if (agg.practice.superTackles > 0) updateData.practiceSuperTackles = { increment: agg.practice.superTackles };
+              if (agg.practice.totalPoints > 0) updateData.practiceTotalPoints = { increment: agg.practice.totalPoints };
+            }
+            if (agg.tournament.matches.size > 0) {
+              updateData.tournamentMatches = { increment: agg.tournament.matches.size };
+              if (agg.tournament.raids > 0) updateData.tournamentTotalRaids = { increment: agg.tournament.raids };
+              if (agg.tournament.successfulRaids > 0) updateData.tournamentSuccessfulRaids = { increment: agg.tournament.successfulRaids };
+              if (agg.tournament.tackles > 0) updateData.tournamentTotalTackles = { increment: agg.tournament.tackles };
+              if (agg.tournament.successfulTackles > 0) updateData.tournamentSuccessfulTackles = { increment: agg.tournament.successfulTackles };
+              if (agg.tournament.raidPoints > 0) updateData.tournamentRaidPoints = { increment: agg.tournament.raidPoints };
+              if (agg.tournament.tacklePoints > 0) updateData.tournamentTacklePoints = { increment: agg.tournament.tacklePoints };
+              if (agg.tournament.bonusPoints > 0) updateData.tournamentBonusPoints = { increment: agg.tournament.bonusPoints };
+              if (agg.tournament.superTackles > 0) updateData.tournamentSuperTackles = { increment: agg.tournament.superTackles };
+              if (agg.tournament.totalPoints > 0) updateData.tournamentTotalPoints = { increment: agg.tournament.totalPoints };
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              await db.playerProfile.update({ where: { userId: upgraded.id }, data: updateData });
+            }
+
+            await db.matchEvent.updateMany({
+              where: { playerPhone: phone },
+              data: { playerId: upgraded.id, playerPhone: null },
+            });
+
+            console.log(`[claim-pending-stats] Provisional upgrade: claimed ${pendingEvents.length} events for user ${upgraded.id} (${phone})`);
+          }
+        } catch (claimErr) {
+          console.error('Claim pending stats error (provisional upgrade):', claimErr);
+        }
+
+        return res.json({
+          user: {
+            id: upgraded.id,
+            phone: upgraded.phone,
+            playerCode: upgraded.playerCode,
+            name: upgraded.name,
+            role: upgraded.role,
+            isPremium: upgraded.isPremium,
+            premiumExpiry: upgraded.premiumExpiry,
+            premiumPlan: upgraded.premiumPlan,
+            isAdmin: upgraded.isAdmin,
+            avatar: upgraded.avatar,
+            gender: upgraded.gender,
+            weight: upgraded.weight,
+            practiceGround: upgraded.practiceGround,
+            dateOfBirth: upgraded.dateOfBirth,
+            showCoachBadge: upgraded.showCoachBadge,
+            provisional: false,
+          },
+          message: 'Welcome! Your account has been linked to your existing player profile.',
+        });
+      }
 
       const playerCode = await generatePlayerCode();
       // COACH ROLE IS DEPRECATED. Everyone is now a normal player. The Coach

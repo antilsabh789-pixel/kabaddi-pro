@@ -46,7 +46,7 @@ router.get('/academies/:id', async (req, res) => {
     const { id } = req.params;
     const academy = await db.academy.findUnique({
       where: { id },
-      include: { players: { include: { user: { select: { id: true, name: true, phone: true, avatar: true } } }, orderBy: { joinedAt: 'asc' } } },
+      include: { players: { include: { user: { select: { id: true, name: true, phone: true, avatar: true, provisional: true } } }, orderBy: { joinedAt: 'asc' } } },
     });
     if (!academy) return res.status(404).json({ error: 'Academy not found' });
     return res.json({ academy });

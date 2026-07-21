@@ -44,6 +44,10 @@ async function autoMigrate() {
     // open the location directly in Google Maps instead of asking the user for
     // raw latitude/longitude (which was a poor UX in the Add Ground form).
     `ALTER TABLE "Ground" ADD COLUMN IF NOT EXISTS "mapLink" TEXT`,
+    // User.provisional — placeholder accounts created when a scorer/coach adds
+    // a non-registered player by phone. They get upgraded in place on real
+    // signup. See schema.prisma for the full rationale.
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "provisional" BOOLEAN NOT NULL DEFAULT false`,
   ];
 
   // The Attendance table's unique constraint changed from

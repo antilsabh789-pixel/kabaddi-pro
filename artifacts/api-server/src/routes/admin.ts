@@ -277,7 +277,7 @@ router.get('/admin/players', async (req, res) => {
           isPremium: true, premiumExpiry: true, premiumPlan: true,
           role: true, showCoachBadge: true,
           gender: true, weight: true, practiceGround: true, location: true,
-          createdAt: true,
+          createdAt: true, provisional: true,
         },
         orderBy: { createdAt: 'desc' }, // newest first
         skip: (page - 1) * limit,
@@ -301,6 +301,7 @@ router.get('/admin/players', async (req, res) => {
       practiceGround: u.practiceGround,
       location: u.location,
       memberSince: u.createdAt,
+      provisional: u.provisional,
     }));
 
     return res.json({

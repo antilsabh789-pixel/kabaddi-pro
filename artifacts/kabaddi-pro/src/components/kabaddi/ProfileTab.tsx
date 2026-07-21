@@ -423,6 +423,7 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
     practiceGround: string | null;
     location: string | null;
     memberSince: string;
+    provisional?: boolean;
   }
 
   const [players, setPlayers] = useState<AdminPlayer[]>([]);
@@ -664,6 +665,11 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
                         {p.showCoachBadge && (
                           <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full" title="User has opted-in to display the Coach badge on their profile.">
                             <Megaphone className="w-2.5 h-2.5" />COACH
+                          </span>
+                        )}
+                        {p.provisional && (
+                          <span className="shrink-0 inline-flex items-center text-[9px] font-bold text-sky-700 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30 px-1.5 py-0.5 rounded-full" title="Placeholder account created when a scorer or coach added this phone before the user registered. They'll auto-upgrade when they sign up with this phone.">
+                            PROVISIONAL
                           </span>
                         )}
                       </div>

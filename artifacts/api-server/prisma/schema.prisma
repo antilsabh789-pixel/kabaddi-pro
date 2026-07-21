@@ -27,6 +27,15 @@ model User {
   practiceGround String?  // practice ground / academy name
   location       String?  // city / area for coaches
   showCoachBadge Boolean  @default(false) // opt-in cosmetic coach badge on profile — does NOT change role or feature access
+  // Provisional users are placeholder accounts created when a scorer or coach
+  // adds a non-registered player by phone number. They have a real userId +
+  // playerCode (so match events and academy memberships can point to them),
+  // but password='' (unusable) and provisional=true. When the player later
+  // registers with the same phone, we upgrade this row in place instead of
+  // creating a new one — so they auto-inherit all their past stats + academy
+  // memberships. Counted in admin's "total players" and visible in the admin
+  // player list (with a provisional badge).
+  provisional    Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -496,21 +496,51 @@ export default function CoachDashboard({ onClose }: CoachDashboardProps) {
   const addPlayerToAcademy = async () => {
     if (!selectedAcademyId || !addPlayerPhone.trim()) return;
     try {
-      // First find user by phone
-      const searchRes = await fetch(`/api/players?search=${addPlayerPhone}`);
+      // First try to find an existing user by phone (exact match required).
+      const searchRes = await fetch(`/api/players?search=${encodeURIComponent(addPlayerPhone.trim())}`);
       const searchData = await searchRes.json();
-      const player = searchData.players?.[0];
+      let player = searchData.players?.[0];
+
+      // If not found, ask the backend to find-or-create a PROVISIONAL user
+      // for this phone number. The placeholder User row counts toward the
+      // admin's "total players" immediately and will be upgraded in place
+      // when the player later registers with the same phone. The coach can
+      // optionally pass a name so the placeholder has a sensible display.
       if (!player) {
-        toast({ title: 'Player not found. Ask them to register first.', variant: 'destructive' });
-        return;
+        const provRes = await fetch('/api/players/provisional', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: addPlayerPhone.trim(),
+            name: addPlayerName.trim() || undefined,
+            createdByUserId: currentUser?.id,
+          }),
+        });
+        if (!provRes.ok) {
+          const err = await provRes.json().catch(() => ({}));
+          toast({ title: err?.error || 'Failed to add player', variant: 'destructive' });
+          return;
+        }
+        const provData = await provRes.json();
+        player = provData?.user;
+        if (!player?.id) {
+          toast({ title: 'Failed to add player', variant: 'destructive' });
+          return;
+        }
       }
+
       const res = await fetch(`/api/academies/${selectedAcademyId}/players`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: player.id }),
       });
       if (res.ok) {
-        toast({ title: 'Player added!' });
+        toast({
+          title: 'Player added!',
+          description: player.provisional
+            ? 'Not registered yet — they\'ll auto-inherit this academy when they sign up with this phone.'
+            : undefined,
+        });
         setAddPlayerPhone('');
         setAddPlayerName('');
         fetchAcademyDetail(selectedAcademyId);

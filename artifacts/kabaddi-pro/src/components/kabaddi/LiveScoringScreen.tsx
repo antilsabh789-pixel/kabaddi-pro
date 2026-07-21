@@ -1685,7 +1685,7 @@ export default function LiveScoringScreen() {
   };
 
   // Add player mid-match handler
-  const handleAddPlayer = () => {
+  const handleAddPlayer = async () => {
     if (!addPlayerTeam) return;
 
     // Validate based on mode
@@ -1735,27 +1735,65 @@ export default function LiveScoringScreen() {
       ? addPlayerSearchResults.find(p => p.phone === phone)
       : undefined;
 
-    // Generate player ID:
-    // - Registered + found in DB → use real user ID
-    // - Registered + not found (but phone entered) → phone_<number> (will be resolved on match save)
-    // - Unregistered + phone entered → phone_<number> (stats claimable on signup)
-    // - Unregistered + no phone → guest_<timestamp> (stats NOT claimable — guest only)
+    // ── Resolve a real userId for this player ──────────────────────────────
+    // Order of preference:
+    //   1. existingPlayer.id — a registered user found via /api/players search.
+    //      Use their real userId directly.
+    //   2. phone present but no search hit — call POST /api/players/provisional
+    //      to find-or-create a placeholder User row in the DB. This makes the
+    //      player count toward admin's "total players" immediately, and they
+    //      keep the same userId when they later register via phone.
+    //   3. No phone — fall back to a local guest_<timestamp> id. Stats saved
+    //      against this id are NOT claimable on signup (no phone to match on).
     let playerId: string;
+    let resolvedPlayerCode: string | undefined = existingPlayer?.playerCode;
+    let resolvedName: string = addPlayerName.trim() || (existingPlayer?.name || 'Unknown Player');
+
     if (existingPlayer?.id) {
       playerId = existingPlayer.id;
     } else if (phone) {
-      playerId = `phone_${phone}`;
+      // Provisional find-or-create. Wrap in try/catch — if the network call
+      // fails, fall back to the legacy phone_<number> id so the user can still
+      // finish scoring the match (stats will be claimed via the playerPhone
+      // legacy claim flow on signup).
+      try {
+        const res = await fetch('/api/players/provisional', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone,
+            name: resolvedName,
+            jerseyNumber: jerseyNum,
+            createdByUserId: currentUser?.id,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const p = data?.user;
+          if (p?.id) {
+            playerId = p.id;
+            if (p.playerCode) resolvedPlayerCode = p.playerCode;
+            if (p.name) resolvedName = p.name; // server may have stored a previous name
+          } else {
+            playerId = `phone_${phone}`;
+          }
+        } else {
+          playerId = `phone_${phone}`;
+        }
+      } catch {
+        playerId = `phone_${phone}`;
+      }
     } else {
       playerId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     }
 
     const newPlayer: MatchPlayer = {
       id: playerId,
-      name: addPlayerName.trim() || (existingPlayer?.name || 'Unknown Player'),
+      name: resolvedName,
       phone: phone || undefined,
       jerseyNumber: jerseyNum,
       team: addPlayerTeam,
-      playerCode: existingPlayer?.playerCode || undefined,
+      playerCode: resolvedPlayerCode,
     };
 
     addPlayerToMatch(addPlayerTeam, newPlayer);
