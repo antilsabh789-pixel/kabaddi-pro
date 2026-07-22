@@ -200,23 +200,52 @@ export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScre
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast({ title: 'Could not start payment', description: data.error, variant: 'destructive' });
+        // Surface the actual backend reason so the user knows WHY payment
+        // failed to start. The previous generic toast left users thinking
+        // the button was broken when really the gateway was mis-configured.
+        const reason = data?.error || `Server returned ${res.status}`;
+        const detail = data?.details ? ` (${String(data.details).slice(0, 120)})` : '';
+        toast({
+          title: 'Could not start ₹2 payment',
+          description: `${reason}${detail}`,
+          variant: 'destructive',
+        });
         return;
       }
       if (!data.paymentSessionId) {
-        toast({ title: 'Payment error', description: 'No payment session returned.', variant: 'destructive' });
+        toast({
+          title: 'Payment error',
+          description: data?.error || 'No payment session returned by the server.',
+          variant: 'destructive',
+        });
         return;
       }
       // Redirect to Cashfree hosted checkout via the existing /api/payments/checkout
       // endpoint which works in WebView + browser. We pass the session id + env.
       const checkoutUrl = `/api/payments/checkout?session_id=${encodeURIComponent(data.paymentSessionId)}&env=${encodeURIComponent(data.env || 'sandbox')}&order_id=${encodeURIComponent(data.orderId)}`;
+      // Hard navigate to the checkout page. The browser will replace the
+      // current page with the Cashfree redirector HTML served by the backend,
+      // which then auto-submits a form to Cashfree's hosted checkout.
       window.location.href = checkoutUrl;
+      // NOTE: we deliberately do NOT clear payingEntryFee here. The navigation
+      // is async — keeping the spinner visible gives the user feedback while
+      // the browser loads the checkout page. If anything goes wrong (network
+      // drop, popup blocker), the finally below will clear it.
     } catch (err) {
       console.error('Giveaway entry fee error:', err);
-      toast({ title: 'Error', description: 'Failed to start ₹2 payment', variant: 'destructive' });
+      toast({
+        title: 'Network error',
+        description: 'Could not reach the payment server. Check your connection and try again.',
+        variant: 'destructive',
+      });
     } finally {
+      // The redirect above is fire-and-forget — the navigation will happen
+      // asynchronously. We clear the spinner here so the button is usable
+      // again if the navigation is blocked or fails silently. If the
+      // navigation succeeds, the page unmounts before this state update
+      // matters.
       setPayingEntryFee(false);
     }
   };
@@ -781,44 +810,79 @@ export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScre
                 </div>
               </div>
             ) : (
-              /* No free entry, no referral entries left — must pay ₹2 (OR refer a friend first) */
+              /* No free entry, no referral entries left — must CHOOSE: pay ₹2 OR refer a friend.
+                 The user explicitly asked for a clearer "Choose ₹2 / Choose Referral" choice UI
+                 instead of the previous compact two-button row that was easy to miss. */
               <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shrink-0">
-                    <Zap className="w-5 h-5 text-white" />
+                {/* Header — makes the choice unmissable */}
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-                      Pay ₹{status?.entryFeeInr || '2.00'} to Enter
-                      <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[8px] font-bold px-1.5">ENTRY FEE</Badge>
+                    <p className="text-sm font-black text-amber-700 dark:text-amber-300 uppercase tracking-wide">
+                      Choose How to Enter
                     </p>
                     <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-0.5">
-                      Your free entry has been used and you have no referral entries left. Pay just ₹{status?.entryFeeInr || '2.00'} to enter this round — OR refer a friend below to enter free.
+                      Your free entry is used up. Pick one option below to join this round.
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    size="sm"
+
+                {/* Two equal-sized choice cards — visually parallel so the user
+                    sees both options at a glance instead of one being primary. */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Option A — Refer a Friend (FREE) */}
+                  <button
+                    type="button"
                     onClick={() => onOpenReferral?.()}
-                    className="bg-gradient-to-r from-brand-teal to-brand-teal-dark hover:opacity-90 text-white h-9 text-xs"
+                    className="group relative overflow-hidden rounded-2xl p-3 text-left bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/20 border-2 border-emerald-300/60 dark:border-emerald-700/50 hover:border-emerald-500 dark:hover:border-emerald-500 active:scale-[0.97] transition-all"
                   >
-                    <UserPlus className="w-3.5 h-3.5 mr-1" />
-                    Refer a Friend
-                  </Button>
-                  <Button
-                    size="sm"
+                    <div className="absolute top-1.5 right-1.5">
+                      <Badge className="bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.5">FREE</Badge>
+                    </div>
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shrink-0 mb-2">
+                      <UserPlus className="w-5 h-5 text-white" />
+                    </div>
+                    <p className="text-xs font-black text-emerald-700 dark:text-emerald-300 leading-tight">
+                      Refer a Friend
+                    </p>
+                    <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-1 leading-snug">
+                      Share your code. 1 successful referral = 1 free entry.
+                    </p>
+                  </button>
+
+                  {/* Option B — Pay ₹2 (instant) */}
+                  <button
+                    type="button"
                     onClick={handlePayEntryFee}
                     disabled={payingEntryFee}
-                    className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:opacity-90 text-white h-9 text-xs"
+                    className="group relative overflow-hidden rounded-2xl p-3 text-left bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/30 dark:to-yellow-900/20 border-2 border-amber-300/60 dark:border-amber-700/50 hover:border-amber-500 dark:hover:border-amber-500 active:scale-[0.97] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {payingEntryFee ? (
-                      <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Starting...</>
-                    ) : (
-                      <><Zap className="w-3.5 h-3.5 mr-1" /> Pay ₹{status?.entryFeeInr || '2.00'}</>
-                    )}
-                  </Button>
+                    <div className="absolute top-1.5 right-1.5">
+                      <Badge className="bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5">₹{status?.entryFeeInr || '2.00'}</Badge>
+                    </div>
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shrink-0 mb-2">
+                      {payingEntryFee ? (
+                        <Loader2 className="w-5 h-5 text-white animate-spin" />
+                      ) : (
+                        <Zap className="w-5 h-5 text-white" />
+                      )}
+                    </div>
+                    <p className="text-xs font-black text-amber-700 dark:text-amber-300 leading-tight">
+                      {payingEntryFee ? 'Starting...' : `Pay ₹${status?.entryFeeInr || '2.00'}`}
+                    </p>
+                    <p className="text-[10px] text-amber-600/80 dark:text-amber-400/80 mt-1 leading-snug">
+                      Instant entry via Cashfree secure payment.
+                    </p>
+                  </button>
                 </div>
+
+                {/* Helper line — explicitly tells the user "OR" so they know
+                    they have a real choice, not a forced path. */}
+                <p className="text-center text-[10px] text-warm-500 dark:text-warm-400 font-bold tracking-wide">
+                  ─── Choose ₹{status?.entryFeeInr || '2.00'}  <span className="text-warm-400">OR</span>  Choose Referral ───
+                </p>
               </div>
             )}
           </Card>

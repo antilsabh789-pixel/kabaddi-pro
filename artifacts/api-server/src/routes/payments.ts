@@ -24,6 +24,38 @@ function getCashfreeConfig() {
   };
 }
 
+/**
+ * Build an ABSOLUTE return URL for Cashfree. Mirrors the helper in giveaway.ts.
+ * Cashfree rejects relative URLs with HTTP 422 — this resolves the public
+ * origin from APP_URL, the Origin/Referer headers, or req.protocol+host.
+ */
+function buildAbsoluteReturnUrl(req: any, pathWithQuery: string, explicitReturnUrl?: string): string {
+  if (explicitReturnUrl && /^https?:\/\//i.test(explicitReturnUrl)) {
+    return explicitReturnUrl;
+  }
+  const appUrl = (process.env['APP_URL'] || '').trim().replace(/\/+$/, '');
+  if (appUrl) {
+    return `${appUrl}${pathWithQuery}`;
+  }
+  const origin = (req?.get?.('origin') || '').trim();
+  if (origin && origin !== 'null') {
+    return `${origin}${pathWithQuery}`;
+  }
+  const referer = (req?.get?.('referer') || '').trim();
+  if (referer) {
+    try {
+      const u = new URL(referer);
+      return `${u.origin}${pathWithQuery}`;
+    } catch { /* fall through */ }
+  }
+  const proto = (req?.protocol || 'https');
+  const host = (req?.get?.('host') || req?.get?.('x-forwarded-host') || '').trim();
+  if (host) {
+    return `${proto}://${host}${pathWithQuery}`;
+  }
+  return pathWithQuery;
+}
+
 function calculateDiscount(plan: string, couponCode?: string): { discountPaise: number; finalPaise: number } {
   const basePaise = PLAN_PRICES[plan] || 0;
   if (!couponCode || !VALID_COUPONS[couponCode]) return { discountPaise: 0, finalPaise: basePaise };
@@ -74,7 +106,7 @@ router.post('/payments/create-order', async (req, res) => {
       order_amount: parseFloat(amountInr),
       order_currency: 'INR',
       customer_details: { customer_id: user.id, customer_name: user.name || name || 'Kabaddi Pro User', customer_phone: (user.phone || phone || '').replace(/\D/g, '').slice(-10), customer_email: user.email || email || `${user.id}@kabaddipro.app` },
-      order_meta: { return_url: returnUrl || `${process.env['APP_URL'] || ''}/?payment=success&order_id={order_id}` },
+      order_meta: { return_url: buildAbsoluteReturnUrl(req, '/?payment=success&order_id={order_id}', returnUrl) },
     };
 
     const cfResponse = await fetch(`${config.baseUrl}/orders`, {

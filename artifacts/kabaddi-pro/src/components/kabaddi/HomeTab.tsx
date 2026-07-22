@@ -118,6 +118,7 @@ import TotalPlayersBanner from './TotalPlayersBanner';
 import PopularPlayersSection from './PopularPlayersSection';
 import PlayerProfileScreen from './PlayerProfileScreen';
 import GiveawayScreen from './GiveawayScreen';
+import ReferralScreen from './ReferralScreen';
 import ChatScreen from './ChatScreen';
 import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
 
@@ -659,6 +660,11 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
   const [showGiveaway, setShowGiveaway] = useState(false);
+  // Referral screen opened from inside the Giveaway (when user picks "Refer a
+  // Friend" instead of paying ₹2). Previously this was a vague toast telling
+  // the user to navigate to Profile → Refer & Earn — bad UX. Now we open the
+  // ReferralScreen directly so the choice actually completes in one tap.
+  const [showReferral, setShowReferral] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [giveawayWinners, setGiveawayWinners] = useState<Array<{
     roundNumber: number; rank: number; playerId: string; prize: string;
@@ -763,6 +769,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   useBackButton(showGrounds, () => setShowGrounds(false));
   useBackButton(showComparison, () => setShowComparison(false));
   useBackButton(showGiveaway, () => setShowGiveaway(false));
+  useBackButton(showReferral, () => setShowReferral(false));
   useBackButton(showChat, () => setShowChat(false));
 
   // ─── Pull-to-Refresh State ───
@@ -1445,13 +1452,18 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
             setShowUpgrade(true);
           }}
           onOpenReferral={() => {
+            // Actually open the ReferralScreen — previously this just showed a
+            // vague toast telling the user to go find it in the Profile tab,
+            // which broke the "Choose Referral" half of the new choice UI.
             setShowGiveaway(false);
-            toast({
-              title: 'Refer & Earn',
-              description: 'Open Profile tab → tap "Refer & Earn" to get your referral code.',
-            });
+            setShowReferral(true);
           }}
         />
+      )}
+      {showReferral && (
+        <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto">
+          <ReferralScreen onClose={() => setShowReferral(false)} />
+        </div>
       )}
       {showChat && (
         <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto">

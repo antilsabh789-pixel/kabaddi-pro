@@ -36,6 +36,62 @@ function getCashfreeConfig() {
 }
 
 /**
+ * Build an ABSOLUTE return URL for Cashfree to redirect back to after payment.
+ *
+ * Cashfree's /orders API REJECTS relative URLs with HTTP 422, which silently
+ * broke the ₹2 giveaway entry-fee flow whenever APP_URL was not set (the
+ * common case in Replit deployments). This helper resolves the public origin
+ * from, in priority order:
+ *   1. The explicit returnUrl passed by the caller (if absolute)
+ *   2. process.env.APP_URL
+ *   3. The `Origin` request header (sent by browsers on same-origin POSTs)
+ *   4. The `Referer` request header (always sent by browsers)
+ *   5. req.protocol + req.host as a last resort
+ *
+ * The `{order_id}` placeholder is preserved so Cashfree can substitute the
+ * real order id into the redirect URL.
+ */
+function buildAbsoluteReturnUrl(req: any, pathWithQuery: string, explicitReturnUrl?: string): string {
+  // 1. Caller-supplied absolute URL wins.
+  if (explicitReturnUrl && /^https?:\/\//i.test(explicitReturnUrl)) {
+    return explicitReturnUrl;
+  }
+
+  // 2. APP_URL env var.
+  const appUrl = (process.env['APP_URL'] || '').trim().replace(/\/+$/, '');
+  if (appUrl) {
+    return `${appUrl}${pathWithQuery}`;
+  }
+
+  // 3. Origin header (most reliable browser-sent header for the public origin).
+  const origin = (req?.get?.('origin') || '').trim();
+  if (origin && origin !== 'null') {
+    return `${origin}${pathWithQuery}`;
+  }
+
+  // 4. Referer header — strip the path, keep scheme+host.
+  const referer = (req?.get?.('referer') || '').trim();
+  if (referer) {
+    try {
+      const u = new URL(referer);
+      return `${u.origin}${pathWithQuery}`;
+    } catch { /* fall through */ }
+  }
+
+  // 5. req.protocol + req.host — least reliable (may be the proxy's host),
+  //    but better than emitting a relative URL that Cashfree will reject.
+  const proto = (req?.protocol || 'https');
+  const host = (req?.get?.('host') || req?.get?.('x-forwarded-host') || '').trim();
+  if (host) {
+    return `${proto}://${host}${pathWithQuery}`;
+  }
+
+  // Last-ditch fallback — emit the relative URL. Cashfree will likely reject
+  // it, but at least we tried everything else first.
+  return pathWithQuery;
+}
+
+/**
  * Get or create the active giveaway round.
  */
 async function getOrCreateActiveRound() {
@@ -363,7 +419,13 @@ router.post('/giveaway/create-entry-order', async (req, res) => {
         customer_email: user.email || `${user.id}@kabaddipro.app`,
       },
       order_meta: {
-        return_url: returnUrl || `${process.env['APP_URL'] || ''}/?giveaway_payment=success&order_id={order_id}`,
+        // Cashfree REJECTS relative URLs with HTTP 422 — use the helper to
+        // resolve an absolute origin from APP_URL or the request headers.
+        return_url: buildAbsoluteReturnUrl(
+          req,
+          '/?giveaway_payment=success&order_id={order_id}',
+          returnUrl,
+        ),
       },
       order_note: `Giveaway Round ${round.roundNumber} entry fee`,
     };
@@ -381,8 +443,27 @@ router.post('/giveaway/create-entry-order', async (req, res) => {
 
     if (!cfResponse.ok) {
       const err = await cfResponse.text();
-      console.error('Cashfree giveaway order creation failed:', err);
-      return res.status(502).json({ error: 'Payment gateway error', details: err });
+      console.error('Cashfree giveaway order creation failed:', {
+        status: cfResponse.status,
+        body: err,
+        env: config.env,
+        hasAppId: !!config.appId,
+        hasSecretKey: !!config.secretKey,
+        returnUrl: cashfreePayload.order_meta.return_url,
+      });
+      // Surface a useful error to the frontend so the user sees WHY the
+      // payment failed to start (instead of a vague "Could not start payment").
+      let friendlyError = 'Payment gateway error.';
+      if (cfResponse.status === 401 || cfResponse.status === 403) {
+        friendlyError = 'Payment gateway credentials are invalid. Please contact support.';
+      } else if (cfResponse.status === 422) {
+        friendlyError = 'Payment request rejected by gateway (likely a bad return URL). Please contact support.';
+      }
+      return res.status(502).json({
+        error: friendlyError,
+        details: err.slice(0, 500),
+        cfStatus: cfResponse.status,
+      });
     }
 
     const cfOrder = await cfResponse.json() as { payment_session_id?: string; cf_order_id?: string };
@@ -411,6 +492,29 @@ router.post('/giveaway/create-entry-order', async (req, res) => {
     console.error('Giveaway create-entry-order error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+/**
+ * GET /api/giveaway/payment-diagnose
+ * Returns the Cashfree configuration status so the frontend can show a useful
+ * error if the gateway isn't set up. Mirrors /payments/diagnose but is scoped
+ * to the giveaway route so the giveaway UI doesn't need to know about the
+ * premium-payments route.
+ */
+router.get('/giveaway/payment-diagnose', async (req, res) => {
+  const config = getCashfreeConfig();
+  // Echo back what return_url WOULD be resolved to, so the frontend can show
+  // it to the user / developer for debugging.
+  const sampleReturnUrl = buildAbsoluteReturnUrl(req, '/?giveaway_payment=success&order_id={order_id}');
+  return res.json({
+    env: config.env,
+    hasAppId: !!config.appId,
+    hasSecretKey: !!config.secretKey,
+    baseUrl: config.baseUrl,
+    appUrlSet: !!process.env['APP_URL'],
+    sampleReturnUrl,
+    isAbsolute: /^https?:\/\//i.test(sampleReturnUrl),
+  });
 });
 
 /**
