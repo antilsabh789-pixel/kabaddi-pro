@@ -187,10 +187,23 @@ export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScre
   };
 
   // ─── Pay ₹2 entry fee via Cashfree ────────────────────────────
-  // Creates a ₹2 order on the backend, then redirects to Cashfree's hosted
-  // checkout. On success, Cashfree redirects back to /?giveaway_payment=success&order_id=...
-  // and the top-level page.tsx handler calls /api/giveaway/verify-entry-payment
-  // which auto-enters the user into the round.
+  // Creates a ₹2 order on the backend, then does a DIRECT form POST to
+  // Cashfree's hosted checkout. On success, Cashfree redirects back to
+  // /?giveaway_payment=success&order_id=... and the top-level page.tsx
+  // handler calls /api/giveaway/verify-entry-payment which auto-enters
+  // the user into the round.
+  //
+  // WHY DIRECT FORM POST (not redirect to /api/payments/checkout):
+  // The previous flow did TWO navigations:
+  //   1. Frontend → /api/payments/checkout (backend returns HTML)
+  //   2. HTML auto-submits form → Cashfree
+  // If step 2 failed (Cashfree bounced back, form POST blocked, etc.),
+  // the browser silently ended up back at the SPA root with
+  // ?giveaway_payment=success in the URL, which looked like the app
+  // "just refreshed" with no payment page shown. Doing the form POST
+  // directly from the user's tap eliminates the intermediate HTML page
+  // and its silent failure mode. The form POST is initiated from the
+  // user's gesture, which is also more reliable in WebViews.
   const handlePayEntryFee = async () => {
     if (!currentUser?.id) return;
     setPayingEntryFee(true);
@@ -222,17 +235,61 @@ export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScre
         });
         return;
       }
-      // Redirect to Cashfree hosted checkout via the existing /api/payments/checkout
-      // endpoint which works in WebView + browser. We pass the session id + env.
-      const checkoutUrl = `/api/payments/checkout?session_id=${encodeURIComponent(data.paymentSessionId)}&env=${encodeURIComponent(data.env || 'sandbox')}&order_id=${encodeURIComponent(data.orderId)}`;
-      // Hard navigate to the checkout page. The browser will replace the
-      // current page with the Cashfree redirector HTML served by the backend,
-      // which then auto-submits a form to Cashfree's hosted checkout.
-      window.location.href = checkoutUrl;
-      // NOTE: we deliberately do NOT clear payingEntryFee here. The navigation
-      // is async — keeping the spinner visible gives the user feedback while
-      // the browser loads the checkout page. If anything goes wrong (network
-      // drop, popup blocker), the finally below will clear it.
+
+      // Stash the pending order id + timestamp so the page.tsx return handler
+      // can detect a "bounce-back" (Cashfree returning within a few seconds
+      // without ever showing the payment page) and show a useful error.
+      try {
+        localStorage.setItem('pendingGiveawayPayment', JSON.stringify({
+          orderId: data.orderId,
+          startedAt: Date.now(),
+        }));
+      } catch { /* localStorage may be unavailable in some WebViews */ }
+
+      // ─── Direct form POST to Cashfree hosted checkout ───────────
+      // This is a hard browser navigation — the current SPA unloads and
+      // the browser loads Cashfree's hosted checkout page. After the user
+      // pays (or cancels), Cashfree redirects back to the return_url that
+      // was set during order creation (/?giveaway_payment=success&order_id=...).
+      const isProd = data.env === 'production';
+      const cfCheckoutUrl = isProd
+        ? 'https://api.cashfree.com/pg/view/sessions/checkout'
+        : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
+
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = cfCheckoutUrl;
+      form.style.display = 'none';
+
+      const sessionInput = document.createElement('input');
+      sessionInput.type = 'hidden';
+      sessionInput.name = 'payment_session_id';
+      sessionInput.value = String(data.paymentSessionId);
+      form.appendChild(sessionInput);
+
+      // Cashfree also accepts an order_id field — passing it helps with
+      // correlation in case the session needs to be looked up later.
+      if (data.orderId) {
+        const orderInput = document.createElement('input');
+        orderInput.type = 'hidden';
+        orderInput.name = 'order_id';
+        orderInput.value = String(data.orderId);
+        form.appendChild(orderInput);
+      }
+
+      document.body.appendChild(form);
+      // form.submit() triggers a synchronous navigation. The SPA unloads
+      // immediately after this call. If the navigation is blocked by the
+      // browser, the finally below re-enables the button so the user can
+      // retry.
+      form.submit();
+      // Clean up the form element — the browser has already captured the
+      // navigation intent, so removing the form from the DOM is safe.
+      // We use a small timeout so the submission isn't interrupted.
+      setTimeout(() => {
+        try { document.body.removeChild(form); } catch { /* already removed */ }
+      }, 0);
+      return;
     } catch (err) {
       console.error('Giveaway entry fee error:', err);
       toast({
@@ -241,11 +298,11 @@ export default function GiveawayScreen({ onClose, onOpenReferral }: GiveawayScre
         variant: 'destructive',
       });
     } finally {
-      // The redirect above is fire-and-forget — the navigation will happen
-      // asynchronously. We clear the spinner here so the button is usable
-      // again if the navigation is blocked or fails silently. If the
-      // navigation succeeds, the page unmounts before this state update
-      // matters.
+      // If we reached here, either:
+      //   - The fetch failed (network error) → re-enable the button.
+      //   - The fetch returned an error → we already showed a toast, re-enable.
+      //   - The form.submit() succeeded → the page is unloading, this state
+      //     update is moot but harmless.
       setPayingEntryFee(false);
     }
   };

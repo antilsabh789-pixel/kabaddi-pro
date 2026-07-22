@@ -557,11 +557,34 @@ router.post('/giveaway/verify-entry-payment', async (req, res) => {
       },
     });
 
-    if (!cfResponse.ok) return res.status(502).json({ error: 'Could not verify payment with gateway' });
-    const cfOrder = await cfResponse.json() as { order_status?: string };
+    if (!cfResponse.ok) {
+      const errBody = await cfResponse.text().catch(() => '');
+      console.error('Giveaway verify-entry-payment: Cashfree GET /orders failed:', {
+        status: cfResponse.status,
+        body: errBody.slice(0, 300),
+        orderId,
+      });
+      return res.status(502).json({
+        error: 'Could not verify payment with gateway.',
+        cfStatus: cfResponse.status,
+      });
+    }
+    const cfOrder = await cfResponse.json() as { order_status?: string; [k: string]: unknown };
 
     if (cfOrder.order_status !== 'PAID') {
-      return res.json({ success: false, status: cfOrder.order_status });
+      // Map Cashfree's order_status to a human-readable reason so the frontend
+      // toast tells the user WHY the payment didn't go through. Without this,
+      // the user just sees "Payment could not be verified" which is unhelpful.
+      const statusMessages: Record<string, string> = {
+        'ACTIVE': 'Payment was started but not completed. The Cashfree page may have been closed before payment.',
+        'EXPIRED': 'Payment session expired before completion. Please try again.',
+        'FAILED': 'Payment failed at the gateway. Please try again or use a different payment method.',
+        'CANCELLED': 'Payment was cancelled.',
+        'PENDING': 'Payment is still pending at the gateway. Please wait a moment and re-open the giveaway.',
+        'REFUNDED': 'Payment was refunded.',
+      };
+      const reason = statusMessages[cfOrder.order_status || ''] || `Payment status: ${cfOrder.order_status || 'unknown'}`;
+      return res.json({ success: false, status: cfOrder.order_status, reason });
     }
 
     // Mark the payment as paid.

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useKabaddiStore } from '@/lib/store';
 import Portal from '@/components/portal';
 import { useBackButton } from '@/hooks/use-back-button';
+import { toast } from '@/hooks/use-toast';
 import { AlertTriangle, RefreshCw, MessageSquare, Bell } from 'lucide-react';
 
 const SplashScreen = lazy(() => import('@/components/kabaddi/SplashScreen'));
@@ -374,6 +375,29 @@ export default function Home() {
       window.history.replaceState({}, '', url.toString());
 
       if (giveawayPayment === 'success' || giveawayPayment === 'redirect') {
+        // ─── Bounce-back detection ────────────────────────────────
+        // If Cashfree returned within 5 seconds of the user tapping "Pay ₹2",
+        // the payment page was never actually shown to the user — Cashfree
+        // bounced back immediately (invalid session, env mismatch, wrong
+        // credentials, etc.). We detect this using the pendingGiveawayPayment
+        // timestamp stored in localStorage by handlePayEntryFee.
+        let bouncedBack = false;
+        try {
+          const pendingRaw = localStorage.getItem('pendingGiveawayPayment');
+          if (pendingRaw) {
+            const pending = JSON.parse(pendingRaw);
+            const elapsed = Date.now() - (pending.startedAt || 0);
+            // Under 5 seconds = almost certainly a bounce-back (a real
+            // payment takes at least 10-15 seconds for the user to enter
+            // their card/UPI details).
+            if (elapsed < 5000) {
+              bouncedBack = true;
+            }
+          }
+        } catch { /* ignore parse errors */ }
+        // Always clear the pending flag — we only need it once.
+        try { localStorage.removeItem('pendingGiveawayPayment'); } catch { /* noop */ }
+
         fetch('/api/giveaway/verify-entry-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -384,12 +408,38 @@ export default function Home() {
             if (data.success) {
               // Surface a toast — the user will see the green "You're participating!" card
               // when they next open the Giveaway screen.
+              toast({
+                title: '🎉 Payment Successful!',
+                description: '₹2 entry fee paid. You are now entered in the giveaway round.',
+              });
               console.log('[giveaway] Entry fee paid, user auto-entered into round.');
             } else {
-              console.warn('[giveaway] Payment verification returned non-success:', data);
+              // The payment verification failed. This usually means Cashfree
+              // bounced back immediately without showing the payment page —
+              // the session was invalid, the env was mismatched, or the
+              // gateway rejected the request. Previously this was silently
+              // logged, which made it look like the app "just refreshed"
+              // with no explanation. Now we surface a clear error so the
+              // user knows the payment didn't go through.
+              const reason = bouncedBack
+                ? 'Cashfree rejected the payment session and returned immediately. This usually means the payment gateway credentials are wrong or the environment (sandbox/production) is mismatched.'
+                : (data?.reason || data?.error || 'Payment could not be verified.');
+              toast({
+                title: '❌ Payment Not Completed',
+                description: `${reason} You were not charged. Please try again or contact support.`,
+                variant: 'destructive',
+              });
+              console.warn('[giveaway] Payment verification returned non-success:', { data, bouncedBack });
             }
           })
-          .catch(err => console.error('[giveaway] Entry fee verification error:', err));
+          .catch(err => {
+            toast({
+              title: 'Payment Verification Failed',
+              description: 'Could not verify your payment. Please check your connection.',
+              variant: 'destructive',
+            });
+            console.error('[giveaway] Entry fee verification error:', err);
+          });
       }
     }
   }, [isAuthenticated, currentUser?.id]);
