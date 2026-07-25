@@ -539,7 +539,7 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate, onAcadem
   const { toast } = useToast();
   const [localAcademy, setLocalAcademy] = useState<AcademyData | null>(academy);
   const [showEdit, setShowEdit] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', location: '', groundName: '', sundayHoliday: false, twoSessions: false });
+  const [editForm, setEditForm] = useState({ name: '', location: '', groundName: '', sundayHoliday: false, twoSessions: false, offDays: [] as string[] });
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -555,14 +555,32 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate, onAcadem
   }, [academyId]);
 
   const openEdit = () => {
+    let parsedOffDays: string[] = [];
+    try {
+      parsedOffDays = localAcademy?.offDays ? JSON.parse(localAcademy.offDays) : [];
+      if (!Array.isArray(parsedOffDays)) parsedOffDays = [];
+    } catch {
+      parsedOffDays = [];
+    }
     setEditForm({
       name: localAcademy?.name || '',
       location: localAcademy?.location || '',
       groundName: localAcademy?.groundName || '',
-      sundayHoliday: !!localAcademy?.sundayHoliday,
+      sundayHoliday: parsedOffDays.includes('sun'),
       twoSessions: localAcademy?.practiceSchedule === 'two-sessions',
+      offDays: parsedOffDays,
     });
     setShowEdit(true);
+  };
+
+  const toggleHoliday = (day: string) => {
+    setEditForm((prev) => ({
+      ...prev,
+      offDays: prev.offDays.includes(day)
+        ? prev.offDays.filter((d) => d !== day)
+        : [...prev.offDays, day],
+      sundayHoliday: day === 'sun' ? !prev.offDays.includes('sun') : prev.sundayHoliday,
+    }));
   };
 
   const saveEdit = async () => {
@@ -579,8 +597,9 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate, onAcadem
           name: editForm.name.trim(),
           location: editForm.location.trim() || null,
           groundName: editForm.groundName.trim() || null,
-          sundayHoliday: editForm.sundayHoliday,
+          sundayHoliday: editForm.offDays.includes('sun'),
           practiceSchedule: editForm.twoSessions ? 'two-sessions' : 'one-time',
+          offDays: editForm.offDays,
         }),
       });
       const data = await res.json();
@@ -662,11 +681,15 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate, onAcadem
                   <Clock className="w-2.5 h-2.5" /> Morning + Evening
                 </span>
               )}
-              {localAcademy.sundayHoliday && (
-                <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Sun className="w-2.5 h-2.5" /> Sunday Holiday
-                </span>
-              )}
+              {(() => {
+                let days: string[] = [];
+                try { days = localAcademy.offDays ? JSON.parse(localAcademy.offDays) : []; } catch { days = []; }
+                return days.map((d) => (
+                  <span key={d} className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Sun className="w-2.5 h-2.5" /> {d.charAt(0).toUpperCase() + d.slice(1)} Holiday
+                  </span>
+                ));
+              })()}
             </div>
           </motion.div>
         )}
@@ -768,26 +791,54 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate, onAcadem
                   </div>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setEditForm({ ...editForm, sundayHoliday: !editForm.sundayHoliday })}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
-                    editForm.sundayHoliday
-                      ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
-                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800'
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${editForm.sundayHoliday ? 'bg-amber-500 text-white' : 'bg-warm-100 dark:bg-warm-700 text-warm-500'}`}>
-                    <Sun className="w-5 h-5" />
+                {/* Weekly holiday picker — coach picks any day(s) */}
+                <div className={`w-full p-3 rounded-xl border-2 transition-all ${
+                  editForm.offDays.length > 0
+                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
+                    : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800'
+                }`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${editForm.offDays.length > 0 ? 'bg-amber-500 text-white' : 'bg-warm-100 dark:bg-warm-700 text-warm-500'}`}>
+                      <Sun className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Weekly Holidays</p>
+                      <p className="text-[11px] text-warm-500 dark:text-warm-400">
+                        {editForm.offDays.length === 0
+                          ? 'Tap day(s) to mark as holiday'
+                          : `${editForm.offDays.length} ${editForm.offDays.length === 1 ? 'day' : 'days'} selected — no attendance expected`}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Sunday Holiday</p>
-                    <p className="text-[11px] text-warm-500 dark:text-warm-400">Sundays are off — no attendance expected</p>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {[
+                      { code: 'sun', label: 'S' },
+                      { code: 'mon', label: 'M' },
+                      { code: 'tue', label: 'T' },
+                      { code: 'wed', label: 'W' },
+                      { code: 'thu', label: 'T' },
+                      { code: 'fri', label: 'F' },
+                      { code: 'sat', label: 'S' },
+                    ].map((day) => {
+                      const active = editForm.offDays.includes(day.code);
+                      return (
+                        <button
+                          key={day.code}
+                          type="button"
+                          onClick={() => toggleHoliday(day.code)}
+                          title={day.code.charAt(0).toUpperCase() + day.code.slice(1)}
+                          className={`aspect-square rounded-lg text-xs font-bold transition-all ${
+                            active
+                              ? 'bg-amber-500 text-white shadow-sm'
+                              : 'bg-warm-100 dark:bg-warm-700 text-warm-500 hover:bg-warm-200 dark:hover:bg-warm-600'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${editForm.sundayHoliday ? 'bg-amber-500 border-amber-500' : 'border-warm-300 dark:border-warm-600'}`}>
-                    {editForm.sundayHoliday && <Check className="w-3.5 h-3.5 text-white" />}
-                  </div>
-                </button>
+                </div>
               </div>
 
               <Button
@@ -821,12 +872,20 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
   const [error, setError] = useState<string | null>(null);
   const [practiceSchedule, setPracticeSchedule] = useState<string>('one-time');
   const [session, setSession] = useState<'default' | 'morning' | 'evening'>('default');
+  const [offDays, setOffDays] = useState<string[]>([]);
 
   const twoSessions = practiceSchedule === 'two-sessions';
   // When academy schedule changes, reset session selector
   useEffect(() => {
     setSession(twoSessions ? 'morning' : 'default');
   }, [twoSessions]);
+
+  // Is the currently selected date a holiday?
+  const isHoliday = (() => {
+    if (offDays.length === 0) return false;
+    const dayCode = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+    return offDays.includes(dayCode);
+  })();
 
   // Load roster + attendance for this date (all sessions)
   const loadAll = useCallback(async () => {
@@ -844,6 +903,13 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
       setPlayers(roster);
       if (academyData.academy?.practiceSchedule) {
         setPracticeSchedule(academyData.academy.practiceSchedule);
+      }
+      // Parse offDays JSON array (e.g. ['sun','mon'])
+      try {
+        const parsed = academyData.academy?.offDays ? JSON.parse(academyData.academy.offDays) : [];
+        setOffDays(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setOffDays([]);
       }
       // Key records by userId|session so we can swap between morning/evening without losing state
       const map = new Map<string, boolean>();
@@ -983,6 +1049,21 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
             </p>
           )}
         </div>
+
+        {/* Holiday banner — when selected date is a weekly holiday */}
+        {isHoliday && !loading && !error && players.length > 0 && (
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 p-3 mb-3 flex items-start gap-3">
+            <Sun className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })} is a holiday
+              </p>
+              <p className="text-[11px] text-amber-600 dark:text-amber-500/80 mt-0.5">
+                No attendance is expected today. You can still mark players if there was a make-up session.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Player list */}
         {loading ? (
