@@ -47,6 +47,11 @@ import {
   Shield,
   Clock,
   CalendarDays,
+  Pencil,
+  MessageSquare,
+  Sun,
+  Moon,
+  Save,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,6 +67,9 @@ interface AcademyData {
   location: string | null;
   groundName: string | null;
   coachUserId: string;
+  sundayHoliday?: boolean;
+  practiceSchedule?: string; // "one-time" (default) or "two-sessions" (morning+evening)
+  offDays?: string; // JSON string of weekday names
   players: AcademyPlayerData[];
   _count: { players: number };
   createdAt: string;
@@ -284,6 +292,10 @@ export default function CoachesCornerScreen({ onClose }: { onClose: () => void }
             academy={selectedAcademy}
             onBack={() => setView({ name: 'academies' })}
             onNavigate={(sub) => setView({ name: sub, academyId: view.academyId } as View)}
+            onAcademyUpdated={() => {
+              fetchAcademyDetail(view.academyId);
+              fetchAcademies();
+            }}
           />
         )}
 
@@ -517,13 +529,18 @@ function CreateAcademyView({ form, setForm, creating, onBack, onCreate }: {
 
 // ─── 3. Academy Dashboard View (5 options) ────────────────────────────
 
-function AcademyDashboardView({ academyId, academy, onBack, onNavigate }: {
+function AcademyDashboardView({ academyId, academy, onBack, onNavigate, onAcademyUpdated }: {
   academyId: string;
   academy: AcademyData | null;
   onBack: () => void;
   onNavigate: (sub: 'attendance' | 'fees' | 'announcements' | 'performances' | 'players') => void;
+  onAcademyUpdated?: () => void;
 }) {
+  const { toast } = useToast();
   const [localAcademy, setLocalAcademy] = useState<AcademyData | null>(academy);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', location: '', groundName: '', sundayHoliday: false, twoSessions: false });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     if (!academyId) return;
@@ -536,6 +553,51 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate }: {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [academyId]);
+
+  const openEdit = () => {
+    setEditForm({
+      name: localAcademy?.name || '',
+      location: localAcademy?.location || '',
+      groundName: localAcademy?.groundName || '',
+      sundayHoliday: !!localAcademy?.sundayHoliday,
+      twoSessions: localAcademy?.practiceSchedule === 'two-sessions',
+    });
+    setShowEdit(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editForm.name.trim()) {
+      toast({ title: 'Academy name required', variant: 'destructive' });
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/academies/${academyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editForm.name.trim(),
+          location: editForm.location.trim() || null,
+          groundName: editForm.groundName.trim() || null,
+          sundayHoliday: editForm.sundayHoliday,
+          practiceSchedule: editForm.twoSessions ? 'two-sessions' : 'one-time',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Update failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      if (data.academy) setLocalAcademy(data.academy);
+      setShowEdit(false);
+      toast({ title: 'Academy updated' });
+      onAcademyUpdated?.();
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const playerCount = localAcademy?._count?.players ?? localAcademy?.players?.length ?? 0;
 
@@ -571,6 +633,13 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate }: {
                 {localAcademy.location && <p className="text-[11px] text-warm-500 dark:text-warm-400 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {localAcademy.location}</p>}
                 {localAcademy.groundName && <p className="text-[11px] text-warm-500 dark:text-warm-400 flex items-center gap-1 mt-0.5"><Building2 className="w-3 h-3" /> {localAcademy.groundName}</p>}
               </div>
+              <button
+                onClick={openEdit}
+                title="Edit Academy"
+                className="w-9 h-9 rounded-full bg-white/70 dark:bg-warm-800/70 hover:bg-white dark:hover:bg-warm-700 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-colors shrink-0"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-3">
               <div className="rounded-lg bg-white/60 dark:bg-warm-800/60 p-2 text-center">
@@ -585,6 +654,19 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate }: {
                 <div className="text-base font-black text-violet-700 dark:text-violet-400">0</div>
                 <div className="text-[9px] text-warm-500 uppercase tracking-wider">Matches</div>
               </div>
+            </div>
+            {/* Schedule badges */}
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {localAcademy.practiceSchedule === 'two-sessions' && (
+                <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" /> Morning + Evening
+                </span>
+              )}
+              {localAcademy.sundayHoliday && (
+                <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Sun className="w-2.5 h-2.5" /> Sunday Holiday
+                </span>
+              )}
             </div>
           </motion.div>
         )}
@@ -615,6 +697,113 @@ function AcademyDashboardView({ academyId, academy, onBack, onNavigate }: {
           })}
         </div>
       </div>
+
+      {/* Edit Academy bottom sheet */}
+      <AnimatePresence>
+        {showEdit && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowEdit(false)}
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-end justify-center"
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="w-12 h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full mx-auto mb-4" />
+              <div className="flex items-center gap-2 mb-4">
+                <Pencil className="w-4 h-4 text-emerald-500" />
+                <h3 className="font-black text-base text-warm-800 dark:text-warm-100">Edit Academy</h3>
+              </div>
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Academy Name <span className="text-red-500">*</span></label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="e.g., Star Kabaddi Academy"
+                className="h-11 rounded-xl mb-3"
+              />
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Location <span className="text-warm-400 font-normal">(optional)</span></label>
+              <Input
+                value={editForm.location}
+                onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                placeholder="e.g., Pune, Maharashtra"
+                className="h-11 rounded-xl mb-3"
+              />
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Ground Name <span className="text-warm-400 font-normal">(optional)</span></label>
+              <Input
+                value={editForm.groundName}
+                onChange={(e) => setEditForm({ ...editForm, groundName: e.target.value })}
+                placeholder="e.g., Shivaji Ground"
+                className="h-11 rounded-xl mb-4"
+              />
+
+              <div className="space-y-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, twoSessions: !editForm.twoSessions })}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                    editForm.twoSessions
+                      ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
+                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${editForm.twoSessions ? 'bg-emerald-500 text-white' : 'bg-warm-100 dark:bg-warm-700 text-warm-500'}`}>
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Two sessions per day</p>
+                    <p className="text-[11px] text-warm-500 dark:text-warm-400">Mark attendance separately for Morning &amp; Evening</p>
+                  </div>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${editForm.twoSessions ? 'bg-emerald-500 border-emerald-500' : 'border-warm-300 dark:border-warm-600'}`}>
+                    {editForm.twoSessions && <Check className="w-3.5 h-3.5 text-white" />}
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, sundayHoliday: !editForm.sundayHoliday })}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                    editForm.sundayHoliday
+                      ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
+                      : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${editForm.sundayHoliday ? 'bg-amber-500 text-white' : 'bg-warm-100 dark:bg-warm-700 text-warm-500'}`}>
+                    <Sun className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-warm-800 dark:text-warm-100">Sunday Holiday</p>
+                    <p className="text-[11px] text-warm-500 dark:text-warm-400">Sundays are off — no attendance expected</p>
+                  </div>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${editForm.sundayHoliday ? 'bg-amber-500 border-amber-500' : 'border-warm-300 dark:border-warm-600'}`}>
+                    {editForm.sundayHoliday && <Check className="w-3.5 h-3.5 text-white" />}
+                  </div>
+                </button>
+              </div>
+
+              <Button
+                onClick={saveEdit}
+                disabled={savingEdit || !editForm.name.trim()}
+                className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold"
+              >
+                {savingEdit ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save Changes</>}
+              </Button>
+              <Button onClick={() => setShowEdit(false)} variant="ghost" className="w-full mt-2 h-9 text-warm-500">
+                Cancel
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -625,12 +814,21 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
   const { toast } = useToast();
   const [players, setPlayers] = useState<AcademyPlayerData[]>([]);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10)); // YYYY-MM-DD
+  // records keyed by `${userId}|${session}` so morning & evening stay independent
   const [records, setRecords] = useState<Map<string, boolean>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [practiceSchedule, setPracticeSchedule] = useState<string>('one-time');
+  const [session, setSession] = useState<'default' | 'morning' | 'evening'>('default');
 
-  // Load roster + today's attendance
+  const twoSessions = practiceSchedule === 'two-sessions';
+  // When academy schedule changes, reset session selector
+  useEffect(() => {
+    setSession(twoSessions ? 'morning' : 'default');
+  }, [twoSessions]);
+
+  // Load roster + attendance for this date (all sessions)
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -644,9 +842,13 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
       if (!academyRes.ok) throw new Error(academyData.error || 'Failed to load academy');
       const roster: AcademyPlayerData[] = academyData.academy?.players || [];
       setPlayers(roster);
+      if (academyData.academy?.practiceSchedule) {
+        setPracticeSchedule(academyData.academy.practiceSchedule);
+      }
+      // Key records by userId|session so we can swap between morning/evening without losing state
       const map = new Map<string, boolean>();
       for (const r of (attData.attendance || attData.records || []) as AttendanceRecord[]) {
-        map.set(r.userId, r.isPresent);
+        map.set(`${r.userId}|${r.session || 'default'}`, r.isPresent);
       }
       setRecords(map);
     } catch (e) {
@@ -659,18 +861,19 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  const key = (userId: string) => `${userId}|${session}`;
   const toggle = (userId: string) => {
     setRecords((prev) => {
       const next = new Map(prev);
-      next.set(userId, !next.get(userId));
+      const k = key(userId);
+      next.set(k, !next.get(k));
       return next;
     });
   };
-
   const markAll = (present: boolean) => {
     setRecords((prev) => {
       const next = new Map(prev);
-      for (const p of players) next.set(p.userId, present);
+      for (const p of players) next.set(key(p.userId), present);
       return next;
     });
   };
@@ -678,7 +881,7 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
   const saveAll = async () => {
     setSaving(true);
     try {
-      // Send one POST per player — backend upserts on (academyId, userId, date, session)
+      // POST one record per player for the currently selected session
       const promises = players.map((p) =>
         fetch('/api/coach/attendance', {
           method: 'POST',
@@ -687,13 +890,14 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
             academyId,
             userId: p.userId,
             date,
-            isPresent: records.get(p.userId) ?? false,
-            session: 'default',
+            isPresent: records.get(key(p.userId)) ?? false,
+            session,
           }),
         })
       );
       await Promise.all(promises);
-      toast({ title: 'Attendance saved', description: `${players.length} ${players.length === 1 ? 'player' : 'players'} marked for ${date}` });
+      const sessionLabel = session === 'default' ? '' : ` (${session})`;
+      toast({ title: 'Attendance saved', description: `${players.length} ${players.length === 1 ? 'player' : 'players'} marked for ${date}${sessionLabel}` });
     } catch {
       toast({ title: 'Save failed', variant: 'destructive' });
     } finally {
@@ -701,7 +905,7 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
     }
   };
 
-  const presentCount = players.filter((p) => records.get(p.userId) === true).length;
+  const presentCount = players.filter((p) => records.get(key(p.userId)) === true).length;
   const absentCount = players.length - presentCount;
 
   return (
@@ -720,6 +924,33 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
               className="flex-1 bg-transparent text-sm font-bold text-warm-800 dark:text-warm-100 focus:outline-none"
             />
           </div>
+
+          {/* Session toggle (only when academy has two-sessions enabled) */}
+          {twoSessions && players.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-2 p-1 rounded-xl bg-warm-100 dark:bg-warm-700/50">
+              <button
+                onClick={() => setSession('morning')}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                  session === 'morning'
+                    ? 'bg-white dark:bg-warm-800 text-amber-600 shadow-sm'
+                    : 'text-warm-500'
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5" /> Morning
+              </button>
+              <button
+                onClick={() => setSession('evening')}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                  session === 'evening'
+                    ? 'bg-white dark:bg-warm-800 text-indigo-600 shadow-sm'
+                    : 'text-warm-500'
+                }`}
+              >
+                <Moon className="w-3.5 h-3.5" /> Evening
+              </button>
+            </div>
+          )}
+
           {players.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mt-3">
               <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-2 text-center">
@@ -746,6 +977,11 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
               </button>
             </div>
           )}
+          {twoSessions && players.length > 0 && (
+            <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-2 text-center">
+              Marking <span className="font-bold capitalize">{session}</span> session. Switch tab to mark the other.
+            </p>
+          )}
         </div>
 
         {/* Player list */}
@@ -769,10 +1005,10 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
         ) : (
           <div className="space-y-2">
             {players.map((p) => {
-              const isPresent = records.get(p.userId) === true;
+              const isPresent = records.get(key(p.userId)) === true;
               return (
                 <motion.button
-                  key={p.userId}
+                  key={`${p.userId}-${session}`}
                   onClick={() => toggle(p.userId)}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all active:scale-[0.98] text-left ${
                     isPresent
@@ -805,7 +1041,7 @@ function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () =
             disabled={saving || loading}
             className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold disabled:opacity-50"
           >
-            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Check className="w-4 h-4 mr-2" /> Save Attendance</>}
+            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Check className="w-4 h-4 mr-2" /> Save Attendance{twoSessions && <span className="capitalize"> · {session}</span>}</>}
           </Button>
         </div>
       )}
@@ -1702,8 +1938,8 @@ function PlayersView({ academyId, onBack, onRefreshDashboard, startChatWith, toa
                     onClick={() => openChat(actionPlayer)}
                     className="flex flex-col items-center gap-1 py-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
                   >
-                    <MessageCircle className="w-5 h-5" />
-                    <span className="text-[10px] font-bold">Chat</span>
+                    <MessageSquare className="w-5 h-5" />
+                    <span className="text-[10px] font-bold">Chat in App</span>
                   </button>
                 )}
               </div>
