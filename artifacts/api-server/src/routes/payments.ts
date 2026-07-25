@@ -58,11 +58,100 @@ function buildAbsoluteReturnUrl(req: any, pathWithQuery: string, explicitReturnU
 
 function calculateDiscount(plan: string, couponCode?: string): { discountPaise: number; finalPaise: number } {
   const basePaise = PLAN_PRICES[plan] || 0;
-  if (!couponCode || !VALID_COUPONS[couponCode]) return { discountPaise: 0, finalPaise: basePaise };
-  const coupon = VALID_COUPONS[couponCode];
-  const discountPaise = coupon.type === 'flat' ? coupon.discount * 100 : Math.floor((basePaise * coupon.discount) / 100);
-  return { discountPaise, finalPaise: Math.max(0, basePaise - discountPaise) };
+  if (!couponCode) return { discountPaise: 0, finalPaise: basePaise };
+  // Try hardcoded coupons first (legacy). DB-backed DiscountCode is checked
+  // asynchronously in the route handler below — this synchronous helper only
+  // handles the legacy set so calculateDiscount can be called from other places.
+  const upperCode = couponCode.toUpperCase();
+  if (VALID_COUPONS[upperCode]) {
+    const coupon = VALID_COUPONS[upperCode];
+    const discountPaise = coupon.type === 'flat' ? coupon.discount * 100 : Math.floor((basePaise * coupon.discount) / 100);
+    return { discountPaise, finalPaise: Math.max(0, basePaise - discountPaise) };
+  }
+  return { discountPaise: 0, finalPaise: basePaise };
 }
+
+/**
+ * Look up a coupon code in the DB-backed DiscountCode table.
+ * Returns the discount to apply (in paise) + the code's id (for incrementing
+ * usedCount after a successful payment). Returns null if the code is invalid,
+ * expired, exhausted, or doesn't meet the minimum-order threshold.
+ */
+async function calculateDbDiscount(plan: string, couponCode?: string): Promise<{ discountPaise: number; finalPaise: number; codeId: string | null }> {
+  const basePaise = PLAN_PRICES[plan] || 0;
+  if (!couponCode) return { discountPaise: 0, finalPaise: basePaise, codeId: null };
+  const upperCode = couponCode.toUpperCase().trim();
+  if (!upperCode) return { discountPaise: 0, finalPaise: basePaise, codeId: null };
+  try {
+    const code = await db.discountCode.findUnique({ where: { code: upperCode } });
+    if (!code) return { discountPaise: 0, finalPaise: basePaise, codeId: null };
+    if (!code.isActive) return { discountPaise: 0, finalPaise: basePaise, codeId: null };
+    if (code.expiresAt && code.expiresAt.getTime() < Date.now()) {
+      return { discountPaise: 0, finalPaise: basePaise, codeId: null };
+    }
+    if (code.maxUses > 0 && code.usedCount >= code.maxUses) {
+      return { discountPaise: 0, finalPaise: basePaise, codeId: null };
+    }
+    if (code.minOrderAmount > 0 && basePaise < code.minOrderAmount) {
+      return { discountPaise: 0, finalPaise: basePaise, codeId: null };
+    }
+    const discountPaise = code.discountType === 'flat'
+      ? Math.min(code.discountValue, basePaise)
+      : Math.floor((basePaise * code.discountValue) / 100);
+    return {
+      discountPaise,
+      finalPaise: Math.max(0, basePaise - discountPaise),
+      codeId: code.id,
+    };
+  } catch {
+    return { discountPaise: 0, finalPaise: basePaise, codeId: null };
+  }
+}
+
+/**
+ * Public: validate a coupon code WITHOUT creating an order. Used by the
+ * frontend's "Apply" button on the upgrade screen so the user sees the
+ * discounted price before tapping Pay.
+ */
+router.post('/payments/validate-coupon', async (req, res) => {
+  try {
+    const { plan, couponCode } = req.body;
+    if (!plan || !PLAN_PRICES[plan]) return res.status(400).json({ error: 'Invalid plan' });
+    if (!couponCode) return res.status(400).json({ error: 'couponCode is required' });
+
+    const basePaise = PLAN_PRICES[plan];
+    // Try DB first, then fall back to hardcoded legacy coupons.
+    const dbResult = await calculateDbDiscount(plan, couponCode);
+    let discountPaise = dbResult.discountPaise;
+    let finalPaise = dbResult.finalPaise;
+    let source: 'db' | 'legacy' | 'none' = dbResult.codeId ? 'db' : 'none';
+
+    if (source === 'none') {
+      const legacy = calculateDiscount(plan, couponCode);
+      if (legacy.discountPaise > 0) {
+        discountPaise = legacy.discountPaise;
+        finalPaise = legacy.finalPaise;
+        source = 'legacy';
+      }
+    }
+
+    if (discountPaise === 0) {
+      return res.status(404).json({ error: 'Invalid, expired, or exhausted coupon code' });
+    }
+    return res.json({
+      valid: true,
+      source,
+      basePaise,
+      discountPaise,
+      finalPaise,
+      baseInr: (basePaise / 100).toFixed(2),
+      discountInr: (discountPaise / 100).toFixed(2),
+      finalInr: (finalPaise / 100).toFixed(2),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 router.get('/payments', async (req, res) => {
   try {
@@ -82,7 +171,16 @@ router.post('/payments/create-order', async (req, res) => {
     if (!PLAN_PRICES[plan]) return res.status(400).json({ error: 'Invalid plan' });
 
     const config = getCashfreeConfig();
-    const { discountPaise, finalPaise } = calculateDiscount(plan, couponCode);
+    // Try DB-backed DiscountCode first; fall back to legacy hardcoded coupons.
+    const dbDisc = await calculateDbDiscount(plan, couponCode);
+    let discountPaise = dbDisc.discountPaise;
+    let finalPaise = dbDisc.finalPaise;
+    let discountCodeId: string | null = dbDisc.codeId;
+    if (discountPaise === 0) {
+      const legacy = calculateDiscount(plan, couponCode);
+      discountPaise = legacy.discountPaise;
+      finalPaise = legacy.finalPaise;
+    }
     const amountInr = (finalPaise / 100).toFixed(2);
 
     // Resolve the user robustly: by id first, then by an EXACT match on the

@@ -1678,10 +1678,21 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                 PRO
               </span>
             </h1>
-            {/* All features are free now — no PRO badge or "Go Premium" button. */}
           </div>
           <div className="flex items-center gap-2">
-            {/* Premium CTA removed — every feature is free for all users. */}
+            {/* Premium CTA — show "Go Premium" button for non-premium users, "PRO" badge for premium users. */}
+            {currentUser?.isPremium || currentUser?.isAdmin ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-full">
+                <Crown className="w-3 h-3" /> PRO
+              </span>
+            ) : (
+              <button
+                onClick={() => setShowUpgrade(true)}
+                className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-gradient-to-r from-amber-500 to-yellow-600 px-2.5 py-1.5 rounded-full shadow-sm hover:opacity-90 transition-opacity"
+              >
+                <Crown className="w-3 h-3" /> Go Premium
+              </button>
+            )}
             <button
               onClick={() => setShowSearch(true)}
               className="p-2 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 transition-colors search-focus-ring focus:outline-none"

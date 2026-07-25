@@ -1,44 +1,405 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useKabaddiStore } from '@/lib/store';
-
 /**
- * PremiumUpgradeScreen — post-premium-removal version.
+ * PremiumUpgradeScreen
  *
- * As of the "all-free" refactor, every feature in the app is free for all
- * users. There is no premium tier to upgrade to anymore. This component
- * used to be a full-screen upgrade modal with Cashfree payment; now it
- * simply calls `onClose` immediately and renders nothing.
- *
- * Kept as a thin stub so existing call sites that do
- *   {showUpgrade && <PremiumUpgradeScreen onClose={...} feature="..." />}
- * continue to compile and behave as a no-op (the modal never appears).
- *
- * ALSO: as a safety net, force `isPremium: true` on the current user the
- * first time this stub mounts. This catches stale persisted sessions in
- * localStorage that still have `isPremium: false` from before the refactor.
- * Once set, the rest of the app (which keys off `isPremium`) will treat
- * the user as unlocked for every screen.
+ * Full-screen upgrade modal showing premium plans + coupon code input.
+ * On tap "Pay", creates a Cashfree order via /api/payments/create-order
+ * and form-POSTs to Cashfree's hosted checkout. On success, Cashfree
+ * redirects back to /?payment=success&order_id=... and the page.tsx
+ * return handler calls /api/payments/verify which grants premium.
  */
-export default function PremiumUpgradeScreen({ onClose }: { onClose: () => void; feature?: string }) {
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  X,
+  Crown,
+  Check,
+  Loader2,
+  Sparkles,
+  Zap,
+  Shield,
+  Gift,
+  Tag,
+  ArrowRight,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useKabaddiStore } from '@/lib/store';
+import { useToast } from '@/hooks/use-toast';
+import { useBackButton } from '@/hooks/use-back-button';
+
+interface Plan {
+  id: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'lifetime';
+  label: string;
+  priceInr: string;
+  per: string;
+  badge?: string;
+  highlight?: boolean;
+  features: string[];
+}
+
+const PLANS: Plan[] = [
+  {
+    id: 'daily',
+    label: 'Daily',
+    priceInr: '2',
+    per: '/ day',
+    badge: 'Try for ₹2',
+    features: ['All premium features', 'Direct giveaway entry', '24 hours of premium'],
+  },
+  {
+    id: 'weekly',
+    label: 'Weekly',
+    priceInr: '27',
+    per: '/ week',
+    features: ['All premium features', 'Direct giveaway entry', '7 days of premium', '₹3/day effective'],
+  },
+  {
+    id: 'monthly',
+    label: 'Monthly',
+    priceInr: '99',
+    per: '/ month',
+    highlight: true,
+    badge: 'Most Popular',
+    features: ['All premium features', 'Direct giveaway entry', '30 days of premium', '₹3.3/day effective'],
+  },
+  {
+    id: 'yearly',
+    label: 'Yearly',
+    priceInr: '999',
+    per: '/ year',
+    badge: 'Best Value',
+    features: ['All premium features', 'Direct giveaway entry', '365 days of premium', '₹2.7/day effective'],
+  },
+  {
+    id: 'lifetime',
+    label: 'Lifetime',
+    priceInr: '3299',
+    per: 'one-time',
+    features: ['All premium features', 'Direct giveaway entry', 'Forever — never pay again', 'Priority support'],
+  },
+];
+
+export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: () => void; feature?: string }) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
-  const updateUser = useKabaddiStore((s) => s.updateUser);
+  const { toast } = useToast();
+  const [selectedPlan, setSelectedPlan] = useState<Plan['id']>('monthly');
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountInr: string; finalInr: string; baseInr: string } | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [paying, setPaying] = useState(false);
 
-  useEffect(() => {
-    // Safety net: if the persisted session still has isPremium=false,
-    // flip it on so every `currentUser.isPremium` check across the app
-    // evaluates to true. This is idempotent.
-    if (currentUser && !currentUser.isPremium) {
-      updateUser({
-        isPremium: true,
-        premiumExpiry: null,
-        premiumPlan: 'lifetime',
-      });
+  useBackButton(true, onClose);
+
+  const selectedPlanData = PLANS.find((p) => p.id === selectedPlan)!;
+
+  const validateCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast({ title: 'Enter a coupon code', variant: 'destructive' });
+      return;
     }
-    // Close the modal immediately — there's nothing to upgrade to.
-    onClose();
-  }, [currentUser, updateUser, onClose]);
+    setValidating(true);
+    try {
+      const res = await fetch('/api/payments/validate-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: selectedPlan, couponCode: couponCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        toast({ title: 'Invalid coupon', description: data.error || 'Code is invalid, expired, or exhausted.', variant: 'destructive' });
+        setAppliedCoupon(null);
+        return;
+      }
+      setAppliedCoupon({
+        code: couponCode.trim().toUpperCase(),
+        discountInr: data.discountInr,
+        finalInr: data.finalInr,
+        baseInr: data.baseInr,
+      });
+      toast({ title: 'Coupon applied!', description: `₹${data.discountInr} off — pay ₹${data.finalInr}` });
+    } catch {
+      toast({ title: 'Network error', description: 'Could not validate coupon. Try again.', variant: 'destructive' });
+    } finally {
+      setValidating(false);
+    }
+  };
 
-  return null;
+  const handlePay = async () => {
+    if (!currentUser?.id) {
+      toast({ title: 'Please log in first', variant: 'destructive' });
+      return;
+    }
+    setPaying(true);
+    try {
+      const res = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          plan: selectedPlan,
+          couponCode: appliedCoupon?.code || couponCode.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({
+          title: 'Could not start payment',
+          description: data?.error || `Server returned ${res.status}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!data.paymentSessionId) {
+        toast({ title: 'Payment error', description: 'No payment session returned.', variant: 'destructive' });
+        return;
+      }
+      // Direct form POST to Cashfree hosted checkout
+      const isProd = data.env === 'production';
+      const cfCheckoutUrl = isProd
+        ? 'https://api.cashfree.com/pg/view/sessions/checkout'
+        : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = cfCheckoutUrl;
+      form.style.display = 'none';
+      const sessionInput = document.createElement('input');
+      sessionInput.type = 'hidden';
+      sessionInput.name = 'payment_session_id';
+      sessionInput.value = String(data.paymentSessionId);
+      form.appendChild(sessionInput);
+      if (data.orderId) {
+        const orderInput = document.createElement('input');
+        orderInput.type = 'hidden';
+        orderInput.name = 'order_id';
+        orderInput.value = String(data.orderId);
+        form.appendChild(orderInput);
+      }
+      document.body.appendChild(form);
+      form.submit();
+      setTimeout(() => {
+        try { document.body.removeChild(form); } catch { /* already removed */ }
+      }, 0);
+    } catch (err) {
+      console.error('Premium payment error:', err);
+      toast({ title: 'Network error', description: 'Could not reach the payment server.', variant: 'destructive' });
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  // Compute displayed price
+  const displayPrice = appliedCoupon?.finalInr || selectedPlanData.priceInr;
+  const hasDiscount = appliedCoupon && appliedCoupon.discountInr !== '0.00';
+
+  return (
+    <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col">
+      {/* Header */}
+      <motion.div
+        initial={{ y: -16, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="sticky top-0 z-20 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-white shadow-md"
+      >
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex-1">
+            <h1 className="font-black text-base flex items-center gap-2">
+              <Crown className="w-4 h-4" /> Go Premium
+            </h1>
+            <p className="text-[11px] text-white/80">
+              {feature ? `Unlock ${feature}` : 'Unlock all premium features'}
+            </p>
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-5 max-w-lg mx-auto w-full pb-28">
+        {/* Hero card */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border border-amber-200 dark:border-amber-800/40 p-5 mb-5 text-center"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-white shadow-lg mx-auto mb-3">
+            <Crown className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg font-black text-amber-800 dark:text-amber-300">Kabaddi Pro Premium</h2>
+          <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-1">
+            Unlock every feature + free direct entry to every giveaway round.
+          </p>
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <div className="rounded-lg bg-white/60 dark:bg-warm-800/60 p-2">
+              <Sparkles className="w-4 h-4 text-amber-500 mx-auto mb-0.5" />
+              <p className="text-[9px] font-bold text-warm-700 dark:text-warm-300">All Features</p>
+            </div>
+            <div className="rounded-lg bg-white/60 dark:bg-warm-800/60 p-2">
+              <Gift className="w-4 h-4 text-amber-500 mx-auto mb-0.5" />
+              <p className="text-[9px] font-bold text-warm-700 dark:text-warm-300">Giveaway Entry</p>
+            </div>
+            <div className="rounded-lg bg-white/60 dark:bg-warm-800/60 p-2">
+              <Shield className="w-4 h-4 text-amber-500 mx-auto mb-0.5" />
+              <p className="text-[9px] font-bold text-warm-700 dark:text-warm-300">Priority</p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Plans */}
+        <div className="space-y-2.5 mb-5">
+          {PLANS.map((plan) => {
+            const isSelected = selectedPlan === plan.id;
+            return (
+              <motion.button
+                key={plan.id}
+                onClick={() => {
+                  setSelectedPlan(plan.id);
+                  setAppliedCoupon(null); // reset coupon when plan changes
+                }}
+                className={`w-full text-left rounded-2xl border-2 p-4 transition-all active:scale-[0.99] ${
+                  isSelected
+                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20 shadow-md'
+                    : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800 hover:border-amber-300'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'bg-amber-500 border-amber-500' : 'border-warm-300 dark:border-warm-600'}`}>
+                    {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{plan.label}</p>
+                      {plan.badge && (
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                          plan.highlight
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
+                        }`}>
+                          {plan.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-0.5">{plan.features[0]}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-lg font-black text-amber-700 dark:text-amber-400">₹{plan.priceInr}</p>
+                    <p className="text-[10px] text-warm-500">{plan.per}</p>
+                  </div>
+                </div>
+                {isSelected && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-800/40 space-y-1"
+                  >
+                    {plan.features.map((f, i) => (
+                      <p key={i} className="text-[10px] text-warm-600 dark:text-warm-300 flex items-center gap-1.5">
+                        <Check className="w-3 h-3 text-emerald-500 shrink-0" /> {f}
+                      </p>
+                    ))}
+                  </motion.div>
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+
+        {/* Coupon input */}
+        <div className="rounded-2xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-3 mb-5">
+          <p className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-2 flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-amber-500" /> Have a coupon code?
+          </p>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              value={couponCode}
+              onChange={(e) => {
+                setCouponCode(e.target.value.toUpperCase());
+                setAppliedCoupon(null);
+              }}
+              placeholder="e.g., KABADDI50"
+              className="flex-1 h-10 rounded-xl uppercase"
+              disabled={validating}
+            />
+            <Button
+              onClick={validateCoupon}
+              disabled={validating || !couponCode.trim()}
+              variant="outline"
+              className="h-10 px-4 rounded-xl border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+            >
+              {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+            </Button>
+          </div>
+          {appliedCoupon && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40"
+            >
+              <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                <Check className="w-3 h-3" /> {appliedCoupon.code} applied
+              </p>
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-500 mt-0.5">
+                Base ₹{appliedCoupon.baseInr} − ₹{appliedCoupon.discountInr} = ₹{appliedCoupon.finalInr}
+              </p>
+            </motion.div>
+          )}
+          <p className="text-[9px] text-warm-400 mt-2">
+            Try KABADDI50 (50% off), FIRST100 (₹100 off), PRO2025 (25% off), LAUNCH20 (20% off).
+          </p>
+        </div>
+
+        {/* Trust badges */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-2.5 text-center">
+            <Shield className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+            <p className="text-[9px] font-bold text-warm-700 dark:text-warm-300">Secure Payment</p>
+            <p className="text-[8px] text-warm-400">Cashfree</p>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-2.5 text-center">
+            <Zap className="w-4 h-4 text-amber-500 mx-auto mb-1" />
+            <p className="text-[9px] font-bold text-warm-700 dark:text-warm-300">Instant Activation</p>
+            <p className="text-[8px] text-warm-400">No waiting</p>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-2.5 text-center">
+            <Check className="w-4 h-4 text-blue-500 mx-auto mb-1" />
+            <p className="text-[9px] font-bold text-warm-700 dark:text-warm-300">Cancel Anytime</p>
+            <p className="text-[8px] text-warm-400">No auto-renew</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky pay bar */}
+      <div className="sticky bottom-0 bg-white/95 dark:bg-warm-800/95 backdrop-blur border-t border-warm-200 dark:border-warm-700 px-4 py-3">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-warm-500 dark:text-warm-400 uppercase tracking-wider">
+              {selectedPlanData.label} plan
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <p className="text-xl font-black text-amber-700 dark:text-amber-400">₹{displayPrice}</p>
+              {hasDiscount && (
+                <p className="text-[11px] text-warm-400 line-through">₹{appliedCoupon!.baseInr}</p>
+              )}
+            </div>
+          </div>
+          <Button
+            onClick={handlePay}
+            disabled={paying}
+            className="h-12 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white font-black flex items-center gap-2 shrink-0"
+          >
+            {paying ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Starting...</>
+            ) : (
+              <>Pay ₹{displayPrice} <ArrowRight className="w-4 h-4" /></>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -537,4 +537,136 @@ router.get('/admin/checkins', async (req, res) => {
   }
 });
 
+// ─── Discount Codes (admin-managed coupon system) ─────────────────────
+// CRUD for DiscountCode rows. Used by /api/payments/create-order to apply
+// percent-off or flat-amount-off discounts at checkout.
+
+/**
+ * Verify the caller is an admin. Returns the user record or null.
+ */
+async function requireAdmin(adminId: string) {
+  if (!adminId) return null;
+  return db.user.findUnique({
+    where: { id: adminId },
+    select: { id: true, isAdmin: true, name: true },
+  });
+}
+
+router.get('/admin/discount-codes', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || '';
+    const admin = await requireAdmin(adminId);
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const codes = await db.discountCode.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    return res.json({ codes });
+  } catch (error) {
+    console.error('Admin discount-codes list error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/admin/discount-codes', async (req, res) => {
+  try {
+    const { adminId, code, discountType, discountValue, maxUses, minOrderAmount, isActive, expiresAt, notes } = req.body;
+    const admin = await requireAdmin(adminId);
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    if (!code || !discountType || discountValue === undefined) {
+      return res.status(400).json({ error: 'code, discountType, and discountValue are required' });
+    }
+    if (discountType !== 'percent' && discountType !== 'flat') {
+      return res.status(400).json({ error: 'discountType must be "percent" or "flat"' });
+    }
+    if (discountType === 'percent' && (discountValue < 0 || discountValue > 100)) {
+      return res.status(400).json({ error: 'percent discountValue must be 0-100' });
+    }
+    if (discountType === 'flat' && discountValue < 0) {
+      return res.status(400).json({ error: 'flat discountValue must be >= 0 (in paise)' });
+    }
+    const upperCode = String(code).toUpperCase().trim();
+    if (!upperCode) return res.status(400).json({ error: 'code cannot be empty' });
+
+    // Check for collision
+    const existing = await db.discountCode.findUnique({ where: { code: upperCode } });
+    if (existing) return res.status(409).json({ error: 'Code already exists' });
+
+    const created = await db.discountCode.create({
+      data: {
+        code: upperCode,
+        discountType,
+        discountValue: Number(discountValue),
+        maxUses: Number(maxUses) || 0,
+        minOrderAmount: Number(minOrderAmount) || 0,
+        isActive: isActive !== false,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        notes: notes || null,
+      },
+    });
+    return res.json({ code: created });
+  } catch (error) {
+    console.error('Admin discount-codes create error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/admin/discount-codes/:id', async (req, res) => {
+  try {
+    const { adminId, discountType, discountValue, maxUses, minOrderAmount, isActive, expiresAt, notes } = req.body;
+    const admin = await requireAdmin(adminId);
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const id = req.params['id'];
+    const existing = await db.discountCode.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Code not found' });
+
+    const data: Record<string, unknown> = {};
+    if (discountType !== undefined) {
+      if (discountType !== 'percent' && discountType !== 'flat') {
+        return res.status(400).json({ error: 'discountType must be "percent" or "flat"' });
+      }
+      data.discountType = discountType;
+    }
+    if (discountValue !== undefined) {
+      if (discountType === 'percent' && (discountValue < 0 || discountValue > 100)) {
+        return res.status(400).json({ error: 'percent discountValue must be 0-100' });
+      }
+      data.discountValue = Number(discountValue);
+    }
+    if (maxUses !== undefined) data.maxUses = Number(maxUses) || 0;
+    if (minOrderAmount !== undefined) data.minOrderAmount = Number(minOrderAmount) || 0;
+    if (isActive !== undefined) data.isActive = !!isActive;
+    if (expiresAt !== undefined) data.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    if (notes !== undefined) data.notes = notes || null;
+
+    const updated = await db.discountCode.update({ where: { id }, data });
+    return res.json({ code: updated });
+  } catch (error) {
+    console.error('Admin discount-codes update error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/admin/discount-codes/:id', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || (req.body?.adminId as string) || '';
+    const admin = await requireAdmin(adminId);
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const id = req.params['id'];
+    await db.discountCode.delete({ where: { id } });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Admin discount-codes delete error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

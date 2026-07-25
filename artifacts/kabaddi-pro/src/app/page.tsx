@@ -523,23 +523,41 @@ export default function Home() {
     }
   }, [isAuthenticated, currentUser?.id]);
 
-  // ─── All-free refactor: mark every authenticated user as "premium" ───
-  // As of the all-free refactor there is no premium tier — every feature is
-  // free for all users. We keep the `isPremium` field on CurrentUser (legacy
-  // code path) and just force it to `true` on app load so every
-  // `currentUser.isPremium` check across the app evaluates to `true`.
-  // This also catches stale persisted sessions in localStorage that still
-  // have isPremium=false from before the refactor.
+  // ─── Premium status sync ───
+  // On app load (and when the user logs in), fetch the user's REAL premium
+  // status from /api/premium and update the store. This replaces the old
+  // "all-free refactor" hack that forced isPremium=true for everyone.
+  // The endpoint now returns the actual DB values: isPremium, premiumExpiry,
+  // premiumPlan, expired. If premium has expired (premiumExpiry in the past),
+  // isPremium will be false and the user will see the PremiumLock overlay on
+  // gated screens.
   useEffect(() => {
     if (!isAuthenticated || !currentUser?.id) return;
-    if (!currentUser.isPremium || currentUser.premiumExpiry || currentUser.premiumPlan !== 'lifetime') {
-      updateUser({
-        isPremium: true,
-        premiumExpiry: null,
-        premiumPlan: 'lifetime',
-      });
-    }
-  }, [isAuthenticated, currentUser?.id, currentUser?.isPremium, currentUser?.premiumExpiry, currentUser?.premiumPlan, updateUser]);
+    let cancelled = false;
+    fetch(`/api/premium?userId=${currentUser.id}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data || typeof data.isPremium !== 'boolean') return;
+        // Only update if something actually changed (avoid render loops).
+        const currentExpiry = currentUser.premiumExpiry
+          ? new Date(currentUser.premiumExpiry).getTime()
+          : null;
+        const newExpiry = data.premiumExpiry ? new Date(data.premiumExpiry).getTime() : null;
+        if (
+          currentUser.isPremium !== data.isPremium ||
+          currentExpiry !== newExpiry ||
+          currentUser.premiumPlan !== data.premiumPlan
+        ) {
+          updateUser({
+            isPremium: data.isPremium,
+            premiumExpiry: data.premiumExpiry || null,
+            premiumPlan: data.premiumPlan || null,
+          });
+        }
+      })
+      .catch(() => { /* non-fatal — premium status will be rechecked on next action */ });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, currentUser?.id, updateUser]);
 
   useEffect(() => {
     const mainEl = document.querySelector('main');
