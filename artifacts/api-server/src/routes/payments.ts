@@ -340,13 +340,23 @@ async function verifyPayment(orderId: string, res: any) {
   if (cfOrder.order_status === 'PAID') {
     await db.payment.update({ where: { id: payment.id }, data: { status: 'success' } });
 
+    // EXTEND premium from the existing expiry (if still in the future) so users
+    // can renew early without losing paid days. Falls back to "now" if expired
+    // or no prior premium. Lifetime always wins (null expiry).
+    const existingUser = await db.user.findUnique({
+      where: { id: payment.userId },
+      select: { premiumExpiry: true, premiumPlan: true },
+    });
     const now = new Date();
+    const hasActiveExpiry = existingUser?.premiumExpiry && existingUser.premiumExpiry.getTime() > now.getTime();
+    const baseTime = hasActiveExpiry ? (existingUser!.premiumExpiry as Date) : now;
+
     let premiumExpiry: Date | null = null;
     switch (payment.plan) {
-      case 'daily': premiumExpiry = new Date(now.getTime() + 86400000); break;
-      case 'weekly': premiumExpiry = new Date(now.getTime() + 7 * 86400000); break;
-      case 'monthly': premiumExpiry = new Date(now.getTime() + 30 * 86400000); break;
-      case 'yearly': premiumExpiry = new Date(now.getTime() + 365 * 86400000); break;
+      case 'daily': premiumExpiry = new Date(baseTime.getTime() + 86400000); break;
+      case 'weekly': premiumExpiry = new Date(baseTime.getTime() + 7 * 86400000); break;
+      case 'monthly': premiumExpiry = new Date(baseTime.getTime() + 30 * 86400000); break;
+      case 'yearly': premiumExpiry = new Date(baseTime.getTime() + 365 * 86400000); break;
       case 'lifetime': premiumExpiry = null; break;
     }
 
@@ -385,13 +395,20 @@ router.post('/payments/webhook', async (req, res) => {
       const payment = await db.payment.findUnique({ where: { cashfreeOrderId: orderId } });
       if (payment && payment.status !== 'success') {
         await db.payment.update({ where: { id: payment.id }, data: { status: 'success' } });
+        // Extend from existing expiry if still active (same logic as verifyPayment).
+        const existingUser = await db.user.findUnique({
+          where: { id: payment.userId },
+          select: { premiumExpiry: true, premiumPlan: true },
+        });
         const now = new Date();
+        const hasActiveExpiry = existingUser?.premiumExpiry && existingUser.premiumExpiry.getTime() > now.getTime();
+        const baseTime = hasActiveExpiry ? (existingUser!.premiumExpiry as Date) : now;
         let premiumExpiry: Date | null = null;
         switch (payment.plan) {
-          case 'daily': premiumExpiry = new Date(now.getTime() + 86400000); break;
-          case 'weekly': premiumExpiry = new Date(now.getTime() + 7 * 86400000); break;
-          case 'monthly': premiumExpiry = new Date(now.getTime() + 30 * 86400000); break;
-          case 'yearly': premiumExpiry = new Date(now.getTime() + 365 * 86400000); break;
+          case 'daily': premiumExpiry = new Date(baseTime.getTime() + 86400000); break;
+          case 'weekly': premiumExpiry = new Date(baseTime.getTime() + 7 * 86400000); break;
+          case 'monthly': premiumExpiry = new Date(baseTime.getTime() + 30 * 86400000); break;
+          case 'yearly': premiumExpiry = new Date(baseTime.getTime() + 365 * 86400000); break;
           case 'lifetime': premiumExpiry = null; break;
         }
         await db.user.update({ where: { id: payment.userId }, data: { isPremium: true, premiumExpiry, premiumPlan: payment.plan } });

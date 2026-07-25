@@ -617,6 +617,22 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
                 )}
               </div>
             )}
+
+            {/* Always-on "Buy Premium" CTA — visible to all users so anyone can
+                upgrade for direct giveaway entry, even if they have free/referral
+                entries available. Tapping it calls onUpgradeToPremium (which
+                opens PremiumUpgradeScreen in the parent). */}
+            {!status?.isPremiumUser && onUpgradeToPremium && (
+              <button
+                type="button"
+                onClick={onUpgradeToPremium}
+                className="w-full mt-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white text-[11px] font-black px-3 py-2 flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                Get Premium — Direct Entry to Every Round
+                <span className="ml-1 text-white/80 font-bold">from ₹2/day →</span>
+              </button>
+            )}
           </motion.div>
         ) : (
           <Card className="p-4 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800 text-center">

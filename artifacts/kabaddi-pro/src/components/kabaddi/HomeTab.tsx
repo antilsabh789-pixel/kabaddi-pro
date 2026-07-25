@@ -1680,11 +1680,18 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            {/* Premium CTA — show "Go Premium" button for non-premium users, "PRO" badge for premium users. */}
+            {/* Premium CTA — ALWAYS tappable.
+                Non-premium → "Go Premium" amber button.
+                Premium → "PRO" badge that opens the upgrade screen when tapped
+                          (so users can extend / buy a longer plan anytime). */}
             {currentUser?.isPremium || currentUser?.isAdmin ? (
-              <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-full">
+              <button
+                onClick={() => setShowUpgrade(true)}
+                title="Tap to view / extend your premium plan"
+                className="inline-flex items-center gap-1 text-[10px] font-black text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 px-2 py-1 rounded-full transition-colors"
+              >
                 <Crown className="w-3 h-3" /> PRO
-              </span>
+              </button>
             ) : (
               <button
                 onClick={() => setShowUpgrade(true)}

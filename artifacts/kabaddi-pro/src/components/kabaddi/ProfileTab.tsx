@@ -3073,37 +3073,49 @@ export default function ProfileTab() {
         </motion.div>
       )}
 
-      {/* Premium Active Card */}
+      {/* Premium Active Card — tappable to extend / upgrade plan */}
       {isPremium && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
         >
-          <Card className="p-4 bg-gradient-to-r from-yellow-400/10 via-amber-400/5 to-yellow-400/10 border border-yellow-400/20 dark:from-yellow-400/20 dark:via-amber-400/10 dark:to-yellow-400/20 overflow-hidden relative">
-            {/* Shimmer effect on premium card */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/5 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400/20 to-amber-400/20 flex items-center justify-center shadow-md shadow-yellow-400/10">
-                  <Crown className="w-5 h-5 text-yellow-500" />
+          <button
+            type="button"
+            onClick={() => setShowUpgrade(true)}
+            className="w-full text-left active:scale-[0.99] transition-transform"
+            title="Tap to extend or upgrade your premium plan"
+          >
+            <Card className="p-4 bg-gradient-to-r from-yellow-400/10 via-amber-400/5 to-yellow-400/10 border border-yellow-400/20 dark:from-yellow-400/20 dark:via-amber-400/10 dark:to-yellow-400/20 overflow-hidden relative">
+              {/* Shimmer effect on premium card */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/5 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+              <div className="flex items-center justify-between relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400/20 to-amber-400/20 flex items-center justify-center shadow-md shadow-yellow-400/10">
+                    <Crown className="w-5 h-5 text-yellow-500" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-warm-800 dark:text-warm-100 font-bold text-sm">{t('profile.premiumActive', language)}</p>
+                    <p className="text-warm-500 dark:text-warm-300 text-xs">
+                      {currentUser?.premiumExpiry
+                        ? `${currentUser.premiumPlan === 'lifetime' ? 'Lifetime' : `Expires ${new Date(currentUser.premiumExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}`
+                        : t('profile.allFeaturesUnlocked', language)}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <p className="text-warm-800 dark:text-warm-100 font-bold text-sm">{t('profile.premiumActive', language)}</p>
-                  <p className="text-warm-500 dark:text-warm-300 text-xs">
-                    {currentUser?.premiumExpiry
-                      ? `${currentUser.premiumPlan === 'lifetime' ? 'Lifetime' : `Expires ${new Date(currentUser.premiumExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}`
-                      : t('profile.allFeaturesUnlocked', language)}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-full">
+                    Extend →
+                  </span>
+                  <Badge className="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 border-0 text-xs font-extrabold shadow-md shadow-yellow-400/20 overflow-hidden relative">
+                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
+                    <Crown className="w-3 h-3 mr-1 relative z-10" />
+                    <span className="relative z-10">PRO</span>
+                  </Badge>
                 </div>
               </div>
-              <Badge className="bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-yellow-900 border-0 text-xs font-extrabold shadow-md shadow-yellow-400/20 overflow-hidden relative">
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }} />
-                <Crown className="w-3 h-3 mr-1 relative z-10" />
-                <span className="relative z-10">PRO</span>
-              </Badge>
-            </div>
-          </Card>
+            </Card>
+          </button>
         </motion.div>
       )}
 

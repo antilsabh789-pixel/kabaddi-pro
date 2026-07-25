@@ -94,6 +94,23 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
 
   const selectedPlanData = PLANS.find((p) => p.id === selectedPlan)!;
 
+  // Extension context — if user is already premium, show their current plan
+  // + expiry banner and label the CTA "Extend" instead of "Pay".
+  const isAlreadyPremium = !!currentUser?.isPremium || !!currentUser?.isAdmin;
+  const currentPlanId = currentUser?.premiumPlan as Plan['id'] | undefined;
+  const currentPlanLabel = currentPlanId
+    ? PLANS.find((p) => p.id === currentPlanId)?.label || currentPlanId
+    : null;
+  const expiryText = (() => {
+    if (!currentUser?.premiumExpiry) return null;
+    if (currentUser.premiumPlan === 'lifetime') return 'Lifetime';
+    const d = new Date(currentUser.premiumExpiry);
+    const now = Date.now();
+    if (d.getTime() < now) return 'Expired';
+    const daysLeft = Math.max(0, Math.ceil((d.getTime() - now) / 86400000));
+    return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · ${daysLeft}d left`;
+  })();
+
   const validateCoupon = async () => {
     if (!couponCode.trim()) {
       toast({ title: 'Enter a coupon code', variant: 'destructive' });
@@ -210,10 +227,12 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
           </button>
           <div className="flex-1">
             <h1 className="font-black text-base flex items-center gap-2">
-              <Crown className="w-4 h-4" /> Go Premium
+              <Crown className="w-4 h-4" /> {isAlreadyPremium ? 'Extend Premium' : 'Go Premium'}
             </h1>
             <p className="text-[11px] text-white/80">
-              {feature ? `Unlock ${feature}` : 'Unlock all premium features'}
+              {isAlreadyPremium
+                ? 'Pick a plan to extend or upgrade your premium'
+                : feature ? `Unlock ${feature}` : 'Unlock all premium features'}
             </p>
           </div>
         </div>
@@ -249,10 +268,37 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
           </div>
         </motion.div>
 
+        {/* Current-plan banner — only for users who already have premium */}
+        {isAlreadyPremium && (currentPlanLabel || expiryText) && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 p-3 mb-4 flex items-center gap-3"
+          >
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shrink-0">
+              <Check className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                You{currentPlanLabel ? `'re on the ${currentPlanLabel} plan` : ' have premium'}
+              </p>
+              {expiryText && (
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-500/80 mt-0.5">
+                  {expiryText}
+                </p>
+              )}
+            </div>
+            <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-1 rounded-full shrink-0">
+              ACTIVE
+            </span>
+          </motion.div>
+        )}
+
         {/* Plans */}
         <div className="space-y-2.5 mb-5">
           {PLANS.map((plan) => {
             const isSelected = selectedPlan === plan.id;
+            const isCurrentPlan = isAlreadyPremium && currentPlanId === plan.id;
             return (
               <motion.button
                 key={plan.id}
@@ -271,7 +317,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
                     {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-bold text-warm-800 dark:text-warm-100">{plan.label}</p>
                       {plan.badge && (
                         <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
@@ -280,6 +326,11 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
                             : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
                         }`}>
                           {plan.badge}
+                        </span>
+                      )}
+                      {isCurrentPlan && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500 text-white flex items-center gap-0.5">
+                          <Check className="w-2.5 h-2.5" /> CURRENT
                         </span>
                       )}
                     </div>
@@ -301,6 +352,11 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
                         <Check className="w-3 h-3 text-emerald-500 shrink-0" /> {f}
                       </p>
                     ))}
+                    {isCurrentPlan && (
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5 pt-1">
+                        <Check className="w-3 h-3 shrink-0" /> Buying this plan will EXTEND your premium from {expiryText || 'today'}.
+                      </p>
+                    )}
                   </motion.div>
                 )}
               </motion.button>
@@ -395,7 +451,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
             {paying ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Starting...</>
             ) : (
-              <>Pay ₹{displayPrice} <ArrowRight className="w-4 h-4" /></>
+              <>{isAlreadyPremium ? 'Extend' : 'Pay'} ₹{displayPrice} <ArrowRight className="w-4 h-4" /></>
             )}
           </Button>
         </div>
