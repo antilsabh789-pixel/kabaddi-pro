@@ -47,6 +47,31 @@
          to render individual ad units. -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
     <script>
+      // ─── Runtime API base URL ────────────────────────────────────────
+      // This MUST be set when the frontend is hosted on a different origin
+      // than the API (e.g. frontend on Vercel, API on Railway). Without it,
+      // `/api/*` requests fall through to Vercel's SPA rewrite and return
+      // index.html — which causes "Unexpected token '<'" JSON parse errors
+      // in every fetch call.
+      //
+      // RESOLUTION ORDER (see src/lib/apiBase.ts):
+      //   1. window.__API_BASE_URL__ (set here or by a deploy-time script)
+      //   2. localStorage.getItem('apiBaseUrl')  — for QA/testing
+      //   3. import.meta.env.VITE_API_BASE_URL   — set at build time on Vercel
+      //   4. ''  — fall back to same-origin (Vite dev proxy)
+      //
+      // TO SET AT DEPLOY TIME (no rebuild needed):
+      //   - Vercel: add a Build Step that runs:
+      //       sed -i 's|__API_BASE_URL__=.*|__API_BASE_URL__="https://YOUR-RAILWAY-URL.up.railway.app";|' index.html
+      //     OR set VITE_API_BASE_URL in Vercel → Settings → Environment Variables
+      //     (the latter requires a rebuild to take effect)
+      //
+      // TO SET FOR TESTING (per-browser):
+      //   localStorage.setItem('apiBaseUrl', 'https://your-api.example.com')
+      //   then reload the page
+      window.__API_BASE_URL__ = ""; // <-- populated by deploy script or left empty
+    </script>
+    <script>
       // ─── Theme bootstrap — runs BEFORE any CSS/React loads ───────────
       // Reads the user's saved theme preference and applies the `.dark` class
       // to <html> immediately. This eliminates:

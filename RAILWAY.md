@@ -69,6 +69,49 @@ Railway pings `GET /api/healthz` after deploy. The endpoint returns
 ## Frontend (Vercel)
 
 The frontend lives in `artifacts/kabaddi-pro` and is deployed via `vercel.json`.
-It calls `/api/*` which Vercel rewrites to the Railway api-server URL — set
-`API_BASE_URL` (or whatever your frontend's fetch wrapper reads) on Vercel to
-your Railway service's public URL.
+It calls `/api/*` which the frontend's fetch interceptor (see
+`artifacts/kabaddi-pro/src/lib/apiBase.ts`) rewrites to the Railway API URL.
+
+### ⚠️ CRITICAL: Set the API URL on Vercel
+
+If you do NOT set the API URL, every `/api/*` request from the frontend will
+hit Vercel's SPA fallback (which returns `index.html` with HTTP 200). This
+causes the frontend to try `JSON.parse("<!DOCTYPE html>...")` which throws
+the cryptic error:
+
+> `Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON`
+
+This is the **#1 cause** of "chat not working" / "search not showing results"
+reports. The fix is to set ONE of these:
+
+| Option | Where | When it takes effect | Notes |
+|---|---|---|---|
+| `VITE_API_BASE_URL` | Vercel → Settings → Environment Variables | After rebuild | Recommended for production. Set to your Railway URL (e.g. `https://kabaddi-pro-api.up.railway.app`). |
+| `window.__API_BASE_URL__` | Edit `artifacts/kabaddi-pro/index.html` directly | Immediately (no rebuild) | Useful for hotfix. Set the value in the `<script>` block at the top of `<head>`. |
+| `localStorage.setItem('apiBaseUrl', '...')` | Browser console | Per-browser, immediately | For QA/testing only. Set on each device you test from. |
+
+After setting `VITE_API_BASE_URL` on Vercel, trigger a redeploy
+(Deployments → Redeploy) so the value gets baked into the bundle.
+
+### How `vercel.json` routing works
+
+The `rewrites` block in `vercel.json`:
+
+```json
+"rewrites": [
+  { "source": "/((?!api/).*)", "destination": "/index.html" }
+]
+```
+
+This means: any path that does NOT start with `/api/` falls through to
+`index.html` (the SPA). Paths starting with `/api/` are NOT caught by this
+rewrite — they go to Vercel's normal request handling (which is a 404 if no
+serverless function matches). The frontend's fetch interceptor (with
+`VITE_API_BASE_URL` set) rewrites those `/api/*` requests to the Railway URL
+*before* they hit the network, so Vercel's 404 never triggers.
+
+If `VITE_API_BASE_URL` is NOT set, `/api/*` requests go to Vercel and return
+404. The frontend's `safeJson` helper (in `apiBase.ts`) detects HTML responses
+and throws a user-friendly "Could not connect to server" error instead of the
+cryptic V8 SyntaxError.
+

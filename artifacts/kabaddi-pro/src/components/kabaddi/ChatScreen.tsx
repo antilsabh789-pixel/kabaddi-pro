@@ -88,6 +88,43 @@ function formatTime(iso: string): string {
 
 const POLL_INTERVAL_MS = 8000; // poll for new messages every 8s
 
+// ─── safe JSON parsing helper ───────────────────────────────────────────
+// When the API is unreachable (e.g. VITE_API_BASE_URL not set on Vercel,
+// backend down, or proxy misconfigured), the response is often the SPA's
+// index.html (HTML, status 200). Calling res.json() on that throws a cryptic
+// "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON" error.
+//
+// This helper reads the body ONCE (as text), then attempts JSON parse.
+// If the response is HTML or unparseable, it throws a user-friendly error
+// instead of the cryptic V8 SyntaxError. The body is consumed only once,
+// so call this exactly once per Response object.
+async function safeJson<T = any>(res: Response, fallback: T = ({} as T)): Promise<T> {
+  const ct = res.headers.get('content-type') || '';
+  let text = '';
+  try {
+    text = await res.text();
+  } catch {
+    return fallback;
+  }
+  if (!text) return fallback;
+  // If the response isn't JSON (e.g. HTML error page), throw a friendly error
+  const looksLikeHtml = text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<html');
+  if (!ct.includes('application/json') && !ct.includes('text/json')) {
+    if (looksLikeHtml) {
+      throw new Error('Could not connect to chat server. Please check your connection and try again.');
+    }
+    throw new Error('Unexpected response from server. Please try again.');
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    if (looksLikeHtml) {
+      throw new Error('Could not connect to chat server. Please check your connection and try again.');
+    }
+    throw new Error('Could not parse server response. Please try again.');
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════
@@ -119,7 +156,7 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
       try {
         const res = await fetch(`/api/chat/threads?userId=${currentUser.id}`);
         if (!res.ok) return;
-        const data = await res.json();
+        const data = await safeJson(res, { threads: [] });
         if (!cancelled && Array.isArray(data.threads)) {
           setThreads(data.threads);
         }
@@ -139,11 +176,15 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
     try {
       const res = await fetch(`/api/chat/threads?userId=${currentUser.id}`);
       if (!res.ok) throw new Error('Failed to load chats');
-      const data = await res.json();
+      const data = await safeJson(res, { threads: [] });
       setThreads(Array.isArray(data.threads) ? data.threads : []);
     } catch (err) {
       console.error('ChatScreen: fetchThreads error:', err);
-      toast({ title: 'Could not load chats', variant: 'destructive' });
+      toast({
+        title: 'Could not load chats',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
     } finally {
       setThreadsLoading(false);
     }
@@ -170,7 +211,7 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
           { signal: ctrl.signal },
         );
         if (!res.ok) throw new Error('search failed');
-        const data = await res.json();
+        const data = await safeJson(res, { players: [] });
         const list: PublicUser[] = (data.players || [])
           .filter((p: any) => p.id !== currentUser.id && !p.isAdmin)
           .map((p: any) => ({
@@ -201,7 +242,7 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id, targetUserId: target.id }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) {
         toast({ title: data.error || 'Could not start chat', variant: 'destructive' });
         return;
@@ -618,11 +659,11 @@ function ConversationView({
       }
 
       const res = await fetch(url.toString());
+      // Read body once via safeJson — it throws a friendly error if HTML.
+      const data = await safeJson<any>(res, { messages: [] });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to load messages');
       }
-      const data = await res.json();
       const fetched: ChatMessage[] = Array.isArray(data.messages) ? data.messages : [];
 
       if (mode === 'initial') {
@@ -672,7 +713,7 @@ function ConversationView({
         url.searchParams.set('limit', '30');
         const res = await fetch(url.toString());
         if (!res.ok || cancelled) return;
-        const data = await res.json();
+        const data = await safeJson(res, { messages: [] });
         const fetched: ChatMessage[] = Array.isArray(data.messages) ? data.messages : [];
         if (cancelled) return;
 
@@ -707,9 +748,10 @@ function ConversationView({
           `/api/chat/block-status?userId=${currentUser.id}&otherUserId=${otherUser.id}`,
         );
         if (!res.ok || cancelled) return;
-        const data = await res.json();
-        setYouBlockedThem(Boolean(data.youBlockedThem));
-        setTheyBlockedYou(Boolean(data.theyBlockedYou));
+        const data = await safeJson(res, {});
+        if (cancelled) return;
+        setYouBlockedThem(Boolean((data as any).youBlockedThem));
+        setTheyBlockedYou(Boolean((data as any).theyBlockedYou));
       } catch {
         /* ignore */
       }
@@ -737,7 +779,7 @@ function ConversationView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id, content: trimmed }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) {
         if (data.code === 'BLOCKED') {
           setYouBlockedThem(true);
@@ -764,8 +806,8 @@ function ConversationView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blockerId: currentUser.id, blockedId: otherUser.id }),
       });
+      const data = await safeJson<any>(res, {});
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to block');
       }
       setYouBlockedThem(true);
@@ -812,8 +854,8 @@ function ConversationView({
           details: details.trim() || undefined,
         }),
       });
+      const data = await safeJson<any>(res, {});
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to submit report');
       }
       setShowReportModal(false);
