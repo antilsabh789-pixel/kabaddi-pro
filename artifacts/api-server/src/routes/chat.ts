@@ -613,4 +613,117 @@ router.get('/admin/chat/stats', async (req, res) => {
   }
 });
 
+// ─── Feedback (Suggestion / Complaint) → Admin DM ──────────────────────
+// Any user can send a suggestion or complaint directly to an admin. We
+// reuse the existing chat system so the admin can reply in-thread and the
+// user gets the standard WhatsApp-style read receipts / unsend support.
+//
+// Flow:
+//   1. Find an admin (the first admin by createdAt, so the same admin is
+//      always picked for a given user — keeps the conversation in one
+//      thread instead of spraying across admins).
+//   2. upsert a ChatThread between (user, admin) using the canonical
+//      orderedPair — same logic as POST /chat/threads.
+//   3. Send a tagged chat message: "[Suggestion] <text>" or "[Complaint]
+//      <text>". The tag lets the admin see at-a-glance what kind of
+//      feedback it is without leaving the inbox.
+//   4. Push a Notification of type 'chat' with threadId so the admin's
+//      bell panel deep-links into the conversation.
+//   5. Return { threadId, adminUser } so the frontend can immediately
+//      open the chat screen with the thread active.
+router.post('/feedback', async (req, res) => {
+  try {
+    const { userId, type, message } = req.body;
+
+    // ── Validate inputs ──────────────────────────────────────────────
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!type || !['suggestion', 'complaint'].includes(type)) {
+      return res.status(400).json({ error: 'type must be "suggestion" or "complaint"' });
+    }
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'message is required' });
+    }
+    const trimmed = message.trim();
+    if (!trimmed) return res.status(400).json({ error: 'Message cannot be empty' });
+    if (trimmed.length > 2000) {
+      return res.status(400).json({ error: 'Message too long (max 2000 chars)' });
+    }
+
+    // ── Verify sender exists ─────────────────────────────────────────
+    const sender = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, playerCode: true },
+    });
+    if (!sender) return res.status(404).json({ error: 'Sender not found' });
+
+    // ── Find an admin to deliver to ──────────────────────────────────
+    // Pick the oldest admin (by createdAt) so a user always hits the same
+    // admin — keeps the conversation in one thread instead of spraying.
+    // If there are no admins, return a clear error so the frontend can
+    // surface it instead of silently swallowing the feedback.
+    const admin = await db.user.findFirst({
+      where: { isAdmin: true },
+      orderBy: { createdAt: 'asc' },
+      select: PUBLIC_USER_FIELDS,
+    });
+    if (!admin) {
+      return res.status(503).json({
+        error: 'No admin account is configured to receive feedback. Please try again later.',
+        code: 'NO_ADMIN',
+      });
+    }
+    if (admin.id === userId) {
+      return res.status(400).json({ error: 'Admins cannot send feedback to themselves' });
+    }
+
+    // ── Upsert the chat thread between user and admin ───────────────
+    const [a, b] = orderedPair(userId, admin.id);
+    const thread = await db.chatThread.upsert({
+      where: { userAId_userBId: { userAId: a, userBId: b } },
+      update: { updatedAt: new Date() },
+      create: { userAId: a, userBId: b },
+    });
+
+    // ── Send the tagged message ──────────────────────────────────────
+    // Tag format: "[Suggestion] <text>" — easy to scan in the inbox and
+    // also greppable later for admin reporting.
+    const tag = type === 'suggestion' ? 'Suggestion' : 'Complaint';
+    const taggedContent = `[${tag}] ${trimmed}`;
+
+    const chatMessage = await db.chatMessage.create({
+      data: { threadId: thread.id, senderId: userId, content: taggedContent },
+      include: { sender: { select: PUBLIC_USER_FIELDS } },
+    });
+
+    // ── Push a chat notification to the admin ────────────────────────
+    // Same shape as POST /chat/threads/:id/messages — bell panel will
+    // deep-link into the thread when tapped.
+    try {
+      const senderLabel = sender.name || sender.playerCode || 'A player';
+      await db.notification.create({
+        data: {
+          userId: admin.id,
+          fromUserId: userId,
+          type: 'chat',
+          title: `New ${tag.toLowerCase()} from ${senderLabel}`,
+          message: trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed,
+          threadId: thread.id,
+        },
+      });
+    } catch (notifErr) {
+      console.warn('feedback: failed to push notification:', String(notifErr).slice(0, 200));
+    }
+
+    return res.json({
+      threadId: thread.id,
+      adminUser: admin,
+      message: chatMessage,
+      tag,
+    });
+  } catch (err) {
+    console.error('POST /feedback error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

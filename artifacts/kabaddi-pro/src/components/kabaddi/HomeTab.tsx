@@ -59,6 +59,9 @@ import {
   Trash2,
   AlertTriangle,
   X,
+  Lightbulb,
+  Flag,
+  Send,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -610,6 +613,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   // auto-open ChatScreen the same way — ChatScreen itself consumes the
   // pending thread and opens it directly.
   const pendingChatThread = useKabaddiStore((s) => s.pendingChatThread);
+  const openChatThread = useKabaddiStore((s) => s.openChatThread);
   const { toast } = useToast();
 
   const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
@@ -633,6 +637,23 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
     | null
   >(null);
   const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null);
+
+  // ─── Feedback (Suggestion / Complaint) → Admin DM ──────────────────
+  // Any user can tap "Suggestion / Complaint" in the Tools grid to open
+  // this modal. They pick a type (Suggestion or Complaint) and type a
+  // message. On submit we POST /api/feedback, which:
+  //   1. Finds an admin
+  //   2. Creates/reuses a chat thread between user and admin
+  //   3. Sends a tagged message ("[Suggestion] ..." / "[Complaint] ...")
+  //   4. Pushes a chat notification to the admin
+  // On success we close the modal and open ChatScreen with that thread
+  // active so the user can see their message land + follow the admin's
+  // reply. We reuse the existing `pendingChatThread` store field — same
+  // mechanism as the bell panel's chat-notification deep-link.
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackType, setFeedbackType] = useState<'suggestion' | 'complaint'>('suggestion');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSending, setFeedbackSending] = useState(false);
 
   // Permission check mirroring the backend: scorer-of-match OR admin.
   // Used to decide whether to render the Trash button on a feed card.
@@ -698,6 +719,70 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
     },
     [currentUser?.id, toast]
   );
+
+  // ─── Send feedback (suggestion/complaint) → admin DM ────────────────
+  // Posts to /api/feedback which creates/reuses a chat thread with an
+  // admin and sends a tagged message. On success we close the modal and
+  // deep-link into the thread via openChatThread — same store field the
+  // bell panel uses, so ChatScreen auto-opens the conversation. The user
+  // sees their message land immediately and can follow the admin's reply.
+  const handleSendFeedback = useCallback(async () => {
+    if (!currentUser?.id) return;
+    const trimmed = feedbackMessage.trim();
+    if (!trimmed) {
+      toast({
+        title: 'Empty message',
+        description: 'Please type your suggestion or complaint before sending.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setFeedbackSending(true);
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          type: feedbackType,
+          message: trimmed,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({
+          title: 'Could not send',
+          description: data?.error || 'Please try again later.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      // Success — close modal, reset fields, deep-link into chat thread.
+      setFeedbackOpen(false);
+      setFeedbackMessage('');
+      setFeedbackType('suggestion');
+      toast({
+        title: data?.tag ? `${data.tag} sent` : 'Feedback sent',
+        description: 'Your message has been delivered to the admin. You can follow the conversation in Chat.',
+      });
+      if (data?.threadId && data?.adminUser) {
+        openChatThread(data.threadId, {
+          id: data.adminUser.id,
+          name: data.adminUser.name,
+          playerCode: data.adminUser.playerCode,
+          avatar: data.adminUser.avatar,
+        });
+      }
+    } catch (err) {
+      toast({
+        title: 'Could not send',
+        description: err instanceof Error ? err.message : 'Network error',
+        variant: 'destructive',
+      });
+    } finally {
+      setFeedbackSending(false);
+    }
+  }, [currentUser?.id, feedbackMessage, feedbackType, openChatThread, toast]);
   const [awardPlayers, setAwardPlayers] = useState<AwardPlayer[]>([]);
   const [motmAwards, setMotmAwards] = useState<MotmAward[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3521,6 +3606,44 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
               </div>
             </Card>
           </motion.div>
+
+          {/* Suggestion / Complaint → Admin DM
+              Any user can tap this to open a modal where they pick a type
+              (Suggestion or Complaint) and type a freeform message. On
+              submit we POST /api/feedback, which finds an admin, opens a
+              chat thread between user and admin, sends a tagged message
+              ("[Suggestion] ..." / "[Complaint] ..."), and pushes a chat
+              notification to the admin. The user is then deep-linked into
+              the conversation so they can follow the admin's reply. */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+            <Card
+              className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-violet-50/80 to-warm-50 dark:from-violet-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift"
+              onClick={() => {
+                // Admins are the recipients — they don't need to send
+                // feedback to themselves. Show a toast instead of the modal.
+                if (isAdmin) {
+                  toast({
+                    title: 'You are an admin',
+                    description: 'Admins receive feedback — no need to send it to yourself.',
+                  });
+                  return;
+                }
+                setFeedbackOpen(true);
+              }}
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-violet-500 to-violet-500/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/30 to-violet-500/10 flex items-center justify-center shadow-sm shrink-0 group-hover:shadow-md group-hover:shadow-violet-500/20 transition-shadow">
+                  <Lightbulb className="w-4.5 h-4.5 text-violet-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Suggestion / Complaint</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Message the admin directly</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
         </div>
         <div className="flex items-center gap-2 mt-5 mb-3">
           <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 shimmer-sweep-text">Pro Features</h3>
@@ -3891,6 +4014,156 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                     <>
                       <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                       Yes, Delete
+                    </>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Feedback (Suggestion / Complaint) Modal ──────────────────────
+          Triggered by the "Suggestion / Complaint" card in the Tools grid.
+          The user picks a type (Suggestion or Complaint) and types a
+          freeform message. On submit, handleSendFeedback posts to
+          /api/feedback which finds an admin, opens/reuses a chat thread,
+          sends a tagged message ("[Suggestion] ..." / "[Complaint] ..."),
+          and pushes a chat notification to the admin. The user is then
+          deep-linked into the conversation via openChatThread so they can
+          see their message land and follow the admin's reply. */}
+      <AnimatePresence>
+        {feedbackOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => {
+              if (!feedbackSending) setFeedbackOpen(false);
+            }}
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-warm-50 dark:bg-warm-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                    <Lightbulb className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-warm-800 dark:text-warm-100">
+                      Suggestion / Complaint
+                    </h2>
+                    <p className="text-[11px] text-warm-500 dark:text-warm-400">
+                      Sends a direct message to the admin
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!feedbackSending) setFeedbackOpen(false);
+                  }}
+                  disabled={feedbackSending}
+                  className="p-1.5 rounded-lg text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-800 disabled:opacity-50"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Type selector */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackType('suggestion')}
+                  disabled={feedbackSending}
+                  className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 disabled:opacity-60 ${
+                    feedbackType === 'suggestion'
+                      ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/30'
+                      : 'border-warm-200 dark:border-warm-700 hover:border-violet-300'
+                  }`}
+                >
+                  <Lightbulb className={`w-5 h-5 ${feedbackType === 'suggestion' ? 'text-violet-600 dark:text-violet-400' : 'text-warm-400'}`} />
+                  <span className={`text-xs font-semibold ${feedbackType === 'suggestion' ? 'text-violet-700 dark:text-violet-300' : 'text-warm-600 dark:text-warm-300'}`}>
+                    Suggestion
+                  </span>
+                  <span className="text-[9px] text-warm-400 dark:text-warm-500 text-center leading-tight">
+                    Idea or feature request
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeedbackType('complaint')}
+                  disabled={feedbackSending}
+                  className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 disabled:opacity-60 ${
+                    feedbackType === 'complaint'
+                      ? 'border-red-500 bg-red-50 dark:bg-red-900/30'
+                      : 'border-warm-200 dark:border-warm-700 hover:border-red-300'
+                  }`}
+                >
+                  <Flag className={`w-5 h-5 ${feedbackType === 'complaint' ? 'text-red-600 dark:text-red-400' : 'text-warm-400'}`} />
+                  <span className={`text-xs font-semibold ${feedbackType === 'complaint' ? 'text-red-700 dark:text-red-300' : 'text-warm-600 dark:text-warm-300'}`}>
+                    Complaint
+                  </span>
+                  <span className="text-[9px] text-warm-400 dark:text-warm-500 text-center leading-tight">
+                    Report a problem or issue
+                  </span>
+                </button>
+              </div>
+
+              {/* Message textarea */}
+              <textarea
+                value={feedbackMessage}
+                onChange={(e) => setFeedbackMessage(e.target.value.slice(0, 2000))}
+                disabled={feedbackSending}
+                rows={5}
+                placeholder={
+                  feedbackType === 'suggestion'
+                    ? 'Describe your suggestion or idea…'
+                    : 'Describe the issue or complaint…'
+                }
+                className="w-full p-3 rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 text-sm text-warm-800 dark:text-warm-100 placeholder:text-warm-400 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-60"
+              />
+              <div className="flex items-center justify-between mt-1.5">
+                <p className="text-[10px] text-warm-400 dark:text-warm-500">
+                  You can reply in chat after sending. The admin sees your name.
+                </p>
+                <p className="text-[10px] text-warm-400 dark:text-warm-500 tabular-nums">
+                  {feedbackMessage.length}/2000
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 mt-4">
+                <Button
+                  onClick={() => setFeedbackOpen(false)}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={feedbackSending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSendFeedback}
+                  className="flex-1 bg-violet-500 hover:bg-violet-600 text-white"
+                  disabled={feedbackSending || !feedbackMessage.trim()}
+                >
+                  {feedbackSending ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Sending…
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5 mr-1.5" />
+                      Send to Admin
                     </>
                   )}
                 </Button>
