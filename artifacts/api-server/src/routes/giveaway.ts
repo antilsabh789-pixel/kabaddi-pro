@@ -160,17 +160,28 @@ function sanitizeDbError(err: unknown): string {
   // 1. Prisma structured errors — check `code` field for reliable detection.
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     const code = err.code;
+    // P2022 has a `meta.column` property naming the missing column — extract it
+    // so the user (and we) can see EXACTLY which column needs to be added.
+    const meta = err.meta as Record<string, unknown> | undefined;
     switch (code) {
-      case 'P2021':
-        return `DB table missing (Prisma ${code}). The auto-migrate on boot did not create the table. Please redeploy or run \`prisma db push\` manually.`;
-      case 'P2022':
-        return `DB column missing (Prisma ${code}). Schema is out of date. Please redeploy or run \`prisma db push\`.`;
+      case 'P2021': {
+        const table = meta?.table ? ` (table: ${String(meta.table)})` : '';
+        return `DB table missing (Prisma ${code})${table}. Auto-migrate did not create the table. Will self-heal on next request.`;
+      }
+      case 'P2022': {
+        const column = meta?.column ? `: ${String(meta.column)}` : '';
+        return `DB column missing (Prisma ${code})${column}. Schema is out of date — please redeploy or run \`prisma db push\`.`;
+      }
       case 'P2024':
         return `DB connection pool timeout (Prisma ${code}). Too many concurrent queries.`;
-      case 'P2003':
-        return `DB foreign key constraint failed (Prisma ${code}).`;
-      case 'P2002':
-        return `DB unique constraint failed (Prisma ${code}).`;
+      case 'P2003': {
+        const fk = meta?.field_name ? ` (field: ${String(meta.field_name)})` : '';
+        return `DB foreign key constraint failed (Prisma ${code})${fk}.`;
+      }
+      case 'P2002': {
+        const target = meta?.target ? ` (target: ${JSON.stringify(meta.target)})` : '';
+        return `DB unique constraint failed (Prisma ${code})${target}.`;
+      }
       case 'P2009':
         return `DB query validation error (Prisma ${code}). Schema mismatch — run \`prisma db push\`.`;
       case 'P2010':
@@ -1544,26 +1555,34 @@ router.post('/giveaway/admin/change-winners', async (req, res) => {
 router.post('/giveaway/admin/reset', async (req, res) => {
   try {
     const { adminId } = req.body;
-    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    const admin = await withSelfHeal(() =>
+      db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } }),
+    );
     if (!admin || !admin.isAdmin) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
     // 1. Mark the current active round as 'completed' (don't delete it!)
     //    This preserves its participants and winnersJson for the Past Winners section.
-    await db.giveawayRound.updateMany({
-      where: { status: 'active' },
-      data: { status: 'completed' },
-    });
+    await withSelfHeal(() =>
+      db.giveawayRound.updateMany({
+        where: { status: 'active' },
+        data: { status: 'completed' },
+      }),
+    );
 
     // 2. Create a new round with the next round number + 15-day countdown
-    const lastRound = await db.giveawayRound.findFirst({ orderBy: { roundNumber: 'desc' } });
+    const lastRound = await withSelfHeal(() =>
+      db.giveawayRound.findFirst({ orderBy: { roundNumber: 'desc' } }),
+    );
     const nextNumber = (lastRound?.roundNumber || 0) + 1;
     const now = new Date();
     const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
-    const newRound = await db.giveawayRound.create({
-      data: { roundNumber: nextNumber, startDate: now, endDate, status: 'active' },
-    });
+    const newRound = await withSelfHeal(() =>
+      db.giveawayRound.create({
+        data: { roundNumber: nextNumber, startDate: now, endDate, status: 'active' },
+      }),
+    );
 
     return res.json({
       success: true,
@@ -1578,7 +1597,100 @@ router.post('/giveaway/admin/reset', async (req, res) => {
     });
   } catch (error) {
     console.error('Giveaway reset error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
+  }
+});
+
+/**
+ * POST /api/giveaway/admin/force-start-next-round
+ * ADMIN ONLY — Force-starts the next round, picking up from where the last
+ * round ended. Used when:
+ *   - The current round is stuck in an error state
+ *   - Round N ended with errors and the admin wants to start Round N+1
+ *   - The timer shows 00:00:00:00 because the round expired but wasn't completed
+ *
+ * Behavior:
+ *   1. If there's an active round, mark it as 'completed' (preserves participants
+ *      and winnersJson for the Past Winners section).
+ *   2. If there's NO completed round with winners, mark it as completed with
+ *      winnersJson=null (no winners selected — admin can add them later
+ *      via /admin/select-winners-manual).
+ *   3. Create a new round with roundNumber = lastRound.roundNumber + 1,
+ *      startDate = now, endDate = now + 15 days, status = 'active'.
+ *
+ * Returns: { success, message, round: { id, roundNumber, startDate, endDate, status } }
+ *
+ * Body: { adminId: string }
+ */
+router.post('/giveaway/admin/force-start-next-round', async (req, res) => {
+  try {
+    const { adminId } = req.body;
+    const admin = await withSelfHeal(() =>
+      db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } }),
+    );
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // 1. Find the current active round (if any)
+    const currentActive = await withSelfHeal(() =>
+      db.giveawayRound.findFirst({
+        where: { status: 'active' },
+        orderBy: { roundNumber: 'desc' },
+      }),
+    );
+
+    let previousRoundInfo: { roundNumber: number; hadWinners: boolean } | null = null;
+    if (currentActive) {
+      // Mark as completed — preserves the round and its participants
+      await withSelfHeal(() =>
+        db.giveawayRound.update({
+          where: { id: currentActive.id },
+          data: {
+            status: 'completed',
+            // If no winners were selected, leave winnersJson as null
+            // (admin can add winners later via /admin/select-winners-manual)
+          },
+        }),
+      );
+      previousRoundInfo = {
+        roundNumber: currentActive.roundNumber,
+        hadWinners: !!currentActive.winnersJson,
+      };
+    }
+
+    // 2. Find the highest round number (across all statuses) and increment
+    const lastRound = await withSelfHeal(() =>
+      db.giveawayRound.findFirst({ orderBy: { roundNumber: 'desc' } }),
+    );
+    const nextNumber = (lastRound?.roundNumber || 0) + 1;
+    const now = new Date();
+    const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const newRound = await withSelfHeal(() =>
+      db.giveawayRound.create({
+        data: { roundNumber: nextNumber, startDate: now, endDate, status: 'active' },
+      }),
+    );
+
+    const message = previousRoundInfo
+      ? `Round ${nextNumber} started. Previous Round ${previousRoundInfo.roundNumber} marked as completed${previousRoundInfo.hadWinners ? '' : ' (no winners were selected — you can add them later via Change Winners)'}.`
+      : `Round ${nextNumber} started fresh (no previous round was active).`;
+
+    return res.json({
+      success: true,
+      message,
+      previousRound: previousRoundInfo,
+      round: {
+        id: newRound.id,
+        roundNumber: newRound.roundNumber,
+        startDate: newRound.startDate,
+        endDate: newRound.endDate,
+        status: newRound.status,
+      },
+    });
+  } catch (error) {
+    console.error('Giveaway force-start-next-round error:', error);
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 

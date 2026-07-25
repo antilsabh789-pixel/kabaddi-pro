@@ -51,7 +51,11 @@ async function autoMigrate() {
     // GiveawayParticipant.entryType — distinguishes free / referral / premium_direct / paid entries.
     // Replaces the overloaded isPremium boolean (which was reused as a "paid ₹2" flag during the
     // all-free refactor). The boolean is kept for backward compat with old admin queries.
+    // NOTE: We add to BOTH "giveaway_participants" (legacy snake_case) AND
+    // "GiveawayParticipant" (current PascalCase as defined in schema.prisma)
+    // to cover all possible table-name states the production DB might be in.
     `ALTER TABLE "giveaway_participants" ADD COLUMN IF NOT EXISTS "entryType" TEXT NOT NULL DEFAULT 'free'`,
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "entryType" TEXT NOT NULL DEFAULT 'free'`,
     // DiscountCode — new admin-managed coupon table (replaces hardcoded VALID_COUPONS).
     `CREATE TABLE IF NOT EXISTS "DiscountCode" (
       "id" TEXT NOT NULL,
@@ -69,6 +73,61 @@ async function autoMigrate() {
       CONSTRAINT "DiscountCode_pkey" PRIMARY KEY ("id")
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "DiscountCode_code_key" ON "DiscountCode"("code")`,
+
+    // ─── COMPREHENSIVE User column sync ────────────────────────────────────
+    // The User table in schema.prisma has accumulated columns over many
+    // commits (premiumPlan, premiumExpiry, playerCode, etc.) but the
+    // production DB on Railway may not have all of them — `prisma db push`
+    // was never run, so we ADD COLUMN IF NOT EXISTS for every User column
+    // here to fix Prisma P2022 errors at runtime.
+    // Order matters: add nullable/non-default columns first, then NOT NULL
+    // DEFAULT columns (which can be added safely to existing rows).
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "playerCode" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "email" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "name" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "password" TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "role" TEXT NOT NULL DEFAULT 'player'`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatar" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isPremium" BOOLEAN NOT NULL DEFAULT false`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "premiumExpiry" TIMESTAMP(3)`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "premiumPlan" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isAdmin" BOOLEAN NOT NULL DEFAULT false`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dateOfBirth" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phoneVerified" BOOLEAN NOT NULL DEFAULT true`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "gender" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "weight" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "practiceGround" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "location" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "showCoachBadge" BOOLEAN NOT NULL DEFAULT false`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "provisional" BOOLEAN NOT NULL DEFAULT false`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    // Unique index for playerCode (only if column exists now)
+    `CREATE UNIQUE INDEX IF NOT EXISTS "User_playerCode_key" ON "User"("playerCode")`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email")`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "User_phone_key" ON "User"("phone")`,
+
+    // ─── COMPREHENSIVE GiveawayParticipant column sync ─────────────────────
+    // Same idea — ensure ALL GiveawayParticipant columns exist regardless
+    // of when the table was originally created.
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "id" TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "giveawayRoundId" TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "userId" TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "phone" TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "name" TEXT`,
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "isPremium" BOOLEAN NOT NULL DEFAULT false`,
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "entryType" TEXT NOT NULL DEFAULT 'free'`,
+    `ALTER TABLE "GiveawayParticipant" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+
+    // ─── COMPREHENSIVE GiveawayRound column sync ───────────────────────────
+    `ALTER TABLE "GiveawayRound" ADD COLUMN IF NOT EXISTS "id" TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE "GiveawayRound" ADD COLUMN IF NOT EXISTS "roundNumber" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "GiveawayRound" ADD COLUMN IF NOT EXISTS "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE "GiveawayRound" ADD COLUMN IF NOT EXISTS "endDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE "GiveawayRound" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'active'`,
+    `ALTER TABLE "GiveawayRound" ADD COLUMN IF NOT EXISTS "winnersJson" TEXT`,
+    `ALTER TABLE "GiveawayRound" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE "GiveawayRound" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
   ];
 
   // The Attendance table's unique constraint changed from

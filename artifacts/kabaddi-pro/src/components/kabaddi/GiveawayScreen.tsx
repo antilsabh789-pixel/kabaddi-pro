@@ -1272,6 +1272,38 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
                   🔄 Reset Giveaway (Start Fresh Round)
                 </Button>
 
+                {/* Force Start Next Round — picks up from where the last round ended.
+                    Used when round is stuck in error state or timer shows 00:00:00:00. */}
+                <Button
+                  onClick={async () => {
+                    if (!confirm('Force-start the NEXT round?\n\nThis will:\n• Mark the current round as completed (preserves participants)\n• Create a new round with the next round number\n• Set the timer to 15 days from now\n\nUse this when the current round is stuck or showing errors.')) return;
+                    try {
+                      const res = await fetch('/api/giveaway/admin/force-start-next-round', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ adminId: currentUser?.id }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        toast({
+                          title: '✅ Next Round Started!',
+                          description: data.message || `Round ${data.round?.roundNumber} started successfully.`,
+                        });
+                        fetchStatus();
+                        handleAdminView();
+                      } else {
+                        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Error', description: 'Failed to start next round', variant: 'destructive' });
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl font-bold text-xs"
+                >
+                  ⏭ Force Start Next Round (recover from error)
+                </Button>
+
                 {/* Quick Restore Round 1 — winners + participants, pre-filled */}
                 <Button
                   onClick={async () => {
