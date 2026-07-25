@@ -1224,17 +1224,37 @@ function ReferralLeaderboardPanel() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/referral-leaderboard?adminId=${encodeURIComponent(currentUser.id)}&limit=200`);
-      const data = await res.json();
+      const res = await fetch(`/api/admin/referral-leaderboard?adminId=${encodeURIComponent(currentUser.id)}&limit=200`, {
+        headers: { Accept: 'application/json' },
+      });
+      // Read body as text first so we can distinguish a real JSON error
+      // response from an HTML 404 page (which happens when the api-server
+      // hasn't been redeployed yet and the route doesn't exist).
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        // Body isn't JSON — most likely an HTML error page from a proxy
+        // or the dev server's catch-all. Surface a useful hint.
+        if (res.status === 404) {
+          setError(`Endpoint /api/admin/referral-leaderboard returned 404. This usually means the api-server hasn't been redeployed yet — push to GitHub, then redeploy on Replit (or restart the api-server) so the new route is live.`);
+        } else {
+          setError(`Server returned HTTP ${res.status} with a non-JSON response. The api-server may be down or being redeployed. Try again in a moment.`);
+        }
+        return;
+      }
       if (res.ok) {
         setEntries(data.leaderboard || []);
         setTotalReferrers(data.totalReferrers || 0);
         setTotalSuccessfulReferrals(data.totalSuccessfulReferrals || 0);
       } else {
-        setError(data.error || 'Failed to load referral leaderboard');
+        setError(data?.error || `Failed to load referral leaderboard (HTTP ${res.status})`);
       }
-    } catch {
-      setError('Network error while loading referral leaderboard');
+    } catch (e) {
+      // Genuine network failure (DNS, offline, CORS, etc.)
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(`Network error: ${msg}. Check your internet connection and that the api-server is reachable.`);
     } finally {
       setLoading(false);
     }
@@ -1322,10 +1342,12 @@ function ReferralLeaderboardPanel() {
         {/* Error */}
         {!loading && error && (
           <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 p-3 mb-3">
-            <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-              {error}
-            </p>
+            <div className="flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed flex-1">
+                {error}
+              </p>
+            </div>
             <Button
               size="sm"
               variant="outline"
