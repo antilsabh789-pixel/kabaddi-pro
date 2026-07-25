@@ -62,20 +62,46 @@ router.get('/players/search', async (req, res) => {
   try {
     const q = (req.query['q'] as string) || '';
     const limit = parseInt((req.query['limit'] as string) || '10');
+    // Optional: exclude the caller from results (used by chat new-chat search
+    // so you can't start a conversation with yourself).
+    const excludeUserId = (req.query['userId'] as string) || '';
     if (!q) return res.json({ players: [] });
 
+    // Build a case-insensitive OR across name / playerCode / phone.
+    // We also exclude admins (you can't DM the admin from the chat search —
+    // admin contact is via the Player Lookup panel) and the caller themselves.
+    const where: any = {
+      AND: [
+        { isAdmin: false },
+        ...(excludeUserId ? [{ id: { not: excludeUserId } }] : []),
+        {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { playerCode: { contains: q.toUpperCase() } },
+            { phone: { contains: q } },
+          ],
+        },
+      ],
+    };
+
     const users = await db.user.findMany({
-      where: { OR: [{ name: { contains: q } }, { playerCode: { contains: q } }, { phone: { contains: q } }] },
+      where,
       take: limit,
       include: { profile: true },
     });
 
+    // Return enough fields for the chat search UI to render avatars, badges,
+    // and to filter out any edge-case admins (defense in depth — server
+    // already excluded them above).
     const players = users.map((u) => ({
       id: u.id,
       name: u.name,
       playerCode: u.playerCode,
       avatar: u.avatar,
       gender: u.gender,
+      role: u.role,
+      isPremium: u.isPremium,
+      isAdmin: u.isAdmin,
       profile: u.profile ? { position: u.profile.position, jerseyNumber: u.profile.jerseyNumber, overallRating: u.profile.overallRating } : null,
     }));
 

@@ -152,6 +152,9 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
   useEffect(() => { fetchThreads(); }, [fetchThreads]);
 
   // Player search for new chat
+  // Uses /api/players/search?q= (NOT /api/players?search=) — the latter is
+  // privacy-locked to phone-numbers-only. /players/search allows substring
+  // match on name / playerCode / phone, which is what the chat needs.
   useEffect(() => {
     if (!searchQuery.trim() || !currentUser?.id) {
       setSearchResults([]);
@@ -163,7 +166,7 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
     const timeout = setTimeout(async () => {
       try {
         const res = await fetch(
-          `/api/players?search=${encodeURIComponent(searchQuery.trim())}&limit=20&userId=${currentUser.id}`,
+          `/api/players/search?q=${encodeURIComponent(searchQuery.trim())}&limit=20&userId=${currentUser.id}`,
           { signal: ctrl.signal },
         );
         if (!res.ok) throw new Error('search failed');
@@ -172,7 +175,10 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
           .filter((p: any) => p.id !== currentUser.id && !p.isAdmin)
           .map((p: any) => ({
             id: p.id, name: p.name, playerCode: p.playerCode,
-            avatar: p.avatar, role: p.role, isPremium: p.isPremium, isAdmin: p.isAdmin,
+            avatar: p.avatar,
+            role: p.role || 'player',
+            isPremium: Boolean(p.isPremium),
+            isAdmin: Boolean(p.isAdmin),
           }));
         setSearchResults(list);
       } catch (err: any) {
@@ -568,7 +574,6 @@ function ConversationView({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  const [oldestMessageId, setOldestMessageId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -584,10 +589,20 @@ function ConversationView({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef(true);
+  // Mirror `messages` into a ref so fetchMessages can read the latest array
+  // for "load more" cursor positioning WITHOUT having `messages` in its
+  // useCallback deps. Including messages in deps caused an infinite loop:
+  //   setMessages -> fetchMessages identity changes -> useEffect re-fires
+  //   -> fetchMessages('initial') -> setMessages -> ...
+  const messagesRef = useRef<ChatMessage[]>([]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   useBackButton(true, onBack);
 
   // ─── Fetch messages ───────────────────────────────────────────────
+  // Deps are stable (threadId + currentUser.id only). For 'more' mode we
+  // read the oldest message from messagesRef.current[0] instead of from
+  // a dep, which avoids the infinite re-fetch loop.
   const fetchMessages = useCallback(async (mode: 'initial' | 'more' = 'initial') => {
     try {
       if (mode === 'initial') setLoading(true);
@@ -596,9 +611,9 @@ function ConversationView({
       const url = new URL(`/api/chat/threads/${threadId}/messages`, window.location.origin);
       url.searchParams.set('userId', currentUser.id);
       url.searchParams.set('limit', '30');
-      if (mode === 'more' && oldestMessageId) {
-        // Use the oldest message's createdAt as cursor
-        const oldest = messages[0];
+      if (mode === 'more') {
+        // Use the oldest currently-visible message's createdAt as cursor
+        const oldest = messagesRef.current[0];
         if (oldest) url.searchParams.set('before', oldest.createdAt);
       }
 
@@ -639,7 +654,7 @@ function ConversationView({
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [threadId, currentUser.id, oldestMessageId, messages]);
+  }, [threadId, currentUser.id]);
 
   useEffect(() => {
     fetchMessages('initial');
