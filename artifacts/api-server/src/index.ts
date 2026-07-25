@@ -188,6 +188,17 @@ async function autoMigrate() {
       ALTER TABLE "ChatReport" ADD CONSTRAINT "ChatReport_reviewedBy_fkey"
         FOREIGN KEY ("reviewedBy") REFERENCES "User"("id") ON DELETE SET NULL;
     EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    // ChatMessage.deletedAt — soft-delete (unsend) column added for the
+    // "delete for everyone" feature. Idempotent: ADD COLUMN IF NOT EXISTS
+    // (Postgres) is a no-op on existing columns. SQLite < 3.35 doesn't
+    // support IF NOT EXISTS on ADD COLUMN, so we wrap in a try/catch and
+    // ignore "duplicate column" errors (handled by the loop's catch below).
+    `ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP`,
+    // Notification.threadId — for type='chat' notifications, the
+    // conversation thread this notification belongs to, so the recipient
+    // can jump straight into the right conversation when they tap the
+    // notification in the bell panel.
+    `ALTER TABLE "Notification" ADD COLUMN IF NOT EXISTS "threadId" TEXT`,
   ];
 
   for (const sql of chatTableStatements) {

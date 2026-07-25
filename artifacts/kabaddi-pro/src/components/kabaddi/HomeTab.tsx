@@ -56,6 +56,9 @@ import {
   CalendarRange,
   FileDown,
   ClipboardList,
+  Trash2,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -148,6 +151,11 @@ interface LiveMatch {
   tournament: { id: string; name: string } | null;
   isPractice?: boolean;
   startedAt?: string;
+  // Scorers list — populated by /api/stats and /api/matches/live. Used by
+  // the home feed to decide whether to render a "Delete" button on the
+  // match card (admin OR scorer-of-match only). Optional for back-compat
+  // with older API responses that don't include this field.
+  scorers?: { userId: string }[];
 }
 
 interface CompletedMatch {
@@ -173,6 +181,8 @@ interface CompletedMatch {
   tournament: { id: string; name: string } | null;
   startedAt: string | null;
   completedAt: string | null;
+  // See LiveMatch.scorers — same purpose, optional for back-compat.
+  scorers?: { userId: string }[];
 }
 
 interface UpcomingMatch {
@@ -198,6 +208,8 @@ interface UpcomingMatch {
   tournament: { id: string; name: string } | null;
   startedAt: string | null;
   completedAt: string | null;
+  // See LiveMatch.scorers — same purpose, optional for back-compat.
+  scorers?: { userId: string }[];
 }
 
 interface MotmAward {
@@ -592,12 +604,100 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   // (after showChat state is declared) so the admin jumps straight into
   // a DM with that player.
   const pendingChatTarget = useKabaddiStore((s) => s.pendingChatTarget);
+  // Also watch the cross-tab chat THREAD launcher. When the user taps a
+  // chat notification in the bell panel, the store's pendingChatThread is
+  // set with { threadId, otherUser } and activeTab switches to 'home'. We
+  // auto-open ChatScreen the same way — ChatScreen itself consumes the
+  // pending thread and opens it directly.
+  const pendingChatThread = useKabaddiStore((s) => s.pendingChatThread);
   const { toast } = useToast();
 
   const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
+  const isAdmin = !!currentUser?.isAdmin;
   const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
   const [recentMatches, setRecentMatches] = useState<CompletedMatch[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingMatch[]>([]);
+
+  // ─── Match deletion (admin OR scorer-of-match) ──────────────────────
+  // The home feed exposes a "Delete" button on every match card so admins
+  // (and the scorer who created the match) can remove completed / live /
+  // upcoming matches directly from the feed, without having to navigate
+  // to Match History. Permission is enforced server-side by
+  // DELETE /api/matches — the frontend button is just a UI affordance.
+  //
+  // pendingDeleteMatch holds the match the user is currently being asked
+  // to confirm deletion of (rendered as a modal overlay). deletingMatchId
+  // is the match currently being deleted (drives the spinner).
+  const [pendingDeleteMatch, setPendingDeleteMatch] = useState<
+    | { id: string; homeTeamName: string; awayTeamName: string; status: string }
+    | null
+  >(null);
+  const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null);
+
+  // Permission check mirroring the backend: scorer-of-match OR admin.
+  // Used to decide whether to render the Trash button on a feed card.
+  const canDeleteMatch = useCallback(
+    (match: { scorers?: { userId: string }[] } | undefined | null): boolean => {
+      if (!currentUser?.id) return false;
+      if (isAdmin) return true;
+      if (!match?.scorers) return false;
+      return match.scorers.some((s) => s.userId === currentUser.id);
+    },
+    [currentUser?.id, isAdmin]
+  );
+
+  // Returns true if the current user is an admin deleting a match they
+  // did NOT score (used to label the button + modal as "admin override").
+  const isAdminOverride = useCallback(
+    (match: { scorers?: { userId: string }[] } | undefined | null): boolean => {
+      if (!isAdmin || !currentUser?.id) return false;
+      if (!match?.scorers) return true; // no scorers at all → admin override
+      return !match.scorers.some((s) => s.userId === currentUser.id);
+    },
+    [isAdmin, currentUser?.id]
+  );
+
+  const handleDeleteMatch = useCallback(
+    async (matchId: string) => {
+      if (!currentUser?.id) return;
+      setDeletingMatchId(matchId);
+      try {
+        const res = await fetch('/api/matches', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId, userId: currentUser.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast({
+            title: 'Delete failed',
+            description: data?.error || 'Could not delete match',
+            variant: 'destructive',
+          });
+          return;
+        }
+        toast({
+          title: 'Match deleted',
+          description: data?.message || 'Player stats have been reversed.',
+        });
+        // Remove from ALL local feed states so the UI updates instantly.
+        // No refetch needed — we already have the full local list.
+        setLiveMatches((prev) => prev.filter((m) => m.id !== matchId));
+        setRecentMatches((prev) => prev.filter((m) => m.id !== matchId));
+        setUpcomingMatches((prev) => prev.filter((m) => m.id !== matchId));
+        setPendingDeleteMatch(null);
+      } catch (err) {
+        toast({
+          title: 'Delete failed',
+          description: err instanceof Error ? err.message : 'Network error',
+          variant: 'destructive',
+        });
+      } finally {
+        setDeletingMatchId(null);
+      }
+    },
+    [currentUser?.id, toast]
+  );
   const [awardPlayers, setAwardPlayers] = useState<AwardPlayer[]>([]);
   const [motmAwards, setMotmAwards] = useState<MotmAward[]>([]);
   const [loading, setLoading] = useState(true);
@@ -678,9 +778,12 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   // Auto-open ChatScreen when a cross-tab chat target is pending (set by
   // Profile → Player Lookup → Chat button). ChatScreen consumes the
   // target on mount and clears it from the store.
+  // The same auto-open also fires when a cross-tab chat THREAD is pending
+  // (set by the bell panel when a chat notification is tapped). ChatScreen
+  // consumes the pending thread on mount and opens it directly.
   useEffect(() => {
-    if (pendingChatTarget) setShowChat(true);
-  }, [pendingChatTarget]);
+    if (pendingChatTarget || pendingChatThread) setShowChat(true);
+  }, [pendingChatTarget, pendingChatThread]);
   const [giveawayWinners, setGiveawayWinners] = useState<Array<{
     roundNumber: number; rank: number; playerId: string; prize: string;
   }>>([]);
@@ -879,6 +982,9 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                 isPractice: m.isPractice,
                 tournament: m.tournament?.name || null,
                 startedAt: m.startedAt,
+                // Preserve scorers from the API response so the delete
+                // button can be rendered (admin OR scorer-of-match).
+                scorers: Array.isArray(m.scorers) ? m.scorers.map((s: any) => ({ userId: s.userId })) : [],
               }));
               // Merge: add user-specific matches that aren't already in the list
               const existingIds = new Set(matches.map((m) => m.id));
@@ -1967,9 +2073,32 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                               </Badge>
                             )}
                           </div>
-                          <span className="text-xs text-warm-500 dark:text-warm-400 font-medium bg-warm-200/50 dark:bg-warm-700/50 px-2 py-0.5 rounded-md">
-                            {halfLabel(match.half)}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {/* Delete (admin / scorer-of-match only) */}
+                            {canDeleteMatch(match) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendingDeleteMatch({
+                                    id: match.id,
+                                    homeTeamName: match.homeTeam.name,
+                                    awayTeamName: match.awayTeam.name,
+                                    status: match.status,
+                                  });
+                                }}
+                                disabled={deletingMatchId === match.id}
+                                title={isAdminOverride(match) ? 'Admin: delete this live match' : 'Delete this live match'}
+                                className="px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                {isAdminOverride(match) ? 'Del' : ''}
+                              </button>
+                            )}
+                            <span className="text-xs text-warm-500 dark:text-warm-400 font-medium bg-warm-200/50 dark:bg-warm-700/50 px-2 py-0.5 rounded-md">
+                              {halfLabel(match.half)}
+                            </span>
+                          </div>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col items-center gap-1 flex-1">
@@ -2335,6 +2464,34 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                       )}
                       {/* Match action buttons */}
                       <div className="flex items-center justify-end gap-1 mt-2">
+                        {/* Delete (admin / scorer-of-match only) — placed first
+                            so it's the leftmost action button, easy to spot. */}
+                        {canDeleteMatch(match) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPendingDeleteMatch({
+                                id: match.id,
+                                homeTeamName: match.homeTeam.name,
+                                awayTeamName: match.awayTeam.name,
+                                status: match.status,
+                              });
+                            }}
+                            disabled={deletingMatchId === match.id}
+                            className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                              isAdminOverride(match)
+                                ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                : 'hover:bg-red-100 dark:hover:bg-red-900/30 text-warm-400 hover:text-red-500'
+                            }`}
+                            title={isAdminOverride(match) ? 'Admin: delete this match' : 'Delete this match'}
+                          >
+                            {deletingMatchId === match.id ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -2538,9 +2695,41 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-teal/5 to-transparent" />
                         <CountdownTimer targetDate={match.startedAt} />
                       </div>
-                      {/* Set Reminder button - enhanced */}
-                      <div className="flex justify-end mt-2.5">
-                        <motion.div whileTap={{ scale: 0.9 }} whileHover={{ scale: 1.02 }}>
+                      {/* Set Reminder + Delete buttons - enhanced */}
+                      <div className="flex justify-between items-center gap-2 mt-2.5">
+                        {/* Delete (admin / scorer-of-match only) */}
+                        {canDeleteMatch(match) && (
+                          <motion.div whileTap={{ scale: 0.9 }} whileHover={{ scale: 1.02 }}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={deletingMatchId === match.id}
+                              className={`h-8 text-[11px] font-semibold px-3 rounded-lg transition-all duration-200 ${
+                                isAdminOverride(match)
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                  : 'text-red-500 hover:text-white hover:bg-red-500 border-red-500/30 hover:border-red-500'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPendingDeleteMatch({
+                                  id: match.id,
+                                  homeTeamName: match.homeTeam.name,
+                                  awayTeamName: match.awayTeam.name,
+                                  status: match.status,
+                                });
+                              }}
+                              title={isAdminOverride(match) ? 'Admin: delete this upcoming match' : 'Delete this upcoming match'}
+                            >
+                              {deletingMatchId === match.id ? (
+                                <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                              )}
+                              Delete
+                            </Button>
+                          </motion.div>
+                        )}
+                        <motion.div whileTap={{ scale: 0.9 }} whileHover={{ scale: 1.02 }} className={canDeleteMatch(match) ? '' : 'ml-auto'}>
                           <Button
                             variant="outline"
                             size="sm"
@@ -3617,6 +3806,99 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
           {t('footer.madeIn', language)}
         </p>
       </div>
+
+      {/* ─── Delete Match Confirmation Modal ───────────────────────────
+          Rendered at the HomeTab root so any of the 3 feed sections
+          (live / recent / upcoming) can trigger it via pendingDeleteMatch.
+          The modal asks for explicit confirmation before calling
+          DELETE /api/matches, which is the irreversible operation that
+          also reverses player stats (for completed matches) and
+          cascade-deletes events, scorers, comments, and photos. */}
+      <AnimatePresence>
+        {pendingDeleteMatch && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => {
+              if (deletingMatchId !== pendingDeleteMatch.id) setPendingDeleteMatch(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-warm-50 dark:bg-warm-900 rounded-3xl p-5 shadow-2xl"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (deletingMatchId !== pendingDeleteMatch.id) setPendingDeleteMatch(null);
+                  }}
+                  disabled={deletingMatchId === pendingDeleteMatch.id}
+                  className="p-1.5 rounded-lg text-warm-400 hover:bg-warm-200 dark:hover:bg-warm-800 disabled:opacity-50"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <h2 className="text-base font-bold text-warm-800 dark:text-warm-100">
+                Delete this match?
+              </h2>
+              <p className="text-sm text-warm-600 dark:text-warm-300 mt-1.5 font-semibold">
+                {pendingDeleteMatch.homeTeamName} vs {pendingDeleteMatch.awayTeamName}
+              </p>
+              <div className="mt-2 px-3 py-2 rounded-xl bg-warm-100 dark:bg-warm-800/60 border border-warm-200/60 dark:border-warm-700/60">
+                <p className="text-xs text-warm-600 dark:text-warm-300 leading-relaxed">
+                  {pendingDeleteMatch.status === 'completed' && (
+                    <>This is a <span className="font-bold">completed</span> match. Deleting it will <span className="font-bold">reverse all player stats</span> (raid points, tackle points, match counts) that were recorded when the match was saved. </>
+                  )}
+                  {pendingDeleteMatch.status === 'live' && (
+                    <>This is a <span className="font-bold text-red-600 dark:text-red-400">live</span> match. Deleting it will end the match immediately and remove all events scored so far. </>
+                  )}
+                  {pendingDeleteMatch.status === 'upcoming' && (
+                    <>This is an <span className="font-bold text-brand-teal">upcoming</span> match. Deleting it will remove the scheduled match. No player stats exist yet. </>
+                  )}
+                  Events, scorers, comments, and photos attached to this match will also be deleted. <span className="font-bold">This action cannot be undone.</span>
+                </p>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  onClick={() => setPendingDeleteMatch(null)}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={deletingMatchId === pendingDeleteMatch.id}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => handleDeleteMatch(pendingDeleteMatch.id)}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                  disabled={deletingMatchId === pendingDeleteMatch.id}
+                >
+                  {deletingMatchId === pendingDeleteMatch.id ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                      Yes, Delete
+                    </>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

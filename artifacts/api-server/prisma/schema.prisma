@@ -304,11 +304,12 @@ model Notification {
   id         String   @id @default(cuid())
   userId     String   // the user receiving the notification
   fromUserId String   // the user who triggered it
-  type       String   // match_start, match_result, follow, achievement, premium, general, commentary
+  type       String   // match_start, match_result, follow, achievement, premium, general, commentary, chat
   title      String
   message    String
   isRead     Boolean  @default(false)
   matchId    String?
+  threadId   String?  // for type='chat' — the conversation thread this notification belongs to, so the recipient can jump straight into it
   createdAt  DateTime @default(now())
 
   user     User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
@@ -911,6 +912,12 @@ model ChatMessage {
   // GET /chat/threads/:id/messages
   isRead     Boolean  @default(false)
   readAt     DateTime?
+  // Soft-delete (unsend). When non-null, the message is considered deleted
+  // by the sender ("unsend for everyone"). The row is preserved for audit
+  // / report context; the content is cleared and the frontend renders a
+  // "This message was deleted" placeholder. We use a timestamp instead of
+  // a boolean so we can show "deleted at <time>" if needed later.
+  deletedAt  DateTime?
   createdAt  DateTime @default(now())
 
   thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)

@@ -629,6 +629,13 @@ router.post('/matches/live', async (req, res) => {
     const {
       homeTeamName, awayTeamName, homeTeamColor, awayTeamColor,
       isPractice, halfDuration, playersPerSide, gender, weightCategory,
+      // scorerUserId: the user who started this live match. We link them as
+      // a MatchScorer so they (and admins) can delete the match from the
+      // home feed's "Delete" button while it's still live. Previously this
+      // link was only created at match-save time (POST /matches), which left
+      // live matches un-deletable by their creator — the "Delete" button
+      // never rendered because canDeleteMatch() saw an empty scorers list.
+      scorerUserId,
     } = req.body;
 
     // Resolve team names to team IDs (same as POST /matches — FK constraint
@@ -681,7 +688,16 @@ router.post('/matches/live', async (req, res) => {
         halfDuration: halfDuration || 20,
         playersPerSide: playersPerSide || 7,
         startedAt: new Date(),
+        // Attach the scorer who started this live match so they can delete
+        // it from the feed (and so admins can see they didn't start it).
+        // Skipped silently if scorerUserId is missing (legacy clients).
+        ...(scorerUserId
+          ? { scorers: { create: [{ userId: scorerUserId }] } }
+          : {}),
       },
+      // Include scorers in the response so the frontend can immediately
+      // render the delete button without a follow-up fetch.
+      include: { scorers: { select: { userId: true } } },
     });
 
     return res.json({ match });
@@ -735,6 +751,10 @@ router.get('/matches/live', async (req, res) => {
         homeTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
         awayTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
         tournament: { select: { id: true, name: true } },
+        // Include scorers so the frontend can render a delete button
+        // (admin OR scorer-of-match only). Permission is re-checked
+        // server-side on DELETE /api/matches.
+        scorers: { select: { userId: true } },
       },
       orderBy: { startedAt: 'desc' },
       take: 20,

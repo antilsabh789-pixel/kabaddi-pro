@@ -27,11 +27,38 @@ router.get('/stats', async (req, res) => {
       }),
     ]);
 
-    const liveMatches = await db.match.findMany({
-      where: { status: 'live' },
-      include: { homeTeam: { select: { name: true, shortName: true, color: true } }, awayTeam: { select: { name: true, shortName: true, color: true } }, tournament: { select: { name: true } } },
-      take: 5,
-    });
+    // ── Feed matches: live, recent completed, upcoming ─────────────────
+    // Each includes `scorers: [{ userId }]` so the frontend can render a
+    // "Delete" button (admin OR scorer-of-match only). The DELETE endpoint
+    // at POST /api/matches re-validates permission server-side, so leaking
+    // the userId list here is only for UI affordance, not authorization.
+    const matchIncludeForFeed = {
+      homeTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
+      awayTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
+      tournament: { select: { id: true, name: true } },
+      scorers: { select: { userId: true } },
+    };
+
+    const [liveMatches, recentMatches, upcomingMatches] = await Promise.all([
+      db.match.findMany({
+        where: { status: 'live' },
+        include: matchIncludeForFeed,
+        orderBy: { startedAt: 'desc' },
+        take: 5,
+      }),
+      db.match.findMany({
+        where: { status: 'completed' },
+        include: matchIncludeForFeed,
+        orderBy: { completedAt: 'desc' },
+        take: 5,
+      }),
+      db.match.findMany({
+        where: { status: 'upcoming' },
+        include: matchIncludeForFeed,
+        orderBy: { startedAt: 'asc' },
+        take: 5,
+      }),
+    ]);
 
     const raidSuccessRate = (aggregateStats._sum.totalRaids ?? 0) > 0
       ? Math.round(((aggregateStats._sum.successfulRaids ?? 0) / (aggregateStats._sum.totalRaids ?? 1)) * 100) : 0;
@@ -45,6 +72,8 @@ router.get('/stats', async (req, res) => {
       totalTacklePoints: aggregateStats._sum.tacklePoints ?? 0,
       raidSuccessRate, tackleSuccessRate,
       liveMatches,
+      recentMatches,
+      upcomingMatches,
     });
   } catch (error) {
     console.error('Stats error:', error);

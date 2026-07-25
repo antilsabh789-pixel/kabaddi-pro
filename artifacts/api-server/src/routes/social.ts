@@ -14,7 +14,9 @@ router.get('/notifications', async (req, res) => {
       where: { userId },
       take: 20,
       orderBy: { createdAt: 'desc' },
-      include: { fromUser: { select: { id: true, name: true, avatar: true } } },
+      // Include `playerCode` so the frontend can build a full PublicUser
+      // for opening a chat thread directly from a chat notification tap.
+      include: { fromUser: { select: { id: true, name: true, avatar: true, playerCode: true } } },
     });
     const unreadCount = await db.notification.count({ where: { userId, isRead: false } });
     return res.json({ notifications, unreadCount });

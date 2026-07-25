@@ -40,7 +40,7 @@ router.get('/chat/threads', async (req, res) => {
         messages: {
           orderBy: { createdAt: 'desc' },
           take: 1,
-          select: { id: true, content: true, senderId: true, createdAt: true, isRead: true },
+          select: { id: true, content: true, senderId: true, createdAt: true, isRead: true, deletedAt: true },
         },
       },
     });
@@ -50,7 +50,7 @@ router.get('/chat/threads', async (req, res) => {
       threads.map(async (t: any) => {
         const otherUser = t.userAId === userId ? t.userB : t.userA;
         const unreadCount = await db.chatMessage.count({
-          where: { threadId: t.id, senderId: { not: userId }, isRead: false },
+          where: { threadId: t.id, senderId: { not: userId }, isRead: false, deletedAt: null },
         });
         return {
           id: t.id,
@@ -260,6 +260,11 @@ router.post('/chat/threads/:threadId/messages', async (req, res) => {
           type: 'chat',
           title: `New message from ${senderLabel}`,
           message: trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed,
+          // Stash the threadId so the recipient can jump straight into
+          // this conversation when they tap the notification in the bell
+          // panel. The frontend reads `threadId` off the notification and
+          // opens ChatScreen with this thread active.
+          threadId,
         },
       });
     } catch (notifErr) {
@@ -269,6 +274,56 @@ router.post('/chat/threads/:threadId/messages', async (req, res) => {
     return res.json({ message });
   } catch (err) {
     console.error('POST /chat/threads/:id/messages error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── 4b. Unsend (soft-delete) a message ────────────────────────────────
+// Only the SENDER can unsend their own message. We soft-delete (set
+// `deletedAt` + clear `content`) instead of hard-deleting so that:
+//   • Existing ChatReport rows that reference this messageId still have
+//     context for admin review.
+//   • The recipient sees a "This message was deleted" placeholder so the
+//     conversation history still makes sense (matches WhatsApp behavior).
+//
+// The recipient's poller will pick up the updated row on the next poll
+// (every 8s) and the UI will swap the bubble for the placeholder.
+router.delete('/chat/messages/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { userId } = req.body as { userId?: string };
+
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!messageId) return res.status(400).json({ error: 'messageId is required' });
+
+    const msg = await db.chatMessage.findUnique({ where: { id: messageId } });
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+
+    // Only the sender can unsend their own message.
+    if (msg.senderId !== userId) {
+      return res.status(403).json({ error: 'You can only unsend your own messages' });
+    }
+    // Already deleted — idempotent success.
+    if (msg.deletedAt !== null) {
+      return res.json({ success: true, message: { ...msg, content: '' } });
+    }
+
+    const updated = await db.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        deletedAt: new Date(),
+        // Clear the content so the row no longer holds the user's text.
+        // The frontend renders a "This message was deleted" placeholder
+        // based on `deletedAt != null`, so the cleared content is never
+        // shown to either party.
+        content: '',
+      },
+      include: { sender: { select: PUBLIC_USER_FIELDS } },
+    });
+
+    return res.json({ success: true, message: updated });
+  } catch (err) {
+    console.error('DELETE /chat/messages/:id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

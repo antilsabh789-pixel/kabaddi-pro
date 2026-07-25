@@ -158,6 +158,15 @@ export interface AppNotification {
   matchId?: string; // for match_start/match_result notifications — used to open the scorecard
   threadId?: string; // for chat notifications — used to open the conversation
   fromUserId?: string; // for chat notifications — sender's userId
+  // Sender's public profile — populated from backend `fromUser` include on
+  // GET /notifications. Used by the bell panel to open the chat thread with
+  // the correct otherUser info when the notification is tapped.
+  fromUser?: {
+    id: string;
+    name: string | null;
+    playerCode: string | null;
+    avatar: string | null;
+  };
 }
 
 export type Language = 'en' | 'hi';
@@ -218,6 +227,22 @@ interface KabaddiState {
     avatar: string | null;
   } | null;
 
+  // Cross-tab chat thread launcher — when set, HomeTab opens ChatScreen
+  // and ChatScreen auto-opens the EXISTING conversation thread. Used by
+  // the notification bell panel: when the user taps a chat notification,
+  // we stash the threadId + the other user's info here and switch to the
+  // Home tab so ChatScreen mounts and opens that thread directly (no
+  // need to call POST /chat/threads again — we already have the thread).
+  pendingChatThread: {
+    threadId: string;
+    otherUser: {
+      id: string;
+      name: string | null;
+      playerCode: string | null;
+      avatar: string | null;
+    };
+  } | null;
+
   // Active Match
   activeMatch: ActiveMatch | null;
 
@@ -262,6 +287,12 @@ interface KabaddiState {
   // mounts and auto-starts a conversation. Clears itself once consumed.
   startChatWith: (target: { id: string; name: string | null; playerCode: string | null; avatar: string | null }) => void;
   clearPendingChatTarget: () => void;
+  // Sets a pending chat THREAD (already-existing conversation) and switches
+  // to the Home tab so ChatScreen mounts and opens that thread directly.
+  // Used by the notification bell panel when a chat notification is tapped.
+  // Clears itself once consumed by ChatScreen.
+  openChatThread: (threadId: string, otherUser: { id: string; name: string | null; playerCode: string | null; avatar: string | null }) => void;
+  clearPendingChatThread: () => void;
   setHasSeenSplash: (value: boolean) => void;
   initiateToss: (matchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds' | 'yellowCardSuspensions' | 'redCardExpulsions' | 'greenCardWarnings'>) => void;
   cancelToss: () => void;
@@ -643,6 +674,7 @@ export const useKabaddiStore = create<KabaddiState>()(
       // Navigation initial state
       activeTab: 'home' as TabId,
       pendingChatTarget: null as KabaddiState['pendingChatTarget'],
+      pendingChatThread: null as KabaddiState['pendingChatThread'],
 
       // Active match initial state
       activeMatch: null,
@@ -745,6 +777,7 @@ export const useKabaddiStore = create<KabaddiState>()(
           activeTab: 'home' as TabId,
           homeData: null,
           pendingChatTarget: null,
+          pendingChatThread: null,
         }),
 
       setOnboarded: (value = true) =>
@@ -766,6 +799,14 @@ export const useKabaddiStore = create<KabaddiState>()(
         set({ pendingChatTarget: target, activeTab: 'home' }),
       clearPendingChatTarget: () => set({ pendingChatTarget: null }),
 
+      // Cross-tab chat THREAD launcher: stash the existing thread + jump to
+      // Home tab. HomeTab watches `pendingChatThread` and opens ChatScreen,
+      // which consumes it on mount by calling setActiveThread directly (no
+      // need to POST /chat/threads — the thread already exists).
+      openChatThread: (threadId, otherUser) =>
+        set({ pendingChatThread: { threadId, otherUser }, activeTab: 'home' }),
+      clearPendingChatThread: () => set({ pendingChatThread: null }),
+
       setHasSeenSplash: (value: boolean) => set({ hasSeenSplash: value }),
 
       initiateToss: (matchConfig) =>
@@ -785,6 +826,14 @@ export const useKabaddiStore = create<KabaddiState>()(
         // feed for players in the playing teams. Fire-and-forget — don't block
         // the UI. The returned match ID is stored on activeMatch.id so we can
         // PATCH updates (score changes) and mark it completed at the end.
+        //
+        // We also pass scorerUserId so the backend links this user as the
+        // MatchScorer for the new live match. Without that link, the user
+        // who started the match cannot see the "Delete" button on the live
+        // feed (canDeleteMatch() requires either isAdmin or being in the
+        // match's scorers list — and POST /matches/live otherwise creates
+        // the match with no scorer attached).
+        const scorerUserId = get().currentUser?.id;
         try {
           fetch('/api/matches/live', {
             method: 'POST',
@@ -799,6 +848,7 @@ export const useKabaddiStore = create<KabaddiState>()(
               playersPerSide: match.playersPerSide,
               gender: match.gender,
               weightCategory: match.weightCategory,
+              scorerUserId,
             }),
           })
             .then((res) => res.ok ? res.json() : null)
@@ -1184,10 +1234,15 @@ export const useKabaddiStore = create<KabaddiState>()(
           if (backendList.length === 0) return 0;
 
           // Map backend notification shape → frontend AppNotification shape.
-          // Backend: { id, type, title, message, isRead, createdAt, fromUserId, matchId, fromUser }
-          // Frontend: { id, type, title, description, timestamp, read, matchId?, threadId?, fromUserId? }
+          // Backend: { id, type, title, message, isRead, createdAt, fromUserId, matchId, threadId, fromUser }
+          // Frontend: { id, type, title, description, timestamp, read, matchId?, threadId?, fromUserId?, fromUser? }
+          // We also stash `fromUser` (id, name, playerCode, avatar) on the
+          // AppNotification so the bell panel can build a full PublicUser
+          // when the user taps a chat notification and we need to open the
+          // conversation thread directly.
           const mapped: AppNotification[] = backendList.map((n: any) => {
             const type = (n.type as NotificationType) || 'general';
+            const fu = n.fromUser || null;
             return {
               id: n.id,
               type,
@@ -1196,8 +1251,17 @@ export const useKabaddiStore = create<KabaddiState>()(
               timestamp: n.createdAt ? new Date(n.createdAt).getTime() : Date.now(),
               read: Boolean(n.isRead),
               matchId: n.matchId || undefined,
+              threadId: n.threadId || undefined,
               fromUserId: n.fromUserId || undefined,
-            };
+              fromUser: fu
+                ? {
+                    id: fu.id,
+                    name: fu.name ?? null,
+                    playerCode: fu.playerCode ?? null,
+                    avatar: fu.avatar ?? null,
+                  }
+                : undefined,
+            } as AppNotification;
           });
 
           let added = 0;

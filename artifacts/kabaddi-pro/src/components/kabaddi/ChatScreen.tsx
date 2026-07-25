@@ -36,6 +36,11 @@ interface ChatMessage {
   content: string;
   isRead: boolean;
   readAt: string | null;
+  // Soft-delete (unsend). When non-null, the message has been unsent by
+  // the sender and the UI renders a "This message was deleted" placeholder
+  // instead of the original content. The backend clears `content` when it
+  // sets `deletedAt`, so both fields are reliable indicators.
+  deletedAt: string | null;
   createdAt: string;
   sender?: PublicUser;
 }
@@ -49,6 +54,7 @@ interface ChatThread {
     senderId: string;
     createdAt: string;
     isRead: boolean;
+    deletedAt?: string | null;
   } | null;
   unreadCount: number;
   updatedAt: string;
@@ -139,6 +145,8 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
   const addNotification = useKabaddiStore((s) => s.addNotification);
   const pendingChatTarget = useKabaddiStore((s) => s.pendingChatTarget);
   const clearPendingChatTarget = useKabaddiStore((s) => s.clearPendingChatTarget);
+  const pendingChatThread = useKabaddiStore((s) => s.pendingChatThread);
+  const clearPendingChatThread = useKabaddiStore((s) => s.clearPendingChatThread);
   const { toast } = useToast();
 
   // Inbox state
@@ -297,6 +305,36 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
       role: 'player',
     });
   }, [pendingChatTarget, currentUser?.id, startConversation, clearPendingChatTarget]);
+
+  // ─── Consume a pending chat THREAD (set by bell notification tap) ──
+  // When the user taps a chat notification in the bell panel, the store's
+  // `pendingChatThread` is set with { threadId, otherUser } and the active
+  // tab is switched to 'home' so ChatScreen mounts. Here we open the
+  // existing thread directly via setActiveThread — no need to POST
+  // /chat/threads because the thread already exists. The guard prevents
+  // double execution in StrictMode.
+  const consumedThreadRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingChatThread || !currentUser?.id) return;
+    if (consumedThreadRef.current === pendingChatThread.threadId) return;
+    consumedThreadRef.current = pendingChatThread.threadId;
+    const { threadId, otherUser } = pendingChatThread;
+    // Clear immediately so a re-mount doesn't re-trigger
+    clearPendingChatThread();
+    setActiveThread({
+      id: threadId,
+      otherUser: {
+        id: otherUser.id,
+        name: otherUser.name,
+        playerCode: otherUser.playerCode,
+        avatar: otherUser.avatar,
+        role: 'player',
+      },
+    });
+    // Refresh the inbox in the background so the thread we just opened
+    // shows up at the top with the latest preview.
+    fetchThreads();
+  }, [pendingChatThread, currentUser?.id, clearPendingChatThread, fetchThreads]);
 
   // ─── Handle incoming chat notifications (sent from the backend) ──
   // The backend pushes a row into the Notification table; we don't poll
@@ -583,9 +621,11 @@ function InboxView({
                       {thread.lastMessage ? timeAgo(thread.lastMessage.createdAt) : ''}
                     </span>
                   </div>
-                  <p className={`text-xs truncate mt-0.5 ${thread.unreadCount > 0 ? 'text-warm-700 dark:text-warm-200 font-medium' : 'text-warm-500 dark:text-warm-400'}`}>
+                  <p className={`text-xs truncate mt-0.5 italic ${thread.unreadCount > 0 ? 'text-warm-700 dark:text-warm-200 font-medium' : 'text-warm-500 dark:text-warm-400'}`}>
                     {thread.lastMessage
-                      ? `${thread.lastMessage.senderId === currentUser.id ? 'You: ' : ''}${thread.lastMessage.content}`
+                      ? (thread.lastMessage.deletedAt
+                          ? `${thread.lastMessage.senderId === currentUser.id ? 'You: ' : ''}🚫 This message was deleted`
+                          : `${thread.lastMessage.senderId === currentUser.id ? 'You: ' : ''}${thread.lastMessage.content}`)
                       : 'No messages yet — say hi! 👋'}
                   </p>
                 </div>
@@ -889,6 +929,88 @@ function ConversationView({
     }
   };
 
+  // ─── Unsend (delete) a message ───────────────────────────────────
+  // Only the SENDER can unsend their own message. We call DELETE
+  // /api/chat/messages/:id which soft-deletes on the backend (sets
+  // deletedAt + clears content). The recipient's poller picks up the
+  // updated row on the next poll (every 8s) and the UI swaps the bubble
+  // for a "This message was deleted" placeholder — matches WhatsApp.
+  //
+  // We optimistically update the local messages array so the sender sees
+  // instant feedback; if the API call fails, we roll back.
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [confirmDeleteMsg, setConfirmDeleteMsg] = useState<ChatMessage | null>(null);
+
+  const handleDeleteMessage = useCallback(async (msg: ChatMessage) => {
+    // Optimistic update — mark as deleted locally right away.
+    const snapshot = messagesRef.current;
+    setMessages((prev) => prev.map((m) =>
+      m.id === msg.id ? { ...m, deletedAt: new Date().toISOString(), content: '' } : m
+    ));
+    setPendingDeleteId(msg.id);
+    setConfirmDeleteMsg(null);
+    try {
+      const res = await fetch(`/api/chat/messages/${encodeURIComponent(msg.id)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      const data = await safeJson<any>(res, {});
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not delete message');
+      }
+      // The backend returns the canonical updated row — replace our
+      // optimistic version with the server's so timestamps match.
+      if (data?.message) {
+        setMessages((prev) => prev.map((m) =>
+          m.id === msg.id ? { ...m, ...data.message } : m
+        ));
+      }
+      toast({ title: 'Message deleted' });
+    } catch (err) {
+      // Roll back to the snapshot — restore original content + clear deletedAt.
+      setMessages(snapshot);
+      toast({
+        title: 'Could not delete message',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setPendingDeleteId(null);
+    }
+  }, [currentUser.id, toast]);
+
+  // ─── Long-press detection for own messages ───────────────────────
+  // We use a long-press (500ms) on touch devices and right-click on
+  // desktop to open the delete confirmation. This matches WhatsApp's
+  // "long-press to select" UX. We only show the delete option for
+  // messages the current user sent AND that aren't already deleted.
+  const longPressTimerRef = useRef<number | null>(null);
+
+  const startLongPress = useCallback((msg: ChatMessage) => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+    }
+    longPressTimerRef.current = window.setTimeout(() => {
+      setConfirmDeleteMsg(msg);
+    }, 500);
+  }, []);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════
@@ -1041,8 +1163,33 @@ function ConversationView({
           messages.map((m, idx) => {
             const isMe = m.senderId === currentUser.id;
             const showAvatar = !isMe && (idx === 0 || messages[idx - 1].senderId !== m.senderId);
+            const isDeleted = m.deletedAt !== null;
+            const isPendingDelete = pendingDeleteId === m.id;
+            // Read receipt state — matches WhatsApp's two-tier indicator:
+            //   ✓ (single grey tick)  = sent / delivered
+            //   ✓✓ (double blue tick)  = read by recipient
+            // We use color + count to make the difference scannable at a
+            // glance. The recipient's GET /messages route flips isRead to
+            // true on the next poll after they open the thread.
+            const readByRecipient = Boolean(m.isRead);
+            // Long-press + right-click only on the sender's own NON-deleted
+            // messages. Recipients cannot delete (no "delete for me" yet —
+            // matches WhatsApp's "delete for everyone" only).
+            const canDelete = isMe && !isDeleted;
             return (
-              <div key={m.id} className={`flex items-end gap-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
+              <div
+                key={m.id}
+                className={`flex items-end gap-1.5 ${isMe ? 'justify-end' : 'justify-start'} ${canDelete ? 'cursor-pointer select-none' : ''}`}
+                onTouchStart={() => canDelete && startLongPress(m)}
+                onTouchEnd={cancelLongPress}
+                onTouchMove={cancelLongPress}
+                onTouchCancel={cancelLongPress}
+                onContextMenu={(e) => {
+                  if (!canDelete) return;
+                  e.preventDefault();
+                  setConfirmDeleteMsg(m);
+                }}
+              >
                 {!isMe && (
                   <div className="w-6 shrink-0">
                     {showAvatar && (
@@ -1057,20 +1204,39 @@ function ConversationView({
                 )}
                 <div
                   className={`max-w-[78%] px-3 py-2 text-sm shadow-sm ${
-                    isMe
-                      ? 'bg-gradient-to-br from-brand-red to-brand-red-dark text-white rounded-2xl rounded-br-md'
-                      : 'bg-white dark:bg-warm-800 text-warm-800 dark:text-warm-100 rounded-2xl rounded-bl-md border border-warm-200/60 dark:border-warm-700/60'
+                    isDeleted
+                      ? (isMe
+                          ? 'bg-brand-red/10 dark:bg-brand-red/20 text-warm-500 dark:text-warm-400 italic rounded-2xl rounded-br-md border border-brand-red/20'
+                          : 'bg-warm-100 dark:bg-warm-800/60 text-warm-500 dark:text-warm-400 italic rounded-2xl rounded-bl-md border border-warm-200/60 dark:border-warm-700/60')
+                      : (isMe
+                          ? 'bg-gradient-to-br from-brand-red to-brand-red-dark text-white rounded-2xl rounded-br-md'
+                          : 'bg-white dark:bg-warm-800 text-warm-800 dark:text-warm-100 rounded-2xl rounded-bl-md border border-warm-200/60 dark:border-warm-700/60')
                   }`}
                 >
-                  <p className="whitespace-pre-wrap break-words leading-snug">{m.content}</p>
+                  {isDeleted ? (
+                    <p className="whitespace-pre-wrap break-words leading-snug flex items-center gap-1.5">
+                      <Ban className="w-3 h-3 shrink-0 opacity-70" />
+                      <span>This message was deleted</span>
+                    </p>
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words leading-snug">{m.content}</p>
+                  )}
                   <div className={`flex items-center gap-1 mt-0.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <span className={`text-[9px] ${isMe ? 'text-white/70' : 'text-warm-400'}`}>
+                    <span className={`text-[9px] ${isMe ? 'text-white/70' : 'text-warm-400'} ${isDeleted ? 'opacity-70' : ''}`}>
                       {formatTime(m.createdAt)}
                     </span>
                     {isMe && (
-                      <span className={`text-[9px] ${m.isRead ? 'text-white/90' : 'text-white/60'}`}>
-                        {m.isRead ? '✓✓' : '✓'}
-                      </span>
+                      isPendingDelete ? (
+                        <Loader2 className="w-2.5 h-2.5 animate-spin text-white/70" />
+                      ) : isDeleted ? null : (
+                        <span
+                          className={`text-[10px] leading-none font-bold ${readByRecipient ? 'text-sky-200' : 'text-white/60'}`}
+                          aria-label={readByRecipient ? 'Read' : 'Delivered'}
+                          title={readByRecipient ? 'Read' : 'Delivered'}
+                        >
+                          {readByRecipient ? '✓✓' : '✓'}
+                        </span>
+                      )
                     )}
                   </div>
                 </div>
@@ -1141,6 +1307,17 @@ function ConversationView({
             otherUser={otherUser}
             onClose={() => setShowBlockConfirm(false)}
             onConfirm={handleBlock}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ─── Delete (unsend) confirm modal ─── */}
+      <AnimatePresence>
+        {confirmDeleteMsg && (
+          <DeleteMessageConfirmModal
+            message={confirmDeleteMsg}
+            onClose={() => setConfirmDeleteMsg(null)}
+            onConfirm={() => handleDeleteMessage(confirmDeleteMsg)}
           />
         )}
       </AnimatePresence>
@@ -1320,6 +1497,77 @@ function BlockConfirmModal({ otherUser, onClose, onConfirm }: BlockConfirmModalP
             className="flex-1 bg-brand-red hover:bg-brand-red-dark text-white"
           >
             Block user
+          </Button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DELETE MESSAGE CONFIRM MODAL
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Shown when the sender long-presses (mobile) or right-clicks (desktop)
+// one of their own messages. Asks for confirmation before unsending.
+// "Delete for everyone" semantics — the message is soft-deleted on the
+// backend and the recipient sees a "This message was deleted" placeholder
+// on their next poll. This matches WhatsApp's "Delete for everyone"
+// behavior (we don't currently offer a "delete for me only" option).
+
+interface DeleteMessageConfirmModalProps {
+  message: ChatMessage;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+function DeleteMessageConfirmModal({ message, onClose, onConfirm }: DeleteMessageConfirmModalProps) {
+  // Show a short preview of the message being deleted (truncated so the
+  // modal stays compact even for long messages).
+  const preview = (message.content || '').slice(0, 80);
+  const isTruncated = (message.content || '').length > 80;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm bg-warm-50 dark:bg-warm-900 rounded-3xl p-5"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-brand-red/10 flex items-center justify-center mb-3">
+          <Trash2 className="w-6 h-6 text-brand-red" />
+        </div>
+        <h2 className="text-base font-bold text-warm-800 dark:text-warm-100">
+          Delete this message?
+        </h2>
+        <p className="text-xs text-warm-500 dark:text-warm-400 mt-1.5 leading-relaxed">
+          This message will be deleted for everyone in this chat. The other
+          person will see <span className="italic">"This message was deleted"</span> instead
+          of the original text. This action cannot be undone.
+        </p>
+        {preview && (
+          <div className="mt-3 px-3 py-2 rounded-xl bg-warm-100 dark:bg-warm-800/60 border border-warm-200/60 dark:border-warm-700/60">
+            <p className="text-xs text-warm-600 dark:text-warm-300 line-clamp-2 break-words">
+              &ldquo;{preview}{isTruncated ? '…' : ''}&rdquo;
+            </p>
+          </div>
+        )}
+        <div className="flex gap-2 mt-4">
+          <Button onClick={onClose} variant="outline" className="flex-1">Cancel</Button>
+          <Button
+            onClick={onConfirm}
+            className="flex-1 bg-brand-red hover:bg-brand-red-dark text-white"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            Delete for everyone
           </Button>
         </div>
       </motion.div>
