@@ -404,12 +404,56 @@ router.get('/giveaway/status', async (req, res) => {
     let hasUsedFreeEntry = false;
     let isPremiumUser = false;
     let premiumDirectEntryAvailable = false;
+    // Diagnostic: full details of the existing participant row (if any) +
+    // a list of ALL participant rows for this user across ALL rounds.
+    // Used to debug "Already Participated" false positives.
+    let existingParticipantInfo: {
+      id: string;
+      giveawayRoundId: string;
+      userId: string;
+      phone: string;
+      name: string | null;
+      entryType: string;
+      isPremium: boolean;
+      createdAt: Date;
+      matchesCurrentRound: boolean;
+    } | null = null;
+    let allUserParticipations: {
+      id: string;
+      giveawayRoundId: string;
+      entryType: string;
+      createdAt: Date;
+    }[] = [];
 
     if (userId) {
-      const existing = await db.giveawayParticipant.findUnique({
-        where: { giveawayRoundId_userId: { giveawayRoundId: round.id, userId } },
-      });
+      const existing = await withSelfHeal(() =>
+        db.giveawayParticipant.findUnique({
+          where: { giveawayRoundId_userId: { giveawayRoundId: round.id, userId } },
+        }),
+      );
       hasParticipated = !!existing;
+      // Diagnostic: include the existing participant record's details so the
+      // frontend can show WHY hasParticipated=true (e.g. "you entered Round 3
+      // on 2026-07-25 via free entry"). This helps debug false positives
+      // where the user swears they haven't participated but the UI says they
+      // have — usually caused by a stale row from a previous round that
+      // wasn't migrated when the round was force-completed.
+      existingParticipantInfo = existing
+        ? {
+            id: existing.id,
+            giveawayRoundId: existing.giveawayRoundId,
+            userId: existing.userId,
+            phone: existing.phone,
+            name: existing.name,
+            entryType: existing.entryType,
+            isPremium: existing.isPremium,
+            createdAt: existing.createdAt,
+            // Does the participant's giveawayRoundId match the CURRENT round?
+            // If not, the row is stale (orphaned from a previous round) and
+            // hasParticipated should arguably be false.
+            matchesCurrentRound: existing.giveawayRoundId === round.id,
+          }
+        : null;
 
       successfulReferrals = await countSuccessfulReferrals(userId);
       referralEntriesUsed = await countReferralEntriesUsed(userId);
@@ -419,6 +463,29 @@ router.get('/giveaway/status', async (req, res) => {
       const totalPastParticipations = await countAllPastParticipations(userId);
       hasUsedFreeEntry = totalPastParticipations > 0;
       freeEntryAvailable = !hasUsedFreeEntry;
+
+      // Diagnostic: fetch ALL participant rows for this user across ALL rounds.
+      // Helps debug "Already Participated" false positives — e.g. if the user
+      // has 1 row pointing to a STALE roundId that doesn't match the current
+      // active round, we can see that here.
+      try {
+        const allRows = await withSelfHeal(() =>
+          db.giveawayParticipant.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              giveawayRoundId: true,
+              entryType: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+        );
+        allUserParticipations = allRows;
+      } catch (err) {
+        // Don't fail the whole status request if this diagnostic query fails.
+        console.warn('Giveaway status: failed to fetch allUserParticipations:', err);
+      }
 
       // PAID-PREMIUM users get free direct entry to every round.
       isPremiumUser = await isPaidPremiumUser(userId);
@@ -503,6 +570,16 @@ router.get('/giveaway/status', async (req, res) => {
       canParticipate,
       blockReason, // '', 'already_participated', 'referral_or_premium_required'
       pastWinners,
+      // Diagnostic fields — included so the frontend can show WHY the user
+      // is blocked, and so we can debug "Already Participated" false positives.
+      // These are safe to expose (no PII beyond what the user already owns).
+      _diagnostic: {
+        existingParticipant: existingParticipantInfo,
+        allUserParticipations,
+        totalUserParticipations: allUserParticipations.length,
+        currentRoundId: round.id,
+        currentRoundNumber: round.roundNumber,
+      },
     });
   } catch (error) {
     console.error('Giveaway status error:', error);
@@ -1539,6 +1616,70 @@ router.post('/giveaway/admin/change-winners', async (req, res) => {
   } catch (error) {
     console.error('Giveaway change winners error:', error);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/giveaway/admin/remove-participant
+ * ADMIN ONLY — Removes a single user's participation from the CURRENT active
+ * round. Used to unblock users who are stuck showing "Already Participated"
+ * due to a stale or erroneous participant row (e.g. created by a bug, or
+ * the user accidentally entered the wrong round).
+ *
+ * Body: { adminId, userId }   — removes the participant row for userId from
+ *                                the current active round
+ * Body: { adminId, userId, allRounds: true } — removes ALL participant rows
+ *                                                for userId across ALL rounds
+ *                                                (use with caution — affects
+ *                                                the user's free-entry state)
+ *
+ * Returns: { success, removed: <count>, round?: { id, roundNumber } }
+ */
+router.post('/giveaway/admin/remove-participant', async (req, res) => {
+  try {
+    const { adminId, userId, allRounds } = req.body;
+    if (!adminId || !userId) {
+      return res.status(400).json({ error: 'adminId and userId are required' });
+    }
+    const admin = await withSelfHeal(() =>
+      db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } }),
+    );
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    let removedCount = 0;
+    let roundInfo: { id: string; roundNumber: number } | undefined;
+
+    if (allRounds) {
+      // Remove ALL participant rows for this user across ALL rounds.
+      const result = await withSelfHeal(() =>
+        db.giveawayParticipant.deleteMany({ where: { userId } }),
+      );
+      removedCount = result.count;
+    } else {
+      // Remove only the participant row from the CURRENT active round.
+      const round = await getOrCreateActiveRound();
+      roundInfo = { id: round.id, roundNumber: round.roundNumber };
+      const result = await withSelfHeal(() =>
+        db.giveawayParticipant.deleteMany({
+          where: { giveawayRoundId: round.id, userId },
+        }),
+      );
+      removedCount = result.count;
+    }
+
+    return res.json({
+      success: true,
+      removed: removedCount,
+      round: roundInfo,
+      message: removedCount > 0
+        ? `Removed ${removedCount} participant row(s) for user ${userId}${roundInfo ? ` from Round ${roundInfo.roundNumber}` : ''}.`
+        : `No participant rows found for user ${userId}${roundInfo ? ` in Round ${roundInfo.roundNumber}` : ''}.`,
+    });
+  } catch (error) {
+    console.error('Giveaway admin remove-participant error:', error);
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 

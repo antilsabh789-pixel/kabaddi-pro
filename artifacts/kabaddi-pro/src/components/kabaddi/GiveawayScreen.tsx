@@ -610,10 +610,22 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
               {participating ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
               ) : status?.canParticipate === false ? (
-                <>
-                  <Lock className="w-6 h-6" />
-                  Already Participated
-                </>
+                // Show DIFFERENT button text based on the actual block reason.
+                // Previously this always said "Already Participated" even when
+                // the real reason was 'referral_or_premium_required' (user
+                // hasn't entered THIS round but has used their lifetime free
+                // entry and has no premium/referrals). That was misleading.
+                status?.blockReason === 'already_participated' ? (
+                  <>
+                    <Lock className="w-6 h-6" />
+                    Already Participated
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-6 h-6" />
+                    Need Premium or Referral
+                  </>
+                )
               ) : status?.freeEntryAvailable ? (
                 <>
                   <Gift className="w-6 h-6" />
@@ -638,7 +650,9 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
             </Button>
             {status?.canParticipate === false && (
               <p className="text-center text-[10px] text-warm-500">
-                You already entered this round. Wait for the next round!
+                {status?.blockReason === 'already_participated'
+                  ? 'You already entered this round. Wait for the next round!'
+                  : 'You have used your free entry. Buy premium (₹2/day) for direct entry — or refer a friend for a free entry.'}
               </p>
             )}
             {status?.blockReason === 'referral_or_premium_required' && (
@@ -1302,6 +1316,39 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
                   className="w-full border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl font-bold text-xs"
                 >
                   ⏭ Force Start Next Round (recover from error)
+                </Button>
+
+                {/* Remove MY participation from the current round — useful when
+                    the user is stuck showing "Already Participated" but they
+                    haven't actually entered (stale row, false positive). */}
+                <Button
+                  onClick={async () => {
+                    if (!currentUser?.id) return;
+                    if (!confirm('Remove YOUR participation from the current round?\n\nThis will delete your participant row from the current round so you can re-enter. Use this if you are stuck showing "Already Participated" but you have NOT actually entered.\n\nNote: This does NOT refund your lifetime free entry — if you already used it, you will still need premium or a referral to re-enter.')) return;
+                    try {
+                      const res = await fetch('/api/giveaway/admin/remove-participant', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ adminId: currentUser.id, userId: currentUser.id }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        toast({
+                          title: '✅ Participation Removed',
+                          description: data.message || `Removed ${data.removed} row(s). You can now re-enter the round.`,
+                        });
+                        fetchStatus();
+                      } else {
+                        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Error', description: 'Failed to remove participation', variant: 'destructive' });
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl font-bold text-xs"
+                >
+                  🔓 Remove My Participation (unblock "Already Participated")
                 </Button>
 
                 {/* Quick Restore Round 1 — winners + participants, pre-filled */}
