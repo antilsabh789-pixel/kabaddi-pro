@@ -221,7 +221,26 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
         setShowAdminPanel(false);
         return;
       } else {
-        toast({ title: 'Could not load admin panel', description: data.error || 'Please try again.', variant: 'destructive' });
+        // The participants endpoint failed (likely a DB schema/table issue).
+        // Call the diagnose endpoint to find out exactly what's wrong, so
+        // we can show the user a useful error message instead of the
+        // generic "Internal server error".
+        let diagHint = data?.error || 'Internal server error';
+        try {
+          const diagRes = await fetch(`/api/giveaway/admin/diagnose?adminId=${currentUser.id}`);
+          if (diagRes.ok) {
+            const diagData = await diagRes.json();
+            if (diagData?.failingCheck && diagData?.hint) {
+              diagHint = `${diagData.failingCheck}: ${diagData.hint}`;
+            }
+          }
+        } catch { /* ignore diag failures — keep the original error */ }
+
+        toast({
+          title: 'Could not load admin panel',
+          description: diagHint,
+          variant: 'destructive',
+        });
         setShowAdminPanel(false);
         return;
       }

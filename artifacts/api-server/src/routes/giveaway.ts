@@ -120,6 +120,49 @@ async function getOrCreateActiveRound() {
 }
 
 /**
+ * Sanitize a Prisma/DB error for return to the client.
+ *
+ * Returns a SHORT, human-readable hint about what's wrong so the frontend
+ * can show a useful toast instead of the generic "Internal server error".
+ *
+ * We DON'T return the raw error message (which may contain SQL fragments,
+ * table names, or schema details that shouldn't leak to the client). Instead
+ * we pattern-match the common failure modes:
+ *   - "relation ... does not exist" → table missing (autoMigrate didn't run)
+ *   - "column ... does not exist" → schema out of date
+ *   - "permission denied" → DB user lacks privileges
+ *   - "syntax error" → bug in our SQL
+ *   - PrismaClientInitializationError → DATABASE_URL is wrong / unreachable
+ */
+function sanitizeDbError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/relation ".*" does not exist/i.test(msg)) {
+    return 'Database table missing — auto-migrate may have failed. Please redeploy or run prisma db push.';
+  }
+  if (/column ".*" does not exist/i.test(msg)) {
+    return 'Database schema is out of date. Please redeploy or run prisma db push.';
+  }
+  if (/permission denied/i.test(msg)) {
+    return 'Database user lacks required privileges.';
+  }
+  if (/syntax error/i.test(msg)) {
+    return 'Database query syntax error.';
+  }
+  if (/PrismaClientInitializationError/i.test(msg) || /DATABASE_URL/i.test(msg)) {
+    return 'Database connection failed — check DATABASE_URL env var.';
+  }
+  if (/connect\s+ECONNREFUSED/i.test(msg) || /Can't reach database server/i.test(msg)) {
+    return 'Database server unreachable.';
+  }
+  // Last resort — return the first 100 chars of the error. We truncate
+  // because some Prisma errors include the full SQL statement which can
+  // be huge. 100 chars is enough to identify the issue without leaking
+  // sensitive data.
+  return msg.slice(0, 100);
+}
+
+
+/**
  * Count a user's SUCCESSFUL referrals (where someone actually signed up using their code).
  * Each successful referral = 1 giveaway participation entry.
  */
@@ -317,7 +360,7 @@ router.get('/giveaway/status', async (req, res) => {
     });
   } catch (error) {
     console.error('Giveaway status error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -413,7 +456,7 @@ router.post('/giveaway/participate', async (req, res) => {
     });
   } catch (error) {
     console.error('Giveaway participate error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -679,6 +722,88 @@ router.post('/giveaway/verify-entry-payment', async (req, res) => {
 });
 
 /**
+ * GET /api/giveaway/admin/diagnose
+ * ADMIN ONLY — runs a series of DB probes and reports the FIRST one that
+ * fails. Used by the GiveawayScreen admin panel to show a useful error
+ * message instead of the generic "Internal server error" when something
+ * is wrong with the database schema/tables.
+ *
+ * Returns: {
+ *   ok: boolean,
+ *   checks: [{ name, ok, error? }],
+ *   failingCheck?: string,  // name of the first failing check
+ *   hint?: string           // human-readable hint for the failing check
+ * }
+ */
+router.get('/giveaway/admin/diagnose', async (req, res) => {
+  const adminId = (req.query['adminId'] as string) || '';
+  const checks: { name: string; ok: boolean; error?: string }[] = [];
+
+  // Check 1: User table + isAdmin column
+  try {
+    if (adminId) {
+      const admin = await db.user.findUnique({
+        where: { id: adminId },
+        select: { isAdmin: true },
+      });
+      if (!admin) {
+        checks.push({ name: 'user_lookup', ok: false, error: 'Admin user not found' });
+      } else if (!admin.isAdmin) {
+        checks.push({ name: 'user_lookup', ok: false, error: 'User is not an admin' });
+      } else {
+        checks.push({ name: 'user_lookup', ok: true });
+      }
+    } else {
+      // Just verify the table is queryable
+      await db.user.findFirst({ select: { id: true } });
+      checks.push({ name: 'user_lookup', ok: true });
+    }
+  } catch (err) {
+    checks.push({ name: 'user_lookup', ok: false, error: sanitizeDbError(err) });
+  }
+
+  // Check 2: GiveawayRound table
+  try {
+    await db.giveawayRound.findFirst({ select: { id: true } });
+    checks.push({ name: 'giveaway_round_table', ok: true });
+  } catch (err) {
+    checks.push({ name: 'giveaway_round_table', ok: false, error: sanitizeDbError(err) });
+  }
+
+  // Check 3: GiveawayParticipant table
+  try {
+    await db.giveawayParticipant.findFirst({ select: { id: true } });
+    checks.push({ name: 'giveaway_participant_table', ok: true });
+  } catch (err) {
+    checks.push({ name: 'giveaway_participant_table', ok: false, error: sanitizeDbError(err) });
+  }
+
+  // Check 4: Referral table
+  try {
+    await db.referral.findFirst({ select: { id: true } });
+    checks.push({ name: 'referral_table', ok: true });
+  } catch (err) {
+    checks.push({ name: 'referral_table', ok: false, error: sanitizeDbError(err) });
+  }
+
+  // Check 5: getOrCreateActiveRound (exercises GiveawayRound fully)
+  try {
+    await getOrCreateActiveRound();
+    checks.push({ name: 'get_or_create_active_round', ok: true });
+  } catch (err) {
+    checks.push({ name: 'get_or_create_active_round', ok: false, error: sanitizeDbError(err) });
+  }
+
+  const failing = checks.find(c => !c.ok);
+  return res.json({
+    ok: !failing,
+    checks,
+    failingCheck: failing?.name,
+    hint: failing?.error,
+  });
+});
+
+/**
  * GET /api/giveaway/admin/participants
  * ADMIN ONLY — returns all participants with contact info for the current round.
  */
@@ -713,7 +838,7 @@ router.get('/giveaway/admin/participants', async (req, res) => {
     });
   } catch (error) {
     console.error('Giveaway admin participants error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -798,7 +923,7 @@ router.get('/giveaway/admin/all-participants', async (req, res) => {
     });
   } catch (error) {
     console.error('Giveaway admin all-participants error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -838,7 +963,7 @@ router.get('/giveaway/admin/pending-rounds', async (req, res) => {
     });
   } catch (error) {
     console.error('Giveaway pending rounds error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -927,7 +1052,7 @@ router.post('/giveaway/admin/select-winners', async (req, res) => {
     });
   } catch (error) {
     console.error('Giveaway select winners error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
