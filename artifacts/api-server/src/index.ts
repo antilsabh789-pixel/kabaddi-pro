@@ -222,6 +222,107 @@ async function autoMigrate() {
     `ALTER TABLE "Notification" ADD COLUMN IF NOT EXISTS "threadId" TEXT`,
   ];
 
+  // ─── Giveaway tables ────────────────────────────────────────────────
+  // The Giveaway feature was added in schema.prisma, but `prisma db push`
+  // was never run on production — so the GiveawayRound and GiveawayParticipant
+  // tables didn't exist, causing EVERY /api/giveaway/* endpoint to 500
+  // ("Internal server error"). The auto-migrate above only adds the entryType
+  // COLUMN to giveaway_participants (assuming the table already exists), so
+  // it didn't help when the table itself was missing.
+  //
+  // This block creates both tables idempotently (CREATE TABLE IF NOT EXISTS)
+  // using the same column definitions as schema.prisma. Once the tables exist,
+  // the existing `ALTER TABLE ... ADD COLUMN IF NOT EXISTS "entryType"` will
+  // also work correctly on the next boot.
+  const giveawayTableStatements = [
+    // GiveawayRound — one row per 15-day giveaway round.
+    `CREATE TABLE IF NOT EXISTS "GiveawayRound" (
+      "id" TEXT NOT NULL,
+      "roundNumber" INTEGER NOT NULL,
+      "startDate" TIMESTAMP(3) NOT NULL,
+      "endDate" TIMESTAMP(3) NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "winnersJson" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "GiveawayRound_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "GiveawayRound_roundNumber_key" ON "GiveawayRound"("roundNumber")`,
+    // GiveawayParticipant — one row per user per round.
+    `CREATE TABLE IF NOT EXISTS "GiveawayParticipant" (
+      "id" TEXT NOT NULL,
+      "giveawayRoundId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "phone" TEXT NOT NULL,
+      "name" TEXT,
+      "isPremium" BOOLEAN NOT NULL DEFAULT false,
+      "entryType" TEXT NOT NULL DEFAULT 'free',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "GiveawayParticipant_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "GiveawayParticipant_giveawayRoundId_userId_key" ON "GiveawayParticipant"("giveawayRoundId", "userId")`,
+    `CREATE INDEX IF NOT EXISTS "GiveawayParticipant_giveawayRoundId_idx" ON "GiveawayParticipant"("giveawayRoundId")`,
+    `CREATE INDEX IF NOT EXISTS "GiveawayParticipant_userId_idx" ON "GiveawayParticipant"("userId")`,
+    `DO $$ BEGIN
+      ALTER TABLE "GiveawayParticipant" ADD CONSTRAINT "GiveawayParticipant_giveawayRoundId_fkey"
+        FOREIGN KEY ("giveawayRoundId") REFERENCES "GiveawayRound"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "GiveawayParticipant" ADD CONSTRAINT "GiveawayParticipant_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    // UserStreak — daily check-in streak system. Same problem as giveaway:
+    // added in schema.prisma but never created on the production DB.
+    `CREATE TABLE IF NOT EXISTS "UserStreak" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "currentStreak" INTEGER NOT NULL DEFAULT 0,
+      "longestStreak" INTEGER NOT NULL DEFAULT 0,
+      "totalCheckIns" INTEGER NOT NULL DEFAULT 0,
+      "lastCheckIn" TIMESTAMP(3),
+      "claimedMilestones" TEXT NOT NULL DEFAULT '[]',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "UserStreak_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "UserStreak_userId_key" ON "UserStreak"("userId")`,
+    `DO $$ BEGIN
+      ALTER TABLE "UserStreak" ADD CONSTRAINT "UserStreak_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    // TeamJoinRequest — players requesting to join a team.
+    `CREATE TABLE IF NOT EXISTS "TeamJoinRequest" (
+      "id" TEXT NOT NULL,
+      "teamId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "TeamJoinRequest_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "TeamJoinRequest_teamId_idx" ON "TeamJoinRequest"("teamId")`,
+    `CREATE INDEX IF NOT EXISTS "TeamJoinRequest_userId_idx" ON "TeamJoinRequest"("userId")`,
+    `DO $$ BEGIN
+      ALTER TABLE "TeamJoinRequest" ADD CONSTRAINT "TeamJoinRequest_teamId_fkey"
+        FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "TeamJoinRequest" ADD CONSTRAINT "TeamJoinRequest_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+  ];
+
+  for (const sql of giveawayTableStatements) {
+    try {
+      await db.$executeRawUnsafe(sql);
+      logger.info({ sql: sql.slice(0, 100) }, 'auto-migrate: applied giveaway/streak/team-join table');
+    } catch (err) {
+      logger.warn({ err: String(err).slice(0, 200), sql: sql.slice(0, 100) }, 'auto-migrate: giveaway/streak/team-join table skipped');
+    }
+  }
+
   for (const sql of chatTableStatements) {
     try {
       await db.$executeRawUnsafe(sql);
