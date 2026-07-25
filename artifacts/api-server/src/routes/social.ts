@@ -63,6 +63,53 @@ router.patch('/notifications', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/notifications
+ *
+ * Permanently delete notifications for the authenticated user.
+ *
+ * Body:
+ *   { userId: string }                              — delete ALL of this user's notifications
+ *   { userId: string, notificationIds: string[] }   — delete only the listed ids
+ *   { userId: string, type: 'chat' }                — delete only chat notifications
+ *                                                     (used by "Clear all" in the
+ *                                                      Messages panel which only
+ *                                                      shows chat-type entries)
+ *
+ * The `where` clause ALWAYS includes `userId` so a malicious caller can't
+ * delete other users' notifications by passing random ids. If `notificationIds`
+ * is supplied, we also filter by `id: { in: notificationIds }`. If `type`
+ * is supplied, we filter by `type`.
+ *
+ * Returns: { success: true, deleted: <count> }
+ */
+router.delete('/notifications', async (req, res) => {
+  try {
+    // Some HTTP clients (notably older fetch wrappers) don't send a body
+    // with DELETE requests. Accept either a JSON body or query params.
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const userId = (body.userId || req.query['userId']) as string;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    const notificationIds: string[] | undefined = body.notificationIds;
+    const type: string | undefined = body.type;
+
+    // Build the where clause — ALWAYS scoped by userId for security.
+    const where: { userId: string; id?: { in: string[] }; type?: string } = { userId };
+    if (Array.isArray(notificationIds) && notificationIds.length > 0) {
+      where.id = { in: notificationIds };
+    }
+    if (type) {
+      where.type = type;
+    }
+
+    const result = await db.notification.deleteMany({ where });
+    return res.json({ success: true, deleted: result.count });
+  } catch (error) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ── Follow ────────────────────────────────────────────────────────────────────
 
 /**

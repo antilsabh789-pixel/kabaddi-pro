@@ -357,7 +357,17 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
       next.add(id);
       return next;
     });
-  }, []);
+    // ALSO delete the notification permanently on the backend so it
+    // doesn't come back on the next sync poll. Without this, the swipe-
+    // to-dismiss gesture was only adding the id to a local `dismissedIds`
+    // Set that lived in component state — so the notification reappeared
+    // every time the panel was closed and reopened.
+    if (currentUser?.id) {
+      useKabaddiStore.getState().clearBackendNotifications(currentUser.id, {
+        notificationIds: [id],
+      });
+    }
+  }, [currentUser?.id]);
 
   const handleNotificationClick = useCallback(
     (notification: AppNotification) => {
@@ -403,16 +413,29 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
   );
 
   const handleClearAll = useCallback(() => {
-    // Only clear chat notifications from the store — keep other types
-    // (match/achievement/etc.) intact since they're not shown here anyway
-    // and we don't want to wipe them silently.
-    // We do this by removing only chat-type notifications from the array.
-    useKabaddiStore.setState((state) => ({
-      notifications: state.notifications.filter((n) => n.type !== 'chat'),
-    }));
+    // Permanently delete ALL chat notifications on the backend AND locally.
+    // Previously this only updated local Zustand state — which meant the
+    // 20-second syncBackendNotifications poll re-fetched the same backend
+    // rows and re-added them, causing the "notification keeps coming back"
+    // bug. Now we DELETE them on the backend (DELETE /api/notifications
+    // with type='chat') and also stash their ids in the store's
+    // clearedNotificationIds deny-list so even a mid-delete poll can't
+    // bring them back.
+    if (currentUser?.id) {
+      useKabaddiStore.getState().clearBackendNotifications(currentUser.id, {
+        type: 'chat',
+      });
+    } else {
+      // No userId — fallback to local-only clear (shouldn't happen in
+      // practice since the panel only opens for logged-in users, but
+      // defensive just in case).
+      useKabaddiStore.setState((state) => ({
+        notifications: state.notifications.filter((n) => n.type !== 'chat'),
+      }));
+    }
     setDismissedIds(new Set());
     setShowClearConfirm(false);
-  }, []);
+  }, [currentUser?.id]);
 
   // `handleMarkAllRead` marks only chat notifications as read locally
   // (preserves unread state for any hidden match/achievement notifications

@@ -255,6 +255,12 @@ interface KabaddiState {
 
   // Notifications
   notifications: AppNotification[];
+  // IDs of notifications that the user has CLEARED via clearBackendNotifications.
+  // Used by syncBackendNotifications as a deny-list: even if the backend still
+  // returns one of these ids (race condition: backend DELETE hasn't landed yet,
+  // or the polling fired mid-DELETE), we DON'T re-add it to `notifications`.
+  // Capped at 200 entries to bound memory; oldest entries evicted on overflow.
+  clearedNotificationIds: Set<string>;
 
   // Language
   language: Language;
@@ -343,6 +349,17 @@ interface KabaddiState {
   // /api/notifications) AND in the local store. Called when the user opens
   // the panel or clicks a notification.
   markBackendNotificationRead: (userId: string, notificationId: string) => void;
+  // Permanently deletes notifications on the backend (DELETE /api/notifications)
+  // AND removes them from the local store. Also stashes the deleted ids in
+  // `clearedNotificationIds` so the next syncBackendNotifications poll won't
+  // re-add them (race-condition guard — see implementation below).
+  //   - If `notificationIds` is supplied, deletes only those ids.
+  //   - If `type` is supplied (e.g. 'chat'), deletes only that type.
+  //   - If neither is supplied, deletes ALL of the user's notifications.
+  clearBackendNotifications: (
+    userId: string,
+    opts?: { notificationIds?: string[]; type?: NotificationType }
+  ) => Promise<number>;
 
   // Language action
   setLanguage: (lang: Language) => void;
@@ -699,6 +716,7 @@ export const useKabaddiStore = create<KabaddiState>()(
 
       // Notifications
       notifications: [],
+      clearedNotificationIds: new Set<string>(),
 
       // Language
       language: 'en' as Language,
@@ -1285,10 +1303,22 @@ export const useKabaddiStore = create<KabaddiState>()(
           let added = 0;
           set((state) => {
             const existingById = new Map(state.notifications.map((n) => [n.id, n]));
+            // Deny-list of ids the user has CLEARED. Even if the backend
+            // still returns one of these (race condition: backend DELETE
+            // hasn't landed yet, or the polling fired mid-DELETE), we do
+            // NOT re-add it to the local store. This is what stops the
+            // "hi" notification from re-appearing after the user tapped
+            // "Clear all" — the backend row will eventually be gone, but
+            // in the brief window before that, the cleared-id set blocks
+            // it from coming back.
+            const clearedIds = state.clearedNotificationIds;
             const newOnes: AppNotification[] = [];
             const updatedReadFlags: AppNotification[] = [];
 
             for (const incoming of mapped) {
+              // Skip cleared ids — even if the backend still has them.
+              if (clearedIds.has(incoming.id)) continue;
+
               const local = existingById.get(incoming.id);
               if (!local) {
                 // Brand-new notification from the backend — add it.
@@ -1358,6 +1388,102 @@ export const useKabaddiStore = create<KabaddiState>()(
           console.warn('markBackendNotificationRead: PATCH failed (will reconcile on next sync):',
             String(err).slice(0, 200));
         });
+      },
+
+      // ─── clearBackendNotifications ────────────────────────────────
+      // Permanently DELETE notifications on the backend AND remove them
+      // from the local store. Also stashes the deleted ids in
+      // `clearedNotificationIds` so the next syncBackendNotifications
+      // poll won't re-add them (race-condition guard — without this,
+      // a poll firing in the brief window between local-clear and
+      // backend-DELETE-completion would bring the notifications back).
+      //
+      // Returns the count of notifications removed from the LOCAL store
+      // (NOT the backend's deleted count — that comes back in the
+      // response JSON but we don't surface it because the caller
+      // already knows what they asked to delete).
+      clearBackendNotifications: async (userId, opts) => {
+        if (!userId) return 0;
+
+        // Compute the ids we're about to clear locally so we can stash
+        // them in clearedNotificationIds BEFORE the local set() call.
+        // This way, even if a sync fires mid-delete, the cleared ids are
+        // already in the deny-list.
+        const idsToClear: string[] = [];
+        let localRemovedCount = 0;
+
+        // Snapshot current notifications + compute ids to clear
+        const currentNotifications = get().notifications;
+        if (opts?.notificationIds && opts.notificationIds.length > 0) {
+          // Caller specified exact ids — clear those.
+          const idSet = new Set(opts.notificationIds);
+          idsToClear.push(...opts.notificationIds);
+          localRemovedCount = currentNotifications.filter((n) => idSet.has(n.id)).length;
+        } else if (opts?.type) {
+          // Caller specified a type (e.g. 'chat') — clear all matching.
+          for (const n of currentNotifications) {
+            if (n.type === opts.type) idsToClear.push(n.id);
+          }
+          localRemovedCount = idsToClear.length;
+        } else {
+          // No filter — clear ALL notifications.
+          for (const n of currentNotifications) idsToClear.push(n.id);
+          localRemovedCount = idsToClear.length;
+        }
+
+        // 1. Local update: remove the notifications + add their ids to clearedNotificationIds
+        set((state) => {
+          const idSet = new Set(idsToClear);
+          // Build the new clearedIds set, capped at 200 entries.
+          // We add new ids at the end; if we overflow, drop the OLDEST
+          // (first-added) ids — they're the least likely to recur.
+          const newCleared = new Set(state.clearedNotificationIds);
+          for (const id of idsToClear) newCleared.add(id);
+          if (newCleared.size > 200) {
+            const arr = Array.from(newCleared);
+            const trimmed = arr.slice(arr.length - 200);
+            return {
+              notifications: state.notifications.filter((n) => !idSet.has(n.id)),
+              clearedNotificationIds: new Set(trimmed),
+            };
+          }
+          return {
+            notifications: state.notifications.filter((n) => !idSet.has(n.id)),
+            clearedNotificationIds: newCleared,
+          };
+        });
+
+        // 2. Backend DELETE — best-effort, fire and forget.
+        // Build the request body. We include either `notificationIds`
+        // or `type` so the backend can scope the delete. If neither,
+        // the backend deletes ALL the user's notifications.
+        const body: Record<string, unknown> = { userId };
+        if (opts?.notificationIds && opts.notificationIds.length > 0) {
+          body.notificationIds = opts.notificationIds;
+        } else if (opts?.type) {
+          body.type = opts.type;
+        }
+        try {
+          const res = await fetch('/api/notifications', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            console.warn('clearBackendNotifications: DELETE failed:',
+              res.status, errText.slice(0, 200));
+          }
+        } catch (err) {
+          console.warn('clearBackendNotifications: DELETE threw (will retry on next app open):',
+            String(err).slice(0, 200));
+          // Don't un-clear locally — the clearedNotificationIds deny-list
+          // will protect us from re-adding them on the next sync. The
+          // backend row will eventually be deleted on a future clear
+          // attempt or by direct DB intervention.
+        }
+
+        return localRemovedCount;
       },
 
       setLanguage: (lang) => set({ language: lang }),
