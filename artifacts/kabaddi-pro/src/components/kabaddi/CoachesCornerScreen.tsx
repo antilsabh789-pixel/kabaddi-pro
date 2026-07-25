@@ -1,6 +1,23 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+/**
+ * Coaches Corner — REBUILT (simple version)
+ *
+ * Single-page flow:
+ *   1. Academy list (or "Create Academy" if none)
+ *   2. Tap an academy → Academy Dashboard with 5 options:
+ *      - Attendance (always saved, no date limit)
+ *      - Fees (simple paid/pending per month)
+ *      - Announcements (broadcast to all academy players)
+ *      - Performances (last match stats per player)
+ *      - Players (roster + Call / WhatsApp / Chat per player)
+ *
+ * This component intentionally replaces the older 6-tab CoachDashboard with a
+ * much simpler, focused UX. The old CoachDashboard.tsx is kept on disk for
+ * reference but no longer imported anywhere.
+ */
+
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -8,1065 +25,1763 @@ import {
   MapPin,
   Users,
   Calendar,
-  Settings,
-  Trash2,
-  Check,
+  IndianRupee,
+  Megaphone,
+  Trophy,
+  Phone,
+  MessageCircle,
   X,
-  Clock,
+  ChevronRight,
+  Building2,
+  Loader2,
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  Send,
+  Trash2,
+  UserPlus,
+  Search,
+  Sparkles,
   Crown,
-  Lock,
+  Zap,
+  Shield,
+  Clock,
+  CalendarDays,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { useKabaddiStore, type CoachAcademy } from '@/lib/store';
-import { t } from '@/lib/i18n';
-import PremiumUpgradeScreen from './PremiumUpgradeScreen';
+import { useKabaddiStore } from '@/lib/store';
+import { useToast } from '@/hooks/use-toast';
+import { useBackButton } from '@/hooks/use-back-button';
 
-// ─── Types ────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────
 
-interface CoachesCornerScreenProps {
-  onClose: () => void;
-}
-
-interface AcademyPlayer {
+interface AcademyData {
   id: string;
   name: string;
-  phone?: string;
-  isPresent?: boolean;
+  location: string | null;
+  groundName: string | null;
+  coachUserId: string;
+  players: AcademyPlayerData[];
+  _count: { players: number };
+  createdAt: string;
 }
 
-type SubView = 'main' | 'academy-detail' | 'create-academy';
-
-// ─── Mock Players ─────────────────────────────────────────────────
-
-const MOCK_PLAYERS: AcademyPlayer[] = [
-  { id: 'p1', name: 'Rahul Kumar', phone: '9876543210', isPresent: false },
-  { id: 'p2', name: 'Vikram Singh', phone: '9876543211', isPresent: false },
-  { id: 'p3', name: 'Amit Sharma', phone: '9876543212', isPresent: false },
-  { id: 'p4', name: 'Deepak Hooda', phone: '9876543213', isPresent: false },
-  { id: 'p5', name: 'Manjeet Chillar', phone: '9876543214', isPresent: false },
-  { id: 'p6', name: 'Pardeep Narwal', phone: '9876543215', isPresent: false },
-  { id: 'p7', name: 'Ajay Thakur', phone: '9876543216', isPresent: false },
-  { id: 'p8', name: 'Rishank Devadiga', phone: '9876543217', isPresent: false },
-];
-
-// ─── Component ────────────────────────────────────────────────────
-
-export default function CoachesCornerScreen({ onClose }: CoachesCornerScreenProps) {
-  const { language, coachAcademies, addCoachAcademy, removeCoachAcademy, updateCoachAcademy, currentUser } = useKabaddiStore();
-  const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
-  const lang = language;
-
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [subView, setSubView] = useState<SubView>('main');
-  const [selectedAcademyId, setSelectedAcademyId] = useState<string | null>(null);
-  const [detailTab, setDetailTab] = useState<'players' | 'attendance' | 'rules'>('players');
-
-  // Create academy form
-  const [newName, setNewName] = useState('');
-  const [newLocation, setNewLocation] = useState('');
-  const [newGroundName, setNewGroundName] = useState('');
-
-  // Players state (local per academy)
-  const [academyPlayers, setAcademyPlayers] = useState<Record<string, AcademyPlayer[]>>({});
-  const [addPlayerSearch, setAddPlayerSearch] = useState('');
-
-  // Custom rules
-  const [newRule, setNewRule] = useState('');
-
-  const selectedAcademy = coachAcademies.find((a) => a.id === selectedAcademyId);
-
-  const getPlayers = useCallback(
-    (academyId: string): AcademyPlayer[] => {
-      return academyPlayers[academyId] || [];
-    },
-    [academyPlayers]
-  );
-
-  const addPlayerToAcademy = useCallback(
-    (academyId: string, player: AcademyPlayer) => {
-      setAcademyPlayers((prev) => {
-        const current = prev[academyId] || [];
-        if (current.find((p) => p.id === player.id)) return prev;
-        const updated = [...current, player];
-        return { ...prev, [academyId]: updated };
-      });
-      // Update totalPlayers count
-      const academy = coachAcademies.find((a) => a.id === academyId);
-      if (academy) {
-        const currentCount = academyPlayers[academyId]?.length || 0;
-        updateCoachAcademy(academyId, { totalPlayers: currentCount + 1 });
-      }
-    },
-    [coachAcademies, academyPlayers, updateCoachAcademy]
-  );
-
-  const removePlayerFromAcademy = useCallback(
-    (academyId: string, playerId: string) => {
-      setAcademyPlayers((prev) => {
-        const current = prev[academyId] || [];
-        return { ...prev, [academyId]: current.filter((p) => p.id !== playerId) };
-      });
-      // Update totalPlayers count
-      const academy = coachAcademies.find((a) => a.id === academyId);
-      if (academy) {
-        const currentCount = academyPlayers[academyId]?.length || 0;
-        updateCoachAcademy(academyId, { totalPlayers: Math.max(0, currentCount - 1) });
-      }
-    },
-    [coachAcademies, academyPlayers, updateCoachAcademy]
-  );
-
-  const toggleAttendance = useCallback(
-    (academyId: string, playerId: string) => {
-      setAcademyPlayers((prev) => {
-        const current = prev[academyId] || [];
-        return {
-          ...prev,
-          [academyId]: current.map((p) =>
-            p.id === playerId ? { ...p, isPresent: !p.isPresent } : p
-          ),
-        };
-      });
-    },
-    []
-  );
-
-  const handleCreateAcademy = () => {
-    if (!newName.trim()) return;
-    addCoachAcademy({
-      name: newName.trim(),
-      location: newLocation.trim(),
-      groundName: newGroundName.trim(),
-      totalPlayers: 0,
-      rules: {
-        sundayHoliday: false,
-        practiceSchedule: 'one-time',
-        customRules: [],
-      },
-    });
-    setNewName('');
-    setNewLocation('');
-    setNewGroundName('');
-    setSubView('main');
+interface AcademyPlayerData {
+  id: string; // AcademyPlayer row id
+  userId: string;
+  user: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    avatar: string | null;
+    playerCode?: string | null;
+    provisional?: boolean;
   };
+  joinedAt: string;
+}
 
-  const handleDeleteAcademy = (id: string) => {
-    removeCoachAcademy(id);
-    setAcademyPlayers((prev) => {
-      const copy = { ...prev };
-      delete copy[id];
-      return copy;
-    });
-    if (selectedAcademyId === id) {
-      setSelectedAcademyId(null);
-      setSubView('main');
+interface AttendanceRecord {
+  id: string;
+  userId: string;
+  date: string;
+  isPresent: boolean;
+  session: string;
+  note?: string | null;
+}
+
+interface FeeRecordData {
+  id: string;
+  userId: string;
+  month: string;
+  amount: number;
+  status: string; // pending, paid, overdue
+  paidAt: string | null;
+  period: string;
+  notes?: string | null;
+}
+
+interface AnnouncementData {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  coach?: { id: string; name: string | null; avatar: string | null };
+}
+
+interface PerformancePlayer {
+  userId: string;
+  name: string | null;
+  playerCode: string | null;
+  avatar: string | null;
+  stats: {
+    raidPoints: number;
+    tacklePoints: number;
+    bonusPoints: number;
+    totalPoints: number;
+    events: number;
+  };
+  hasPlayedInLastMatch: boolean;
+}
+
+interface LastMatchData {
+  id: string;
+  date: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeScore: number;
+  awayScore: number;
+  tournamentName: string | null;
+  completedAt: string | null;
+  isPractice: boolean;
+  venue: string | null;
+}
+
+type View =
+  | { name: 'academies' }
+  | { name: 'create' }
+  | { name: 'dashboard'; academyId: string }
+  | { name: 'attendance'; academyId: string }
+  | { name: 'fees'; academyId: string }
+  | { name: 'announcements'; academyId: string }
+  | { name: 'performances'; academyId: string }
+  | { name: 'players'; academyId: string };
+
+// ─── Component ────────────────────────────────────────────────────────
+
+export default function CoachesCornerScreen({ onClose }: { onClose: () => void }) {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const startChatWith = useKabaddiStore((s) => s.startChatWith);
+  const { toast } = useToast();
+
+  const [view, setView] = useState<View>({ name: 'academies' });
+  useBackButton(true, onClose);
+
+  // ─── Academies list state ───
+  const [academies, setAcademies] = useState<AcademyData[]>([]);
+  const [loadingAcademies, setLoadingAcademies] = useState(false);
+  const [academiesError, setAcademiesError] = useState<string | null>(null);
+
+  // ─── Create form state ───
+  const [createForm, setCreateForm] = useState({ name: '', location: '', groundName: '' });
+  const [creating, setCreating] = useState(false);
+
+  // ─── Selected academy detail ───
+  const [selectedAcademy, setSelectedAcademy] = useState<AcademyData | null>(null);
+
+  // ─── Fetch academies list ───
+  const fetchAcademies = useCallback(async () => {
+    if (!currentUser?.id) return;
+    setLoadingAcademies(true);
+    setAcademiesError(null);
+    try {
+      const res = await fetch(`/api/academies?coachUserId=${currentUser.id}&_t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) {
+        setAcademiesError(data.error || 'Failed to load academies');
+        setAcademies([]);
+      } else {
+        setAcademies(data.academies || []);
+      }
+    } catch {
+      setAcademiesError('Network error. Check your connection.');
+      setAcademies([]);
+    } finally {
+      setLoadingAcademies(false);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    fetchAcademies();
+  }, [fetchAcademies]);
+
+  // ─── Fetch academy detail ───
+  const fetchAcademyDetail = useCallback(async (academyId: string) => {
+    try {
+      const res = await fetch(`/api/academies/${academyId}?_t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok && data.academy) {
+        setSelectedAcademy(data.academy);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, []);
+
+  // ─── Create academy ───
+  const handleCreate = async () => {
+    if (!currentUser?.id) return;
+    if (!createForm.name.trim()) {
+      toast({ title: 'Academy name required', variant: 'destructive' });
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await fetch('/api/academies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: createForm.name.trim(),
+          location: createForm.location.trim() || null,
+          groundName: createForm.groundName.trim() || null,
+          coachUserId: currentUser.id,
+          sundayHoliday: false,
+          practiceSchedule: 'one-time',
+          offDays: [],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Create failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Academy created!', description: createForm.name.trim() });
+      setCreateForm({ name: '', location: '', groundName: '' });
+      await fetchAcademies();
+      setView({ name: 'academies' });
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' });
+    } finally {
+      setCreating(false);
     }
   };
 
-  // ─── Sub-views ──────────────────────────────────────────────────
+  // ─── Render ───
+  return (
+    <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col">
+      <AnimatePresence mode="wait">
+        {view.name === 'academies' && (
+          <AcademiesListView
+            key="academies"
+            academies={academies}
+            loading={loadingAcademies}
+            error={academiesError}
+            onClose={onClose}
+            onRefresh={fetchAcademies}
+            onCreate={() => setView({ name: 'create' })}
+            onOpenAcademy={(id) => {
+              fetchAcademyDetail(id);
+              setView({ name: 'dashboard', academyId: id });
+            }}
+          />
+        )}
 
-  const renderCreateAcademy = () => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="p-4 space-y-4"
-    >
-      <Card className="border-0 shadow-md bg-white dark:bg-warm-800">
-        <CardContent className="p-6 space-y-4">
-          <h3 className="text-lg font-bold text-warm-800 dark:text-warm-100">
-            {t('coach.createAcademy', lang)}
-          </h3>
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm font-medium text-warm-600 dark:text-warm-400 mb-1 block">
-                {t('coach.academyName', lang)}
-              </label>
-              <Input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder={t('coach.academyName', lang)}
-                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-warm-600 dark:text-warm-400 mb-1 block">
-                {t('coach.groundLocation', lang)}
-              </label>
-              <Input
-                value={newLocation}
-                onChange={(e) => setNewLocation(e.target.value)}
-                placeholder={t('coach.groundLocation', lang)}
-                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-warm-600 dark:text-warm-400 mb-1 block">
-                {t('coach.manageGround', lang)}
-              </label>
-              <Input
-                value={newGroundName}
-                onChange={(e) => setNewGroundName(e.target.value)}
-                placeholder={t('coach.manageGround', lang)}
-                className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600"
-              />
-            </div>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setSubView('main')}
-              className="flex-1"
-            >
-              {t('common.cancel', lang)}
-            </Button>
-            <Button
-              onClick={handleCreateAcademy}
-              disabled={!newName.trim()}
-              className="flex-1 bg-brand-red hover:bg-brand-red-dark text-white"
-            >
-              {t('coach.createAcademy', lang)}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        {view.name === 'create' && (
+          <CreateAcademyView
+            key="create"
+            form={createForm}
+            setForm={setCreateForm}
+            creating={creating}
+            onBack={() => setView({ name: 'academies' })}
+            onCreate={handleCreate}
+          />
+        )}
+
+        {view.name === 'dashboard' && (
+          <AcademyDashboardView
+            key={`dash-${view.academyId}`}
+            academyId={view.academyId}
+            academy={selectedAcademy}
+            onBack={() => setView({ name: 'academies' })}
+            onNavigate={(sub) => setView({ name: sub, academyId: view.academyId } as View)}
+          />
+        )}
+
+        {view.name === 'attendance' && (
+          <AttendanceView key={`att-${view.academyId}`} academyId={view.academyId} onBack={() => setView({ name: 'dashboard', academyId: view.academyId })} />
+        )}
+
+        {view.name === 'fees' && (
+          <FeesView key={`fees-${view.academyId}`} academyId={view.academyId} onBack={() => setView({ name: 'dashboard', academyId: view.academyId })} />
+        )}
+
+        {view.name === 'announcements' && (
+          <AnnouncementsView key={`ann-${view.academyId}`} academyId={view.academyId} coachUserId={currentUser?.id || ''} onBack={() => setView({ name: 'dashboard', academyId: view.academyId })} />
+        )}
+
+        {view.name === 'performances' && (
+          <PerformancesView key={`perf-${view.academyId}`} academyId={view.academyId} onBack={() => setView({ name: 'dashboard', academyId: view.academyId })} />
+        )}
+
+        {view.name === 'players' && (
+          <PlayersView
+            key={`players-${view.academyId}`}
+            academyId={view.academyId}
+            onBack={() => setView({ name: 'dashboard', academyId: view.academyId })}
+            onRefreshDashboard={() => fetchAcademyDetail(view.academyId)}
+            startChatWith={startChatWith}
+            toast={toast}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Shared Header ────────────────────────────────────────────────────
+
+function ScreenHeader({ title, subtitle, onBack, accent = 'emerald' }: { title: string; subtitle?: string; onBack: () => void; accent?: 'emerald' | 'orange' | 'amber' | 'violet' | 'blue' | 'red' }) {
+  const accentBg = {
+    emerald: 'from-emerald-500 to-teal-600',
+    orange: 'from-orange-500 to-amber-600',
+    amber: 'from-amber-500 to-yellow-600',
+    violet: 'from-violet-500 to-fuchsia-600',
+    blue: 'from-blue-500 to-cyan-600',
+    red: 'from-red-500 to-rose-600',
+  }[accent];
+  return (
+    <motion.div initial={{ y: -16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={`sticky top-0 z-20 bg-gradient-to-r ${accentBg} text-white shadow-md`}>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button onClick={onBack} className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors shrink-0">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-black text-base leading-tight truncate">{title}</h1>
+          {subtitle && <p className="text-[11px] text-white/80 truncate">{subtitle}</p>}
+        </div>
+      </div>
     </motion.div>
   );
+}
 
-  const renderAcademyDetail = () => {
-    if (!selectedAcademy) return null;
-    const players = getPlayers(selectedAcademy.id);
-    const presentCount = players.filter((p) => p.isPresent).length;
+function initials(name: string | null, code: string | null | undefined) {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (code) return code.slice(-2);
+  return '??';
+}
 
-    return (
-      <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        className="flex flex-col h-full"
-      >
-        {/* Academy header */}
-        <div className="p-4 bg-gradient-to-r from-brand-red to-brand-red-dark text-white">
-          <div className="flex items-center gap-3 mb-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                setSubView('main');
-                setSelectedAcademyId(null);
-              }}
-              className="text-white hover:bg-white/20"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="flex-1">
-              <h2 className="text-lg font-bold">{selectedAcademy.name}</h2>
-              <div className="flex items-center gap-2 text-sm opacity-90">
-                <MapPin className="w-3 h-3" />
-                <span>{selectedAcademy.location || 'No location'}</span>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => handleDeleteAcademy(selectedAcademy.id)}
-              className="text-white hover:bg-white/20"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+// ─── 1. Academies List View ───────────────────────────────────────────
+
+function AcademiesListView({ academies, loading, error, onClose, onRefresh, onCreate, onOpenAcademy }: {
+  academies: AcademyData[];
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onRefresh: () => void;
+  onCreate: () => void;
+  onOpenAcademy: (id: string) => void;
+}) {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
+      <motion.div initial={{ y: -16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="sticky top-0 z-20 bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors shrink-0">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex-1">
+            <h1 className="font-black text-base">Coach's Corner</h1>
+            <p className="text-[11px] text-white/80">Your academies</p>
           </div>
-          <div className="flex gap-4 text-sm">
-            <div className="flex items-center gap-1">
-              <Users className="w-4 h-4" />
-              <span>{players.length} {t('coach.totalPlayers', lang)}</span>
-            </div>
-            {selectedAcademy.groundName && (
-              <div className="flex items-center gap-1">
-                <MapPin className="w-4 h-4" />
-                <span>{selectedAcademy.groundName}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-warm-200 dark:border-warm-700">
-          {(['players', 'attendance', 'rules'] as const).map((tab) => {
-            const icons = { players: Users, attendance: Calendar, rules: Settings };
-            const labels = {
-              players: t('coach.manageTeam', lang),
-              attendance: t('coach.attendance', lang),
-              rules: t('coach.rules', lang),
-            };
-            const Icon = icons[tab];
-            return (
-              <button
-                key={tab}
-                onClick={() => setDetailTab(tab)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
-                  detailTab === tab
-                    ? 'text-brand-red border-b-2 border-brand-red'
-                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-300'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {labels[tab]}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <AnimatePresence mode="wait">
-            {detailTab === 'players' && (
-              <motion.div
-                key="players"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-3"
-              >
-                {/* Add player */}
-                <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-                  <CardContent className="p-4">
-                    <h4 className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2">
-                      {t('coach.addPlayer', lang)}
-                    </h4>
-                    <div className="flex gap-2">
-                      <Input
-                        value={addPlayerSearch}
-                        onChange={(e) => setAddPlayerSearch(e.target.value)}
-                        placeholder={t('coach.registerPlayer', lang)}
-                        className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-sm"
-                      />
-                      <Button
-                        size="sm"
-                        className="bg-brand-teal hover:bg-brand-teal-dark text-white shrink-0"
-                        onClick={() => {
-                          if (addPlayerSearch.trim()) {
-                            addPlayerToAcademy(selectedAcademy.id, {
-                              id: `player_${Date.now()}`,
-                              name: addPlayerSearch.trim(),
-                              isPresent: false,
-                            });
-                            setAddPlayerSearch('');
-                          }
-                        }}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Quick add from mock */}
-                {(() => {
-                  const existingIds = players.map((p) => p.id);
-                  const available = MOCK_PLAYERS.filter(
-                    (p) => !existingIds.includes(p.id)
-                  );
-                  if (available.length === 0) return null;
-                  return (
-                    <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-                      <CardContent className="p-4">
-                        <h4 className="text-sm font-semibold text-warm-700 dark:text-warm-300 mb-2">
-                          {t('social.suggestedPlayers', lang)}
-                        </h4>
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                          {available.slice(0, 5).map((player) => (
-                            <div
-                              key={player.id}
-                              className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-warm-50 dark:hover:bg-warm-700 transition-colors"
-                            >
-                              <span className="text-sm text-warm-700 dark:text-warm-300">
-                                {player.name}
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 w-7 p-0 text-brand-teal"
-                                onClick={() =>
-                                  addPlayerToAcademy(selectedAcademy.id, {
-                                    ...player,
-                                    isPresent: false,
-                                  })
-                                }
-                              >
-                                <Plus className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })()}
-
-                {/* Player list */}
-                {players.length === 0 ? (
-                  <div className="text-center py-8 text-warm-500 dark:text-warm-400">
-                    <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">{t('coach.noAcademy', lang)}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {players.map((player, idx) => (
-                      <motion.div
-                        key={player.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.03 }}
-                      >
-                        <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-                          <CardContent className="p-3 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-sm">
-                                {player.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-warm-800 dark:text-warm-200">
-                                  {player.name}
-                                </p>
-                                {player.phone && (
-                                  <p className="text-xs text-warm-500 dark:text-warm-400">
-                                    {player.phone}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                              onClick={() =>
-                                removePlayerFromAcademy(selectedAcademy.id, player.id)
-                              }
-                              title={t('coach.removePlayer', lang)}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {detailTab === 'attendance' && (
-              <motion.div
-                key="attendance"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-3"
-              >
-                {/* Date header */}
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-warm-700 dark:text-warm-300">
-                    {new Date().toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </h4>
-                  <Badge
-                    variant="secondary"
-                    className="bg-brand-teal/10 text-brand-teal border-0"
-                  >
-                    {presentCount}/{players.length} {t('coach.attendance', lang)}
-                  </Badge>
-                </div>
-
-                {players.length === 0 ? (
-                  <div className="text-center py-8 text-warm-500 dark:text-warm-400">
-                    <Calendar className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">
-                      {t('coach.addPlayer', lang)} {t('coach.attendance', lang).toLowerCase()}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {players.map((player) => (
-                      <motion.div
-                        key={player.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                      >
-                        <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-                          <CardContent className="p-3 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                                  player.isPresent
-                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                                    : 'bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400'
-                                }`}
-                              >
-                                {player.name.charAt(0).toUpperCase()}
-                              </div>
-                              <span className="text-sm font-medium text-warm-800 dark:text-warm-200">
-                                {player.name}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() =>
-                                toggleAttendance(selectedAcademy.id, player.id)
-                              }
-                              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                                player.isPresent
-                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                                  : 'bg-warm-100 dark:bg-warm-700 text-warm-500 dark:text-warm-400'
-                              }`}
-                            >
-                              {player.isPresent ? (
-                                <>
-                                  <Check className="w-3 h-3" />
-                                  {t('common.save', lang)}
-                                </>
-                              ) : (
-                                <>
-                                  <X className="w-3 h-3" />
-                                  Absent
-                                </>
-                              )}
-                            </button>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    ))}
-
-                    {/* Mark all present */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-3 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10"
-                      onClick={() => {
-                        setAcademyPlayers((prev) => ({
-                          ...prev,
-                          [selectedAcademy.id]: (prev[selectedAcademy.id] || []).map(
-                            (p) => ({ ...p, isPresent: true })
-                          ),
-                        }));
-                      }}
-                    >
-                      <Check className="w-4 h-4 mr-1" />
-                      Mark All Present
-                    </Button>
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {detailTab === 'rules' && (
-              <motion.div
-                key="rules"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-4"
-              >
-                {/* Sunday Holiday toggle */}
-                <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                          <Calendar className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-warm-800 dark:text-warm-200">
-                            {t('coach.sundayHoliday', lang)}
-                          </p>
-                          <p className="text-xs text-warm-500 dark:text-warm-400">
-                            No practice on Sundays
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() =>
-                          updateCoachAcademy(selectedAcademy.id, {
-                            rules: {
-                              ...selectedAcademy.rules,
-                              sundayHoliday: !selectedAcademy.rules.sundayHoliday,
-                            },
-                          })
-                        }
-                        className={`relative w-12 h-7 rounded-full transition-colors ${
-                          selectedAcademy.rules.sundayHoliday
-                            ? 'bg-brand-teal'
-                            : 'bg-warm-300 dark:bg-warm-600'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${
-                            selectedAcademy.rules.sundayHoliday
-                              ? 'translate-x-5'
-                              : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Practice Schedule */}
-                <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-lg bg-brand-teal/10 flex items-center justify-center">
-                        <Clock className="w-5 h-5 text-brand-teal" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-warm-800 dark:text-warm-200">
-                          {t('coach.practiceSchedule', lang)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {(['one-time', 'both-time'] as const).map((schedule) => (
-                        <button
-                          key={schedule}
-                          onClick={() =>
-                            updateCoachAcademy(selectedAcademy.id, {
-                              rules: {
-                                ...selectedAcademy.rules,
-                                practiceSchedule: schedule,
-                              },
-                            })
-                          }
-                          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors ${
-                            selectedAcademy.rules.practiceSchedule === schedule
-                              ? 'bg-brand-teal text-white shadow-sm'
-                              : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-400'
-                          }`}
-                        >
-                          {schedule === 'one-time'
-                            ? t('coach.oneTimePractice', lang)
-                            : t('coach.bothTimePractice', lang)}
-                        </button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Custom Rules */}
-                <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-lg bg-brand-red/10 flex items-center justify-center">
-                        <Settings className="w-5 h-5 text-brand-red" />
-                      </div>
-                      <h4 className="text-sm font-semibold text-warm-800 dark:text-warm-200">
-                        Custom Rules
-                      </h4>
-                    </div>
-                    <div className="flex gap-2 mb-3">
-                      <Input
-                        value={newRule}
-                        onChange={(e) => setNewRule(e.target.value)}
-                        placeholder="Add a custom rule..."
-                        className="bg-warm-50 dark:bg-warm-700 border-warm-200 dark:border-warm-600 text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && newRule.trim()) {
-                            updateCoachAcademy(selectedAcademy.id, {
-                              rules: {
-                                ...selectedAcademy.rules,
-                                customRules: [
-                                  ...selectedAcademy.rules.customRules,
-                                  newRule.trim(),
-                                ],
-                              },
-                            });
-                            setNewRule('');
-                          }
-                        }}
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="shrink-0"
-                        onClick={() => {
-                          if (newRule.trim()) {
-                            updateCoachAcademy(selectedAcademy.id, {
-                              rules: {
-                                ...selectedAcademy.rules,
-                                customRules: [
-                                  ...selectedAcademy.rules.customRules,
-                                  newRule.trim(),
-                                ],
-                              },
-                            });
-                            setNewRule('');
-                          }
-                        }}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    {selectedAcademy.rules.customRules.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {selectedAcademy.rules.customRules.map((rule, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-warm-50 dark:bg-warm-700"
-                          >
-                            <span className="text-sm text-warm-700 dark:text-warm-300">
-                              {rule}
-                            </span>
-                            <button
-                              onClick={() =>
-                                updateCoachAcademy(selectedAcademy.id, {
-                                  rules: {
-                                    ...selectedAcademy.rules,
-                                    customRules:
-                                      selectedAcademy.rules.customRules.filter(
-                                        (_, i) => i !== idx
-                                      ),
-                                  },
-                                })
-                              }
-                              className="text-warm-400 hover:text-red-500 transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-warm-500 dark:text-warm-400 text-center py-2">
-                        No custom rules added yet
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <button onClick={onRefresh} className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors" title="Refresh">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={loading ? 'animate-spin' : ''}><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg>
+          </button>
         </div>
       </motion.div>
-    );
-  };
 
-  const renderMainView = () => (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="flex flex-col h-full"
-    >
-      {/* Header */}
-      <div className="bg-gradient-to-r from-brand-navy to-brand-navy-dark text-white px-4 py-4">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <h1 className="text-lg font-bold tracking-wide">
-            {t('coach.title', lang)}
-          </h1>
-        </div>
-        <p className="text-sm text-warm-300 mt-1 ml-11">
-          {t('coach.myAcademy', lang)}
-        </p>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Quick stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-            <CardContent className="p-4 text-center">
-              <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center mx-auto mb-2">
-                <Users className="w-5 h-5 text-brand-red" />
-              </div>
-              <p className="text-2xl font-bold text-warm-800 dark:text-warm-200">
-                {coachAcademies.length}
-              </p>
-              <p className="text-xs text-warm-500 dark:text-warm-400">
-                {t('coach.myAcademy', lang)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-0 shadow-sm bg-white dark:bg-warm-800">
-            <CardContent className="p-4 text-center">
-              <div className="w-10 h-10 rounded-xl bg-brand-teal/10 flex items-center justify-center mx-auto mb-2">
-                <MapPin className="w-5 h-5 text-brand-teal" />
-              </div>
-              <p className="text-2xl font-bold text-warm-800 dark:text-warm-200">
-                {coachAcademies.reduce((sum, a) => sum + a.totalPlayers, 0)}
-              </p>
-              <p className="text-xs text-warm-500 dark:text-warm-400">
-                {t('coach.totalPlayers', lang)}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Academy list */}
-        {coachAcademies.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-12"
-          >
-            <div className="w-16 h-16 rounded-full bg-warm-100 dark:bg-warm-700 flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-warm-400" />
+      <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full">
+        {loading && academies.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading your academies...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
+            <p className="text-sm font-bold text-red-600 mb-1">{error}</p>
+            <Button onClick={onRefresh} variant="outline" className="mt-3">Retry</Button>
+          </div>
+        ) : academies.length === 0 ? (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center mb-4">
+              <Building2 className="w-10 h-10 text-emerald-500" />
             </div>
-            <p className="text-warm-600 dark:text-warm-400 mb-4">
-              {t('coach.noAcademy', lang)}
-            </p>
-            <Button
-              onClick={() => setSubView('create-academy')}
-              className="bg-brand-red hover:bg-brand-red-dark text-white"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              {t('coach.createAcademy', lang)}
+            <h2 className="text-lg font-black text-warm-800 dark:text-warm-100 mb-1">No Academies Yet</h2>
+            <p className="text-sm text-warm-500 dark:text-warm-400 mb-5 max-w-xs">Create your first academy to start managing players, attendance, fees, and announcements.</p>
+            <Button onClick={onCreate} className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white h-11 px-5 rounded-xl font-bold gap-2">
+              <Plus className="w-4 h-4" /> Create Academy
             </Button>
           </motion.div>
         ) : (
           <>
-            {coachAcademies.map((academy, idx) => {
-              const players = getPlayers(academy.id);
-              return (
-                <motion.div
-                  key={academy.id}
-                  initial={{ opacity: 0, y: 15 }}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] text-warm-500 dark:text-warm-400 uppercase tracking-wider font-semibold">
+                {academies.length} {academies.length === 1 ? 'Academy' : 'Academies'}
+              </p>
+              <Button onClick={onCreate} size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white h-8 px-3 rounded-lg gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> New
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {academies.map((a, idx) => (
+                <motion.button
+                  key={a.id}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
+                  transition={{ delay: idx * 0.04 }}
+                  onClick={() => onOpenAcademy(a.id)}
+                  className="w-full text-left rounded-2xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md transition-all p-4 active:scale-[0.98]"
                 >
-                  <Card
-                    className="border-0 shadow-md bg-white dark:bg-warm-800 overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-                    onClick={() => {
-                      setSelectedAcademyId(academy.id);
-                      setSubView('academy-detail');
-                      setDetailTab('players');
-                    }}
-                  >
-                    <div className="h-1.5 bg-gradient-to-r from-brand-red to-brand-gold" />
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-bold text-warm-800 dark:text-warm-200">
-                            {academy.name}
-                          </h3>
-                          {academy.location && (
-                            <div className="flex items-center gap-1 mt-1 text-xs text-warm-500 dark:text-warm-400">
-                              <MapPin className="w-3 h-3" />
-                              {academy.location}
-                            </div>
-                          )}
-                          {academy.groundName && (
-                            <div className="flex items-center gap-1 mt-0.5 text-xs text-warm-500 dark:text-warm-400">
-                              <Clock className="w-3 h-3" />
-                              {academy.groundName}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="secondary"
-                            className="bg-brand-teal/10 text-brand-teal border-0 text-xs"
-                          >
-                            <Users className="w-3 h-3 mr-1" />
-                            {players.length}
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-warm-400 hover:text-red-500"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteAcademy(academy.id);
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Rules preview */}
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {academy.rules.sundayHoliday && (
-                          <Badge
-                            variant="secondary"
-                            className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-0 text-[10px]"
-                          >
-                            {t('coach.sundayHoliday', lang)}
-                          </Badge>
-                        )}
-                        <Badge
-                          variant="secondary"
-                          className="bg-brand-teal/10 text-brand-teal border-0 text-[10px]"
-                        >
-                          {academy.rules.practiceSchedule === 'one-time'
-                            ? t('coach.oneTimePractice', lang)
-                            : t('coach.bothTimePractice', lang)}
-                        </Badge>
-                        {academy.rules.customRules.slice(0, 2).map((rule, i) => (
-                          <Badge
-                            key={i}
-                            variant="secondary"
-                            className="bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-400 border-0 text-[10px]"
-                          >
-                            {rule}
-                          </Badge>
-                        ))}
-                        {academy.rules.customRules.length > 2 && (
-                          <Badge
-                            variant="secondary"
-                            className="bg-warm-100 dark:bg-warm-700 text-warm-500 border-0 text-[10px]"
-                          >
-                            +{academy.rules.customRules.length - 2} more
-                          </Badge>
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-black text-lg shrink-0">
+                      {a.name.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-sm text-warm-800 dark:text-warm-100 truncate">{a.name}</h3>
+                      {a.location && (
+                        <p className="text-[11px] text-warm-500 dark:text-warm-400 flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3" /> {a.location}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Users className="w-2.5 h-2.5" /> {a._count?.players ?? a.players?.length ?? 0} players
+                        </span>
+                        {a.groundName && (
+                          <span className="text-[10px] text-warm-400 dark:text-warm-500 truncate">{a.groundName}</span>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-
-            {/* Add academy button */}
-            <Button
-              onClick={() => setSubView('create-academy')}
-              variant="outline"
-              className="w-full border-dashed border-warm-300 dark:border-warm-600 text-warm-500 dark:text-warm-400 hover:bg-warm-50 dark:hover:bg-warm-700"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              {t('coach.createAcademy', lang)}
-            </Button>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-warm-400 shrink-0 mt-1" />
+                  </div>
+                </motion.button>
+              ))}
+            </div>
           </>
         )}
       </div>
     </motion.div>
   );
+}
+
+// ─── 2. Create Academy View ───────────────────────────────────────────
+
+function CreateAcademyView({ form, setForm, creating, onBack, onCreate }: {
+  form: { name: string; location: string; groundName: string };
+  setForm: (f: { name: string; location: string; groundName: string }) => void;
+  creating: boolean;
+  onBack: () => void;
+  onCreate: () => void;
+}) {
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+      <ScreenHeader title="Create Academy" subtitle="Set up your new academy" onBack={onBack} accent="emerald" />
+      <div className="flex-1 overflow-y-auto px-4 py-5 max-w-lg mx-auto w-full">
+        <div className="rounded-2xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-5 space-y-4">
+          <div>
+            <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Academy Name <span className="text-red-500">*</span></label>
+            <Input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g., Rohtak Kabaddi Academy"
+              className="h-11 rounded-xl"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Location <span className="text-warm-400 font-normal">(optional)</span></label>
+            <Input
+              value={form.location}
+              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              placeholder="e.g., Sector 3, Rohtak"
+              className="h-11 rounded-xl"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Ground Name <span className="text-warm-400 font-normal">(optional)</span></label>
+            <Input
+              value={form.groundName}
+              onChange={(e) => setForm({ ...form, groundName: e.target.value })}
+              placeholder="e.g., Municipal Ground"
+              className="h-11 rounded-xl"
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-warm-400 dark:text-warm-500 mt-3 px-1 leading-relaxed">
+          You can add players, set attendance, collect fees, and send announcements after creating the academy.
+        </p>
+        <Button
+          onClick={onCreate}
+          disabled={creating || !form.name.trim()}
+          className="w-full mt-4 h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold disabled:opacity-50"
+        >
+          {creating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</> : <><Plus className="w-4 h-4 mr-2" /> Create Academy</>}
+        </Button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── 3. Academy Dashboard View (5 options) ────────────────────────────
+
+function AcademyDashboardView({ academyId, academy, onBack, onNavigate }: {
+  academyId: string;
+  academy: AcademyData | null;
+  onBack: () => void;
+  onNavigate: (sub: 'attendance' | 'fees' | 'announcements' | 'performances' | 'players') => void;
+}) {
+  const [localAcademy, setLocalAcademy] = useState<AcademyData | null>(academy);
+
+  useEffect(() => {
+    if (!academyId) return;
+    let cancelled = false;
+    fetch(`/api/academies/${academyId}?_t=${Date.now()}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data.academy) setLocalAcademy(data.academy);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [academyId]);
+
+  const playerCount = localAcademy?._count?.players ?? localAcademy?.players?.length ?? 0;
+
+  const options: { id: 'attendance' | 'fees' | 'announcements' | 'performances' | 'players'; label: string; desc: string; icon: typeof Calendar; accent: 'emerald' | 'orange' | 'amber' | 'violet' | 'blue' }[] = [
+    { id: 'attendance', label: 'Attendance', desc: 'Daily present/absent', icon: Calendar, accent: 'emerald' },
+    { id: 'fees', label: 'Fees', desc: 'Monthly fee tracking', icon: IndianRupee, accent: 'amber' },
+    { id: 'announcements', label: 'Announcements', desc: 'Broadcast to players', icon: Megaphone, accent: 'orange' },
+    { id: 'performances', label: 'Performances', desc: 'Last match stats', icon: Trophy, accent: 'violet' },
+    { id: 'players', label: 'Players', desc: `${playerCount} in roster · Call/Chat`, icon: Users, accent: 'blue' },
+  ];
+
+  const accentBg = {
+    emerald: 'from-emerald-500 to-teal-600',
+    orange: 'from-orange-500 to-amber-600',
+    amber: 'from-amber-500 to-yellow-600',
+    violet: 'from-violet-500 to-fuchsia-600',
+    blue: 'from-blue-500 to-cyan-600',
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col overflow-hidden"
-    >
-      {/* Premium gate - show locked screen if not premium */}
-      {!isPremium && !showUpgrade && (
-        <div className="flex-1 flex flex-col items-center justify-center p-8">
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-gold to-amber-500 flex items-center justify-center shadow-xl shadow-amber-500/25 mb-6"
-          >
-            <Crown className="w-10 h-10 text-white" />
-          </motion.div>
-          <h2 className="text-xl font-black text-warm-800 dark:text-warm-100 text-center mb-2">
-            Coach's Corner
-          </h2>
-          <div className="flex items-center gap-1.5 mb-3">
-            <Lock className="w-3.5 h-3.5 text-brand-gold" />
-            <span className="text-sm font-bold text-brand-gold">Premium Feature</span>
-          </div>
-          <p className="text-sm text-warm-500 dark:text-warm-400 text-center max-w-xs mb-6">
-            Manage your academies, track attendance, organize training sessions & more — exclusively for Pro users
-          </p>
-          <div className="space-y-3 w-full max-w-xs">
-            {['Manage multiple academies', 'Track player attendance', 'Custom training rules', 'Player roster management'].map((feat) => (
-              <div key={feat} className="flex items-center gap-2 text-sm text-warm-700 dark:text-warm-300">
-                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{feat}</span>
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+      <ScreenHeader title={localAcademy?.name || 'Academy'} subtitle={localAcademy?.location || localAcademy?.groundName || undefined} onBack={onBack} accent="emerald" />
+      <div className="flex-1 overflow-y-auto px-4 py-5 max-w-lg mx-auto w-full">
+        {/* Academy info card */}
+        {localAcademy && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800/30 p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-black text-xl shrink-0">
+                {localAcademy.name.slice(0, 1).toUpperCase()}
               </div>
-            ))}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-black text-sm text-warm-800 dark:text-warm-100 truncate">{localAcademy.name}</h3>
+                {localAcademy.location && <p className="text-[11px] text-warm-500 dark:text-warm-400 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {localAcademy.location}</p>}
+                {localAcademy.groundName && <p className="text-[11px] text-warm-500 dark:text-warm-400 flex items-center gap-1 mt-0.5"><Building2 className="w-3 h-3" /> {localAcademy.groundName}</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              <div className="rounded-lg bg-white/60 dark:bg-warm-800/60 p-2 text-center">
+                <div className="text-base font-black text-emerald-700 dark:text-emerald-400">{playerCount}</div>
+                <div className="text-[9px] text-warm-500 uppercase tracking-wider">Players</div>
+              </div>
+              <div className="rounded-lg bg-white/60 dark:bg-warm-800/60 p-2 text-center">
+                <div className="text-base font-black text-amber-700 dark:text-amber-400">₹0</div>
+                <div className="text-[9px] text-warm-500 uppercase tracking-wider">Fees</div>
+              </div>
+              <div className="rounded-lg bg-white/60 dark:bg-warm-800/60 p-2 text-center">
+                <div className="text-base font-black text-violet-700 dark:text-violet-400">0</div>
+                <div className="text-[9px] text-warm-500 uppercase tracking-wider">Matches</div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 5 options */}
+        <div className="space-y-3">
+          {options.map((opt, idx) => {
+            const Icon = opt.icon;
+            return (
+              <motion.button
+                key={opt.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                onClick={() => onNavigate(opt.id)}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md transition-all active:scale-[0.98] text-left"
+              >
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${accentBg[opt.accent]} flex items-center justify-center text-white shrink-0 shadow-sm`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-sm text-warm-800 dark:text-warm-100">{opt.label}</h3>
+                  <p className="text-[11px] text-warm-500 dark:text-warm-400 truncate">{opt.desc}</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-warm-400 shrink-0" />
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── 4. Attendance View (simple, all entries saved forever) ───────────
+
+function AttendanceView({ academyId, onBack }: { academyId: string; onBack: () => void }) {
+  const { toast } = useToast();
+  const [players, setPlayers] = useState<AcademyPlayerData[]>([]);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10)); // YYYY-MM-DD
+  const [records, setRecords] = useState<Map<string, boolean>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load roster + today's attendance
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [academyRes, attRes] = await Promise.all([
+        fetch(`/api/academies/${academyId}?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/coach/attendance?academyId=${academyId}&date=${date}&_t=${Date.now()}`, { cache: 'no-store' }),
+      ]);
+      const academyData = await academyRes.json();
+      const attData = await attRes.json();
+      if (!academyRes.ok) throw new Error(academyData.error || 'Failed to load academy');
+      const roster: AcademyPlayerData[] = academyData.academy?.players || [];
+      setPlayers(roster);
+      const map = new Map<string, boolean>();
+      for (const r of (attData.attendance || attData.records || []) as AttendanceRecord[]) {
+        map.set(r.userId, r.isPresent);
+      }
+      setRecords(map);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error');
+      setPlayers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [academyId, date]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const toggle = (userId: string) => {
+    setRecords((prev) => {
+      const next = new Map(prev);
+      next.set(userId, !next.get(userId));
+      return next;
+    });
+  };
+
+  const markAll = (present: boolean) => {
+    setRecords((prev) => {
+      const next = new Map(prev);
+      for (const p of players) next.set(p.userId, present);
+      return next;
+    });
+  };
+
+  const saveAll = async () => {
+    setSaving(true);
+    try {
+      // Send one POST per player — backend upserts on (academyId, userId, date, session)
+      const promises = players.map((p) =>
+        fetch('/api/coach/attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            academyId,
+            userId: p.userId,
+            date,
+            isPresent: records.get(p.userId) ?? false,
+            session: 'default',
+          }),
+        })
+      );
+      await Promise.all(promises);
+      toast({ title: 'Attendance saved', description: `${players.length} ${players.length === 1 ? 'player' : 'players'} marked for ${date}` });
+    } catch {
+      toast({ title: 'Save failed', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const presentCount = players.filter((p) => records.get(p.userId) === true).length;
+  const absentCount = players.length - presentCount;
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+      <ScreenHeader title="Attendance" subtitle={date} onBack={onBack} accent="emerald" />
+      <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full pb-24">
+        {/* Date picker + summary */}
+        <div className="rounded-2xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-3 mb-3">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-emerald-500 shrink-0" />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              max="2099-12-31"
+              className="flex-1 bg-transparent text-sm font-bold text-warm-800 dark:text-warm-100 focus:outline-none"
+            />
           </div>
+          {players.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-2 text-center">
+                <div className="text-base font-black text-emerald-700 dark:text-emerald-400">{presentCount}</div>
+                <div className="text-[9px] text-warm-500 uppercase tracking-wider">Present</div>
+              </div>
+              <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-2 text-center">
+                <div className="text-base font-black text-red-700 dark:text-red-400">{absentCount}</div>
+                <div className="text-[9px] text-warm-500 uppercase tracking-wider">Absent</div>
+              </div>
+              <div className="rounded-lg bg-warm-50 dark:bg-warm-700/40 p-2 text-center">
+                <div className="text-base font-black text-warm-700 dark:text-warm-300">{players.length}</div>
+                <div className="text-[9px] text-warm-500 uppercase tracking-wider">Total</div>
+              </div>
+            </div>
+          )}
+          {players.length > 0 && (
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => markAll(true)} className="flex-1 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold hover:bg-emerald-200 dark:hover:bg-emerald-900/50">
+                All Present
+              </button>
+              <button onClick={() => markAll(false)} className="flex-1 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[11px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50">
+                All Absent
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Player list */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading roster...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
+            <p className="text-sm font-bold text-red-600">{error}</p>
+            <Button onClick={loadAll} variant="outline" className="mt-3" size="sm">Retry</Button>
+          </div>
+        ) : players.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Users className="w-10 h-10 text-warm-300 mb-3" />
+            <p className="text-sm font-bold text-warm-700 dark:text-warm-200 mb-1">No players in roster</p>
+            <p className="text-xs text-warm-500">Add players from the Players tab first.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {players.map((p) => {
+              const isPresent = records.get(p.userId) === true;
+              return (
+                <motion.button
+                  key={p.userId}
+                  onClick={() => toggle(p.userId)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all active:scale-[0.98] text-left ${
+                    isPresent
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700'
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                    {p.user.avatar ? <img src={p.user.avatar} alt="" className="w-full h-full object-cover" /> : initials(p.user.name, p.user.playerCode)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{p.user.name || 'Unnamed'}</p>
+                    {p.user.playerCode && <p className="text-[10px] font-mono text-warm-500">{p.user.playerCode}</p>}
+                  </div>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${isPresent ? 'bg-emerald-500 text-white' : 'bg-warm-200 dark:bg-warm-700 text-warm-400'}`}>
+                    {isPresent ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Sticky save bar */}
+      {players.length > 0 && (
+        <div className="sticky bottom-0 bg-white/95 dark:bg-warm-800/95 backdrop-blur border-t border-warm-200 dark:border-warm-700 px-4 py-3">
           <Button
-            onClick={() => setShowUpgrade(true)}
-            className="mt-6 bg-gradient-to-r from-brand-gold to-amber-500 hover:opacity-90 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-amber-500/25"
+            onClick={saveAll}
+            disabled={saving || loading}
+            className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold disabled:opacity-50"
           >
-            <Crown className="w-4 h-4 mr-2" />
-            Upgrade to Pro
+            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Check className="w-4 h-4 mr-2" /> Save Attendance</>}
           </Button>
-          <button
-            onClick={onClose}
-            className="mt-4 text-sm text-warm-400 hover:text-warm-600 dark:hover:text-warm-300 transition-colors"
-          >
-            Go back
-          </button>
         </div>
       )}
+    </motion.div>
+  );
+}
 
-      {!isPremium && showUpgrade && (
-        <PremiumUpgradeScreen
-          onClose={() => setShowUpgrade(false)}
-          feature="Coach's Corner"
-        />
-      )}
+// ─── 5. Fees View (simple monthly) ────────────────────────────────────
 
-      {isPremium && (
-      <>
-      <AnimatePresence mode="wait">
-        {subView === 'main' && (
-          <motion.div
-            key="main"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="flex flex-col h-full"
-          >
-            {renderMainView()}
-          </motion.div>
-        )}
-        {subView === 'create-academy' && (
-          <motion.div
-            key="create"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="flex flex-col h-full"
-          >
-            {/* Header for create */}
-            <div className="bg-gradient-to-r from-brand-navy to-brand-navy-dark text-white px-4 py-4">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSubView('main')}
-                  className="text-white hover:bg-white/20"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
-                <h1 className="text-lg font-bold">
-                  {t('coach.createAcademy', lang)}
-                </h1>
+function FeesView({ academyId, onBack }: { academyId: string; onBack: () => void }) {
+  const { toast } = useToast();
+  const [players, setPlayers] = useState<AcademyPlayerData[]>([]);
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [feeRecords, setFeeRecords] = useState<Map<string, FeeRecordData>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionPlayer, setActionPlayer] = useState<AcademyPlayerData | null>(null);
+  const [amountInput, setAmountInput] = useState('');
+  const [periodInput, setPeriodInput] = useState<'monthly' | 'weekly' | 'daily' | 'yearly' | 'custom'>('monthly');
+  const [saving, setSaving] = useState(false);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [academyRes, feesRes] = await Promise.all([
+        fetch(`/api/academies/${academyId}?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/coach/fees?academyId=${academyId}&month=${month}&_t=${Date.now()}`, { cache: 'no-store' }),
+      ]);
+      const academyData = await academyRes.json();
+      const feesData = await feesRes.json();
+      if (!academyRes.ok) throw new Error(academyData.error || 'Failed to load academy');
+      setPlayers(academyData.academy?.players || []);
+      const map = new Map<string, FeeRecordData>();
+      for (const r of (feesData.fees || feesData.records || []) as FeeRecordData[]) {
+        map.set(r.userId, r);
+      }
+      setFeeRecords(map);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error');
+      setPlayers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [academyId, month]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const openAction = (p: AcademyPlayerData) => {
+    const existing = feeRecords.get(p.userId);
+    setAmountInput(existing ? String(existing.amount) : '500');
+    setPeriodInput((existing?.period as any) || 'monthly');
+    setActionPlayer(p);
+  };
+
+  const saveFee = async (isPaid: boolean) => {
+    if (!actionPlayer) return;
+    const amount = parseInt(amountInput, 10);
+    if (isNaN(amount) || amount < 0) {
+      toast({ title: 'Enter a valid amount', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/coach/fees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          academyId,
+          userId: actionPlayer.userId,
+          month,
+          amount,
+          isPaid,
+          period: periodInput,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Save failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: isPaid ? 'Marked as Paid' : 'Marked as Pending', description: `${actionPlayer.user.name || 'Player'} · ₹${amount}` });
+      setActionPlayer(null);
+      await loadAll();
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const totalCollected = players.reduce((sum, p) => {
+    const r = feeRecords.get(p.userId);
+    return r && r.status === 'paid' ? sum + r.amount : sum;
+  }, 0);
+  const totalPending = players.reduce((sum, p) => {
+    const r = feeRecords.get(p.userId);
+    return r && r.status !== 'paid' ? sum + r.amount : sum;
+  }, 0);
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+      <ScreenHeader title="Fees" subtitle={`Month: ${month}`} onBack={onBack} accent="amber" />
+      <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full">
+        {/* Month picker + summary */}
+        <div className="rounded-2xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-3 mb-3">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-amber-500 shrink-0" />
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="flex-1 bg-transparent text-sm font-bold text-warm-800 dark:text-warm-100 focus:outline-none"
+            />
+          </div>
+          {players.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-2 text-center">
+                <div className="text-base font-black text-emerald-700 dark:text-emerald-400">₹{totalCollected.toLocaleString()}</div>
+                <div className="text-[9px] text-warm-500 uppercase tracking-wider">Collected</div>
+              </div>
+              <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-2 text-center">
+                <div className="text-base font-black text-red-700 dark:text-red-400">₹{totalPending.toLocaleString()}</div>
+                <div className="text-[9px] text-warm-500 uppercase tracking-wider">Pending</div>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto">
-              {renderCreateAcademy()}
-            </div>
-          </motion.div>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-amber-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading fees...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
+            <p className="text-sm font-bold text-red-600">{error}</p>
+            <Button onClick={loadAll} variant="outline" className="mt-3" size="sm">Retry</Button>
+          </div>
+        ) : players.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <IndianRupee className="w-10 h-10 text-warm-300 mb-3" />
+            <p className="text-sm font-bold text-warm-700 dark:text-warm-200 mb-1">No players in roster</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {players.map((p) => {
+              const r = feeRecords.get(p.userId);
+              const isPaid = r?.status === 'paid';
+              return (
+                <motion.button
+                  key={p.userId}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={() => openAction(p)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left active:scale-[0.98] ${
+                    isPaid
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-800'
+                      : r
+                      ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-800'
+                      : 'bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700'
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                    {p.user.avatar ? <img src={p.user.avatar} alt="" className="w-full h-full object-cover" /> : initials(p.user.name, p.user.playerCode)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{p.user.name || 'Unnamed'}</p>
+                    <p className="text-[10px] text-warm-500">
+                      {r ? `₹${r.amount} · ${r.period}` : 'No record'}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                    isPaid ? 'bg-emerald-500 text-white' : r ? 'bg-amber-500 text-white' : 'bg-warm-200 dark:bg-warm-700 text-warm-500'
+                  }`}>
+                    {isPaid ? 'PAID' : r ? 'PENDING' : 'NONE'}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
         )}
-        {subView === 'academy-detail' && (
+      </div>
+
+      {/* Action sheet */}
+      <AnimatePresence>
+        {actionPlayer && (
           <motion.div
-            key="detail"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="flex flex-col h-full"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setActionPlayer(null)}
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-end justify-center"
           >
-            {renderAcademyDetail()}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
+            >
+              <div className="w-12 h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full mx-auto mb-4" />
+              <h3 className="font-black text-base text-warm-800 dark:text-warm-100 mb-1">{actionPlayer.user.name || 'Player'}</h3>
+              <p className="text-xs text-warm-500 mb-4">Fee for {month}</p>
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Amount (₹)</label>
+              <Input
+                type="number"
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value)}
+                className="h-11 rounded-xl mb-3"
+                placeholder="500"
+              />
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Period</label>
+              <div className="grid grid-cols-5 gap-1.5 mb-4">
+                {(['daily', 'weekly', 'monthly', 'yearly', 'custom'] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriodInput(p)}
+                    className={`py-1.5 rounded-lg text-[10px] font-bold capitalize transition-colors ${
+                      periodInput === p
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => saveFee(false)}
+                  disabled={saving}
+                  variant="outline"
+                  className="flex-1 h-11 rounded-xl border-amber-300 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                >
+                  Mark Pending
+                </Button>
+                <Button
+                  onClick={() => saveFee(true)}
+                  disabled={saving}
+                  className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4 mr-1.5" /> Mark Paid</>}
+                </Button>
+              </div>
+              <Button onClick={() => setActionPlayer(null)} variant="ghost" className="w-full mt-2 h-9 text-warm-500">
+                Cancel
+              </Button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-      </>
-      )}
+    </motion.div>
+  );
+}
+
+// ─── 6. Announcements View ────────────────────────────────────────────
+
+function AnnouncementsView({ academyId, coachUserId, onBack }: { academyId: string; coachUserId: string; onBack: () => void }) {
+  const { toast } = useToast();
+  const [announcements, setAnnouncements] = useState<AnnouncementData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadAnnouncements = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/coach/announcements?academyId=${academyId}&_t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
+      setAnnouncements(data.announcements || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error');
+      setAnnouncements([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [academyId]);
+
+  useEffect(() => { loadAnnouncements(); }, [loadAnnouncements]);
+
+  const send = async () => {
+    if (!title.trim() && !message.trim()) {
+      toast({ title: 'Add a title or message', variant: 'destructive' });
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch('/api/coach/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          academyId,
+          coachUserId,
+          title: title.trim() || 'Announcement',
+          message: message.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Send failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Announcement sent', description: 'All academy players notified' });
+      setTitle(''); setMessage(''); setShowForm(false);
+      await loadAnnouncements();
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const del = async (id: string) => {
+    if (!confirm('Delete this announcement?')) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/coach/announcements/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coachUserId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Delete failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Deleted' });
+      await loadAnnouncements();
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const fmtDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      const diff = Math.floor((now.getTime() - d.getTime()) / (60 * 1000));
+      if (diff < 1) return 'just now';
+      if (diff < 60) return `${diff}m ago`;
+      if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+      if (diff < 10080) return `${Math.floor(diff / 1440)}d ago`;
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    } catch { return ''; }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+      <ScreenHeader title="Announcements" subtitle="Broadcast to all players" onBack={onBack} accent="orange" />
+      <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full">
+        <Button
+          onClick={() => setShowForm(true)}
+          className="w-full mb-3 h-11 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-bold gap-2"
+        >
+          <Plus className="w-4 h-4" /> New Announcement
+        </Button>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading announcements...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
+            <p className="text-sm font-bold text-red-600">{error}</p>
+            <Button onClick={loadAnnouncements} variant="outline" className="mt-3" size="sm">Retry</Button>
+          </div>
+        ) : announcements.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Megaphone className="w-10 h-10 text-warm-300 mb-3" />
+            <p className="text-sm font-bold text-warm-700 dark:text-warm-200 mb-1">No announcements yet</p>
+            <p className="text-xs text-warm-500">Send your first message to all academy players.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {announcements.map((a, idx) => (
+              <motion.div
+                key={a.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.04 }}
+                className="rounded-2xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white shrink-0">
+                    <Megaphone className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="font-bold text-sm text-warm-800 dark:text-warm-100 truncate flex-1">{a.title}</h3>
+                      <button
+                        onClick={() => del(a.id)}
+                        disabled={deletingId === a.id}
+                        className="text-warm-400 hover:text-red-500 shrink-0"
+                        title="Delete"
+                      >
+                        {deletingId === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-warm-600 dark:text-warm-300 leading-relaxed whitespace-pre-wrap">{a.message}</p>
+                    <div className="flex items-center gap-1.5 mt-2 text-[10px] text-warm-400">
+                      <Clock className="w-3 h-3" />
+                      {fmtDate(a.createdAt)}
+                      {a.coach?.name && <span>· by {a.coach.name}</span>}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* New announcement sheet */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowForm(false)}
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-end justify-center"
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
+            >
+              <div className="w-12 h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full mx-auto mb-4" />
+              <h3 className="font-black text-base text-warm-800 dark:text-warm-100 mb-3">New Announcement</h3>
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Title</label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Practice cancelled tomorrow"
+                className="h-11 rounded-xl mb-3"
+              />
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Message</label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Type your message to all academy players..."
+                rows={4}
+                className="w-full rounded-xl border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-900 px-3 py-2 text-sm text-warm-800 dark:text-warm-100 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 resize-none"
+              />
+
+              <Button
+                onClick={send}
+                disabled={sending}
+                className="w-full mt-4 h-11 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-bold"
+              >
+                {sending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</> : <><Send className="w-4 h-4 mr-2" /> Send to All Players</>}
+              </Button>
+              <Button onClick={() => setShowForm(false)} variant="ghost" className="w-full mt-2 h-9 text-warm-500">
+                Cancel
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ─── 7. Performances View (last match stats) ──────────────────────────
+
+function PerformancesView({ academyId, onBack }: { academyId: string; onBack: () => void }) {
+  const { toast } = useToast();
+  const [lastMatch, setLastMatch] = useState<LastMatchData | null>(null);
+  const [players, setPlayers] = useState<PerformancePlayer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/coach/performances?academyId=${academyId}&_t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
+      setLastMatch(data.lastMatch);
+      setPlayers(data.players || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error');
+      setPlayers([]);
+      setLastMatch(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [academyId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const fmtDate = (iso: string | null) => {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return ''; }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+      <ScreenHeader title="Performances" subtitle="Last match stats" onBack={onBack} accent="violet" />
+      <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading performances...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
+            <p className="text-sm font-bold text-red-600">{error}</p>
+            <Button onClick={load} variant="outline" className="mt-3" size="sm">Retry</Button>
+          </div>
+        ) : !lastMatch ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Trophy className="w-10 h-10 text-warm-300 mb-3" />
+            <p className="text-sm font-bold text-warm-700 dark:text-warm-200 mb-1">No match data yet</p>
+            <p className="text-xs text-warm-500 max-w-xs">Once your academy players score in matches, their last match performance will appear here.</p>
+          </div>
+        ) : (
+          <>
+            {/* Last match card */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-900/20 dark:to-fuchsia-900/20 border border-violet-200 dark:border-violet-800/30 p-4 mb-3"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Trophy className="w-4 h-4 text-violet-500" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-400">
+                  {lastMatch.tournamentName || (lastMatch.isPractice ? 'Practice Match' : 'Match')}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 text-center">
+                  <p className="text-xs font-bold text-warm-700 dark:text-warm-200 truncate">{lastMatch.homeTeamName}</p>
+                  <p className="text-2xl font-black text-warm-800 dark:text-warm-100">{lastMatch.homeScore}</p>
+                </div>
+                <span className="text-[10px] font-bold text-warm-400">VS</span>
+                <div className="flex-1 text-center">
+                  <p className="text-xs font-bold text-warm-700 dark:text-warm-200 truncate">{lastMatch.awayTeamName}</p>
+                  <p className="text-2xl font-black text-warm-800 dark:text-warm-100">{lastMatch.awayScore}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-2 mt-2 text-[10px] text-warm-500">
+                <CalendarDays className="w-3 h-3" />
+                {fmtDate(lastMatch.date)}
+                {lastMatch.venue && <span>· {lastMatch.venue}</span>}
+              </div>
+            </motion.div>
+
+            {/* Player stats */}
+            <p className="text-[11px] text-warm-500 dark:text-warm-400 uppercase tracking-wider font-semibold mb-2 px-1">Player Stats</p>
+            {players.length === 0 ? (
+              <p className="text-xs text-warm-500 text-center py-8">No players in roster.</p>
+            ) : (
+              <div className="space-y-2">
+                {players.map((p, idx) => (
+                  <motion.div
+                    key={p.userId}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    className={`rounded-2xl border p-3 ${
+                      p.hasPlayedInLastMatch
+                        ? 'bg-white dark:bg-warm-800 border-warm-200 dark:border-warm-700'
+                        : 'bg-warm-50 dark:bg-warm-800/50 border-warm-100 dark:border-warm-700/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-violet-400 to-fuchsia-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                        {p.avatar ? <img src={p.avatar} alt="" className="w-full h-full object-cover" /> : initials(p.name, p.playerCode)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{p.name || 'Unnamed'}</p>
+                        {p.playerCode && <p className="text-[10px] font-mono text-warm-500">{p.playerCode}</p>}
+                      </div>
+                      {p.hasPlayedInLastMatch ? (
+                        <div className="text-right">
+                          <div className="text-lg font-black text-violet-600 dark:text-violet-400 leading-none">{p.stats.totalPoints}</div>
+                          <div className="text-[9px] text-warm-500 uppercase tracking-wider">pts</div>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-warm-400 italic">didn't play</span>
+                      )}
+                    </div>
+                    {p.hasPlayedInLastMatch && (
+                      <div className="grid grid-cols-3 gap-1.5 mt-3">
+                        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-2 text-center">
+                          <div className="text-sm font-black text-blue-700 dark:text-blue-400">{p.stats.raidPoints}</div>
+                          <div className="text-[9px] text-warm-500 uppercase tracking-wider flex items-center justify-center gap-0.5"><Zap className="w-2.5 h-2.5" /> Raid</div>
+                        </div>
+                        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-2 text-center">
+                          <div className="text-sm font-black text-red-700 dark:text-red-400">{p.stats.tacklePoints}</div>
+                          <div className="text-[9px] text-warm-500 uppercase tracking-wider flex items-center justify-center gap-0.5"><Shield className="w-2.5 h-2.5" /> Tackle</div>
+                        </div>
+                        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-2 text-center">
+                          <div className="text-sm font-black text-emerald-700 dark:text-emerald-400">{p.stats.bonusPoints}</div>
+                          <div className="text-[9px] text-warm-500 uppercase tracking-wider flex items-center justify-center gap-0.5"><Sparkles className="w-2.5 h-2.5" /> Bonus</div>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── 8. Players View (list + Call/WhatsApp/Chat) ──────────────────────
+
+function PlayersView({ academyId, onBack, onRefreshDashboard, startChatWith, toast }: {
+  academyId: string;
+  onBack: () => void;
+  onRefreshDashboard: () => void;
+  startChatWith: (target: { id: string; name: string | null; playerCode: string | null; avatar: string | null }) => void;
+  toast: (t: { title: string; description?: string; variant?: 'default' | 'destructive' }) => void;
+}) {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  const [players, setPlayers] = useState<AcademyPlayerData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionPlayer, setActionPlayer] = useState<AcademyPlayerData | null>(null);
+
+  // Add-player sheet state
+  const [showAdd, setShowAdd] = useState(false);
+  const [searchPhone, setSearchPhone] = useState('');
+  const [searchName, setSearchName] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [adding, setAdding] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/academies/${academyId}?_t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
+      setPlayers(data.academy?.players || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error');
+      setPlayers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [academyId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Search players by phone to find an existing user
+  const searchByPhone = async () => {
+    if (!searchPhone.trim()) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/players?search=${encodeURIComponent(searchPhone.trim())}&_t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok && data.players && data.players.length > 0) {
+        const found = data.players[0];
+        setSearchName(found.name || '');
+        toast({ title: 'Player found', description: `${found.name || found.playerCode || 'Existing user'} will be added` });
+      } else {
+        toast({ title: 'No existing user', description: 'A placeholder account will be created for this phone' });
+      }
+    } catch {
+      toast({ title: 'Search failed', variant: 'destructive' });
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // Add player: find-or-create provisional user, then add to academy
+  const addPlayer = async () => {
+    if (!searchPhone.trim()) {
+      toast({ title: 'Phone required', variant: 'destructive' });
+      return;
+    }
+    setAdding(true);
+    try {
+      // 1. find-or-create provisional user
+      const provRes = await fetch('/api/players/provisional', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: searchPhone.trim(),
+          name: searchName.trim() || undefined,
+          createdByUserId: currentUser?.id,
+        }),
+      });
+      const provData = await provRes.json();
+      if (!provRes.ok) {
+        toast({ title: 'Add failed', description: provData.error, variant: 'destructive' });
+        return;
+      }
+      const userId = provData.user.id;
+      // 2. add to academy
+      const addRes = await fetch(`/api/academies/${academyId}/players`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const addData = await addRes.json();
+      if (!addRes.ok) {
+        // 409 = already a member — treat as success-ish
+        if (addRes.status === 409) {
+          toast({ title: 'Already a member', description: 'This player is already in your academy' });
+        } else {
+          toast({ title: 'Add failed', description: addData.error, variant: 'destructive' });
+          return;
+        }
+      } else {
+        toast({ title: 'Player added', description: provData.user.name || provData.user.playerCode || searchPhone });
+      }
+      setSearchPhone(''); setSearchName('');
+      setShowAdd(false);
+      await load();
+      onRefreshDashboard();
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removePlayer = async (userId: string) => {
+    if (!confirm('Remove this player from the academy?')) return;
+    try {
+      const res = await fetch(`/api/academies/${academyId}/players?userId=${userId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Remove failed', description: data.error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Player removed' });
+      await load();
+      onRefreshDashboard();
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' });
+    }
+  };
+
+  const openChat = (p: AcademyPlayerData) => {
+    startChatWith({
+      id: p.user.id,
+      name: p.user.name,
+      playerCode: p.user.playerCode || null,
+      avatar: p.user.avatar,
+    });
+    setActionPlayer(null);
+    toast({ title: 'Opening chat…', description: p.user.name || 'Player' });
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+      <ScreenHeader title="Players" subtitle={`${players.length} in roster`} onBack={onBack} accent="blue" />
+      <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full">
+        <Button
+          onClick={() => setShowAdd(true)}
+          className="w-full mb-3 h-11 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-bold gap-2"
+        >
+          <UserPlus className="w-4 h-4" /> Add Player
+        </Button>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading roster...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
+            <p className="text-sm font-bold text-red-600">{error}</p>
+            <Button onClick={load} variant="outline" className="mt-3" size="sm">Retry</Button>
+          </div>
+        ) : players.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Users className="w-10 h-10 text-warm-300 mb-3" />
+            <p className="text-sm font-bold text-warm-700 dark:text-warm-200 mb-1">No players yet</p>
+            <p className="text-xs text-warm-500">Tap "Add Player" to add your first academy player by phone number.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {players.map((p, idx) => (
+              <motion.button
+                key={p.userId}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.03 }}
+                onClick={() => setActionPlayer(p)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all text-left active:scale-[0.98]"
+              >
+                <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                  {p.user.avatar ? <img src={p.user.avatar} alt="" className="w-full h-full object-cover" /> : initials(p.user.name, p.user.playerCode)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">{p.user.name || 'Unnamed Player'}</p>
+                    {p.user.provisional && (
+                      <span className="shrink-0 text-[9px] font-bold text-sky-700 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30 px-1.5 py-0.5 rounded-full">PROV</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400 truncate">
+                    {p.user.phone || 'no phone'}{p.user.playerCode ? ` · ${p.user.playerCode}` : ''}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-warm-400 shrink-0" />
+              </motion.button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Action sheet — Call / WhatsApp / Chat / Remove */}
+      <AnimatePresence>
+        {actionPlayer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setActionPlayer(null)}
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-end justify-center"
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
+            >
+              <div className="w-12 h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full mx-auto mb-4" />
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center text-white font-bold text-base shrink-0">
+                  {actionPlayer.user.avatar ? <img src={actionPlayer.user.avatar} alt="" className="w-full h-full object-cover" /> : initials(actionPlayer.user.name, actionPlayer.user.playerCode)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-black text-base text-warm-800 dark:text-warm-100 truncate">{actionPlayer.user.name || 'Unnamed Player'}</h3>
+                  <p className="text-xs text-warm-500 truncate">{actionPlayer.user.phone || 'no phone'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {actionPlayer.user.phone ? (
+                  <>
+                    <a
+                      href={`tel:${actionPlayer.user.phone}`}
+                      className="flex flex-col items-center gap-1 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                    >
+                      <Phone className="w-5 h-5" />
+                      <span className="text-[10px] font-bold">Call</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${actionPlayer.user.phone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col items-center gap-1 py-3 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                      <span className="text-[10px] font-bold">WhatsApp</span>
+                    </a>
+                  </>
+                ) : (
+                  <div className="col-span-2 py-3 rounded-xl bg-warm-100 dark:bg-warm-700 text-warm-500 text-center text-[11px] font-medium">
+                    No phone number on file
+                  </div>
+                )}
+                {actionPlayer.user.id !== currentUser?.id && (
+                  <button
+                    onClick={() => openChat(actionPlayer)}
+                    className="flex flex-col items-center gap-1 py-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    <span className="text-[10px] font-bold">Chat</span>
+                  </button>
+                )}
+              </div>
+
+              <Button
+                onClick={() => { setActionPlayer(null); removePlayer(actionPlayer.userId); }}
+                variant="outline"
+                className="w-full h-10 rounded-xl border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> Remove from Academy
+              </Button>
+              <Button onClick={() => setActionPlayer(null)} variant="ghost" className="w-full mt-2 h-9 text-warm-500">
+                Close
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add player sheet */}
+      <AnimatePresence>
+        {showAdd && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowAdd(false)}
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-end justify-center"
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white dark:bg-warm-800 rounded-t-3xl p-5 pb-8"
+            >
+              <div className="w-12 h-1.5 bg-warm-200 dark:bg-warm-700 rounded-full mx-auto mb-4" />
+              <h3 className="font-black text-base text-warm-800 dark:text-warm-100 mb-1">Add Player</h3>
+              <p className="text-xs text-warm-500 mb-4">Enter the player's phone number. If they already have an account they'll be linked; otherwise a placeholder account is created that auto-upgrades when they sign up.</p>
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Phone Number <span className="text-red-500">*</span></label>
+              <div className="flex gap-2 mb-3">
+                <Input
+                  type="tel"
+                  value={searchPhone}
+                  onChange={(e) => setSearchPhone(e.target.value)}
+                  placeholder="e.g., 9876543210"
+                  className="flex-1 h-11 rounded-xl"
+                  autoFocus
+                />
+                <Button onClick={searchByPhone} disabled={searching || !searchPhone.trim()} variant="outline" className="h-11 px-4 rounded-xl">
+                  {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                </Button>
+              </div>
+
+              <label className="text-xs font-bold text-warm-700 dark:text-warm-200 mb-1.5 block">Player Name <span className="text-warm-400 font-normal">(optional)</span></label>
+              <Input
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                placeholder="e.g., Rahul Kumar"
+                className="h-11 rounded-xl mb-4"
+              />
+
+              <Button
+                onClick={addPlayer}
+                disabled={adding || !searchPhone.trim()}
+                className="w-full h-11 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-bold"
+              >
+                {adding ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adding...</> : <><UserPlus className="w-4 h-4 mr-2" /> Add to Academy</>}
+              </Button>
+              <Button onClick={() => setShowAdd(false)} variant="ghost" className="w-full mt-2 h-9 text-warm-500">
+                Cancel
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

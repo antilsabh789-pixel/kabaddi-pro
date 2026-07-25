@@ -45,7 +45,7 @@ import PlayerProfileCard from './PlayerProfileCard';
 import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchHistoryTimeline from './MatchHistoryTimeline';
-import CoachDashboard from './CoachDashboard';
+import CoachDashboard from './CoachesCornerScreen';
 import ImageCropDialog from './ImageCropDialog';
 import ChatReportsPanel from './ChatReportsPanel';
 import { t } from '@/lib/i18n';
@@ -747,6 +747,295 @@ function AllPlayersListScreen({ onClose, onViewPlayer }: {
   );
 }
 
+/**
+ * CheckInLeaderboardScreen — Admin-only full-screen modal that lists every
+ * user who has done at least one daily check-in, sorted from MOST total
+ * check-ins to LEAST. Backed by GET /api/admin/checkins. Each row is tappable
+ * and opens the player's full profile via the same onViewPlayer callback.
+ *
+ * What the admin sees per row:
+ *   - Rank number (1, 2, 3, ...) — top 3 get medal colors (gold/silver/bronze)
+ *   - Avatar / initials
+ *   - Name + player code + "Checked in today" / last check-in date
+ *   - Three mini-stats: Current streak, Longest streak, Total check-ins
+ *   - Claimed milestone count badge (if any)
+ *
+ * Summary header shows:
+ *   - Total users who have ever checked in
+ *   - Sum of all check-ins across all users
+ *   - Number who checked in today
+ */
+function CheckInLeaderboardScreen({ onClose, onViewPlayer }: {
+  onClose: () => void;
+  onViewPlayer: (userId: string) => void;
+}) {
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+
+  interface CheckinUser {
+    id: string;
+    name: string | null;
+    playerCode: string | null;
+    phone: string | null;
+    avatar: string | null;
+    location: string | null;
+    currentStreak: number;
+    longestStreak: number;
+    totalCheckIns: number;
+    lastCheckIn: string | null;
+    isCheckedInToday: boolean;
+    claimedMilestones: number[];
+  }
+
+  const [users, setUsers] = useState<CheckinUser[]>([]);
+  const [totalCheckinUsers, setTotalCheckinUsers] = useState(0);
+  const [totalCheckins, setTotalCheckins] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchCheckins = useCallback(async () => {
+    if (!currentUser?.id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        adminId: currentUser.id,
+        _t: String(Date.now()),
+      });
+      const res = await fetch(`/api/admin/checkins?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to load check-in data');
+        setUsers([]);
+        setTotalCheckinUsers(0);
+        setTotalCheckins(0);
+      } else {
+        setUsers(data.users || []);
+        setTotalCheckinUsers(data.totalCheckinUsers || 0);
+        setTotalCheckins(data.totalCheckins || 0);
+      }
+    } catch {
+      setError('Network error. Please check your connection and try again.');
+      setUsers([]);
+      setTotalCheckinUsers(0);
+      setTotalCheckins(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => { fetchCheckins(); }, [fetchCheckins]);
+
+  const checkedInTodayCount = users.filter((u) => u.isCheckedInToday).length;
+
+  // Format date helpers
+  const fmtDate = (iso: string | null) => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return '—'; }
+  };
+
+  const fmtRelative = (iso: string | null) => {
+    if (!iso) return 'never';
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const thatDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const diffDays = Math.round((today.getTime() - thatDay.getTime()) / (24 * 60 * 60 * 1000));
+      if (diffDays === 0) return 'today';
+      if (diffDays === 1) return 'yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+      if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+      return `${Math.floor(diffDays / 365)}y ago`;
+    } catch { return '—'; }
+  };
+
+  // Initials for the avatar fallback
+  const initials = (name: string | null, code: string | null) => {
+    if (name && name.trim()) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      return name.slice(0, 2).toUpperCase();
+    }
+    if (code) return code.slice(-2);
+    return '??';
+  };
+
+  // Rank badge color for top 3
+  const rankBadgeClass = (rank: number) => {
+    if (rank === 1) return 'bg-gradient-to-br from-amber-400 to-yellow-500 text-white'; // gold
+    if (rank === 2) return 'bg-gradient-to-br from-slate-300 to-slate-400 text-white';   // silver
+    if (rank === 3) return 'bg-gradient-to-br from-orange-400 to-amber-700 text-white'; // bronze
+    return 'bg-warm-100 dark:bg-warm-700 text-warm-600 dark:text-warm-300';
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col">
+      {/* ═══ HEADER ═══ */}
+      <header className="sticky top-0 z-10 bg-warm-50/90 dark:bg-warm-900/90 backdrop-blur-md border-b border-warm-200/60 dark:border-warm-700/60">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center">
+              <Flame className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-black tracking-wider text-warm-800 dark:text-warm-100">CHECK-IN LEADERBOARD</h1>
+              <p className="text-[10px] text-warm-500 dark:text-warm-400">
+                {totalCheckinUsers.toLocaleString()} {totalCheckinUsers === 1 ? 'user has' : 'users have'} checked in · {totalCheckins.toLocaleString()} total check-ins
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchCheckins}
+              disabled={loading}
+              className="px-3 py-1.5 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-[10px] font-bold hover:bg-orange-200 dark:hover:bg-orange-900/50 disabled:opacity-50 flex items-center gap-1"
+              title="Refresh check-in data"
+            >
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-warm-600 dark:text-warm-300 hover:bg-warm-300">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Summary strip — 3 mini stats */}
+        <div className="px-4 pb-3 grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-2.5 text-center">
+            <div className="text-lg font-black text-orange-600 dark:text-orange-400 leading-none">{totalCheckinUsers.toLocaleString()}</div>
+            <div className="text-[9px] text-warm-500 dark:text-warm-400 mt-1 uppercase tracking-wider">Users</div>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-2.5 text-center">
+            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 leading-none">{checkedInTodayCount.toLocaleString()}</div>
+            <div className="text-[9px] text-warm-500 dark:text-warm-400 mt-1 uppercase tracking-wider">Today</div>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 p-2.5 text-center">
+            <div className="text-lg font-black text-amber-600 dark:text-amber-400 leading-none">{totalCheckins.toLocaleString()}</div>
+            <div className="text-[9px] text-warm-500 dark:text-warm-400 mt-1 uppercase tracking-wider">Total</div>
+          </div>
+        </div>
+      </header>
+
+      {/* ═══ USER LIST ═══ */}
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {loading && users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-3" />
+            <p className="text-sm text-warm-500">Loading check-in leaderboard...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 mb-1">{error}</p>
+            <Button onClick={fetchCheckins} variant="outline" className="mt-4">Retry</Button>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Flame className="w-12 h-12 text-warm-300 mb-3" />
+            <p className="text-sm text-warm-500 mb-1">No users have checked in yet</p>
+            <p className="text-xs text-warm-400">Check-ins will appear here once users start using the Daily Check-in feature.</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-[10px] text-warm-400 dark:text-warm-500 mb-2 px-1">
+              {loading ? 'Updating...' : `Ranked by total check-ins · ${users.length.toLocaleString()} ${users.length === 1 ? 'user' : 'users'}`}
+            </p>
+
+            <div className="space-y-2">
+              {users.map((u, idx) => {
+                const rank = idx + 1;
+                return (
+                  <motion.button
+                    key={u.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(idx * 0.015, 0.3) }}
+                    onClick={() => onViewPlayer(u.id)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-warm-800 border border-warm-200 dark:border-warm-700 hover:border-orange-300 dark:hover:border-orange-700 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-all text-left"
+                  >
+                    {/* Rank badge */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${rankBadgeClass(rank)}`}>
+                      {rank <= 3 ? (
+                        <Trophy className="w-3.5 h-3.5" />
+                      ) : (
+                        rank
+                      )}
+                    </div>
+
+                    {/* Avatar / initials */}
+                    <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {u.avatar ? (
+                        <img src={u.avatar} alt={u.name || 'Player'} className="w-full h-full object-cover" />
+                      ) : (
+                        initials(u.name, u.playerCode)
+                      )}
+                    </div>
+
+                    {/* Name + meta */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">
+                          {u.name || 'Unnamed Player'}
+                        </p>
+                        {u.isCheckedInToday && (
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full" title="Checked in today">
+                            <Flame className="w-2.5 h-2.5" />
+                            TODAY
+                          </span>
+                        )}
+                        {u.claimedMilestones.length > 0 && (
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full" title={`${u.claimedMilestones.length} milestone reward${u.claimedMilestones.length === 1 ? '' : 's'} claimed`}>
+                            <Gift className="w-2.5 h-2.5" />
+                            {u.claimedMilestones.length}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-mono text-warm-500 dark:text-warm-400">{u.playerCode || '—'}</span>
+                        <span className="text-[10px] text-warm-300">•</span>
+                        <span className="text-[10px] text-warm-500 dark:text-warm-400">
+                          Last check-in: {fmtRelative(u.lastCheckIn)}
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-warm-400 dark:text-warm-500 mt-0.5">
+                        {u.location ? `${u.location} · ` : ''}Joined check-in {fmtDate(u.lastCheckIn)}
+                      </p>
+                    </div>
+
+                    {/* Mini stats column */}
+                    <div className="shrink-0 flex flex-col items-end gap-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] text-warm-400 uppercase tracking-wider">Total</span>
+                        <span className="text-base font-black text-orange-600 dark:text-orange-400 leading-none">{u.totalCheckIns}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[9px] text-warm-500 dark:text-warm-400">
+                        <span title="Current streak" className="flex items-center gap-0.5">
+                          <Flame className="w-2.5 h-2.5 text-orange-400" />
+                          {u.currentStreak}d
+                        </span>
+                        <span title="Longest streak" className="flex items-center gap-0.5">
+                          <Crown className="w-2.5 h-2.5 text-amber-500" />
+                          {u.longestStreak}d
+                        </span>
+                      </div>
+                    </div>
+
+                    <ChevronRight className="w-4 h-4 text-warm-400 shrink-0" />
+                  </motion.button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GiftPremiumPanel() {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
@@ -1224,6 +1513,7 @@ export default function ProfileTab() {
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [playerProfileUserId, setPlayerProfileUserId] = useState<string | null>(null);
   const [showAllPlayers, setShowAllPlayers] = useState(false);
+  const [showCheckinLeaderboard, setShowCheckinLeaderboard] = useState(false);
   const [showChallenges, setShowChallenges] = useState(false);
   const [showGrounds, setShowGrounds] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
@@ -2088,6 +2378,16 @@ export default function ProfileTab() {
           onClose={() => setShowAllPlayers(false)}
           onViewPlayer={(userId: string) => {
             setShowAllPlayers(false);
+            setPlayerProfileUserId(userId);
+            setShowPlayerProfile(true);
+          }}
+        />
+      )}
+      {showCheckinLeaderboard && currentUser?.isAdmin && (
+        <CheckInLeaderboardScreen
+          onClose={() => setShowCheckinLeaderboard(false)}
+          onViewPlayer={(userId: string) => {
+            setShowCheckinLeaderboard(false);
             setPlayerProfileUserId(userId);
             setShowPlayerProfile(true);
           }}
@@ -3956,6 +4256,48 @@ export default function ProfileTab() {
                 </p>
                 <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1.5 flex items-center gap-1">
                   <span>Tap to view all players</span>
+                  <ChevronRight className="w-3 h-3" />
+                </p>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* CHECK-IN LEADERBOARD - Admin Only */}
+      {/* Shows all users sorted by total check-ins (most → least) */}
+      {/* ═══════════════════════════════════════════ */}
+      {currentUser?.isAdmin && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.29 }}
+        >
+          <h3 className="font-bold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
+            <Flame className="w-4 h-4 text-orange-500" />
+            Check-in Activity
+          </h3>
+          <Card
+            className="p-6 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-orange-200 dark:border-orange-800/30 cursor-pointer hover:border-orange-400 dark:hover:border-orange-700 hover:shadow-lg hover:shadow-orange-500/10 transition-all active:scale-[0.98] select-none"
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowCheckinLeaderboard(true)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowCheckinLeaderboard(true); } }}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/30 shrink-0">
+                <Flame className="w-8 h-8 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-warm-500 dark:text-warm-400 uppercase tracking-wider font-semibold mb-1">
+                  Daily Check-in Leaderboard
+                </p>
+                <p className="text-sm font-bold text-warm-800 dark:text-warm-100 leading-tight">
+                  See who's checking in
+                </p>
+                <p className="text-[10px] text-warm-400 dark:text-warm-500 mt-1.5 flex items-center gap-1">
+                  <span>Ranked from most to least check-ins</span>
                   <ChevronRight className="w-3 h-3" />
                 </p>
               </div>

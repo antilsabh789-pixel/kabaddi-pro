@@ -103,7 +103,7 @@ import MatchHistoryScreen from './MatchHistoryScreen';
 import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchTimelineScreen from './MatchTimelineScreen';
-import CoachDashboard from './CoachDashboard';
+import CoachesCornerScreen from './CoachesCornerScreen';
 import LiveCommentaryTicker, { toCommentaryMatchInfo, type CommentaryMatchInfo } from './LiveCommentaryTicker';
 import LiveMatchCommentaryFeed, { type LiveMatchCommentaryInfo } from './LiveMatchCommentaryFeed';
 import LiveScoreTVMode from './LiveScoreTVMode';
@@ -1579,7 +1579,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
         />
       )}
       {showCoachesCorner && (
-        <CoachDashboard onClose={() => setShowCoachesCorner(false)} />
+        <CoachesCornerScreen onClose={() => setShowCoachesCorner(false)} />
       )}
       {showTeamsLeaderboard && (
         <TeamsLeaderboardScreen onClose={() => setShowTeamsLeaderboard(false)} />
@@ -3407,7 +3407,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
             </Card>
           </motion.div>
 
-          {/* Daily Challenges - flame for motivation */}
+          {/* Daily Check In and Rewards - flame for motivation */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -3424,7 +3424,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                   <Crosshair className="w-4.5 h-4.5 text-orange-500" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Daily Challenges</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Daily Check In and Rewards</p>
                   <p className="text-[10px] text-warm-500 dark:text-warm-400">Earn XP & streaks</p>
                 </div>
               </div>

@@ -405,4 +405,136 @@ router.put('/admin/ads/config', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/admin/checkins?adminId=...
+ *
+ * Returns a list of every user who has ever done a daily check-in, sorted from
+ * MOST total check-ins to LEAST. Useful for the admin dashboard to see who the
+ * most engaged users are (so admins can spot loyal users for prize rewards,
+ * giveaways, etc.).
+ *
+ * Response shape:
+ *   {
+ *     totalCheckinUsers: number,           // users with at least 1 check-in
+ *     totalCheckins: number,               // sum of all check-ins across all users
+ *     users: Array<{
+ *       id, name, playerCode, phone, avatar, location,
+ *       currentStreak, longestStreak, totalCheckIns, lastCheckIn,
+ *       isCheckedInToday: boolean,
+ *       claimedMilestones: number[]        // raw JSON array of day numbers claimed
+ *     }>
+ *   }
+ *
+ * Notes:
+ *   - Excludes admin accounts (admins checking in shouldn't pollute the user leaderboard).
+ *   - Users with NO streak row (never checked in) are excluded — we only want
+ *     people who have actually done at least one check-in.
+ *   - Streaks are also auto-resolved: if the user's streak is "broken" (last
+ *     check-in more than 1 day ago), currentStreak is reported as 0 so admins
+ *     see the user's effective state. (totalCheckIns/longestStreak are still
+ *     the raw historical values.)
+ */
+router.get('/admin/checkins', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || '';
+    if (!adminId) return res.status(400).json({ error: 'adminId is required' });
+
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Single query: join User + UserStreak, exclude admins, exclude users with
+    // no streak row (those users have never checked in). We sort by
+    // totalCheckIns DESC as the primary key, then longestStreak DESC as a
+    // tiebreaker so users with deeper historical streaks rank higher.
+    const rows = await db.user.findMany({
+      where: {
+        isAdmin: false,
+        streak: { isNot: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        playerCode: true,
+        phone: true,
+        avatar: true,
+        location: true,
+        streak: {
+          select: {
+            currentStreak: true,
+            longestStreak: true,
+            totalCheckIns: true,
+            lastCheckIn: true,
+            claimedMilestones: true,
+          },
+        },
+      },
+      orderBy: [
+        { streak: { totalCheckIns: 'desc' } },
+        { streak: { longestStreak: 'desc' } },
+      ],
+    });
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const users = rows.map((u) => {
+      const s = u.streak!;
+      // "Checked in today" = lastCheckIn is on or after startOfToday
+      const isCheckedInToday = !!(s.lastCheckIn && new Date(s.lastCheckIn) >= startOfToday);
+      // Effective current streak: if user missed a day, the displayed streak
+      // is 0 (mirrors the user-facing /api/streak auto-fix logic).
+      let effectiveStreak = s.currentStreak;
+      if (s.lastCheckIn) {
+        const daysSince = Math.floor(
+          (startOfToday.getTime() - new Date(s.lastCheckIn).setHours(0, 0, 0, 0)) / (24 * 60 * 60 * 1000)
+        );
+        if (daysSince > 1 && s.currentStreak > 0) {
+          effectiveStreak = 0;
+        }
+      } else {
+        effectiveStreak = 0;
+      }
+
+      // claimedMilestones is stored as a JSON string in the DB
+      let claimedMilestones: number[] = [];
+      try {
+        const parsed = JSON.parse(s.claimedMilestones || '[]');
+        if (Array.isArray(parsed)) {
+          claimedMilestones = parsed.filter((n) => typeof n === 'number');
+        }
+      } catch {
+        // leave empty
+      }
+
+      return {
+        id: u.id,
+        name: u.name,
+        playerCode: u.playerCode,
+        phone: u.phone,
+        avatar: u.avatar,
+        location: u.location,
+        currentStreak: effectiveStreak,
+        longestStreak: s.longestStreak,
+        totalCheckIns: s.totalCheckIns,
+        lastCheckIn: s.lastCheckIn,
+        isCheckedInToday,
+        claimedMilestones,
+      };
+    });
+
+    const totalCheckins = users.reduce((sum, u) => sum + u.totalCheckIns, 0);
+
+    return res.json({
+      totalCheckinUsers: users.length,
+      totalCheckins,
+      users,
+    });
+  } catch (error) {
+    console.error('Admin checkins list error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

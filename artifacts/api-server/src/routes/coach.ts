@@ -716,4 +716,167 @@ router.get('/announcements', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/coach/performances?academyId=...
+ *
+ * Returns each academy player's stats in the most recent match any academy
+ * player participated in. This powers the "Last Tournament Performances" view
+ * in the rebuilt Coaches Corner.
+ *
+ * Algorithm:
+ *   1. Get all academy players (userId list).
+ *   2. Find the most recent MatchEvent whose playerId is in that list
+ *      (ordered by timestamp DESC). That gives us "the last match any
+ *      academy player was involved in" — which serves as a good proxy for
+ *      "last tournament" without requiring a Tournament join.
+ *   3. Sum that match's events per player (raid_point → raidPoints,
+ *      tackle → tacklePoints, bonus_point → bonusPoints, sum → totalPoints).
+ *   4. Return per-player: { userId, name, playerCode, avatar, lastMatch,
+ *      stats }. Players with no events in that match still appear in the
+ *      list with zeroed stats so the coach sees the full roster.
+ *
+ * Response:
+ *   {
+ *     lastMatch: {
+ *       id, date, homeTeamName, awayTeamName, homeScore, awayScore,
+ *       tournamentName, completedAt, isPractice
+ *     } | null,
+ *     players: Array<{
+ *       userId, name, playerCode, avatar,
+ *       stats: { raidPoints, tacklePoints, bonusPoints, totalPoints, events: number },
+ *       hasPlayedInLastMatch: boolean
+ *     }>
+ *   }
+ */
+router.get('/coach/performances', async (req, res) => {
+  try {
+    const academyId = (req.query['academyId'] as string) || '';
+    if (!academyId) return res.status(400).json({ error: 'academyId is required' });
+
+    // 1. Get academy players (roster)
+    const academyPlayers = await db.academyPlayer.findMany({
+      where: { academyId },
+      select: {
+        userId: true,
+        user: {
+          select: { id: true, name: true, playerCode: true, avatar: true, phone: true },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    if (academyPlayers.length === 0) {
+      return res.json({ lastMatch: null, players: [] });
+    }
+
+    const userIds = academyPlayers.map((ap) => ap.userId);
+
+    // 2. Find the most recent MatchEvent whose playerId is in our roster
+    const latestEvent = await db.matchEvent.findFirst({
+      where: { playerId: { in: userIds } },
+      orderBy: { timestamp: 'desc' },
+      include: {
+        match: {
+          select: {
+            id: true,
+            homeScore: true,
+            awayScore: true,
+            isPractice: true,
+            startedAt: true,
+            completedAt: true,
+            createdAt: true,
+            venue: true,
+            tournament: { select: { name: true } },
+            homeTeam: { select: { name: true } },
+            awayTeam: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    // No match data for any academy player → return roster with zeroed stats
+    if (!latestEvent) {
+      return res.json({
+        lastMatch: null,
+        players: academyPlayers.map((ap) => ({
+          userId: ap.user.id,
+          name: ap.user.name,
+          playerCode: ap.user.playerCode,
+          avatar: ap.user.avatar,
+          stats: { raidPoints: 0, tacklePoints: 0, bonusPoints: 0, totalPoints: 0, events: 0 },
+          hasPlayedInLastMatch: false,
+        })),
+      });
+    }
+
+    const lastMatch = latestEvent.match;
+
+    // 3. Get all events in that match for our academy players
+    const eventsInLastMatch = await db.matchEvent.findMany({
+      where: {
+        matchId: lastMatch.id,
+        playerId: { in: userIds },
+      },
+    });
+
+    // 4. Group by player
+    const statsByPlayer = new Map<string, { raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; events: number }>();
+    for (const evt of eventsInLastMatch) {
+      if (!evt.playerId) continue;
+      if (!statsByPlayer.has(evt.playerId)) {
+        statsByPlayer.set(evt.playerId, { raidPoints: 0, tacklePoints: 0, bonusPoints: 0, totalPoints: 0, events: 0 });
+      }
+      const stats = statsByPlayer.get(evt.playerId)!;
+      stats.events += 1;
+      if (evt.eventType === 'raid_point') stats.raidPoints += evt.value;
+      else if (evt.eventType === 'tackle') stats.tacklePoints += evt.value;
+      else if (evt.eventType === 'bonus_point') stats.bonusPoints += evt.value;
+      // All-out, card, empty_raid, substitution, timeout contribute to total but not raid/tackle/bonus
+      stats.totalPoints += evt.value;
+    }
+
+    // 5. Build response — every roster player appears, even if they didn't play
+    const players = academyPlayers.map((ap) => {
+      const stats = statsByPlayer.get(ap.user.id);
+      return {
+        userId: ap.user.id,
+        name: ap.user.name,
+        playerCode: ap.user.playerCode,
+        avatar: ap.user.avatar,
+        stats: stats || { raidPoints: 0, tacklePoints: 0, bonusPoints: 0, totalPoints: 0, events: 0 },
+        hasPlayedInLastMatch: !!stats,
+      };
+    });
+
+    // Sort: players who played first (by totalPoints desc), then non-players by name asc
+    players.sort((a, b) => {
+      if (a.hasPlayedInLastMatch && !b.hasPlayedInLastMatch) return -1;
+      if (!a.hasPlayedInLastMatch && b.hasPlayedInLastMatch) return 1;
+      if (a.hasPlayedInLastMatch && b.hasPlayedInLastMatch) {
+        return b.stats.totalPoints - a.stats.totalPoints;
+      }
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    return res.json({
+      lastMatch: {
+        id: lastMatch.id,
+        date: lastMatch.completedAt || lastMatch.startedAt || lastMatch.createdAt,
+        homeTeamName: lastMatch.homeTeam?.name || 'TBD',
+        awayTeamName: lastMatch.awayTeam?.name || 'TBD',
+        homeScore: lastMatch.homeScore,
+        awayScore: lastMatch.awayScore,
+        tournamentName: lastMatch.tournament?.name || null,
+        completedAt: lastMatch.completedAt,
+        isPractice: lastMatch.isPractice,
+        venue: lastMatch.venue,
+      },
+      players,
+    });
+  } catch (error) {
+    console.error('Fetch academy performances error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
