@@ -444,7 +444,13 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
   const markNotificationRead = useKabaddiStore((s) => s.markNotificationRead);
   const markAllRead = useKabaddiStore((s) => s.markAllRead);
   const clearNotifications = useKabaddiStore((s) => s.clearNotifications);
-  const addNotification = useKabaddiStore((s) => s.addNotification);
+  const markBackendNotificationRead = useKabaddiStore((s) => s.markBackendNotificationRead);
+  const currentUser = useKabaddiStore((s) => s.currentUser);
+  // `addNotification` is intentionally NOT used here — we no longer
+  // auto-generate fake "Upgrade to Pro" / "Welcome Back" notifications.
+  // The panel only displays REAL notifications pushed by the backend
+  // (chat messages, real match results, real achievements) or set by
+  // explicit user actions (e.g. setting a match reminder).
 
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -480,29 +486,23 @@ export default function NotificationPanel({ onClose, onNavigate }: NotificationP
     ).length,
   }));
 
-  // Auto-generate contextual notifications on load
-  useEffect(() => {
-    const existingTypes = new Set(notifications.map((n) => n.type));
-
-    // Premium feature available (only if not premium user and no existing premium notification)
-    if (!existingTypes.has('premium')) {
-      const timer = setTimeout(() => {
-        addNotification({
-          type: 'premium',
-          title: 'Upgrade to Pro',
-          description: 'Unlock advanced stats, AI insights, and more with Kabaddi Pro!',
-        });
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  
-    return undefined;}, [addNotification, notifications.length]);
+  // NOTE: We previously auto-generated fake "Upgrade to Pro" / "Welcome Back"
+  // notifications here on every panel open. The user explicitly asked us to
+  // STOP doing this — the bell should only show REAL notifications (new chat
+  // messages, real match results, real achievements). All auto-generated
+  // notification code has been removed.
 
   const handleMarkRead = useCallback(
     (id: string) => {
       markNotificationRead(id);
+      // Also mark as read on the backend (best-effort). This keeps the
+      // server-side unread count in sync so the bell badge is accurate
+      // across sessions and devices.
+      if (currentUser?.id) {
+        markBackendNotificationRead(currentUser.id, id);
+      }
     },
-    [markNotificationRead]
+    [markNotificationRead, markBackendNotificationRead, currentUser?.id]
   );
 
   const handleDismiss = useCallback((id: string) => {

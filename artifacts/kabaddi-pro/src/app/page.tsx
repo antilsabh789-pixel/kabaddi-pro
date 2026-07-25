@@ -7,6 +7,11 @@ import Portal from '@/components/portal';
 import { useBackButton } from '@/hooks/use-back-button';
 import { toast } from '@/hooks/use-toast';
 import { AlertTriangle, RefreshCw, MessageSquare, Bell } from 'lucide-react';
+import {
+  requestNotificationPermission,
+  showChatMessageNotification,
+  isNotificationSupported,
+} from '@/lib/pushNotifications';
 
 const SplashScreen = lazy(() => import('@/components/kabaddi/SplashScreen'));
 const AuthScreen = lazy(() => import('@/components/kabaddi/AuthScreen'));
@@ -228,11 +233,85 @@ export default function Home() {
   // 0 when the user is actively on the Chat tab (the tab's own poller
   // handles live updates there).
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications } =
+  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications, syncBackendNotifications } =
     useKabaddiStore();
   // Bell icon counts both in-app notifications AND unread chat messages.
   // Chat unread count is polled separately (see useEffect below).
   const unreadCount = notifications.filter((n) => !n.read).length + chatUnreadCount;
+
+  // ─── Request notification permission on first auth ─────────────────
+  // Ask the user for OS-level notification permission the first time they
+  // log in. This lets us fire WhatsApp-style notifications (banner +
+  // vibration + sound) when a new chat message arrives. We only ask once
+  // per browser — if they deny, we don't re-prompt (the user can re-grant
+  // from browser settings later).
+  const askedPermissionRef = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
+    if (askedPermissionRef.current) return;
+    askedPermissionRef.current = true;
+    if (!isNotificationSupported()) return;
+    // Don't prompt immediately — wait 5s so the user lands on the app first.
+    // Asking too early can feel pushy and reduce grant rates.
+    const timer = setTimeout(() => {
+      requestNotificationPermission().then((perm) => {
+        if (perm === 'granted') {
+          console.log('[notifications] OS permission granted — will show push banners for new chat messages');
+        } else if (perm === 'denied') {
+          console.log('[notifications] OS permission denied — will only show in-app bell badge');
+        }
+      });
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, currentUser?.id]);
+
+  // ─── Poll backend notifications (chat messages, real events) ───────
+  // Every 20s, fetch real notifications from /api/notifications and merge
+  // any new ones into the local store. This is what makes the bell badge
+  // reflect REAL events (new chat messages, etc.) instead of just the
+  // locally-generated fake notifications we used to push.
+  //
+  // When new chat notifications arrive AND the user isn't on the Chat tab
+  // AND we have OS permission, fire a WhatsApp-style system notification
+  // (banner + vibration + sound).
+  const prevNotificationIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    // Skip polling during live match / toss (no distractions while scoring).
+    if (activeMatch?.isLive || showToss) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      const added = await syncBackendNotifications(currentUser.id);
+      if (cancelled || added === 0) return;
+
+      // New notifications arrived! For chat messages, fire a WhatsApp-style
+      // OS push notification (banner + vibration + sound) — the user
+      // explicitly asked for this. We fire it for ALL new chat notifications
+      // (even if the user is in the app) because that matches WhatsApp
+      // behavior — you get a notification sound + banner even when you're
+      // in a different chat. The showChatMessageNotification helper handles
+      // the permission check internally (no-op if not granted).
+      const latest = useKabaddiStore.getState().notifications.slice(0, added);
+      for (const n of latest) {
+        if (n.type === 'chat' && !prevNotificationIdsRef.current.has(n.id)) {
+          // Use the notification title/description. The title from the
+          // backend is "New message from <sender>" — perfect.
+          showChatMessageNotification({
+            senderName: n.title.replace(/^New message from\s+/i, '') || 'Kabaddi Player',
+            messagePreview: n.description,
+            fromUserId: n.fromUserId,
+            threadId: n.threadId,
+          });
+        }
+        prevNotificationIdsRef.current.add(n.id);
+      }
+    };
+    poll();
+    const id = setInterval(poll, 20000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [currentUser?.id, activeMatch?.isLive, showToss, syncBackendNotifications]);
 
   // ─── Poll chat threads for unread count (bell + HomeTab badge) ─────
   // Skip during a live match / toss (no distractions while scoring).

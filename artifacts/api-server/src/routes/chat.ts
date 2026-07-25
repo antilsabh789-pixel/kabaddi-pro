@@ -141,6 +141,8 @@ router.get('/chat/threads/:threadId/messages', async (req, res) => {
     if (thread.userAId !== userId && thread.userBId !== userId) {
       return res.status(403).json({ error: 'Not a participant in this thread' });
     }
+    // The "other" user — used below to mark their chat notifications as read.
+    const otherUserId = thread.userAId === userId ? thread.userBId : thread.userAId;
 
     const where: any = { threadId };
     if (before) where.createdAt = { lt: new Date(before) };
@@ -161,6 +163,26 @@ router.get('/chat/threads/:threadId/messages', async (req, res) => {
       },
       data: { isRead: true, readAt: new Date() },
     });
+
+    // Also mark all unread NOTIFICATIONS of type 'chat' from the other user
+    // as read. The backend creates a Notification row whenever a chat message
+    // is sent (see POST /chat/threads/:id/messages). When the recipient opens
+    // the conversation, those notifications should clear so the bell badge
+    // reflects reality. Without this, the bell would keep showing unread
+    // notifications even after the user read the messages.
+    try {
+      await db.notification.updateMany({
+        where: {
+          userId,             // the recipient (current user)
+          fromUserId: otherUserId,
+          type: 'chat',
+          isRead: false,
+        },
+        data: { isRead: true },
+      });
+    } catch (notifErr) {
+      console.warn('chat: failed to mark chat notifications as read:', String(notifErr).slice(0, 200));
+    }
 
     // Reverse so oldest-first for display (we fetched desc for cursor pagination)
     return res.json({ messages: messages.reverse(), hasMore: messages.length === limit });

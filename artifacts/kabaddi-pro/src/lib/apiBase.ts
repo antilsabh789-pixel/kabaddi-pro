@@ -116,12 +116,37 @@ export function installApiFetchInterceptor(): void {
     let url: string | null = null;
     let finalInput: RequestInfo | URL = input;
 
-    // Rewrite /api/* to API_BASE if configured
+    // Rewrite /api/* to API_BASE if configured.
+    //
+    // CRITICAL: We handle THREE input shapes:
+    //   1. Relative string paths: "/api/chat/threads?userId=..."
+    //   2. Absolute same-origin URLs: "https://kabaddi-pro.vercel.app/api/chat/threads/abc/messages?..."
+    //      (produced by `new URL(path, window.location.origin).toString()` —
+    //       this is how ChatScreen builds the conversation-messages URL)
+    //   3. URL objects and Request objects whose origin matches current origin
+    //
+    // Previously we only handled (1) and (3), which meant ChatScreen's
+    // `new URL(...).toString()` absolute-URL fetches were NOT rewritten and
+    // went to Vercel (returning 404 HTML instead of reaching the Railway
+    // backend). The conversation view then failed with
+    // "Unexpected response from server" because the 404 body wasn't JSON.
     if (API_BASE) {
       if (typeof input === "string") {
+        // Relative: "/api/..."
         if (input.startsWith("/api/")) {
           url = API_BASE + input;
           finalInput = url;
+        } else {
+          // Absolute same-origin: "https://<current-origin>/api/..."
+          try {
+            const parsed = new URL(input, window.location.origin);
+            if (parsed.origin === window.location.origin && parsed.pathname.startsWith("/api/")) {
+              url = API_BASE + parsed.pathname + parsed.search;
+              finalInput = url;
+            }
+          } catch {
+            // not a valid URL — fall through untouched
+          }
         }
       } else if (input instanceof URL) {
         if (input.origin === window.location.origin && input.pathname.startsWith("/api/")) {

@@ -120,7 +120,10 @@ import PlayerProfileScreen from './PlayerProfileScreen';
 import GiveawayScreen from './GiveawayScreen';
 import ReferralScreen from './ReferralScreen';
 import ChatScreen from './ChatScreen';
-import { matchNotification, welcomeBackNotification } from '@/lib/notifications';
+// Notification helpers (matchNotification, welcomeBackNotification) were
+// previously imported here but are no longer used — we stopped auto-generating
+// fake "welcome back" / "match starting" notifications on HomeTab mount.
+// Real match-result notifications are still pushed from LiveScoringScreen.
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -924,36 +927,15 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
     };
   }, [fetchHomeData, homeData, buildAwardPlayers]);
 
-  // Welcome back notification (once per session)
-  useEffect(() => {
-    if (!currentUser?.name) return;
-
-    const existingTypes = new Set(notifications.map((n) => n.type));
-
-    // Only generate if no notifications at all
-    if (notifications.length === 0) {
-      addNotification(welcomeBackNotification(currentUser.name));
-    }
-
-    // Upcoming match notification
-    if (upcomingMatches.length > 0 && !existingTypes.has('match_start')) {
-      const nextMatch = upcomingMatches[0];
-      addNotification({
-        type: 'match_start',
-        title: 'Match Starting Soon',
-        description: `${nextMatch.homeTeam.name} vs ${nextMatch.awayTeam.name} is coming up!`,
-      });
-    }
-
-    // Achievement notification for returning users
-    if (notifications.length > 2 && !existingTypes.has('achievement')) {
-      addNotification({
-        type: 'achievement',
-        title: 'Dedicated Player',
-        description: 'You\'ve been consistently active! Keep going for more achievements.',
-      });
-    }
-  }, [currentUser?.name, upcomingMatches.length]);
+  // Welcome back / upcoming match / achievement notifications have been
+  // REMOVED. The user explicitly asked us to stop auto-generating fake
+  // notifications — the bell should only show REAL notifications (new chat
+  // messages, real match results from the backend, etc.) and notifications
+  // created by explicit user actions (e.g. setting a match reminder).
+  // The previous useEffect auto-pushed "Welcome Back", "Match Starting Soon",
+  // and "Dedicated Player" notifications on every HomeTab mount, which
+  // caused the bell to always show a red badge even when nothing real had
+  // happened.
 
   const handleMatchClick = (match: LiveMatch) => {
     // For live matches, show the immersive MatchDayExperience

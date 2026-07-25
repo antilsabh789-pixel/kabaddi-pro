@@ -291,6 +291,17 @@ interface KabaddiState {
   markNotificationRead: (id: string) => void;
   markAllRead: () => void;
   clearNotifications: () => void;
+  // Fetches real notifications from /api/notifications and MERGES any new ones
+  // into the local `notifications` array. Called by a poller in page.tsx so
+  // the bell badge reflects real backend notifications (chat messages, etc.)
+  // instead of just locally-generated ones. Returns the number of NEW
+  // notifications that were added (so the caller can fire a browser
+  // Notification for each one if desired).
+  syncBackendNotifications: (userId: string) => Promise<number>;
+  // Marks a notification as read on the backend (best-effort PATCH to
+  // /api/notifications) AND in the local store. Called when the user opens
+  // the panel or clicks a notification.
+  markBackendNotificationRead: (userId: string, notificationId: string) => void;
 
   // Language action
   setLanguage: (lang: Language) => void;
@@ -1148,6 +1159,83 @@ export const useKabaddiStore = create<KabaddiState>()(
         })),
 
       clearNotifications: () => set({ notifications: [] }),
+
+      // ─── syncBackendNotifications ──────────────────────────────────
+      // Fetches real notifications from /api/notifications and MERGES any
+      // new ones into the local `notifications` array. This is what makes
+      // the bell badge reflect real backend events (new chat messages,
+      // etc.) instead of just locally-generated ones.
+      //
+      // Dedup strategy: backend notifications use their DB cuid as `id`.
+      // We skip any whose `id` already exists in the local array. We also
+      // preserve the local `read` flag — if the user already read it
+      // locally, we don't mark it unread again (the backend PATCH happens
+      // separately via markBackendNotificationRead).
+      //
+      // Returns the count of NEW notifications added (for browser-push
+      // trigger purposes).
+      syncBackendNotifications: async (userId) => {
+        if (!userId) return 0;
+        try {
+          const res = await fetch(`/api/notifications?userId=${encodeURIComponent(userId)}`);
+          if (!res.ok) return 0;
+          const data = await res.json();
+          const backendList: any[] = Array.isArray(data?.notifications) ? data.notifications : [];
+          if (backendList.length === 0) return 0;
+
+          // Map backend notification shape → frontend AppNotification shape.
+          // Backend: { id, type, title, message, isRead, createdAt, fromUserId, matchId, fromUser }
+          // Frontend: { id, type, title, description, timestamp, read, matchId?, threadId?, fromUserId? }
+          const mapped: AppNotification[] = backendList.map((n: any) => {
+            const type = (n.type as NotificationType) || 'general';
+            return {
+              id: n.id,
+              type,
+              title: n.title || 'Notification',
+              description: n.message || '',
+              timestamp: n.createdAt ? new Date(n.createdAt).getTime() : Date.now(),
+              read: Boolean(n.isRead),
+              matchId: n.matchId || undefined,
+              fromUserId: n.fromUserId || undefined,
+            };
+          });
+
+          let added = 0;
+          set((state) => {
+            const existingIds = new Set(state.notifications.map((n) => n.id));
+            const newOnes = mapped.filter((n) => !existingIds.has(n.id));
+            added = newOnes.length;
+            if (added === 0) return {};
+            return {
+              notifications: [...newOnes, ...state.notifications].slice(0, 50),
+            };
+          });
+          return added;
+        } catch (err) {
+          console.error('syncBackendNotifications error:', err);
+          return 0;
+        }
+      },
+
+      // ─── markBackendNotificationRead ───────────────────────────────
+      // Best-effort PATCH to /api/notifications to mark one notification
+      // as read on the server, AND locally. Failures are silently ignored
+      // (the local state still updates so the UI is responsive).
+      markBackendNotificationRead: (userId, notificationId) => {
+        // Local update first (instant UI feedback)
+        set((state) => ({
+          notifications: state.notifications.map((n) =>
+            n.id === notificationId ? { ...n, read: true } : n
+          ),
+        }));
+        // Best-effort backend sync
+        if (!userId || !notificationId) return;
+        fetch('/api/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, notificationId }),
+        }).catch(() => { /* ignore — best-effort */ });
+      },
 
       setLanguage: (lang) => set({ language: lang }),
 

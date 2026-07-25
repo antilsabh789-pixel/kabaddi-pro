@@ -111,9 +111,13 @@ async function safeJson<T = any>(res: Response, fallback: T = ({} as T)): Promis
   const looksLikeHtml = text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<html');
   if (!ct.includes('application/json') && !ct.includes('text/json')) {
     if (looksLikeHtml) {
+      console.error('[chat] non-JSON HTML response', { status: res.status, ct, bodySample: text.slice(0, 200) });
       throw new Error('Could not connect to chat server. Please check your connection and try again.');
     }
-    throw new Error('Unexpected response from server. Please try again.');
+    // Log the unexpected response so we can debug. Include status + a body
+    // snippet so the next time this fires we can see exactly what came back.
+    console.error('[chat] unexpected non-JSON response', { status: res.status, ct, bodySample: text.slice(0, 200) });
+    throw new Error(`Could not load messages (server returned ${res.status}). Please try again.`);
   }
   try {
     return JSON.parse(text) as T;
@@ -318,7 +322,7 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
   }
 
   return (
-    <div className="min-h-screen bg-warm-50 dark:bg-warm-900">
+    <div className="min-h-screen bg-warm-50 dark:bg-warm-900" data-chat-screen={activeThread ? 'conversation' : 'inbox'}>
       <AnimatePresence mode="wait">
         {activeThread ? (
           <ConversationView
@@ -649,16 +653,24 @@ function ConversationView({
       if (mode === 'initial') setLoading(true);
       else setLoadingMore(true);
 
-      const url = new URL(`/api/chat/threads/${threadId}/messages`, window.location.origin);
-      url.searchParams.set('userId', currentUser.id);
-      url.searchParams.set('limit', '30');
+      // Build a RELATIVE URL string (not `new URL(...).toString()`).
+      // The global fetch interceptor in apiBase.ts rewrites relative /api/*
+      // paths to API_BASE (the Railway backend URL). If we used `new URL()`
+      // here we'd get an absolute same-origin URL that older interceptor
+      // versions did not rewrite — causing the fetch to hit Vercel (404)
+      // instead of the backend, and the conversation view showed
+      // "Unexpected response from server" instead of messages.
+      const params = new URLSearchParams();
+      params.set('userId', currentUser.id);
+      params.set('limit', '30');
       if (mode === 'more') {
         // Use the oldest currently-visible message's createdAt as cursor
         const oldest = messagesRef.current[0];
-        if (oldest) url.searchParams.set('before', oldest.createdAt);
+        if (oldest) params.set('before', oldest.createdAt);
       }
+      const fetchUrl = `/api/chat/threads/${threadId}/messages?${params.toString()}`;
 
-      const res = await fetch(url.toString());
+      const res = await fetch(fetchUrl);
       // Read body once via safeJson — it throws a friendly error if HTML.
       const data = await safeJson<any>(res, { messages: [] });
       if (!res.ok) {
@@ -708,10 +720,14 @@ function ConversationView({
       if (cancelled || !scrollRef.current) return;
       const wasAtBottom = wasAtBottomRef.current;
       try {
-        const url = new URL(`/api/chat/threads/${threadId}/messages`, window.location.origin);
-        url.searchParams.set('userId', currentUser.id);
-        url.searchParams.set('limit', '30');
-        const res = await fetch(url.toString());
+        // Use a RELATIVE URL so the global fetch interceptor rewrites it
+        // to API_BASE (Railway). `new URL(...).toString()` would produce an
+        // absolute same-origin URL that bypasses the interceptor.
+        const params = new URLSearchParams();
+        params.set('userId', currentUser.id);
+        params.set('limit', '30');
+        const pollUrl = `/api/chat/threads/${threadId}/messages?${params.toString()}`;
+        const res = await fetch(pollUrl);
         if (!res.ok || cancelled) return;
         const data = await safeJson(res, { messages: [] });
         const fetched: ChatMessage[] = Array.isArray(data.messages) ? data.messages : [];
