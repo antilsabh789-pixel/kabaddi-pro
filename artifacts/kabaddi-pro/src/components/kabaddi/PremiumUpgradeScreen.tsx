@@ -211,7 +211,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
   const hasDiscount = appliedCoupon && appliedCoupon.discountInr !== '0.00';
 
   return (
-    <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 flex flex-col">
+    <div className="fixed inset-0 z-[70] bg-warm-50 dark:bg-warm-900 flex flex-col">
       {/* Header */}
       <motion.div
         initial={{ y: -16, opacity: 0 }}

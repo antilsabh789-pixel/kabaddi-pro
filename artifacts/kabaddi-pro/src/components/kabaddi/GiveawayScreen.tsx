@@ -207,9 +207,23 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
       const data = await res.json();
       if (res.ok) {
         setAdminParticipants(data.participants || []);
-      } else {
-        toast({ title: 'Access Denied', description: data.error, variant: 'destructive' });
+      } else if (res.status === 403) {
+        // Backend says this user is NOT an admin. The store's isAdmin flag
+        // is stale (the DB record was changed). Clear it from the store so
+        // the Admin button disappears and we don't keep showing "Access
+        // Denied" every time they tap it. Show a friendly message instead.
+        useKabaddiStore.getState().updateUser({ isAdmin: false });
+        toast({
+          title: 'Admin access removed',
+          description: 'Your account no longer has admin privileges. The Admin panel is hidden.',
+          variant: 'default',
+        });
         setShowAdminPanel(false);
+        return;
+      } else {
+        toast({ title: 'Could not load admin panel', description: data.error || 'Please try again.', variant: 'destructive' });
+        setShowAdminPanel(false);
+        return;
       }
 
       // Fetch ALL participants across ALL rounds (current + completed).
@@ -501,29 +515,53 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
       <div className="p-4 space-y-4 max-w-md mx-auto pb-8">
         {/* Timer */}
         <Card className="p-5 bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30 text-center">
-          <div className="flex items-center justify-center gap-1.5 mb-3">
-            <Clock className="w-4 h-4 text-amber-500" />
-            <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-              {status?.round?.status === 'active' ? 'Ends In' : 'Round Ended'}
-            </p>
-          </div>
-          <div className="flex items-center justify-center gap-3">
-            {[
-              { label: 'Days', value: timeLeft.days },
-              { label: 'Hours', value: timeLeft.hours },
-              { label: 'Mins', value: timeLeft.minutes },
-              { label: 'Secs', value: timeLeft.seconds },
-            ].map((t, i) => (
-              <div key={i} className="text-center">
-                <div className="w-14 h-14 rounded-xl bg-white dark:bg-warm-800 shadow-sm flex items-center justify-center">
-                  <span className="text-xl font-black text-warm-800 dark:text-warm-100 font-mono">
-                    {String(t.value).padStart(2, '0')}
-                  </span>
-                </div>
-                <p className="text-[9px] font-bold text-warm-400 mt-1 uppercase">{t.label}</p>
+          {status?.round?.hasEnded ? (
+            // Round timer has expired — show a clear "Waiting for Winners"
+            // message instead of 00:00:00:00 which makes the giveaway look
+            // "stopped" or broken. The round is still ACTIVE in the backend
+            // (admin must call select-winners to close it), so users CAN
+            // still participate.
+            <div className="py-2">
+              <div className="flex items-center justify-center gap-1.5 mb-2">
+                <Clock className="w-4 h-4 text-amber-500" />
+                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                  Round {status.round.roundNumber} · Waiting for Winners
+                </p>
               </div>
-            ))}
-          </div>
+              <p className="text-sm font-black text-warm-800 dark:text-warm-100">
+                Timer ended — entries still open!
+              </p>
+              <p className="text-[11px] text-warm-500 dark:text-warm-400 mt-1">
+                You can still enter this round until the admin draws 3 winners.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-center gap-1.5 mb-3">
+                <Clock className="w-4 h-4 text-amber-500" />
+                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                  Ends In
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                {[
+                  { label: 'Days', value: timeLeft.days },
+                  { label: 'Hours', value: timeLeft.hours },
+                  { label: 'Mins', value: timeLeft.minutes },
+                  { label: 'Secs', value: timeLeft.seconds },
+                ].map((t, i) => (
+                  <div key={i} className="text-center">
+                    <div className="w-14 h-14 rounded-xl bg-white dark:bg-warm-800 shadow-sm flex items-center justify-center">
+                      <span className="text-xl font-black text-warm-800 dark:text-warm-100 font-mono">
+                        {String(t.value).padStart(2, '0')}
+                      </span>
+                    </div>
+                    <p className="text-[9px] font-bold text-warm-400 mt-1 uppercase">{t.label}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <div className="mt-3 flex items-center justify-center gap-2 text-xs text-warm-500">
             <Users className="w-3.5 h-3.5" />
             <span className="font-bold">{status?.participantCount || 0}</span>
@@ -541,7 +579,14 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
             <Button
               onClick={handleParticipate}
               disabled={participating || status?.canParticipate === false}
-              className="w-full h-16 bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-red hover:opacity-90 text-white font-black text-lg rounded-2xl shadow-xl shadow-brand-red/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              className={
+                // Premium users get a distinct AMBER ENTER button so they
+                // immediately see their direct-entry perk. Everyone else
+                // gets the standard brand-red participate button.
+                status?.isPremiumUser
+                  ? 'w-full h-16 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:opacity-90 text-white font-black text-lg rounded-2xl shadow-xl shadow-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] transition-transform'
+                  : 'w-full h-16 bg-gradient-to-r from-brand-red via-brand-red-dark to-brand-red hover:opacity-90 text-white font-black text-lg rounded-2xl shadow-xl shadow-brand-red/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] transition-transform'
+              }
             >
               {participating ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
@@ -558,7 +603,7 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
               ) : status?.isPremiumUser ? (
                 <>
                   <Crown className="w-6 h-6" />
-                  Enter Free with Premium
+                  ENTER NOW — Free with Premium
                 </>
               ) : status?.referralEntriesRemaining && status.referralEntriesRemaining > 0 ? (
                 <>

@@ -614,6 +614,12 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   // pending thread and opens it directly.
   const pendingChatThread = useKabaddiStore((s) => s.pendingChatThread);
   const openChatThread = useKabaddiStore((s) => s.openChatThread);
+  // Watch the giveaway return-to flag. When the user starts a premium
+  // purchase from inside the giveaway screen, page.tsx sets
+  // pendingOpenGiveaway=true after Cashfree redirects back. We auto-open
+  // the GiveawayScreen so they can use their new premium status.
+  const pendingOpenGiveaway = useKabaddiStore((s) => s.pendingOpenGiveaway);
+  const clearPendingOpenGiveaway = useKabaddiStore((s) => s.clearPendingOpenGiveaway);
   const { toast } = useToast();
 
   const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
@@ -869,6 +875,17 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   useEffect(() => {
     if (pendingChatTarget || pendingChatThread) setShowChat(true);
   }, [pendingChatTarget, pendingChatThread]);
+
+  // Auto-open the GiveawayScreen when the user returns from a Cashfree
+  // premium purchase that started inside the giveaway. page.tsx sets
+  // pendingOpenGiveaway=true on payment success; we open the giveaway
+  // so the user can immediately use their new premium status.
+  useEffect(() => {
+    if (pendingOpenGiveaway) {
+      setShowGiveaway(true);
+      clearPendingOpenGiveaway();
+    }
+  }, [pendingOpenGiveaway, clearPendingOpenGiveaway]);
   const [giveawayWinners, setGiveawayWinners] = useState<Array<{
     roundNumber: number; rank: number; playerId: string; prize: string;
   }>>([]);
@@ -1633,20 +1650,23 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
         <GiveawayScreen
           onClose={() => setShowGiveaway(false)}
           onUpgradeToPremium={() => {
-            setShowGiveaway(false);
+            // Don't close the giveaway — open the upgrade screen ON TOP so
+            // the user returns to the giveaway when they close the upgrade.
+            // Also set a localStorage flag so that after Cashfree redirects
+            // back to the app (which reloads the page and loses React state),
+            // page.tsx can re-open the giveaway automatically.
+            try { localStorage.setItem('returnToGiveaway', '1'); } catch { /* ignore */ }
             setShowUpgrade(true);
           }}
           onOpenReferral={() => {
-            // Actually open the ReferralScreen — previously this just showed a
-            // vague toast telling the user to go find it in the Profile tab,
-            // which broke the "Choose Referral" half of the new choice UI.
-            setShowGiveaway(false);
+            // Don't close the giveaway — open the referral screen ON TOP
+            // so the user returns to the giveaway when they close it.
             setShowReferral(true);
           }}
         />
       )}
       {showReferral && (
-        <div className="fixed inset-0 z-50 bg-warm-50 dark:bg-warm-900 overflow-y-auto">
+        <div className="fixed inset-0 z-[60] bg-warm-50 dark:bg-warm-900 overflow-y-auto">
           <ReferralScreen onClose={() => setShowReferral(false)} />
         </div>
       )}

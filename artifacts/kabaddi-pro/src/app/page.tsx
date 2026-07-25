@@ -233,7 +233,7 @@ export default function Home() {
   // 0 when the user is actively on the Chat tab (the tab's own poller
   // handles live updates there).
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications, syncBackendNotifications } =
+  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications, syncBackendNotifications, requestOpenGiveaway } =
     useKabaddiStore();
   // Bell icon counts both in-app notifications AND unread chat messages.
   // Chat unread count is polled separately (see useEffect below).
@@ -404,6 +404,18 @@ export default function Home() {
                 premiumExpiry: data.user?.premiumExpiry || null,
                 premiumPlan: data.user?.premiumPlan || null,
               });
+              // ─── Return-to-giveaway ────────────────────────────────
+              // If the user started this premium purchase from inside the
+              // giveaway screen, HomeTab set the 'returnToGiveaway' flag in
+              // localStorage. After premium is activated, request the store
+              // to re-open the giveaway so they can use their new premium
+              // status (direct entry to every round).
+              try {
+                if (localStorage.getItem('returnToGiveaway') === '1') {
+                  localStorage.removeItem('returnToGiveaway');
+                  requestOpenGiveaway();
+                }
+              } catch { /* localStorage may be unavailable */ }
             }
           })
           .catch(err => console.error('Payment verification error:', err));
@@ -427,12 +439,19 @@ export default function Home() {
                 premiumExpiry: data.user?.premiumExpiry || null,
                 premiumPlan: data.user?.premiumPlan || null,
               });
+              // Return-to-giveaway (same logic as the success path above).
+              try {
+                if (localStorage.getItem('returnToGiveaway') === '1') {
+                  localStorage.removeItem('returnToGiveaway');
+                  requestOpenGiveaway();
+                }
+              } catch { /* localStorage may be unavailable */ }
             }
           })
           .catch(err => console.error('Payment verification error:', err));
       }
     }
-  }, [isAuthenticated, currentUser?.id, updateUser]);
+  }, [isAuthenticated, currentUser?.id, updateUser, requestOpenGiveaway]);
 
   // ─── Handle Giveaway ₹2 entry-fee payment return ────────────────────
   // Cashfree redirects back to /?giveaway_payment=success&order_id=... after
@@ -546,12 +565,17 @@ export default function Home() {
         if (
           currentUser.isPremium !== data.isPremium ||
           currentExpiry !== newExpiry ||
-          currentUser.premiumPlan !== data.premiumPlan
+          currentUser.premiumPlan !== data.premiumPlan ||
+          // Also sync the admin flag — if the DB no longer thinks the user is
+          // an admin, clear it from the store so admin-only UI (giveaway
+          // Admin button, etc.) disappears and stops returning 403.
+          (!!currentUser.isAdmin) !== (!!data.isAdmin)
         ) {
           updateUser({
             isPremium: data.isPremium,
             premiumExpiry: data.premiumExpiry || null,
             premiumPlan: data.premiumPlan || null,
+            isAdmin: !!data.isAdmin,
           });
         }
       })

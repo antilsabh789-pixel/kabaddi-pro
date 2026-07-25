@@ -293,6 +293,16 @@ interface KabaddiState {
   // Clears itself once consumed by ChatScreen.
   openChatThread: (threadId: string, otherUser: { id: string; name: string | null; playerCode: string | null; avatar: string | null }) => void;
   clearPendingChatThread: () => void;
+
+  // ─── Giveaway return-to flag ─────────────────────────────────
+  // Set when the user starts a premium purchase from inside the giveaway
+  // screen. After Cashfree redirects back to the app, page.tsx reads the
+  // 'returnToGiveaway' localStorage flag, calls requestOpenGiveaway(), and
+  // HomeTab opens the giveaway screen automatically so the user can use
+  // their new premium status to enter the round.
+  pendingOpenGiveaway: boolean;
+  requestOpenGiveaway: () => void;
+  clearPendingOpenGiveaway: () => void;
   setHasSeenSplash: (value: boolean) => void;
   initiateToss: (matchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds' | 'yellowCardSuspensions' | 'redCardExpulsions' | 'greenCardWarnings'>) => void;
   cancelToss: () => void;
@@ -675,6 +685,7 @@ export const useKabaddiStore = create<KabaddiState>()(
       activeTab: 'home' as TabId,
       pendingChatTarget: null as KabaddiState['pendingChatTarget'],
       pendingChatThread: null as KabaddiState['pendingChatThread'],
+      pendingOpenGiveaway: false,
 
       // Active match initial state
       activeMatch: null,
@@ -778,6 +789,7 @@ export const useKabaddiStore = create<KabaddiState>()(
           homeData: null,
           pendingChatTarget: null,
           pendingChatThread: null,
+          pendingOpenGiveaway: false,
         }),
 
       setOnboarded: (value = true) =>
@@ -806,6 +818,12 @@ export const useKabaddiStore = create<KabaddiState>()(
       openChatThread: (threadId, otherUser) =>
         set({ pendingChatThread: { threadId, otherUser }, activeTab: 'home' }),
       clearPendingChatThread: () => set({ pendingChatThread: null }),
+
+      // Giveaway return-to flag — set after a premium purchase that started
+      // from inside the giveaway. HomeTab watches `pendingOpenGiveaway` and
+      // opens the GiveawayScreen when true, then clears it.
+      requestOpenGiveaway: () => set({ pendingOpenGiveaway: true, activeTab: 'home' }),
+      clearPendingOpenGiveaway: () => set({ pendingOpenGiveaway: false }),
 
       setHasSeenSplash: (value: boolean) => set({ hasSeenSplash: value }),
 

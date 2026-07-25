@@ -32,6 +32,7 @@ router.get('/premium', async (req, res) => {
         premiumExpiry: null,
         premiumPlan: 'lifetime',
         expired: false,
+        isAdmin: true,
       });
     }
 
@@ -50,6 +51,7 @@ router.get('/premium', async (req, res) => {
       premiumExpiry: user.premiumExpiry,
       premiumPlan: user.premiumPlan,
       expired,
+      isAdmin: false,
     });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });
