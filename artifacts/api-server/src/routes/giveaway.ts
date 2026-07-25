@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { db } from '../lib/db';
 
 const router = Router();
@@ -96,19 +97,25 @@ function buildAbsoluteReturnUrl(req: any, pathWithQuery: string, explicitReturnU
  */
 async function getOrCreateActiveRound() {
   const now = new Date();
-  let round = await db.giveawayRound.findFirst({
-    where: { status: 'active' },
-    orderBy: { roundNumber: 'desc' },
-  });
+  let round = await withSelfHeal(() =>
+    db.giveawayRound.findFirst({
+      where: { status: 'active' },
+      orderBy: { roundNumber: 'desc' },
+    }),
+  );
 
   if (!round) {
-    const lastRound = await db.giveawayRound.findFirst({ orderBy: { roundNumber: 'desc' } });
+    const lastRound = await withSelfHeal(() =>
+      db.giveawayRound.findFirst({ orderBy: { roundNumber: 'desc' } }),
+    );
     const nextNumber = (lastRound?.roundNumber || 0) + 1;
     const startDate = now;
     const endDate = new Date(now.getTime() + ROUND_DURATION_DAYS * 24 * 60 * 60 * 1000);
-    round = await db.giveawayRound.create({
-      data: { roundNumber: nextNumber, startDate, endDate, status: 'active' },
-    });
+    round = await withSelfHeal(() =>
+      db.giveawayRound.create({
+        data: { roundNumber: nextNumber, startDate, endDate, status: 'active' },
+      }),
+    );
   }
   // IMPORTANT: Do NOT auto-complete the round or auto-create the next round
   // when the timer expires. The admin must manually select winners first.
@@ -125,40 +132,166 @@ async function getOrCreateActiveRound() {
  * Returns a SHORT, human-readable hint about what's wrong so the frontend
  * can show a useful toast instead of the generic "Internal server error".
  *
- * We DON'T return the raw error message (which may contain SQL fragments,
- * table names, or schema details that shouldn't leak to the client). Instead
- * we pattern-match the common failure modes:
- *   - "relation ... does not exist" → table missing (autoMigrate didn't run)
- *   - "column ... does not exist" → schema out of date
- *   - "permission denied" → DB user lacks privileges
- *   - "syntax error" → bug in our SQL
- *   - PrismaClientInitializationError → DATABASE_URL is wrong / unreachable
+ * Strategy: check Prisma's structured error code FIRST (most reliable), then
+ * fall back to regex pattern matching on the message (covers raw Postgres
+ * errors that bypass Prisma's classification).
+ *
+ * Prisma error codes we care about:
+ *   P2021 — The table `X` does not exist in the current database  ← OUR MAIN ISSUE
+ *   P2022 — The column `X` does not exist in the current database
+ *   P2024 — Timed out fetching a connection from the pool
+ *   P2003 — Foreign key constraint failed
+ *   P2002 — Unique constraint failed
+ *   P2009 — Query validation error (schema mismatch)
+ *   P2010 — Raw query failed
+ *   P1001—P1017 — Connection / initialization errors
+ *
+ * Raw Postgres error messages (when the SQL bypasses Prisma, e.g. in
+ * $executeRawUnsafe) use DIFFERENT wording:
+ *   - "relation \"X\" does not exist" (with double quotes — Postgres style)
+ *   - "column \"X\" does not exist"
+ *   - "permission denied for table X"
+ *
+ * NOTE: we deliberately DON'T return the raw Prisma message verbatim because
+ * it includes the full SQL/invocation context which can leak schema info.
+ * But we DO include the error code so support can grep server logs.
  */
 function sanitizeDbError(err: unknown): string {
+  // 1. Prisma structured errors — check `code` field for reliable detection.
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    const code = err.code;
+    switch (code) {
+      case 'P2021':
+        return `DB table missing (Prisma ${code}). The auto-migrate on boot did not create the table. Please redeploy or run \`prisma db push\` manually.`;
+      case 'P2022':
+        return `DB column missing (Prisma ${code}). Schema is out of date. Please redeploy or run \`prisma db push\`.`;
+      case 'P2024':
+        return `DB connection pool timeout (Prisma ${code}). Too many concurrent queries.`;
+      case 'P2003':
+        return `DB foreign key constraint failed (Prisma ${code}).`;
+      case 'P2002':
+        return `DB unique constraint failed (Prisma ${code}).`;
+      case 'P2009':
+        return `DB query validation error (Prisma ${code}). Schema mismatch — run \`prisma db push\`.`;
+      case 'P2010':
+        return `DB raw query failed (Prisma ${code}).`;
+      default:
+        return `DB error (Prisma ${code}).`;
+    }
+  }
+  // P1001—P1017 are PrismaClientInitializationError (subclass of KnownRequestError? actually NO — it's a separate class)
+  if (err instanceof Prisma.PrismaClientInitializationError) {
+    return `DB connection failed (Prisma init). Check DATABASE_URL. Error code: ${err.errorCode || 'unknown'}.`;
+  }
+
+  // 2. Fall back to message regex (covers raw Postgres errors from $executeRawUnsafe).
   const msg = err instanceof Error ? err.message : String(err);
   if (/relation ".*" does not exist/i.test(msg)) {
-    return 'Database table missing — auto-migrate may have failed. Please redeploy or run prisma db push.';
+    return 'DB table missing (raw Postgres). Auto-migrate did not create the table.';
   }
-  if (/column ".*" does not exist/i.test(msg)) {
-    return 'Database schema is out of date. Please redeploy or run prisma db push.';
+  if (/The table `.*` does not exist/i.test(msg)) {
+    return 'DB table missing (Prisma P2021 wording). Auto-migrate did not create the table.';
+  }
+  if (/column ".*" does not exist/i.test(msg) || /The column `.*` does not exist/i.test(msg)) {
+    return 'DB column missing. Schema is out of date.';
   }
   if (/permission denied/i.test(msg)) {
-    return 'Database user lacks required privileges.';
+    return 'DB permission denied. User lacks required privileges.';
   }
   if (/syntax error/i.test(msg)) {
-    return 'Database query syntax error.';
+    return 'DB syntax error.';
   }
   if (/PrismaClientInitializationError/i.test(msg) || /DATABASE_URL/i.test(msg)) {
-    return 'Database connection failed — check DATABASE_URL env var.';
+    return 'DB connection failed — check DATABASE_URL.';
   }
   if (/connect\s+ECONNREFUSED/i.test(msg) || /Can't reach database server/i.test(msg)) {
-    return 'Database server unreachable.';
+    return 'DB server unreachable.';
   }
-  // Last resort — return the first 100 chars of the error. We truncate
-  // because some Prisma errors include the full SQL statement which can
-  // be huge. 100 chars is enough to identify the issue without leaking
-  // sensitive data.
-  return msg.slice(0, 100);
+  // Last resort — return first 180 chars so we can see the actual error.
+  // We bumped this from 100 → 180 because the original 100-char limit was
+  // truncating the error right at "Invalid `db.X.method()` invocation",
+  // which told us NOTHING about the underlying cause. 180 chars is enough
+  // to see the Prisma error code AND the first sentence of the actual
+  // error, while still avoiding huge SQL dumps.
+  return msg.slice(0, 180);
+}
+
+/**
+ * Self-heal: try to CREATE the giveaway tables on-the-fly if they don't exist.
+ *
+ * This is a RUNTIME fallback that runs INSIDE the request handler when
+ * Prisma throws P2021 (table does not exist). The auto-migrate on boot is
+ * supposed to handle this, but if it fails silently (e.g. the DB user lacks
+ * CREATE permission, or the connection pooler blocks DDL), we end up here.
+ *
+ * We try each CREATE TABLE statement individually and swallow errors. After
+ * the attempt, the caller can retry the original query.
+ *
+ * Returns true if ANY table was actually created (i.e. we should retry).
+ */
+async function selfHealGiveawayTables(): Promise<boolean> {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "GiveawayRound" (
+      "id" TEXT NOT NULL,
+      "roundNumber" INTEGER NOT NULL,
+      "startDate" TIMESTAMP(3) NOT NULL,
+      "endDate" TIMESTAMP(3) NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "winnersJson" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "GiveawayRound_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "GiveawayRound_roundNumber_key" ON "GiveawayRound"("roundNumber")`,
+    `CREATE TABLE IF NOT EXISTS "GiveawayParticipant" (
+      "id" TEXT NOT NULL,
+      "giveawayRoundId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "phone" TEXT NOT NULL,
+      "name" TEXT,
+      "isPremium" BOOLEAN NOT NULL DEFAULT false,
+      "entryType" TEXT NOT NULL DEFAULT 'free',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "GiveawayParticipant_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "GiveawayParticipant_giveawayRoundId_userId_key" ON "GiveawayParticipant"("giveawayRoundId", "userId")`,
+    `CREATE INDEX IF NOT EXISTS "GiveawayParticipant_giveawayRoundId_idx" ON "GiveawayParticipant"("giveawayRoundId")`,
+    `CREATE INDEX IF NOT EXISTS "GiveawayParticipant_userId_idx" ON "GiveawayParticipant"("userId")`,
+  ];
+  let createdAny = false;
+  for (const sql of statements) {
+    try {
+      await db.$executeRawUnsafe(sql);
+      createdAny = true;
+    } catch {
+      // swallow — we'll let the retry fail with the original P2021 if needed
+    }
+  }
+  return createdAny;
+}
+
+/**
+ * Wrap a giveaway DB operation with self-healing.
+ *
+ * If the first attempt throws P2021 (table missing), we try to CREATE the
+ * tables and retry ONCE. If the retry still fails, we throw the original
+ * error so the caller's catch block handles it.
+ */
+async function withSelfHeal<T>(op: () => Promise<T>): Promise<T> {
+  try {
+    return await op();
+  } catch (err) {
+    const isTableMissing =
+      err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2021';
+    const msg = err instanceof Error ? err.message : String(err);
+    const msgLooksMissing = /does not exist/i.test(msg);
+    if (!isTableMissing && !msgLooksMissing) throw err;
+    // Try to self-heal
+    const healed = await selfHealGiveawayTables();
+    if (!healed) throw err;
+    // Retry once
+    return await op();
+  }
 }
 
 
@@ -244,9 +377,11 @@ router.get('/giveaway/status', async (req, res) => {
   try {
     const userId = (req.query['userId'] as string) || '';
     const round = await getOrCreateActiveRound();
-    const participantCount = await db.giveawayParticipant.count({
-      where: { giveawayRoundId: round.id },
-    });
+    const participantCount = await withSelfHeal(() =>
+      db.giveawayParticipant.count({
+        where: { giveawayRoundId: round.id },
+      }),
+    );
 
     let hasParticipated = false;
     let successfulReferrals = 0;
@@ -722,6 +857,148 @@ router.post('/giveaway/verify-entry-payment', async (req, res) => {
 });
 
 /**
+ * GET /api/giveaway/diagnose-public
+ * NO AUTH — runs the same DB probes as /admin/diagnose but does NOT require
+ * an adminId. Intentionally public so we can curl Railway directly from a
+ * laptop to see what's wrong when the admin panel won't open.
+ *
+ * Returns: {
+ *   ok: boolean,
+ *   checks: [{ name, ok, error?, rawError? }],
+ *   failingCheck?: string,
+ *   hint?: string,
+ *   tableVerification?: [{ table, exists }]
+ * }
+ *
+ * The `rawError` field is INCLUDED here (but not in /admin/diagnose) because
+ * this endpoint is for debugging only — we need the raw Prisma error code +
+ * message to figure out why tables aren't being created.
+ */
+router.get('/giveaway/diagnose-public', async (req, res) => {
+  const checks: { name: string; ok: boolean; error?: string; rawError?: string; code?: string }[] = [];
+
+  // Check 1: User table
+  try {
+    await db.user.findFirst({ select: { id: true } });
+    checks.push({ name: 'user_table', ok: true });
+  } catch (err) {
+    checks.push({
+      name: 'user_table',
+      ok: false,
+      error: sanitizeDbError(err),
+      rawError: err instanceof Error ? err.message.slice(0, 500) : String(err),
+      code: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : undefined,
+    });
+  }
+
+  // Check 2: GiveawayRound table
+  try {
+    await db.giveawayRound.findFirst({ select: { id: true } });
+    checks.push({ name: 'giveaway_round_table', ok: true });
+  } catch (err) {
+    checks.push({
+      name: 'giveaway_round_table',
+      ok: false,
+      error: sanitizeDbError(err),
+      rawError: err instanceof Error ? err.message.slice(0, 500) : String(err),
+      code: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : undefined,
+    });
+  }
+
+  // Check 3: GiveawayParticipant table
+  try {
+    await db.giveawayParticipant.findFirst({ select: { id: true } });
+    checks.push({ name: 'giveaway_participant_table', ok: true });
+  } catch (err) {
+    checks.push({
+      name: 'giveaway_participant_table',
+      ok: false,
+      error: sanitizeDbError(err),
+      rawError: err instanceof Error ? err.message.slice(0, 500) : String(err),
+      code: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : undefined,
+    });
+  }
+
+  // Check 4: Referral table
+  try {
+    await db.referral.findFirst({ select: { id: true } });
+    checks.push({ name: 'referral_table', ok: true });
+  } catch (err) {
+    checks.push({
+      name: 'referral_table',
+      ok: false,
+      error: sanitizeDbError(err),
+      rawError: err instanceof Error ? err.message.slice(0, 500) : String(err),
+      code: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : undefined,
+    });
+  }
+
+  // Check 5: getOrCreateActiveRound (exercises GiveawayRound fully)
+  try {
+    await getOrCreateActiveRound();
+    checks.push({ name: 'get_or_create_active_round', ok: true });
+  } catch (err) {
+    checks.push({
+      name: 'get_or_create_active_round',
+      ok: false,
+      error: sanitizeDbError(err),
+      rawError: err instanceof Error ? err.message.slice(0, 500) : String(err),
+      code: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : undefined,
+    });
+  }
+
+  // Check 6: Verify tables exist via information_schema (raw SQL — bypasses Prisma)
+  const tableVerification: { table: string; exists: boolean }[] = [];
+  const expectedTables = ['User', 'GiveawayRound', 'GiveawayParticipant', 'Referral', 'UserStreak', 'TeamJoinRequest'];
+  for (const t of expectedTables) {
+    try {
+      const result = await db.$queryRaw<{ exists: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = current_schema()
+          AND table_name = ${t}
+        ) as exists
+      `;
+      tableVerification.push({ table: t, exists: !!result[0]?.exists });
+    } catch (err) {
+      tableVerification.push({ table: t, exists: false });
+    }
+  }
+
+  // Check 7: Current DB user + permissions (debug)
+  let dbUserInfo: { user?: string; dbName?: string; canCreateTable?: boolean; error?: string } = {};
+  try {
+    const sessionInfo = await db.$queryRaw<{ user: string; db: string }[]>`SELECT current_user as user, current_database() as db`;
+    dbUserInfo.user = sessionInfo[0]?.user;
+    dbUserInfo.dbName = sessionInfo[0]?.db;
+    // Try to actually CREATE a temp table to verify CREATE permission
+    try {
+      await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "_giveaway_diagnose_test" (id TEXT)');
+      await db.$executeRawUnsafe('DROP TABLE IF EXISTS "_giveaway_diagnose_test"');
+      dbUserInfo.canCreateTable = true;
+    } catch (err) {
+      dbUserInfo.canCreateTable = false;
+      dbUserInfo.error = err instanceof Error ? err.message.slice(0, 200) : String(err);
+    }
+  } catch (err) {
+    dbUserInfo.error = err instanceof Error ? err.message.slice(0, 200) : String(err);
+  }
+
+  const failing = checks.find(c => !c.ok);
+  return res.json({
+    ok: !failing,
+    checks,
+    failingCheck: failing?.name,
+    hint: failing?.error,
+    rawHint: failing?.rawError,
+    prismaCode: failing?.code,
+    tableVerification,
+    dbUserInfo,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * GET /api/giveaway/admin/diagnose
  * ADMIN ONLY — runs a series of DB probes and reports the FIRST one that
  * fails. Used by the GiveawayScreen admin panel to show a useful error
@@ -816,13 +1093,15 @@ router.get('/giveaway/admin/participants', async (req, res) => {
     }
 
     const round = await getOrCreateActiveRound();
-    const participants = await db.giveawayParticipant.findMany({
-      where: { giveawayRoundId: round.id },
-      include: {
-        user: { select: { id: true, playerCode: true, name: true, phone: true, isPremium: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const participants = await withSelfHeal(() =>
+      db.giveawayParticipant.findMany({
+        where: { giveawayRoundId: round.id },
+        include: {
+          user: { select: { id: true, playerCode: true, name: true, phone: true, isPremium: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
 
     return res.json({
       round: { id: round.id, roundNumber: round.roundNumber, endDate: round.endDate },

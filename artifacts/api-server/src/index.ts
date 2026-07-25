@@ -314,12 +314,57 @@ async function autoMigrate() {
     EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   ];
 
+  // Run giveaway/streak/team-join table creation — track success/failure counts
+  // so we can log a LOUD summary at the end. Previously we silently swallowed
+  // errors with `logger.warn` and never surfaced whether the migration worked.
+  let giveawaySuccess = 0;
+  let giveawayFailure = 0;
+  const giveawayFailures: { sql: string; err: string }[] = [];
   for (const sql of giveawayTableStatements) {
     try {
       await db.$executeRawUnsafe(sql);
-      logger.info({ sql: sql.slice(0, 100) }, 'auto-migrate: applied giveaway/streak/team-join table');
+      giveawaySuccess++;
+      logger.info({ sql: sql.slice(0, 80) }, 'auto-migrate: applied giveaway/streak/team-join table');
     } catch (err) {
-      logger.warn({ err: String(err).slice(0, 200), sql: sql.slice(0, 100) }, 'auto-migrate: giveaway/streak/team-join table skipped');
+      giveawayFailure++;
+      const errStr = String(err).slice(0, 500); // bumped from 200 → 500 for debugging
+      giveawayFailures.push({ sql: sql.slice(0, 80), err: errStr });
+      logger.warn({ err: errStr, sql: sql.slice(0, 80) }, 'auto-migrate: giveaway/streak/team-join table FAILED');
+    }
+  }
+  logger.info(
+    { total: giveawayTableStatements.length, success: giveawaySuccess, failure: giveawayFailure },
+    'auto-migrate: GIVEAWAY/STREAK/TEAM-JOIN SUMMARY',
+  );
+  if (giveawayFailure > 0) {
+    logger.error(
+      { failures: giveawayFailures },
+      'auto-migrate: GIVEAWAY TABLE CREATION HAD FAILURES — giveaway endpoints may 500. See /api/giveaway/diagnose-public for details.',
+    );
+  }
+
+  // POST-MIGRATION VERIFICATION — query information_schema to confirm the
+  // tables ACTUALLY exist (the CREATE TABLE could have failed silently even
+  // if no error was thrown, e.g. due to a connection pooler quirk). Log a
+  // clear PASS/FAIL for each expected table.
+  const expectedGiveawayTables = ['GiveawayRound', 'GiveawayParticipant', 'UserStreak', 'TeamJoinRequest'];
+  for (const t of expectedGiveawayTables) {
+    try {
+      const result = await db.$queryRaw<{ exists: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = current_schema()
+          AND table_name = ${t}
+        ) as exists
+      `;
+      const exists = !!result[0]?.exists;
+      if (exists) {
+        logger.info({ table: t }, 'auto-migrate: VERIFY table exists ✓');
+      } else {
+        logger.error({ table: t }, 'auto-migrate: VERIFY table MISSING ✗ — giveaway endpoints will 500!');
+      }
+    } catch (err) {
+      logger.error({ table: t, err: String(err).slice(0, 200) }, 'auto-migrate: VERIFY failed to check table existence');
     }
   }
 
