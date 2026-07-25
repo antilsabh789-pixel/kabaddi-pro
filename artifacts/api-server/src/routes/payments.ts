@@ -6,8 +6,13 @@ const router = Router();
 
 const PLAN_PRICES: Record<string, number> = { daily: 200, weekly: 2700, monthly: 9900, yearly: 99900, lifetime: 329900 };
 const PLAN_AMOUNTS_INR: Record<string, string> = { daily: '2.00', weekly: '27.00', monthly: '99.00', yearly: '999.00', lifetime: '3299.00' };
-const VALID_COUPONS: Record<string, { discount: number; type: 'percent' | 'flat' }> = {
-  'KABADDI50': { discount: 50, type: 'percent' }, 'FIRST100': { discount: 100, type: 'flat' }, 'PRO2025': { discount: 25, type: 'percent' }, 'LAUNCH20': { discount: 20, type: 'percent' },
+const VALID_COUPONS: Record<string, { discount: number; type: 'percent' | 'flat'; applicablePlans?: string[] }> = {
+  'KABADDI50': { discount: 50, type: 'percent' },
+  'FIRST100': { discount: 100, type: 'flat' },
+  'PRO2025': { discount: 25, type: 'percent' },
+  'LAUNCH20': { discount: 20, type: 'percent' },
+  // 98% off — Lifetime plan only. ₹3299 → ₹66 (saves ₹3233).
+  'LIFETIME98': { discount: 98, type: 'percent', applicablePlans: ['lifetime'] },
 };
 
 function getCashfreeConfig() {
@@ -65,6 +70,10 @@ function calculateDiscount(plan: string, couponCode?: string): { discountPaise: 
   const upperCode = couponCode.toUpperCase();
   if (VALID_COUPONS[upperCode]) {
     const coupon = VALID_COUPONS[upperCode];
+    // Plan-restricted coupons (e.g. LIFETIME98) only apply to the listed plans.
+    if (coupon.applicablePlans && !coupon.applicablePlans.includes(plan)) {
+      return { discountPaise: 0, finalPaise: basePaise };
+    }
     const discountPaise = coupon.type === 'flat' ? coupon.discount * 100 : Math.floor((basePaise * coupon.discount) / 100);
     return { discountPaise, finalPaise: Math.max(0, basePaise - discountPaise) };
   }
