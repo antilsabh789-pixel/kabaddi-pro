@@ -48,6 +48,27 @@ async function autoMigrate() {
     // a non-registered player by phone. They get upgraded in place on real
     // signup. See schema.prisma for the full rationale.
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "provisional" BOOLEAN NOT NULL DEFAULT false`,
+    // GiveawayParticipant.entryType — distinguishes free / referral / premium_direct / paid entries.
+    // Replaces the overloaded isPremium boolean (which was reused as a "paid ₹2" flag during the
+    // all-free refactor). The boolean is kept for backward compat with old admin queries.
+    `ALTER TABLE "giveaway_participants" ADD COLUMN IF NOT EXISTS "entryType" TEXT NOT NULL DEFAULT 'free'`,
+    // DiscountCode — new admin-managed coupon table (replaces hardcoded VALID_COUPONS).
+    `CREATE TABLE IF NOT EXISTS "DiscountCode" (
+      "id" TEXT NOT NULL,
+      "code" TEXT NOT NULL,
+      "discountType" TEXT NOT NULL,
+      "discountValue" INTEGER NOT NULL,
+      "maxUses" INTEGER NOT NULL DEFAULT 0,
+      "usedCount" INTEGER NOT NULL DEFAULT 0,
+      "minOrderAmount" INTEGER NOT NULL DEFAULT 0,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "expiresAt" TIMESTAMP(3),
+      "notes" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "DiscountCode_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "DiscountCode_code_key" ON "DiscountCode"("code")`,
   ];
 
   // The Attendance table's unique constraint changed from

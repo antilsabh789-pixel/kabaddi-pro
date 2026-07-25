@@ -132,19 +132,25 @@ async function countSuccessfulReferrals(userId: string): Promise<number> {
 
 /**
  * Count how many giveaway rounds a user has ALREADY entered using a REFERRAL entry.
- * We track this by writing `isPremium=false` on referral-funded entries and
- * `isPremium=true` on ₹2-fee-funded entries (the legacy field name is reused
- * as a "paid entry" flag — it has nothing to do with the old premium tier
- * anymore).
+ * We track this by writing `entryType='referral'` on referral-funded entries and
+ * `entryType='paid'` on ₹2-fee-funded entries. For backward compat with rows
+ * created before the entryType column existed (which all have entryType='free'
+ * as the default), we also count isPremium=false rows as referral-funded.
  */
 async function countReferralEntriesUsed(userId: string): Promise<number> {
   return db.giveawayParticipant.count({
-    where: { userId, isPremium: false },
+    where: {
+      userId,
+      OR: [
+        { entryType: 'referral' },
+        { entryType: 'free', isPremium: false }, // legacy rows
+      ],
+    },
   });
 }
 
 /**
- * Count ALL past participations by this user (referral + paid).
+ * Count ALL past participations by this user (referral + paid + premium_direct + free).
  */
 async function countAllPastParticipations(userId: string): Promise<number> {
   return db.giveawayParticipant.count({
@@ -153,16 +159,43 @@ async function countAllPastParticipations(userId: string): Promise<number> {
 }
 
 /**
+ * Determine if a user is a PAID premium subscriber (not a free/streak/referral grant).
+ * Used to gate the "premium direct entry" path in the giveaway — paid-premium users
+ * get free direct entry to every round, no referral needed.
+ *
+ * Returns true if:
+ *   - premiumPlan is one of the paid plans (daily/weekly/monthly/yearly/lifetime), AND
+ *   - premiumExpiry is null (lifetime) OR in the future
+ *   - (streak/referral grants are NOT considered paid premium)
+ */
+async function isPaidPremiumUser(userId: string): Promise<boolean> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { premiumPlan: true, premiumExpiry: true, isAdmin: true },
+  });
+  if (!user) return false;
+  // Admins always get premium-direct entry (they're effectively lifetime premium).
+  if (user.isAdmin) return true;
+  const paidPlans = ['daily', 'weekly', 'monthly', 'yearly', 'lifetime'];
+  if (!user.premiumPlan || !paidPlans.includes(user.premiumPlan)) return false;
+  if (user.premiumPlan === 'lifetime') return true;
+  if (!user.premiumExpiry) return false;
+  return user.premiumExpiry.getTime() > Date.now();
+}
+
+/**
  * GET /api/giveaway/status
  * Returns the current active round, time remaining, participant count, prizes,
- * and the user's eligibility info (referral entries remaining, whether they can pay ₹2).
+ * and the user's eligibility info.
  *
- * NEW RULE (post-premium removal):
- *   - Every user gets ONE FREE entry the first time they ever participate.
- *   - After that, each round requires EITHER:
- *       (a) at least 1 unused successful referral, OR
- *       (b) a ₹2 entry fee (paid via Cashfree through /giveaway/create-entry-order).
- *   - There is no more "premium tier" — premium status is irrelevant for giveaway entry.
+ * NEW RULES (current):
+ *   - Every user gets ONE FREE entry the first time they ever participate (lifetime).
+ *   - PAID-PREMIUM users (active daily/weekly/monthly/yearly/lifetime plan) get
+ *     free DIRECT entry to every round — no referral needed.
+ *   - Otherwise, each round requires at least 1 unused successful referral.
+ *   - The ₹2 paid-entry path is REMOVED. The ₹2 daily plan still exists for
+ *     users who want to BUY 1-day premium (handled by /api/payments/create-order,
+ *     NOT by the giveaway).
  */
 router.get('/giveaway/status', async (req, res) => {
   try {
@@ -180,7 +213,8 @@ router.get('/giveaway/status', async (req, res) => {
     let blockReason = '';
     let freeEntryAvailable = false;
     let hasUsedFreeEntry = false;
-    const entryFeeInr = GIVEAWAY_ENTRY_FEE_INR;
+    let isPremiumUser = false;
+    let premiumDirectEntryAvailable = false;
 
     if (userId) {
       const existing = await db.giveawayParticipant.findUnique({
@@ -192,33 +226,38 @@ router.get('/giveaway/status', async (req, res) => {
       referralEntriesUsed = await countReferralEntriesUsed(userId);
       referralEntriesRemaining = Math.max(0, successfulReferrals - referralEntriesUsed);
 
-      // Every user gets 1 LIFETIME FREE entry (no referral, no ₹2 fee).
+      // Every user gets 1 LIFETIME FREE entry (no referral, no premium).
       const totalPastParticipations = await countAllPastParticipations(userId);
       hasUsedFreeEntry = totalPastParticipations > 0;
       freeEntryAvailable = !hasUsedFreeEntry;
 
+      // PAID-PREMIUM users get free direct entry to every round.
+      isPremiumUser = await isPaidPremiumUser(userId);
+      premiumDirectEntryAvailable = isPremiumUser;
+
       // Participation rules (evaluated in priority order):
       // 1. Already in this round → blocked
-      // 2. Free entry available → allowed (no other requirements)
-      // 3. Referral entries remaining → allowed (referral path)
-      // 4. Otherwise → still allowed via ₹2 fee (frontend will offer the option).
-      //    The backend never blocks a logged-in user from entering because they can
-      //    always pay ₹2. We only set blockReason for the UI to know which CTA to show.
+      // 2. Free entry available → allowed (one-time lifetime free entry)
+      // 3. Paid-premium user → allowed (premium direct entry, no referral needed)
+      // 4. Referral entries remaining → allowed (referral path)
+      // 5. Otherwise → blocked. (The ₹2 paid-entry path was removed.)
       if (hasParticipated) {
         canParticipate = false;
         blockReason = 'already_participated';
       } else if (freeEntryAvailable) {
         canParticipate = true;
         blockReason = '';
+      } else if (premiumDirectEntryAvailable) {
+        canParticipate = true;
+        blockReason = '';
       } else if (referralEntriesRemaining > 0) {
         canParticipate = true;
         blockReason = ''; // referral path available
       } else {
-        // No referral entries left — user must pay ₹2. Backend still reports
-        // canParticipate=true because the ₹2 path is always open. The frontend
-        // uses blockReason to decide which button to show (Pay ₹2 vs Participate).
-        canParticipate = true;
-        blockReason = 'payment_required';
+        // No free entry, no premium, no referral entries left.
+        // Tell the user they need either premium or a referral.
+        canParticipate = false;
+        blockReason = 'referral_or_premium_required';
       }
     }
 
@@ -270,9 +309,10 @@ router.get('/giveaway/status', async (req, res) => {
       referralEntriesRemaining,
       freeEntryAvailable, // true if user hasn't used their 1 lifetime free entry
       hasUsedFreeEntry,
+      isPremiumUser, // true if user has an active paid-premium plan (or is admin)
+      premiumDirectEntryAvailable, // true if user can enter this round free via premium
       canParticipate,
-      blockReason, // '', 'already_participated', 'payment_required'
-      entryFeeInr, // '2.00' — shown in the UI
+      blockReason, // '', 'already_participated', 'referral_or_premium_required'
       pastWinners,
     });
   } catch (error) {
@@ -283,17 +323,18 @@ router.get('/giveaway/status', async (req, res) => {
 
 /**
  * POST /api/giveaway/participate
- * User joins the current giveaway round using a REFERRAL entry (or their one-time free entry).
+ * User joins the current giveaway round using one of:
+ *   - 'free'           — one-time lifetime free entry (only if never participated before)
+ *   - 'premium_direct' — paid-premium users get free direct entry to every round
+ *   - 'referral'       — consumes 1 successful-referral slot
  *
- * Rules (post-premium removal):
- *   - If the user has never participated in ANY round before → FREE entry (lifetime, one-time).
- *   - Else if the user has at least 1 unused successful referral → consume one referral entry.
- *   - Else → REJECT with blockReason='payment_required'. The frontend should redirect to
- *     /giveaway/create-entry-order to collect the ₹2 fee instead.
+ * The ₹2 paid-entry path is REMOVED. Users who want premium can buy it via
+ * /api/payments/create-order (daily plan = ₹2 for 1 day).
  *
- * The `isPremium` field on GiveawayParticipant is now used as a "paid entry" flag:
- *   - isPremium=false → referral-funded entry (free entry counts as referral-funded here)
- *   - isPremium=true  → ₹2-fee-funded entry (set by /giveaway/verify-entry-payment)
+ * The `entryType` field on GiveawayParticipant records which path was used.
+ * The legacy `isPremium` boolean is also set for backward compat with old admin queries:
+ *   - isPremium=false for free / referral / premium_direct (none of these are ₹2-paid)
+ *   - isPremium=true only for legacy 'paid' rows created before this refactor
  */
 router.post('/giveaway/participate', async (req, res) => {
   try {
@@ -314,29 +355,36 @@ router.post('/giveaway/participate', async (req, res) => {
     });
     if (existing) return res.status(409).json({ error: 'Already participating in this round' });
 
-    // FREE ENTRY: 1 lifetime free entry for brand-new users.
+    // Determine entry path in priority order:
+    // 1. FREE ENTRY: 1 lifetime free entry for brand-new users.
+    // 2. PREMIUM DIRECT: paid-premium users get free direct entry to every round.
+    // 3. REFERRAL: consumes 1 successful-referral slot.
+    // 4. Otherwise → reject. Tell the user to either buy premium or refer a friend.
     const totalPastParticipations = await countAllPastParticipations(userId);
     const freeEntryAvailable = totalPastParticipations === 0;
+    let chosenEntryType: 'free' | 'premium_direct' | 'referral';
 
-    if (!freeEntryAvailable) {
-      // Need a referral entry — if none left, reject and tell the client to pay ₹2.
+    if (freeEntryAvailable) {
+      chosenEntryType = 'free';
+    } else if (await isPaidPremiumUser(userId)) {
+      chosenEntryType = 'premium_direct';
+    } else {
       const successfulReferrals = await countSuccessfulReferrals(userId);
       const referralEntriesUsed = await countReferralEntriesUsed(userId);
       const referralEntriesRemaining = Math.max(0, successfulReferrals - referralEntriesUsed);
-
       if (referralEntriesRemaining <= 0) {
         return res.status(403).json({
-          error: 'No referral entries left. Pay a ₹2 entry fee to participate in this round.',
-          blockReason: 'payment_required',
+          error: 'No free entry, no premium, and no referral entries left. Buy premium (₹2 for 1 day) or refer a friend to participate.',
+          blockReason: 'referral_or_premium_required',
           successfulReferrals,
           referralEntriesRemaining: 0,
-          entryFeeInr: GIVEAWAY_ENTRY_FEE_INR,
         });
       }
+      chosenEntryType = 'referral';
     }
 
-    // Create the participant record. isPremium=false means "referral-funded entry"
-    // (which includes the one-time free entry — both are non-paid).
+    // Create the participant record. isPremium=false for all new paths
+    // (the legacy isPremium=true was only ever set by the removed ₹2 paid flow).
     await db.giveawayParticipant.create({
       data: {
         giveawayRoundId: round.id,
@@ -344,6 +392,7 @@ router.post('/giveaway/participate', async (req, res) => {
         phone: user.phone,
         name: user.name,
         isPremium: false,
+        entryType: chosenEntryType,
       },
     });
 
@@ -358,9 +407,9 @@ router.post('/giveaway/participate', async (req, res) => {
     return res.json({
       success: true,
       participantCount,
-      freeEntryAvailable: false, // just used it (either the lifetime free one or a referral slot)
+      freeEntryAvailable: false, // just used it (either the lifetime free one, premium direct, or a referral slot)
       referralEntriesRemaining,
-      entryFundedBy: freeEntryAvailable ? 'free_entry' : 'referral',
+      entryFundedBy: chosenEntryType,
     });
   } catch (error) {
     console.error('Giveaway participate error:', error);

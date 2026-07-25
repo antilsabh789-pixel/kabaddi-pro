@@ -288,6 +288,24 @@ model Payment {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// ─── Discount Codes (admin-managed coupon system) ─────────────────────
+// Replaces the hardcoded VALID_COUPONS constant in payments.ts.
+// Admins can create percent-off or flat-amount-off codes with usage limits + expiry.
+model DiscountCode {
+  id            String    @id @default(cuid())
+  code          String    @unique // case-insensitive when validated (we upper() on insert + lookup)
+  discountType  String    // 'percent' | 'flat'
+  discountValue Int       // percent: 0-100 (e.g. 50 = 50% off); flat: amount in paise (e.g. 5000 = ₹50 off)
+  maxUses       Int       @default(0) // 0 = unlimited
+  usedCount     Int       @default(0)
+  minOrderAmount Int      @default(0) // minimum order amount in paise for the code to apply (0 = any)
+  isActive      Boolean   @default(true)
+  expiresAt     DateTime?
+  notes         String?   // admin-visible description
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 model Follow {
   id          String   @id @default(cuid())
   followerId  String   // the user who is following
@@ -809,7 +827,8 @@ model GiveawayParticipant {
   userId          String
   phone           String
   name            String?
-  isPremium       Boolean  @default(false)
+  isPremium       Boolean  @default(false) // legacy field — kept for backward compat with old admin queries
+  entryType       String   @default("free") // 'free' | 'referral' | 'premium_direct' | 'paid'
   createdAt       DateTime @default(now())
 
   giveawayRound GiveawayRound @relation(fields: [giveawayRoundId], references: [id], onDelete: Cascade)
