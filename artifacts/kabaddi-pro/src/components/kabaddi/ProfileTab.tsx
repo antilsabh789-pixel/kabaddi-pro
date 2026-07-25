@@ -199,6 +199,7 @@ const GIFT_PLANS: GiftPlan[] = [
 
 function PlayerSearchPanel() {
   const currentUser = useKabaddiStore((s) => s.currentUser);
+  const startChatWith = useKabaddiStore((s) => s.startChatWith);
   const { toast } = useToast();
 
   const [searchCode, setSearchCode] = useState('');
@@ -363,21 +364,43 @@ function PlayerSearchPanel() {
             </div>
 
             {/* Quick actions */}
-            <div className="flex gap-2 pt-2 border-t border-warm-100 dark:border-warm-700/50">
-              <a
-                href={`tel:${result.phone}`}
-                className="flex-1 py-2 rounded-lg bg-teal-500 text-white text-xs font-bold text-center hover:bg-teal-600 flex items-center justify-center gap-1"
+            <div className="space-y-2 pt-2 border-t border-warm-100 dark:border-warm-700/50">
+              {/* In-app chat — opens a DM with this player in the Chat tab.
+                  Most direct option: the player gets a notification inside
+                  the app, no phone number needed. */}
+              <button
+                onClick={() => {
+                  if (!result?.id) return;
+                  startChatWith({
+                    id: result.id,
+                    name: result.name,
+                    playerCode: result.playerCode,
+                    avatar: result.avatar,
+                  });
+                  toast({ title: 'Opening chat…', description: result.name || result.playerCode || 'Player' });
+                }}
+                disabled={result.id === currentUser?.id}
+                className="w-full py-2.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-xs font-bold text-center hover:opacity-90 disabled:opacity-40 flex items-center justify-center gap-1.5"
               >
-                <Phone className="w-3.5 h-3.5" /> Call
-              </a>
-              <a
-                href={`https://wa.me/${result.phone.replace(/[^\d]/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 py-2 rounded-lg bg-green-500 text-white text-xs font-bold text-center hover:bg-green-600 flex items-center justify-center gap-1"
-              >
-                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
-              </a>
+                <MessageCircle className="w-3.5 h-3.5" /> Chat in App
+                {result.id === currentUser?.id && <span className="text-[9px] opacity-80">(that's you)</span>}
+              </button>
+              <div className="flex gap-2">
+                <a
+                  href={`tel:${result.phone}`}
+                  className="flex-1 py-2 rounded-lg bg-teal-500 text-white text-xs font-bold text-center hover:bg-teal-600 flex items-center justify-center gap-1"
+                >
+                  <Phone className="w-3.5 h-3.5" /> Call
+                </a>
+                <a
+                  href={`https://wa.me/${result.phone.replace(/[^\d]/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-2 rounded-lg bg-green-500 text-white text-xs font-bold text-center hover:bg-green-600 flex items-center justify-center gap-1"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                </a>
+              </div>
             </div>
           </motion.div>
         )}

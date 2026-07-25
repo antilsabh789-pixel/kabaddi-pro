@@ -583,6 +583,12 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   const notifications = useKabaddiStore((s) => s.notifications);
   const activeMatch = useKabaddiStore((s) => s.activeMatch);
   const language = useKabaddiStore((s) => s.language);
+  // Watch the cross-tab chat launcher. When the admin taps "Chat" on a
+  // player in Profile → Player Lookup, the store's pendingChatTarget is
+  // set and activeTab switches to 'home'. We auto-open ChatScreen below
+  // (after showChat state is declared) so the admin jumps straight into
+  // a DM with that player.
+  const pendingChatTarget = useKabaddiStore((s) => s.pendingChatTarget);
   const { toast } = useToast();
 
   const isPremium = currentUser?.isPremium || currentUser?.isAdmin || false;
@@ -666,6 +672,12 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   // ReferralScreen directly so the choice actually completes in one tap.
   const [showReferral, setShowReferral] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  // Auto-open ChatScreen when a cross-tab chat target is pending (set by
+  // Profile → Player Lookup → Chat button). ChatScreen consumes the
+  // target on mount and clears it from the store.
+  useEffect(() => {
+    if (pendingChatTarget) setShowChat(true);
+  }, [pendingChatTarget]);
   const [giveawayWinners, setGiveawayWinners] = useState<Array<{
     roundNumber: number; rank: number; playerId: string; prize: string;
   }>>([]);

@@ -96,6 +96,8 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const language = useKabaddiStore((s) => s.language);
   const addNotification = useKabaddiStore((s) => s.addNotification);
+  const pendingChatTarget = useKabaddiStore((s) => s.pendingChatTarget);
+  const clearPendingChatTarget = useKabaddiStore((s) => s.clearPendingChatTarget);
   const { toast } = useToast();
 
   // Inbox state
@@ -220,6 +222,30 @@ export default function ChatScreen({ onClose }: { onClose?: () => void } = {}) {
     // Refresh inbox to reflect cleared unread badge
     fetchThreads();
   }, [fetchThreads]);
+
+  // ─── Consume a pending chat target (set by Player Lookup → Chat) ──
+  // When the admin taps "Chat" on a player in the Player Lookup panel,
+  // the store's `pendingChatTarget` is set and the active tab is switched
+  // to 'home' so ChatScreen mounts. Here we auto-start the conversation
+  // with that target. The dependency array includes startConversation so
+  // we wait until it's stable before consuming. The guard prevents double
+  // execution in StrictMode.
+  const consumedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingChatTarget || !currentUser?.id) return;
+    if (consumedRef.current === pendingChatTarget.id) return;
+    consumedRef.current = pendingChatTarget.id;
+    const target = pendingChatTarget;
+    // Clear immediately so a re-mount doesn't re-trigger
+    clearPendingChatTarget();
+    startConversation({
+      id: target.id,
+      name: target.name,
+      playerCode: target.playerCode,
+      avatar: target.avatar,
+      role: 'player',
+    });
+  }, [pendingChatTarget, currentUser?.id, startConversation, clearPendingChatTarget]);
 
   // ─── Handle incoming chat notifications (sent from the backend) ──
   // The backend pushes a row into the Notification table; we don't poll

@@ -207,6 +207,17 @@ interface KabaddiState {
   // Navigation
   activeTab: TabId;
 
+  // Cross-tab chat launcher — when set, HomeTab opens ChatScreen and
+  // ChatScreen auto-starts a conversation with this user. Used by admin
+  // Player Lookup panel's "Chat" button so the admin can jump straight
+  // into a DM with a searched player.
+  pendingChatTarget: {
+    id: string;
+    name: string | null;
+    playerCode: string | null;
+    avatar: string | null;
+  } | null;
+
   // Active Match
   activeMatch: ActiveMatch | null;
 
@@ -247,6 +258,10 @@ interface KabaddiState {
   setOnboarded: (value?: boolean) => void;
   updateUser: (data: Partial<CurrentUser>) => void;
   setActiveTab: (tab: TabId) => void;
+  // Sets a pending chat target and switches to the Home tab so ChatScreen
+  // mounts and auto-starts a conversation. Clears itself once consumed.
+  startChatWith: (target: { id: string; name: string | null; playerCode: string | null; avatar: string | null }) => void;
+  clearPendingChatTarget: () => void;
   setHasSeenSplash: (value: boolean) => void;
   initiateToss: (matchConfig: Omit<ActiveMatch, 'isLive' | 'currentHalf' | 'timer' | 'homeScore' | 'awayScore' | 'events' | 'raidQueue' | 'isDoOrDie' | 'doOrDieTeamId' | 'homeTimeouts' | 'awayTimeouts' | 'homeOutPlayers' | 'awayOutPlayers' | 'homeOutPlayerIds' | 'awayOutPlayerIds' | 'yellowCardSuspensions' | 'redCardExpulsions' | 'greenCardWarnings'>) => void;
   cancelToss: () => void;
@@ -616,6 +631,7 @@ export const useKabaddiStore = create<KabaddiState>()(
 
       // Navigation initial state
       activeTab: 'home' as TabId,
+      pendingChatTarget: null as KabaddiState['pendingChatTarget'],
 
       // Active match initial state
       activeMatch: null,
@@ -717,6 +733,7 @@ export const useKabaddiStore = create<KabaddiState>()(
           activeMatch: null,
           activeTab: 'home' as TabId,
           homeData: null,
+          pendingChatTarget: null,
         }),
 
       setOnboarded: (value = true) =>
@@ -730,6 +747,13 @@ export const useKabaddiStore = create<KabaddiState>()(
         })),
 
       setActiveTab: (tab) => set({ activeTab: tab }),
+
+      // Cross-tab chat launcher: stash the target user + jump to Home tab.
+      // HomeTab watches `pendingChatTarget` and opens ChatScreen, which
+      // consumes it on mount via startConversation().
+      startChatWith: (target) =>
+        set({ pendingChatTarget: target, activeTab: 'home' }),
+      clearPendingChatTarget: () => set({ pendingChatTarget: null }),
 
       setHasSeenSplash: (value: boolean) => set({ hasSeenSplash: value }),
 
