@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import {
   X,
@@ -293,6 +293,50 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
   const filteredNotifications = useMemo(() => {
     return chatNotifications.filter((n) => !dismissedIds.has(n.id));
   }, [chatNotifications, dismissedIds]);
+
+  // ─── Auto-mark-as-read on panel open (WhatsApp behavior) ───────────
+  // When the user opens the bell panel, they've SEEN the notifications.
+  // We mark every visible chat notification as read — both locally and
+  // on the backend — so the bell badge clears immediately and the same
+  // notification doesn't reappear as unread on the next app open.
+  //
+  // This fixes the "every time I open the app it shows the notification
+  // even though I've seen it" bug, which happened when a user opened
+  // the bell panel, SAW the notification, but closed the panel without
+  // tapping it or clicking "Mark all read". The notification stayed
+  // unread locally AND on the backend, so it reappeared on every app
+  // open (especially after localStorage was cleared or on a new device,
+  // where the local `read: true` flag was lost).
+  //
+  // Re-fires when chatNotifications changes (e.g. sync brings in
+  // notifications after the panel opened). The body is idempotent —
+  // it only touches notifications that are still unread — so re-firing
+  // is harmless. If a brand-new chat message arrives while the panel
+  // is open, it gets auto-marked as read too, which matches WhatsApp
+  // inbox behavior.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const unreadChatNotifications = chatNotifications.filter((n) => !n.read);
+    if (unreadChatNotifications.length === 0) return;
+
+    // Local update (instant UI feedback — bell badge clears right away)
+    useKabaddiStore.setState((state) => ({
+      notifications: state.notifications.map((n) =>
+        n.type === 'chat' && !n.read ? { ...n, read: true } : n
+      ),
+    }));
+
+    // Backend update (best-effort, fire-and-forget). Use markAllRead so
+    // we don't fire N separate PATCHes for N unread notifications.
+    // Non-chat notifications are also marked read server-side, which is
+    // benign — they're hidden from this panel anyway and the user has
+    // effectively "seen" them by opening the app.
+    fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, markAllRead: true }),
+    }).catch(() => { /* ignore — best-effort, local state already updated */ });
+  }, [currentUser?.id, chatNotifications]);
 
   const handleMarkRead = useCallback(
     (id: string) => {

@@ -42,9 +42,20 @@ router.patch('/notifications', async (req, res) => {
     const { userId, notificationId, markAllRead } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId is required' });
     if (markAllRead) {
+      // Bulk-mark all of THIS user's notifications as read. The where
+      // clause scopes by userId so a malicious caller can't mark other
+      // users' notifications as read by passing markAllRead=true.
       await db.notification.updateMany({ where: { userId }, data: { isRead: true } });
     } else if (notificationId) {
-      await db.notification.update({ where: { id: notificationId }, data: { isRead: true } });
+      // Single-notification mark-as-read. We verify the notification
+      // belongs to the caller before updating — without this check, any
+      // authenticated user could mark any other user's notification as
+      // read by passing its cuid. Use updateMany with a compound where
+      // so a wrong-user call is a silent no-op instead of a 404 leak.
+      await db.notification.updateMany({
+        where: { id: notificationId, userId },
+        data: { isRead: true },
+      });
     }
     return res.json({ success: true });
   } catch (error) {

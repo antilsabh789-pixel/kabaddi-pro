@@ -1266,12 +1266,45 @@ export const useKabaddiStore = create<KabaddiState>()(
 
           let added = 0;
           set((state) => {
-            const existingIds = new Set(state.notifications.map((n) => n.id));
-            const newOnes = mapped.filter((n) => !existingIds.has(n.id));
+            const existingById = new Map(state.notifications.map((n) => [n.id, n]));
+            const newOnes: AppNotification[] = [];
+            const updatedReadFlags: AppNotification[] = [];
+
+            for (const incoming of mapped) {
+              const local = existingById.get(incoming.id);
+              if (!local) {
+                // Brand-new notification from the backend — add it.
+                newOnes.push(incoming);
+              } else {
+                // Already exists locally. The backend may have marked it
+                // as read via a path the local store didn't see (e.g. the
+                // user opened the chat thread directly from the Chat tab,
+                // which makes the backend mark all chat notifications from
+                // that sender as read — see GET /chat/threads/:id/messages).
+                // Without this propagation, the local `read: false` copy
+                // would survive forever and the bell badge would keep
+                // showing the same notification as unread every time the
+                // app reopens — even though the user already saw it.
+                //
+                // We only flip false → true (never true → false), so a
+                // locally-read notification never un-reads itself.
+                if (!local.read && incoming.read) {
+                  updatedReadFlags.push({ ...local, read: true });
+                }
+              }
+            }
+
             added = newOnes.length;
-            if (added === 0) return {};
+            if (added === 0 && updatedReadFlags.length === 0) return {};
+
+            // Build the merged array:
+            // 1. New notifications (front, newest first)
+            // 2. Existing notifications, with read-flag updates applied
+            // 3. Cap at 50 to bound memory
+            const updatedById = new Map(updatedReadFlags.map((n) => [n.id, n]));
+            const mergedExisting = state.notifications.map((n) => updatedById.get(n.id) ?? n);
             return {
-              notifications: [...newOnes, ...state.notifications].slice(0, 50),
+              notifications: [...newOnes, ...mergedExisting].slice(0, 50),
             };
           });
           return added;
@@ -1283,8 +1316,11 @@ export const useKabaddiStore = create<KabaddiState>()(
 
       // ─── markBackendNotificationRead ───────────────────────────────
       // Best-effort PATCH to /api/notifications to mark one notification
-      // as read on the server, AND locally. Failures are silently ignored
-      // (the local state still updates so the UI is responsive).
+      // as read on the server, AND locally. Failures are logged (so we
+      // can diagnose "notification keeps reappearing" bugs) but not
+      // surfaced to the user — the local state still updates so the UI
+      // is responsive. The next sync will reconcile the read flag from
+      // the backend (see syncBackendNotifications).
       markBackendNotificationRead: (userId, notificationId) => {
         // Local update first (instant UI feedback)
         set((state) => ({
@@ -1292,13 +1328,18 @@ export const useKabaddiStore = create<KabaddiState>()(
             n.id === notificationId ? { ...n, read: true } : n
           ),
         }));
-        // Best-effort backend sync
+        // Best-effort backend sync. Log failures so we can spot
+        // patterns (e.g. backend returning 403 because the notification
+        // doesn't belong to this user, or 500s from a DB issue).
         if (!userId || !notificationId) return;
         fetch('/api/notifications', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, notificationId }),
-        }).catch(() => { /* ignore — best-effort */ });
+        }).catch((err) => {
+          console.warn('markBackendNotificationRead: PATCH failed (will reconcile on next sync):',
+            String(err).slice(0, 200));
+        });
       },
 
       setLanguage: (lang) => set({ language: lang }),
