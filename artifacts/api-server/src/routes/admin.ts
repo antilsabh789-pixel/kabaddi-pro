@@ -363,6 +363,157 @@ router.post('/admin/migrate-coaches-to-players', async (req, res) => {
 
 // ─── Ad Settings ────────────────────────────────────────────────────────────
 
+/**
+ * GET /api/admin/referral-leaderboard?adminId=...&limit=50
+ *
+ * Returns a leaderboard of users ranked by how many SUCCESSFUL referrals
+ * they have (i.e. referrals where someone actually signed up using their
+ * code — `referredId` is not null).
+ *
+ * For each referrer we return:
+ *   - rank (1-based, computed after sorting)
+ *   - id, name, playerCode, avatar, phone (admin can see full phone)
+ *   - successfulReferrals — count of referrals with referredId != null
+ *   - totalReferralCodes — total referral records they've created
+ *   - totalPremiumDaysEarned — sum of premiumDays across successful referrals
+ *   - latestReferralAt — most recent successful referral timestamp
+ *
+ * Query params:
+ *   adminId (required) — must be an admin
+ *   limit   (default 50, max 200) — how many top referrers to return
+ *
+ * Response: {
+ *   leaderboard: [{ rank, id, name, playerCode, avatar, phone,
+ *                    successfulReferrals, totalReferralCodes,
+ *                    totalPremiumDaysEarned, latestReferralAt }],
+ *   totalReferrers: number,    // users with >= 1 successful referral
+ *   totalSuccessfulReferrals: number,  // sum of successfulReferrals across all
+ *   generatedAt: string (ISO),
+ * }
+ */
+router.get('/admin/referral-leaderboard', async (req, res) => {
+  try {
+    const adminId = (req.query['adminId'] as string) || '';
+    const limit = Math.min(200, Math.max(1, parseInt((req.query['limit'] as string) || '50', 10)));
+
+    if (!adminId) return res.status(400).json({ error: 'adminId is required' });
+
+    const admin = await db.user.findUnique({ where: { id: adminId }, select: { isAdmin: true } });
+    if (!admin || !admin.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Group ALL referral records by referrerId. We need:
+    //   - successfulReferrals: count where referredId != null
+    //   - totalPremiumDaysEarned: sum of premiumDays where referredId != null
+    //   - latestReferralAt: max(completedAt || createdAt) where referredId != null
+    //   - totalReferralCodes: count of all referral records for this referrer
+    //
+    // We fetch all referrals (with referrer user data) and aggregate in JS.
+    // This is fine because the Referral table is small (1 row per code +
+    // 1 row per successful referral — bounded by user count).
+    const referrals = await db.referral.findMany({
+      select: {
+        referrerId: true,
+        referredId: true,
+        premiumDays: true,
+        createdAt: true,
+        completedAt: true,
+        status: true,
+        referrer: {
+          select: {
+            id: true,
+            name: true,
+            playerCode: true,
+            avatar: true,
+            phone: true,
+            isPremium: true,
+            premiumPlan: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    // Aggregate per referrer
+    const byReferrer = new Map<string, {
+      referrer: typeof referrals[number]['referrer'];
+      successfulReferrals: number;
+      totalReferralCodes: number;
+      totalPremiumDaysEarned: number;
+      latestReferralAt: Date | null;
+    }>();
+
+    for (const r of referrals) {
+      const existing = byReferrer.get(r.referrerId);
+      const success = r.referredId !== null;
+      const ts = r.completedAt || r.createdAt;
+      if (existing) {
+        existing.totalReferralCodes += 1;
+        if (success) {
+          existing.successfulReferrals += 1;
+          existing.totalPremiumDaysEarned += r.premiumDays || 0;
+          if (ts && (!existing.latestReferralAt || ts > existing.latestReferralAt)) {
+            existing.latestReferralAt = ts;
+          }
+        }
+      } else {
+        byReferrer.set(r.referrerId, {
+          referrer: r.referrer,
+          successfulReferrals: success ? 1 : 0,
+          totalReferralCodes: 1,
+          totalPremiumDaysEarned: success ? (r.premiumDays || 0) : 0,
+          latestReferralAt: success ? ts : null,
+        });
+      }
+    }
+
+    // Build leaderboard array — only include referrers with >= 1 SUCCESSFUL
+    // referral. Sort by successfulReferrals desc, then by totalPremiumDaysEarned
+    // desc, then by latestReferralAt desc (most recent activity wins ties).
+    const leaderboard = Array.from(byReferrer.values())
+      .filter(e => e.successfulReferrals > 0)
+      .sort((a, b) => {
+        if (b.successfulReferrals !== a.successfulReferrals) return b.successfulReferrals - a.successfulReferrals;
+        if (b.totalPremiumDaysEarned !== a.totalPremiumDaysEarned) return b.totalPremiumDaysEarned - a.totalPremiumDaysEarned;
+        const aTime = a.latestReferralAt ? a.latestReferralAt.getTime() : 0;
+        const bTime = b.latestReferralAt ? b.latestReferralAt.getTime() : 0;
+        return bTime - aTime;
+      })
+      .slice(0, limit)
+      .map((entry, idx) => ({
+        rank: idx + 1,
+        id: entry.referrer.id,
+        name: entry.referrer.name,
+        playerCode: entry.referrer.playerCode,
+        avatar: entry.referrer.avatar,
+        phone: entry.referrer.phone,
+        isPremium: entry.referrer.isPremium,
+        premiumPlan: entry.referrer.premiumPlan,
+        memberSince: entry.referrer.createdAt,
+        successfulReferrals: entry.successfulReferrals,
+        totalReferralCodes: entry.totalReferralCodes,
+        totalPremiumDaysEarned: entry.totalPremiumDaysEarned,
+        latestReferralAt: entry.latestReferralAt,
+      }));
+
+    const totalSuccessfulReferrals = Array.from(byReferrer.values())
+      .reduce((sum, e) => sum + e.successfulReferrals, 0);
+
+    return res.json({
+      leaderboard,
+      totalReferrers: byReferrer.size,
+      totalSuccessfulReferrals,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Admin referral-leaderboard error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Ad Settings (continued) ────────────────────────────────────────────────
+
 router.get('/ads/config', async (req, res) => {
   try {
     const keys = ['ads_enabled', 'adsense_publisher_id', 'home_banner_slot', 'feed_native_slot', 'profile_banner_slot'];
