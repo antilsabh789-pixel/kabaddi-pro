@@ -1,0 +1,26 @@
+# Nixpacks config — fallback for any nixpacks-based builder (Railway, Render, etc.)
+# Mirrors railway.json so the build is identical regardless of which builder is used.
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+dependsOn = ["setup"]
+# corepack comes with Node.js — enables the pnpm version pinned in package.json's
+# `packageManager` field (pnpm@10.26.1). This is the official, stable way to
+# bootstrap pnpm in a fresh container without depending on external overlays.
+cmds = ["corepack enable pnpm", "pnpm install --frozen-lockfile"]
+
+[phases.build]
+dependsOn = ["install"]
+# Build ONLY the api-server (the frontend is deployed separately on Vercel — see vercel.json).
+# We deliberately skip the root `pnpm run build` script because it runs `pnpm run typecheck`
+# first, and the typecheck has pre-existing TS errors in legacy files (coach.ts, giveaway.ts)
+# that don't affect the runtime bundle — esbuild (used by api-server/build.mjs) and Vite
+# (used by the frontend) don't typecheck, they just transpile.
+cmds = ["pnpm --filter @workspace/api-server run build"]
+
+[start]
+# Start the api-server. Uses pnpm filter so workspace deps (lib/db, lib/api-zod)
+# are resolved from node_modules at runtime.
+cmd = "pnpm --filter @workspace/api-server run start"

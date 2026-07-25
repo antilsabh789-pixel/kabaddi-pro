@@ -1,0 +1,25 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pnpm --filter @workspace/api-server run build",
+    "watchPatterns": [
+      "artifacts/api-server/src/**",
+      "artifacts/api-server/prisma/**",
+      "artifacts/api-server/build.mjs",
+      "artifacts/api-server/package.json",
+      "lib/db/**",
+      "lib/api-zod/**",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "package.json"
+    ]
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @workspace/api-server run start",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "healthcheckPath": "/api/healthz",
+    "healthcheckTimeout": 30
+  }
+}
