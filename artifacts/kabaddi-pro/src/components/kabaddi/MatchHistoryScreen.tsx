@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useKabaddiStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
+import MatchDetailsScreen from './MatchDetailsScreen';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -341,6 +342,12 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
   // Delete confirmation + in-flight state for inline card delete
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Match details modal — when a user taps a match card we now open the same
+  // 4-tab MatchDetailsScreen modal that HomeTab and ProfileTab use, instead
+  // of just expanding the card inline. This makes the scorecard open
+  // identically no matter which entry point the user taps it from.
+  const [showMatchDetails, setShowMatchDetails] = useState(false);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const PAGE_SIZE = 10;
@@ -540,9 +547,13 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
     fetchMatches(newOffset, true);
   };
 
-  // Toggle expand
+  // Open the 4-tab MatchDetailsScreen modal (Awards / Scorecard / Commentary
+  // / Summary) — same view that opens when tapping a match in HomeTab or
+  // ProfileTab. Previously this just toggled an inline expand which looked
+  // different from every other entry point.
   const handleMatchClick = (matchId: string) => {
-    setExpandedMatchId((prev) => (prev === matchId ? null : matchId));
+    setSelectedMatchId(matchId);
+    setShowMatchDetails(true);
   };
 
   // ── Delete match (inline from feed card) ─────────────────────────────────
@@ -788,20 +799,24 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                 )}
               </div>
               <div className="flex items-center gap-1 text-[10px] text-warm-400 dark:text-warm-500">
-                {/* Admin / scorer delete button. stopPropagation so it doesn't toggle expand. */}
+                {/* Admin / scorer delete button. stopPropagation so it doesn't
+                    trigger the parent Card's onClick (which now opens the
+                    MatchDetailsScreen modal). e.preventDefault() is also
+                    called for extra safety on touch devices. */}
                 {canDeleteMatch(match) && pendingDeleteId !== match.id && (
                   <button
                     type="button"
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       setPendingDeleteId(match.id);
                     }}
                     disabled={deletingId === match.id}
                     title={isAdmin && !match.scorers.some((s) => s.userId === currentUser?.id) ? 'Admin: delete this match' : 'Delete this match'}
-                    className="mr-1 px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1 disabled:opacity-50"
+                    className="mr-1 px-2 py-1 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1 disabled:opacity-50 min-h-[24px]"
                   >
                     <Trash2 className="w-3 h-3" />
-                    {isAdmin && 'Del'}
+                    Delete
                   </button>
                 )}
                 <Calendar className="w-3 h-3" />
@@ -957,7 +972,7 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
                 ) : (
                   <ChevronDown className="w-3 h-3" />
                 )}
-                Details
+                Scorecard
               </span>
             </div>
 
@@ -1631,6 +1646,20 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
           )}
         </div>
       </div>
+
+      {/* Match Details modal — opens when a user taps a match card. Renders
+          the same 4-tab MatchDetailsScreen (Awards / Scorecard / Commentary
+          / Summary) that HomeTab and ProfileTab use, so the scorecard opens
+          identically no matter which entry point the user tapped it from. */}
+      {showMatchDetails && selectedMatchId && (
+        <MatchDetailsScreen
+          matchId={selectedMatchId}
+          onClose={() => {
+            setShowMatchDetails(false);
+            setSelectedMatchId(null);
+          }}
+        />
+      )}
     </motion.div>
   );
 }

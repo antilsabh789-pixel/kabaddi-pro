@@ -4667,6 +4667,17 @@ export default function ProfileTab() {
             setShowMatchDetails(false);
             setSelectedMatchId(null);
           }}
+          onViewPlayer={(userId) => {
+            // Close the match-details modal first so the player profile
+            // appears cleanly on top, mirroring HomeTab's behaviour where
+            // tapping a player name inside the scorecard opens the player's
+            // profile screen. Without this prop, ProfileTab's scorecard was
+            // silently different from HomeTab's (player taps did nothing).
+            setShowMatchDetails(false);
+            setSelectedMatchId(null);
+            setPlayerProfileUserId(userId);
+            setShowPlayerProfile(true);
+          }}
         />
       )}
     </div>

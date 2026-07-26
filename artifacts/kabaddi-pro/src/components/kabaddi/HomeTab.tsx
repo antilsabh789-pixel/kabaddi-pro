@@ -2041,12 +2041,44 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
 
                     {/* Result summary + actions */}
                     <div className="flex items-center justify-between px-3 py-2 border-t border-warm-100 dark:border-warm-700/50 bg-warm-50/50 dark:bg-warm-700/20">
-                      <p className="text-[10px] font-semibold text-warm-600 dark:text-warm-300 truncate">
+                      <p className="text-[10px] font-semibold text-warm-600 dark:text-warm-300 truncate flex-1 min-w-0">
                         {resultText}
                       </p>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-[10px] font-bold text-brand-teal">
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Delete button — must call e.stopPropagation() AND
+                            e.preventDefault() so the click does NOT bubble up
+                            to the parent motion.div's onClick (which opens
+                            the scorecard). Previously this section had NO
+                            delete button at all, so users trying to delete
+                            from here had no way to do so. */}
+                        {canDeleteMatch(null) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setPendingDeleteMatch({
+                                id: match.id,
+                                homeTeamName: match.homeTeamName,
+                                awayTeamName: match.awayTeamName,
+                                status: 'completed',
+                              });
+                            }}
+                            disabled={deletingMatchId === match.id}
+                            title="Delete this match"
+                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50 transition-colors"
+                          >
+                            {deletingMatchId === match.id ? (
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3" />
+                            )}
+                            Delete
+                          </button>
+                        )}
+                        <span className="text-[10px] font-bold text-brand-teal flex items-center gap-0.5">
                           Scorecard
+                          <ChevronRight className="w-3 h-3" />
                         </span>
                       </div>
                     </div>
@@ -2239,11 +2271,19 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                             )}
                           </div>
                           <div className="flex items-center gap-1.5">
-                            {/* Delete (admin / scorer-of-match only) */}
+                            {/* Delete (admin / scorer-of-match only)
+                                e.preventDefault() AND e.stopPropagation() so
+                                the tap NEVER bubbles up to the parent Card's
+                                onClick (which would open the live scoreboard
+                                instead of the delete confirmation). The
+                                button also has a larger hit area + visible
+                                "Delete" label so users don't miss-tap onto
+                                the surrounding card. */}
                             {canDeleteMatch(match) && (
                               <button
                                 type="button"
                                 onClick={(e) => {
+                                  e.preventDefault();
                                   e.stopPropagation();
                                   setPendingDeleteMatch({
                                     id: match.id,
@@ -2254,10 +2294,14 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                                 }}
                                 disabled={deletingMatchId === match.id}
                                 title={isAdminOverride(match) ? 'Admin: delete this live match' : 'Delete this live match'}
-                                className="px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1 disabled:opacity-50"
+                                className="px-2 py-1 rounded-md bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1 disabled:opacity-50 min-h-[24px]"
                               >
-                                <Trash2 className="w-3 h-3" />
-                                {isAdminOverride(match) ? 'Del' : ''}
+                                {deletingMatchId === match.id ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3 h-3" />
+                                )}
+                                Delete
                               </button>
                             )}
                             <span className="text-xs text-warm-500 dark:text-warm-400 font-medium bg-warm-200/50 dark:bg-warm-700/50 px-2 py-0.5 rounded-md">
@@ -2630,10 +2674,14 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                       {/* Match action buttons */}
                       <div className="flex items-center justify-end gap-1 mt-2">
                         {/* Delete (admin / scorer-of-match only) — placed first
-                            so it's the leftmost action button, easy to spot. */}
+                            so it's the leftmost action button, easy to spot.
+                            Uses e.preventDefault() AND e.stopPropagation() so
+                            the tap NEVER bubbles up to the parent Card's
+                            onClick (which would open the scorecard). */}
                         {canDeleteMatch(match) && (
                           <button
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                               setPendingDeleteMatch({
                                 id: match.id,
@@ -2643,7 +2691,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                               });
                             }}
                             disabled={deletingMatchId === match.id}
-                            className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                            className={`px-2 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 text-[10px] font-bold min-h-[28px] ${
                               isAdminOverride(match)
                                 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
                                 : 'hover:bg-red-100 dark:hover:bg-red-900/30 text-warm-400 hover:text-red-500'
@@ -2655,6 +2703,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                             ) : (
                               <Trash2 className="w-3.5 h-3.5" />
                             )}
+                            Delete
                           </button>
                         )}
                         <button
@@ -2875,6 +2924,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                                   : 'text-red-500 hover:text-white hover:bg-red-500 border-red-500/30 hover:border-red-500'
                               }`}
                               onClick={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 setPendingDeleteMatch({
                                   id: match.id,
