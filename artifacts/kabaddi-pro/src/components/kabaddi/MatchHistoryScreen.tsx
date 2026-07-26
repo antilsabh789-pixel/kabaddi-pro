@@ -546,11 +546,14 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
   };
 
   // ── Delete match (inline from feed card) ─────────────────────────────────
-  // Backend enforces: scorer of the match OR admin can delete. We mirror that
-  // check here for UI affordance (hide the button entirely otherwise).
+  // Backend enforces: scorer of the match OR admin can delete, plus we
+  // allow deletion when no scorer is recorded (covers matches created
+  // before the MatchScorer linkage was added). We mirror that check here
+  // for UI affordance (hide the button entirely otherwise).
   const canDeleteMatch = (match: MatchItem): boolean => {
     if (!currentUser?.id) return false;
     if (isAdmin) return true;
+    if (!match.scorers || match.scorers.length === 0) return true;
     return match.scorers.some((s) => s.userId === currentUser.id);
   };
 

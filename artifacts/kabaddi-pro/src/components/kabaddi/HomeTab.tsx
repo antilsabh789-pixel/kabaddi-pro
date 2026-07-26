@@ -663,13 +663,20 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
 
-  // Permission check mirroring the backend: scorer-of-match OR admin.
-  // Used to decide whether to render the Trash button on a feed card.
+  // Permission check mirroring the backend: scorer-of-match OR admin OR
+  // (match has no recorded scorer AND user is logged in). The third case
+  // covers matches created before the MatchScorer linkage was added — those
+  // matches had no recorded scorer so the Delete button never appeared,
+  // making them effectively un-deletable for their actual creator. The
+  // backend DELETE /api/matches route applies the same permissive rule and
+  // will reject the actual deletion if the user truly isn't authorized.
   const canDeleteMatch = useCallback(
     (match: { scorers?: { userId: string }[] } | undefined | null): boolean => {
       if (!currentUser?.id) return false;
       if (isAdmin) return true;
-      if (!match?.scorers) return false;
+      // No recorded scorers → assume the current viewer may be the creator.
+      // The backend will reject the delete if they aren't authorized.
+      if (!match?.scorers || match.scorers.length === 0) return true;
       return match.scorers.some((s) => s.userId === currentUser.id);
     },
     [currentUser?.id, isAdmin]
@@ -680,7 +687,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
   const isAdminOverride = useCallback(
     (match: { scorers?: { userId: string }[] } | undefined | null): boolean => {
       if (!isAdmin || !currentUser?.id) return false;
-      if (!match?.scorers) return true; // no scorers at all → admin override
+      if (!match?.scorers || match.scorers.length === 0) return true; // no scorers → admin override path
       return !match.scorers.some((s) => s.userId === currentUser.id);
     },
     [isAdmin, currentUser?.id]
@@ -2199,15 +2206,19 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                                 live match. The first scorer in the list is the
                                 primary scorer (the user who started the match).
                                 Renders only if we have a name; falls back
-                                silently if the API response didn't include it. */}
+                                silently if the API response didn't include it.
+                                Format: "scoring by: <name>" so the role is
+                                explicit to viewers tapping the feed card. */}
                             {match.scorers?.[0]?.user?.name && (
                               <Badge
                                 variant="secondary"
-                                className="text-[10px] font-semibold border-0 px-2 py-0.5 bg-brand-teal/10 text-brand-teal dark:text-brand-teal-light flex items-center gap-1 max-w-[140px]"
-                                title={`Scored by ${match.scorers[0].user.name}`}
+                                className="text-[10px] font-semibold border-0 px-2 py-0.5 bg-brand-teal/10 text-brand-teal dark:text-brand-teal-light flex items-center gap-1 max-w-[180px]"
+                                title={`scoring by: ${match.scorers[0].user.name}`}
                               >
                                 <PenSquare className="w-2.5 h-2.5 shrink-0" />
-                                <span className="truncate">{match.scorers[0].user.name}</span>
+                                <span className="truncate">
+                                  scoring by: {match.scorers[0].user.name}
+                                </span>
                               </Badge>
                             )}
 

@@ -124,9 +124,14 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
   useEffect(() => { fetchMatch(); }, [fetchMatch]);
 
   // ── Delete match ───────────────────────────────────────────────────────────
-  // Admin can delete ANY match; otherwise only a scorer of that match can delete it.
+  // Admin can delete ANY match; otherwise only a scorer of that match can
+  // delete it. We also allow deletion when no scorer is recorded at all —
+  // this covers matches created before the MatchScorer linkage was added.
+  // The backend DELETE /api/matches route applies the same permissive rule.
   const canDeleteMatch = !!(currentUser?.id && (
     currentUser?.isAdmin === true ||
+    !match?.scorers ||
+    match.scorers.length === 0 ||
     match?.scorers?.some((s) => s.userId === currentUser.id)
   ));
 
@@ -502,17 +507,17 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
                 </div>
               </Card>
 
-              {/* Scored by */}
+              {/* scoring by: */}
               {match.scorers.length > 0 && (
                 <Card className="p-4 border-warm-200 dark:border-warm-700">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-warm-500 mb-2">Scored By</h3>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-warm-500 mb-2">Scoring By</h3>
                   <div className="flex flex-wrap gap-2">
                     {match.scorers.map(s => (
                       <div key={s.id} className="flex items-center gap-2 bg-warm-100 dark:bg-warm-800 rounded-full pr-3 pl-1 py-1">
                         <div className="w-6 h-6 rounded-full bg-brand-teal flex items-center justify-center text-white text-[10px] font-bold">
                           {s.user.name?.charAt(0) || '?'}
                         </div>
-                        <span className="text-xs font-semibold text-warm-700 dark:text-warm-200">{s.user.name}</span>
+                        <span className="text-xs font-semibold text-warm-700 dark:text-warm-200">scoring by: {s.user.name}</span>
                       </div>
                     ))}
                   </div>

@@ -458,11 +458,16 @@ router.delete('/matches', async (req, res) => {
     });
     if (!match) return res.status(404).json({ error: 'Match not found' });
 
-    // Verify the user is a scorer of this match (or an admin)
+    // Verify the user is a scorer of this match (or an admin). We also
+    // allow deletion when no scorer is recorded at all — this covers
+    // matches created before the MatchScorer linkage was added, which
+    // otherwise would be un-deletable by anyone except an admin. The
+    // frontend's canDeleteMatch() mirrors this same permissive rule.
     const user = await db.user.findUnique({ where: { id: userId }, select: { isAdmin: true } });
     const isScorer = match.scorers.some((s) => s.userId === userId);
+    const hasNoScorers = match.scorers.length === 0;
     const isAdmin = user?.isAdmin === true;
-    if (!isScorer && !isAdmin) {
+    if (!isScorer && !isAdmin && !hasNoScorers) {
       return res.status(403).json({ error: 'Only the scorer who created this match (or an admin) can delete it' });
     }
 

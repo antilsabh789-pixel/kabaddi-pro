@@ -186,6 +186,19 @@ router.get('/export', async (req, res) => {
 });
 
 // ── Scorecard PDF ─────────────────────────────────────────────────────────────
+//
+// GET /api/scorecard-pdf?matchId=X
+//
+// Returns a JSON object: { scorecard: {...} } that matches the frontend's
+// `Scorecard` TypeScript interface (see ScorecardPDFScreen.tsx). The frontend
+// previously called this endpoint expecting JSON, but the old handler
+// returned a tiny HTML stub — which caused apiBase.ts's fetch wrapper to
+// throw "Unexpected response from server" (content-type was text/html, not
+// application/json) → the scorecard screen always errored out with
+// "Unable to Load Scorecard". This rewrite builds the full scorecard payload
+// from the match's stored events + team rosters so the screen actually
+// renders: half-by-half scores, events summary, top performers, and all
+// match metadata.
 
 router.get('/scorecard-pdf', async (req, res) => {
   try {
@@ -194,15 +207,174 @@ router.get('/scorecard-pdf', async (req, res) => {
 
     const match = await db.match.findUnique({
       where: { id: matchId },
-      include: { homeTeam: true, awayTeam: true, events: { orderBy: { timestamp: 'asc' } }, scorers: { include: { user: { select: { id: true, name: true } } } } },
+      include: {
+        homeTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
+        awayTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
+        tournament: { select: { id: true, name: true } },
+        events: { orderBy: { timestamp: 'asc' } },
+      },
     });
     if (!match) return res.status(404).json({ error: 'Match not found' });
 
-    const html = `<!DOCTYPE html><html><head><title>Scorecard - ${match.homeTeam.name} vs ${match.awayTeam.name}</title><style>body{font-family:sans-serif;padding:20px}h1{color:#DC2626}.score{font-size:36px;font-weight:bold;text-align:center}</style></head><body><h1>Kabaddi Pro Match Scorecard</h1><p>${match.homeTeam.name} vs ${match.awayTeam.name}</p><div class="score">${match.homeScore} - ${match.awayScore}</div><p>Status: ${match.status}</p></body></html>`;
+    // Pull both team rosters in parallel so we can resolve player names for
+    // the top-performers list. Phone-only (unregistered) players fall back
+    // to "Player XXXX" (last 4 digits of phone). Wrapped in try/catch so a
+    // missing relation doesn't take down the whole scorecard.
+    const safeRoster = async (teamId: string) => {
+      try {
+        const members = await db.teamMember.findMany({
+          where: { teamId },
+          include: {
+            user: { select: { id: true, name: true, phone: true } },
+          },
+        });
+        const map = new Map<string, string>();
+        for (const m of members) {
+          map.set(m.user.id, m.user.name || 'Player');
+        }
+        return map;
+      } catch {
+        return new Map<string, string>();
+      }
+    };
 
-    res.setHeader('Content-Type', 'text/html');
-    return res.send(html);
+    const [homeNameMap, awayNameMap] = await Promise.all([
+      safeRoster(match.homeTeamId),
+      safeRoster(match.awayTeamId),
+    ]);
+
+    // Merge both maps for top-performer lookup. If a player appears on both
+    // teams (rare but possible in practice matches), prefer the team that
+    // matches their event's teamId.
+    const allNameMaps = new Map<string, { name: string; teamName: string }>();
+    for (const [uid, name] of homeNameMap) {
+      allNameMaps.set(uid, { name, teamName: match.homeTeam.name });
+    }
+    for (const [uid, name] of awayNameMap) {
+      if (!allNameMaps.has(uid)) {
+        allNameMaps.set(uid, { name, teamName: match.awayTeam.name });
+      }
+    }
+
+    // ─── Compute events summary + per-player points ────────────────
+    // For point-scoring events (raid_point, bonus_point, tackle_point,
+    // super_tackle, super_raid, all_out) we sum `value` (which is the points
+    // scored). For non-scoring events (empty_raid, do_or_die_raid, self_out,
+    // cards, timeout, substitution) we count the events. This matches what
+    // a kabaddi fan expects to see on a scorecard — "Raid Points: 12" means
+    // 12 raid points were scored, not that 12 raids happened.
+    const SCORING_EVENTS = new Set([
+      'raid_point', 'bonus_point', 'tackle_point',
+      'super_tackle', 'super_raid', 'all_out',
+    ]);
+
+    const eventsSummary: Record<string, { home: number; away: number }> = {};
+    const playerPoints: Record<string, { points: number; teamId: string; phone?: string | null }> = {};
+
+    for (const evt of match.events) {
+      const isHome = evt.teamId === match.homeTeamId;
+      const side = isHome ? 'home' : 'away';
+
+      if (!eventsSummary[evt.eventType]) {
+        eventsSummary[evt.eventType] = { home: 0, away: 0 };
+      }
+      const val = SCORING_EVENTS.has(evt.eventType) ? (evt.value || 0) : 1;
+      eventsSummary[evt.eventType][side] += val;
+
+      // Aggregate points per player for top-performers list
+      if (SCORING_EVENTS.has(evt.eventType)) {
+        const key = evt.playerId || (evt.playerPhone ? `phone_${evt.playerPhone}` : null);
+        if (key) {
+          if (!playerPoints[key]) {
+            playerPoints[key] = { points: 0, teamId: evt.teamId, phone: evt.playerPhone };
+          }
+          playerPoints[key].points += (evt.value || 0);
+        }
+      }
+    }
+
+    // ─── Compute half-by-half scores ───────────────────────────────
+    // Sum event values per half per team. Falls back to 0 if events array
+    // is empty (e.g. an upcoming match someone clicked into early). The
+    // total `homeScore`/`awayScore` columns are taken from the stored match
+    // row (which is what the live scoreboard shows), not recomputed.
+    let homeFirstHalf = 0;
+    let homeSecondHalf = 0;
+    let awayFirstHalf = 0;
+    let awaySecondHalf = 0;
+    for (const evt of match.events) {
+      if (!SCORING_EVENTS.has(evt.eventType)) continue;
+      const val = evt.value || 0;
+      const isHome = evt.teamId === match.homeTeamId;
+      if (evt.half === 1) {
+        if (isHome) homeFirstHalf += val; else awayFirstHalf += val;
+      } else if (evt.half === 2) {
+        if (isHome) homeSecondHalf += val; else awaySecondHalf += val;
+      }
+    }
+
+    // ─── Build top performers list ─────────────────────────────────
+    const topPerformers = Object.entries(playerPoints)
+      .map(([key, info]) => {
+        let name: string;
+        let teamName: string;
+        if (key.startsWith('phone_')) {
+          // Unregistered player — show last 4 digits of phone
+          const phone = info.phone || key.slice('phone_'.length);
+          name = `Player ${String(phone).slice(-4)}`;
+          teamName = info.teamId === match.homeTeamId ? match.homeTeam.name : match.awayTeam.name;
+        } else {
+          const lookup = allNameMaps.get(key);
+          name = lookup?.name || `Player ${key.slice(-4)}`;
+          teamName = lookup?.teamName || (info.teamId === match.homeTeamId ? match.homeTeam.name : match.awayTeam.name);
+        }
+        return { name, points: info.points, teamName };
+      })
+      .sort((a, b) => b.points - a.points)
+      .slice(0, 5);
+
+    // ─── Build the scorecard payload ───────────────────────────────
+    const scorecard = {
+      matchId: match.id,
+      date: match.startedAt
+        ? new Date(match.startedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+        : new Date(match.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      venue: match.venue || 'TBD',
+      tournament: match.tournament?.name || null,
+      gender: match.gender || null,
+      weightCategory: match.weightCategory || null,
+      status: match.status,
+      isPractice: match.isPractice,
+      halfDuration: match.halfDuration || 20,
+      playersPerSide: match.playersPerSide || 7,
+      homeTeam: {
+        id: match.homeTeam.id,
+        name: match.homeTeam.name,
+        shortName: match.homeTeam.shortName || null,
+        color: match.homeTeam.color || null,
+        logo: match.homeTeam.logo || null,
+        score: match.homeScore,
+        firstHalfScore: homeFirstHalf,
+        secondHalfScore: homeSecondHalf,
+      },
+      awayTeam: {
+        id: match.awayTeam.id,
+        name: match.awayTeam.name,
+        shortName: match.awayTeam.shortName || null,
+        color: match.awayTeam.color || null,
+        logo: match.awayTeam.logo || null,
+        score: match.awayScore,
+        firstHalfScore: awayFirstHalf,
+        secondHalfScore: awaySecondHalf,
+      },
+      eventsSummary,
+      topPerformers,
+      totalEvents: match.events.length,
+    };
+
+    return res.json({ scorecard });
   } catch (error) {
+    console.error('Scorecard fetch error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
