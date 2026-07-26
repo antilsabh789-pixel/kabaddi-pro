@@ -136,7 +136,10 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
   ));
 
   const handleDeleteMatch = async () => {
-    if (!currentUser?.id || !matchId) return;
+    if (!currentUser?.id || !matchId) {
+      toast({ title: 'Cannot delete', description: 'Please log in to delete this match.', variant: 'destructive' });
+      return;
+    }
     setDeleting(true);
     try {
       const res = await fetch('/api/matches', {
@@ -144,12 +147,30 @@ export default function MatchDetailsScreen({ matchId, onClose, onViewPlayer }: M
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId, userId: currentUser.id }),
       });
-      const data = await res.json();
-      if (!res.ok) { toast({ title: 'Delete failed', description: data.error, variant: 'destructive' }); return; }
+      // .catch(() => ({})) so a non-JSON response (e.g. HTML 404 from the
+      // CDN, or a network blip) doesn't crash the handler before we can
+      // show the user a meaningful toast. Mirrors the pattern in HomeTab.
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({
+          title: 'Delete failed',
+          description: data?.error || 'Could not delete match. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({ title: 'Match Deleted', description: 'Player stats have been reversed.' });
       onClose();
-    } catch { toast({ title: 'Delete failed', variant: 'destructive' }); }
-    finally { setDeleting(false); setDeleteConfirm(false); }
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Network error',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(false);
+    }
   };
 
   // ── Player aggregation ─────────────────────────────────────────────────────

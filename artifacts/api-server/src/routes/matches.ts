@@ -595,8 +595,48 @@ router.delete('/matches', async (req, res) => {
     }
 
     // ─── Delete the match + all related records ──────────────────
-    // MatchEvents + MatchScorers are cascade-deleted with the match
-    await db.match.delete({ where: { id: matchId } });
+    // MatchEvents, MatchScorers, MatchComments, MatchPhotos, and
+    // SeasonMatches all have onDelete: Cascade in the Prisma schema, so
+    // they're automatically removed when the Match row is deleted.
+    //
+    // HOWEVER, several other tables reference Match via a NULLABLE matchId
+    // column WITHOUT onDelete: Cascade — Prisma defaults these to Restrict,
+    // so deleting the Match row would throw a FK constraint violation.
+    // We must manually clean up these rows first:
+    //   - AIInsight        (matchId String?)
+    //   - Notification     (matchId String?)
+    //   - Activity         (matchId String?)
+    //   - MatchTransfer    (matchId String?)
+    // Each cleanup is wrapped in its own try/catch so a failure on one
+    // table doesn't block the rest — and we accumulate any errors so the
+    // final response can include them for debugging if the match delete
+    // STILL fails downstream.
+    const cleanupErrors: string[] = [];
+    for (const [label, op] of [
+      ['AIInsight', () => db.aiInsight.deleteMany({ where: { matchId } })],
+      ['Notification', () => db.notification.deleteMany({ where: { matchId } })],
+      ['Activity', () => db.activity.deleteMany({ where: { matchId } })],
+      ['MatchTransfer', () => db.matchTransfer.deleteMany({ where: { matchId } })],
+    ] as const) {
+      try {
+        await op();
+      } catch (e) {
+        // Log but don't fail — the table may not exist on this DB, or the
+        // relation may have been renamed. We collect the error so the
+        // final response can surface it if the match delete itself fails.
+        cleanupErrors.push(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    try {
+      await db.match.delete({ where: { id: matchId } });
+    } catch (e) {
+      console.error('Match delete FK error:', e, 'cleanup errors:', cleanupErrors);
+      return res.status(500).json({
+        error: 'Could not delete match — there may be related records (insights, notifications, activities) that reference it.',
+        cleanupErrors: cleanupErrors.length > 0 ? cleanupErrors : undefined,
+      });
+    }
 
     return res.json({
       success: true,
@@ -605,7 +645,10 @@ router.delete('/matches', async (req, res) => {
     });
   } catch (error) {
     console.error('Match delete error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({
+      error: 'Internal server error',
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 

@@ -558,7 +558,10 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
   };
 
   const handleDeleteMatch = async (match: MatchItem) => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id) {
+      toast({ title: 'Cannot delete', description: 'Please log in to delete this match.', variant: 'destructive' });
+      return;
+    }
     setDeletingId(match.id);
     try {
       const res = await fetch('/api/matches', {
@@ -574,8 +577,12 @@ export default function MatchHistoryScreen({ onClose }: MatchHistoryScreenProps)
       toast({ title: 'Match deleted', description: 'Player stats have been reversed.' });
       setMatches((prev) => prev.filter((m) => m.id !== match.id));
       setPendingDeleteId(null);
-    } catch {
-      toast({ title: 'Delete failed', variant: 'destructive' });
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Network error',
+        variant: 'destructive',
+      });
     } finally {
       setDeletingId(null);
     }

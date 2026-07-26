@@ -8,7 +8,7 @@ import {
   ChevronUp, AlertTriangle, Sparkles, Flame,
   ArrowRight, ArrowRightLeft,
   MessageSquare, ChevronDown, UserPlus, Radio,
-  Home, Plus,
+  Home, Plus, Trash2, RefreshCw,
 } from 'lucide-react';
 import { useKabaddiStore, type MatchPlayer, type MatchEvent } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
@@ -417,6 +417,12 @@ export default function LiveScoringScreen() {
   const [showTimeoutOverlay, setShowTimeoutOverlay] = useState(false);
   const [showTimeoutTypeSelector, setShowTimeoutTypeSelector] = useState(false);
   const [showActionsPanel, setShowActionsPanel] = useState(false);
+  // Delete-from-server confirm — shown when the scorer taps "Delete Match"
+  // inside the Actions panel. Lets the scorer abandon a live match and
+  // wipe it from the server too (so it doesn't keep appearing in the home
+  // feed's "LIVE" section after they leave the scoring screen).
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingMatch, setDeletingMatch] = useState(false);
   // Card selection: user picks team → player → card type
   const [cardSelection, setCardSelection] = useState<{
     step: 'team' | 'player' | 'type';
@@ -1341,12 +1347,88 @@ export default function LiveScoringScreen() {
     setShowMatchEndCelebration(true);
   };
 
-  // Discard match — don't save, just end
-  const handleDiscardMatch = () => {
+  // Discard match — don't save, just end locally. NOTE: if the match was
+  // already written to the backend (match.id is set), we ALSO call
+  // DELETE /api/matches so the live-match row doesn't get orphaned in the
+  // home feed's "LIVE" section. Previously handleDiscardMatch only cleared
+  // local Zustand state, leaving the backend live-match row behind — which
+  // meant users would see a "live" match in the feed that no scorer was
+  // actually scoring anymore, and they couldn't delete it because they
+  // weren't the scorer-of-record. Calling DELETE here mirrors the
+  // home-feed delete flow (player stats reversal is a no-op for live
+  // matches since stats are only persisted at save time).
+  const handleDiscardMatch = async () => {
+    // If the match has a server-side row, delete it first.
+    if (match?.id && currentUser?.id) {
+      try {
+        await fetch('/api/matches', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: match.id, userId: currentUser.id }),
+        });
+      } catch {
+        // Swallow — clearing local state still lets the scorer escape.
+        // The orphaned live row will eventually time out / be deletable
+        // from the home feed's delete button (which is now visible to
+        // the original scorer thanks to the canDeleteMatch relaxation).
+      }
+    }
     endMatch();
     triggerFeedback(SoundType.MATCH_END);
     setShowSavePrompt(false);
     setShowEndMatchConfirm(false);
+  };
+
+  // Delete match from server + clear local state. Used by the "Delete
+  // Match" button in the Actions panel. Unlike handleDiscardMatch (which
+  // is shown AFTER the user taps END and is framed as "don't save the
+  // scorecard"), this is a mid-match "abandon this match entirely"
+  // affordance — useful when the scorer realizes they picked the wrong
+  // teams or started the match by mistake.
+  const handleDeleteMatchFromServer = async () => {
+    if (!currentUser?.id) {
+      toast({ title: 'Cannot delete', description: 'Please log in to delete this match.', variant: 'destructive' });
+      return;
+    }
+    setDeletingMatch(true);
+    try {
+      // Even if match.id is undefined (POST /api/matches/live hasn't
+      // resolved yet), we still call endMatch() below so the scorer
+      // escapes the screen. We only hit the API if we have a matchId.
+      if (match?.id) {
+        const res = await fetch('/api/matches', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: match.id, userId: currentUser.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast({
+            title: 'Delete failed',
+            description: data?.error || 'Could not delete match. Please try again.',
+            variant: 'destructive',
+          });
+          setDeletingMatch(false);
+          return;
+        }
+      }
+      toast({ title: 'Match deleted', description: 'The match has been removed.' });
+      endMatch();
+      triggerFeedback(SoundType.MATCH_END);
+      setShowDeleteConfirm(false);
+      setShowActionsPanel(false);
+      // Navigate away from the scoring screen back to the home feed so
+      // the scorer doesn't see a stale match UI with no underlying state.
+      setActiveTab('home');
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Network error',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingMatch(false);
+    }
   };
 
   const handleEndHalf = () => {
@@ -4056,6 +4138,21 @@ export default function LiveScoringScreen() {
                 </button>
               )}
 
+              {/* Delete Match — wipes the live-match row from the server
+                  and clears local state. Useful when the scorer started
+                  the match by mistake or picked the wrong teams. The
+                  confirm modal below guards against accidental taps. */}
+              <button
+                onClick={() => {
+                  setShowActionsPanel(false);
+                  setShowDeleteConfirm(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/40 text-red-600 dark:text-red-400 font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Match
+              </button>
+
               {/* Close button */}
               <button
                 onClick={() => setShowActionsPanel(false)}
@@ -4063,6 +4160,64 @@ export default function LiveScoringScreen() {
               >
                 Close
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Delete Match confirm modal — two-step confirm to prevent
+            accidental taps from wiping a live match. The first tap on
+            "Delete Match" in the Actions panel opens this modal; the
+            second tap on "Yes, Delete" actually performs the deletion. */}
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget && !deletingMatch) setShowDeleteConfirm(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-sm bg-white dark:bg-warm-800 rounded-2xl p-5 space-y-4"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center mb-2">
+                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-lg font-black text-warm-800 dark:text-white">Delete this match?</h3>
+                <p className="text-xs text-warm-500 dark:text-gray-400 mt-1">
+                  This will permanently remove the match from the server. The home feed will no longer show it as live. This cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deletingMatch}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDeleteMatchFromServer}
+                  disabled={deletingMatch}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                >
+                  {deletingMatch ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                      Yes, Delete
+                    </>
+                  )}
+                </Button>
+              </div>
             </motion.div>
           </motion.div>
         )}

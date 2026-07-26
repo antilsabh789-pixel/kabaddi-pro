@@ -695,7 +695,14 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
 
   const handleDeleteMatch = useCallback(
     async (matchId: string) => {
-      if (!currentUser?.id) return;
+      if (!currentUser?.id) {
+        toast({
+          title: 'Cannot delete',
+          description: 'Please log in to delete this match.',
+          variant: 'destructive',
+        });
+        return;
+      }
       setDeletingMatchId(matchId);
       try {
         const res = await fetch('/api/matches', {

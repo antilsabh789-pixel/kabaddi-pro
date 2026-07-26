@@ -45,6 +45,7 @@ import PlayerProfileCard from './PlayerProfileCard';
 import TeamChatScreen from './TeamChatScreen';
 import DailyChallengeScreen from './DailyChallengeScreen';
 import MatchHistoryTimeline from './MatchHistoryTimeline';
+import MatchDetailsScreen from './MatchDetailsScreen';
 import CoachDashboard from './CoachesCornerScreen';
 import ImageCropDialog from './ImageCropDialog';
 import ChatReportsPanel from './ChatReportsPanel';
@@ -1527,6 +1528,11 @@ export default function ProfileTab() {
   const [showProfileCard, setShowProfileCard] = useState(false);
   const [showTeamChat, setShowTeamChat] = useState(false);
   const [showDailyChallenge, setShowDailyChallenge] = useState(false);
+  // Match details modal — opened when the user taps a match in the
+  // "MATCH HISTORY TIMELINE" section. Shows the 4-tab detail view
+  // (Awards / Scorecard / Commentary / Summary) the same way HomeTab does.
+  const [showMatchDetails, setShowMatchDetails] = useState(false);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
   // ─── Android Back Button Support ──────────────────────────────────
   // Each overlay pushes a browser history entry so the Android back button
@@ -3510,6 +3516,10 @@ export default function ProfileTab() {
             userTeamSide: m.userTeamSide,
             completedAt: m.completedAt,
           }))}
+          onViewMatch={(matchId) => {
+            setSelectedMatchId(matchId);
+            setShowMatchDetails(true);
+          }}
         />
       </motion.div>
       )}
@@ -4642,6 +4652,23 @@ export default function ProfileTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* MATCH DETAILS MODAL — opened from the MATCH HISTORY TIMELINE.   */}
+      {/* Shows the 4-tab match detail view (Awards / Scorecard /          */}
+      {/* Commentary / Summary) the same way HomeTab does. Previously      */}
+      {/* tapping a match card in ProfileTab was a silent no-op because     */}
+      {/* MatchHistoryTimeline's onViewMatch callback wasn't wired.         */}
+      {/* ═══════════════════════════════════════════ */}
+      {showMatchDetails && selectedMatchId && (
+        <MatchDetailsScreen
+          matchId={selectedMatchId}
+          onClose={() => {
+            setShowMatchDetails(false);
+            setSelectedMatchId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
