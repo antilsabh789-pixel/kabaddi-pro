@@ -637,57 +637,71 @@ router.get('/match-events', async (req, res) => {
     // entry. The frontend gracefully handles an empty roster (renders a
     // "no players" placeholder), so even if both sources are empty the
     // screen still loads.
+    //
+    // Each sub-query is wrapped in its own try/catch so a failure in one
+    // (e.g. playerPhone column missing from this DB, profile relation not
+    // migrated yet) doesn't take down the whole endpoint — we just return
+    // an empty array for that piece and the rest of the match still loads.
+    const safeQuery = async <T>(label: string, p: Promise<T>): Promise<T | []> => {
+      try {
+        return await p;
+      } catch (err) {
+        console.error(`[match-events] ${label} query failed:`, err);
+        return [];
+      }
+    };
+
     const [homeMembers, awayMembers, phonePlayers] = await Promise.all([
-      db.teamMember.findMany({
+      safeQuery('homeMembers', db.teamMember.findMany({
         where: { teamId: match.homeTeamId },
         include: {
           user: {
             select: {
               id: true, name: true, phone: true, avatar: true,
-              playerProfile: { select: { jerseyNumber: true, position: true } },
+              profile: { select: { jerseyNumber: true, position: true } },
             },
           },
         },
-      }),
-      db.teamMember.findMany({
+      })),
+      safeQuery('awayMembers', db.teamMember.findMany({
         where: { teamId: match.awayTeamId },
         include: {
           user: {
             select: {
               id: true, name: true, phone: true, avatar: true,
-              playerProfile: { select: { jerseyNumber: true, position: true } },
+              profile: { select: { jerseyNumber: true, position: true } },
             },
           },
         },
-      }),
+      })),
       // Non-registered players show up as `playerPhone` on MatchEvent rows.
       // We pull unique (teamId, playerPhone) pairs from this match's events
       // so they appear in the roster too. playerId may also be set for
       // semi-registered players (phone but no User row) — we dedupe by phone.
-      db.matchEvent.findMany({
+      safeQuery('phonePlayers', db.matchEvent.findMany({
         where: { matchId, playerPhone: { not: null } },
         select: { teamId: true, playerPhone: true, playerId: true },
         distinct: ['teamId', 'playerPhone'],
-      }),
-    ]);
+      })),
+    ]) as [Array<any>, Array<any>, Array<any>];
 
     const homePlayers = [
-      ...homeMembers.map((m) => ({
+      ...homeMembers.map((m: any) => ({
         id: m.user.id,
-        name: m.user.name,
+        name: m.user.name || 'Player',
         phone: m.user.phone || undefined,
         avatar: m.user.avatar || undefined,
-        jerseyNumber: m.user.playerProfile?.jerseyNumber || undefined,
-        position: m.user.playerProfile?.position || undefined,
+        jerseyNumber: m.user.profile?.jerseyNumber || undefined,
+        position: m.user.profile?.position || undefined,
         isCaptain: m.isCaptain,
         teamId: match.homeTeamId,
       })),
       ...phonePlayers
-        .filter((p) => p.teamId === match.homeTeamId && p.playerPhone)
-        .map((p, idx) => ({
+        .filter((p: any) => p.teamId === match.homeTeamId && p.playerPhone)
+        .map((p: any, idx: number) => ({
           id: p.playerId || `phone_${p.playerPhone}`,
-          name: `Player ${p.playerPhone!.slice(-4)}`,
-          phone: p.playerPhone!,
+          name: `Player ${String(p.playerPhone).slice(-4)}`,
+          phone: p.playerPhone,
           isCaptain: false,
           teamId: match.homeTeamId,
           jerseyNumber: idx + 1,
@@ -695,22 +709,22 @@ router.get('/match-events', async (req, res) => {
     ];
 
     const awayPlayers = [
-      ...awayMembers.map((m) => ({
+      ...awayMembers.map((m: any) => ({
         id: m.user.id,
-        name: m.user.name,
+        name: m.user.name || 'Player',
         phone: m.user.phone || undefined,
         avatar: m.user.avatar || undefined,
-        jerseyNumber: m.user.playerProfile?.jerseyNumber || undefined,
-        position: m.user.playerProfile?.position || undefined,
+        jerseyNumber: m.user.profile?.jerseyNumber || undefined,
+        position: m.user.profile?.position || undefined,
         isCaptain: m.isCaptain,
         teamId: match.awayTeamId,
       })),
       ...phonePlayers
-        .filter((p) => p.teamId === match.awayTeamId && p.playerPhone)
-        .map((p, idx) => ({
+        .filter((p: any) => p.teamId === match.awayTeamId && p.playerPhone)
+        .map((p: any, idx: number) => ({
           id: p.playerId || `phone_${p.playerPhone}`,
-          name: `Player ${p.playerPhone!.slice(-4)}`,
-          phone: p.playerPhone!,
+          name: `Player ${String(p.playerPhone).slice(-4)}`,
+          phone: p.playerPhone,
           isCaptain: false,
           teamId: match.awayTeamId,
           jerseyNumber: idx + 1,
@@ -827,9 +841,10 @@ router.post('/matches/live', async (req, res) => {
           ? { scorers: { create: [{ userId: scorerUserId }] } }
           : {}),
       },
-      // Include scorers in the response so the frontend can immediately
-      // render the delete button without a follow-up fetch.
-      include: { scorers: { select: { userId: true } } },
+      // Include scorers (with user name + avatar) in the response so the
+      // frontend can immediately render the delete button + scorer name
+      // without a follow-up fetch.
+      include: { scorers: { select: { userId: true, user: { select: { id: true, name: true, avatar: true } } } } },
     });
 
     return res.json({ match });
@@ -883,10 +898,11 @@ router.get('/matches/live', async (req, res) => {
         homeTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
         awayTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
         tournament: { select: { id: true, name: true } },
-        // Include scorers so the frontend can render a delete button
-        // (admin OR scorer-of-match only). Permission is re-checked
+        // Include scorers (with user name + avatar) so the frontend can
+        // render (a) a delete button (admin OR scorer-of-match only) and
+        // (b) the scorer's name on the match card. Permission is re-checked
         // server-side on DELETE /api/matches.
-        scorers: { select: { userId: true } },
+        scorers: { select: { userId: true, user: { select: { id: true, name: true, avatar: true } } } },
       },
       orderBy: { startedAt: 'desc' },
       take: 20,

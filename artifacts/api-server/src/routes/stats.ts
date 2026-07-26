@@ -28,15 +28,17 @@ router.get('/stats', async (req, res) => {
     ]);
 
     // ── Feed matches: live, recent completed, upcoming ─────────────────
-    // Each includes `scorers: [{ userId }]` so the frontend can render a
-    // "Delete" button (admin OR scorer-of-match only). The DELETE endpoint
-    // at POST /api/matches re-validates permission server-side, so leaking
-    // the userId list here is only for UI affordance, not authorization.
+    // Each includes `scorers: [{ userId, user: { name, avatar } }]` so the
+    // frontend can render (a) a "Delete" button (admin OR scorer-of-match
+    // only) and (b) the scorer's name on the match card. The DELETE
+    // endpoint at POST /api/matches re-validates permission server-side, so
+    // leaking the userId list here is only for UI affordance, not
+    // authorization.
     const matchIncludeForFeed = {
       homeTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
       awayTeam: { select: { id: true, name: true, shortName: true, color: true, logo: true } },
       tournament: { select: { id: true, name: true } },
-      scorers: { select: { userId: true } },
+      scorers: { select: { userId: true, user: { select: { id: true, name: true, avatar: true } } } },
     };
 
     const [liveMatches, recentMatches, upcomingMatches] = await Promise.all([

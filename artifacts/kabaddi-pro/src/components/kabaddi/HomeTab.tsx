@@ -62,6 +62,7 @@ import {
   Lightbulb,
   Flag,
   Send,
+  PenSquare,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -156,9 +157,10 @@ interface LiveMatch {
   startedAt?: string;
   // Scorers list — populated by /api/stats and /api/matches/live. Used by
   // the home feed to decide whether to render a "Delete" button on the
-  // match card (admin OR scorer-of-match only). Optional for back-compat
-  // with older API responses that don't include this field.
-  scorers?: { userId: string }[];
+  // match card (admin OR scorer-of-match only) AND to display the scorer's
+  // name on the card. Optional for back-compat with older API responses
+  // that don't include this field.
+  scorers?: { userId: string; user?: { id: string; name: string | null; avatar: string | null } | null }[];
 }
 
 interface CompletedMatch {
@@ -1084,9 +1086,15 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                 isPractice: m.isPractice,
                 tournament: m.tournament?.name || null,
                 startedAt: m.startedAt,
-                // Preserve scorers from the API response so the delete
-                // button can be rendered (admin OR scorer-of-match).
-                scorers: Array.isArray(m.scorers) ? m.scorers.map((s: any) => ({ userId: s.userId })) : [],
+                // Preserve scorers (with user name + avatar) from the API
+                // response so the delete button AND the scorer name badge
+                // can be rendered on the match card.
+                scorers: Array.isArray(m.scorers)
+                  ? m.scorers.map((s: any) => ({
+                      userId: s.userId,
+                      user: s.user ? { id: s.user.id, name: s.user.name, avatar: s.user.avatar } : null,
+                    }))
+                  : [],
               }));
               // Merge: add user-specific matches that aren't already in the list
               const existingIds = new Set(matches.map((m) => m.id));
@@ -2173,7 +2181,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                         {/* Confetti on score change */}
                         <ConfettiParticles trigger={match.homeScore + match.awayScore} />
                         <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             {/* Enhanced pulsing LIVE indicator with ring animation */}
                             <Badge
                               variant="secondary"
@@ -2186,6 +2194,22 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                               </span>
                               LIVE
                             </Badge>
+
+                            {/* Scorer name badge — shows who is scoring this
+                                live match. The first scorer in the list is the
+                                primary scorer (the user who started the match).
+                                Renders only if we have a name; falls back
+                                silently if the API response didn't include it. */}
+                            {match.scorers?.[0]?.user?.name && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] font-semibold border-0 px-2 py-0.5 bg-brand-teal/10 text-brand-teal dark:text-brand-teal-light flex items-center gap-1 max-w-[140px]"
+                                title={`Scored by ${match.scorers[0].user.name}`}
+                              >
+                                <PenSquare className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate">{match.scorers[0].user.name}</span>
+                              </Badge>
+                            )}
 
                             {match.weightCategory && (
                               <Badge
