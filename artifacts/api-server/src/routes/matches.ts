@@ -608,9 +608,141 @@ router.get('/match-events', async (req, res) => {
   try {
     const matchId = req.query['matchId'] as string;
     if (!matchId) return res.status(400).json({ error: 'matchId is required' });
-    const events = await db.matchEvent.findMany({ where: { matchId }, orderBy: { timestamp: 'asc' } });
-    return res.json({ events });
+
+    // Fetch the match row + events in parallel. The frontend's
+    // MatchDayExperience.tsx expects BOTH `match` and `events` in the
+    // response (interface MatchEventsAPIResponse { match: MatchDataAPI;
+    // events: MatchEventAPI[] }). Previously this endpoint only returned
+    // `{ events }`, so `data.match` was undefined on the client → the
+    // "Match data not available" error screen rendered for every live match.
+    const [match, events] = await Promise.all([
+      db.match.findUnique({
+        where: { id: matchId },
+        include: {
+          homeTeam: { select: { id: true, name: true, color: true, logo: true } },
+          awayTeam: { select: { id: true, name: true, color: true, logo: true } },
+        },
+      }),
+      db.matchEvent.findMany({ where: { matchId }, orderBy: { timestamp: 'asc' } }),
+    ]);
+
+    if (!match) return res.status(404).json({ error: 'Match not found' });
+
+    // Build player rosters for both teams. We pull registered TeamMembers
+    // (joined to User + PlayerProfile) — this gives us name, jersey number,
+    // position, captain flag, avatar, etc. For matches where the scorer
+    // added non-registered players by phone, those names are NOT in
+    // TeamMember; we surface them by collecting unique playerPhone values
+    // from MatchEvent rows for each team and synthesizing a minimal player
+    // entry. The frontend gracefully handles an empty roster (renders a
+    // "no players" placeholder), so even if both sources are empty the
+    // screen still loads.
+    const [homeMembers, awayMembers, phonePlayers] = await Promise.all([
+      db.teamMember.findMany({
+        where: { teamId: match.homeTeamId },
+        include: {
+          user: {
+            select: {
+              id: true, name: true, phone: true, avatar: true,
+              playerProfile: { select: { jerseyNumber: true, position: true } },
+            },
+          },
+        },
+      }),
+      db.teamMember.findMany({
+        where: { teamId: match.awayTeamId },
+        include: {
+          user: {
+            select: {
+              id: true, name: true, phone: true, avatar: true,
+              playerProfile: { select: { jerseyNumber: true, position: true } },
+            },
+          },
+        },
+      }),
+      // Non-registered players show up as `playerPhone` on MatchEvent rows.
+      // We pull unique (teamId, playerPhone) pairs from this match's events
+      // so they appear in the roster too. playerId may also be set for
+      // semi-registered players (phone but no User row) — we dedupe by phone.
+      db.matchEvent.findMany({
+        where: { matchId, playerPhone: { not: null } },
+        select: { teamId: true, playerPhone: true, playerId: true },
+        distinct: ['teamId', 'playerPhone'],
+      }),
+    ]);
+
+    const homePlayers = [
+      ...homeMembers.map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        phone: m.user.phone || undefined,
+        avatar: m.user.avatar || undefined,
+        jerseyNumber: m.user.playerProfile?.jerseyNumber || undefined,
+        position: m.user.playerProfile?.position || undefined,
+        isCaptain: m.isCaptain,
+        teamId: match.homeTeamId,
+      })),
+      ...phonePlayers
+        .filter((p) => p.teamId === match.homeTeamId && p.playerPhone)
+        .map((p, idx) => ({
+          id: p.playerId || `phone_${p.playerPhone}`,
+          name: `Player ${p.playerPhone!.slice(-4)}`,
+          phone: p.playerPhone!,
+          isCaptain: false,
+          teamId: match.homeTeamId,
+          jerseyNumber: idx + 1,
+        })),
+    ];
+
+    const awayPlayers = [
+      ...awayMembers.map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        phone: m.user.phone || undefined,
+        avatar: m.user.avatar || undefined,
+        jerseyNumber: m.user.playerProfile?.jerseyNumber || undefined,
+        position: m.user.playerProfile?.position || undefined,
+        isCaptain: m.isCaptain,
+        teamId: match.awayTeamId,
+      })),
+      ...phonePlayers
+        .filter((p) => p.teamId === match.awayTeamId && p.playerPhone)
+        .map((p, idx) => ({
+          id: p.playerId || `phone_${p.playerPhone}`,
+          name: `Player ${p.playerPhone!.slice(-4)}`,
+          phone: p.playerPhone!,
+          isCaptain: false,
+          teamId: match.awayTeamId,
+          jerseyNumber: idx + 1,
+        })),
+    ];
+
+    // Shape the match object to match the frontend's MatchDataAPI interface.
+    const matchPayload = {
+      id: match.id,
+      homeTeamId: match.homeTeamId,
+      awayTeamId: match.awayTeamId,
+      homeTeam: match.homeTeam?.name || 'Home Team',
+      awayTeam: match.awayTeam?.name || 'Away Team',
+      homeTeamColor: match.homeTeam?.color || '#DC2626',
+      awayTeamColor: match.awayTeam?.color || '#1E293B',
+      currentHalf: match.half || 1,
+      halfDuration: match.halfDuration || 20,
+      homeScore: match.homeScore,
+      awayScore: match.awayScore,
+      playersPerSide: match.playersPerSide || 7,
+      homePlayers,
+      awayPlayers,
+      status: match.status,
+      venue: match.venue || undefined,
+      scheduledAt: match.startedAt?.toISOString() || undefined,
+      gender: match.gender || undefined,
+      weightCategory: match.weightCategory || undefined,
+    };
+
+    return res.json({ match: matchPayload, events });
   } catch (error) {
+    console.error('Match events fetch error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

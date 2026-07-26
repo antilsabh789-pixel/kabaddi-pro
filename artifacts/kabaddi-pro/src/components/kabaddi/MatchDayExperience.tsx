@@ -1266,6 +1266,7 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
   const [matchData, setMatchData] = useState<MatchDataAPI | null>(null);
   const [events, setEvents] = useState<MatchEventAPI[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('feed');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -1295,11 +1296,30 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
   const fetchMatchData = useCallback(async () => {
     try {
       const res = await fetch(`/api/match-events?matchId=${matchId}`);
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (!res.ok) {
+        // 404 = match truly doesn't exist; 500 = transient server/DB issue.
+        // We only set the hard error on 404 — for 500 we keep loading=true
+        // so the next 5s poll retry can recover without flashing an error.
+        if (res.status === 404) {
+          setFetchError('Match not found');
+          setLoading(false);
+        }
+        throw new Error(`Failed to fetch (${res.status})`);
+      }
       const data = await res.json() as MatchEventsAPIResponse;
+
+      // Defensive: backend should always send `match` now, but if an older
+      // cached response slips through we treat it as a hard error instead
+      // of silently rendering the "Match data not available" screen.
+      if (!data.match) {
+        setFetchError('Match data missing from server response');
+        setLoading(false);
+        return;
+      }
 
       setMatchData(data.match);
       setEvents(data.events);
+      setFetchError(null);
 
       if (data.match.currentHalf && data.match.halfDuration) {
         const totalSeconds = data.match.halfDuration * 60;
@@ -1309,9 +1329,15 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
       setLoading(false);
     } catch (err) {
       console.error('Failed to fetch match data:', err);
-      setLoading(false);
+      // Only flip loading=false if we haven't loaded anything yet. If we
+      // already have matchData (i.e. this was a background poll refresh),
+      // keep showing the existing data so the screen doesn't flash.
+      if (!matchData) {
+        setFetchError(fetchError ?? 'Unable to load match');
+        setLoading(false);
+      }
     }
-  }, [matchId]);
+  }, [matchId, matchData, fetchError]);
 
   // ─── Polling ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1538,7 +1564,7 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
   }, [matchData]);
 
   // ─── Loading / Error State ───────────────────────────────────
-  if (loading || !matchData) {
+  if (loading || (!matchData && !fetchError)) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -1546,17 +1572,52 @@ export default function MatchDayExperience({ matchId, onClose }: MatchDayExperie
         className="fixed inset-0 z-50 bg-white dark:bg-warm-900 flex items-center justify-center"
       >
         <div className="flex flex-col items-center gap-4">
-          {loading ? (
-            <>
-              <div className="w-12 h-12 rounded-full border-4 border-brand-red border-t-transparent animate-spin" />
-              <p className="text-sm text-gray-500 dark:text-warm-400 font-medium">Loading Match Experience...</p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-gray-500 dark:text-warm-400 font-medium">Match data not available.</p>
-              <p className="text-xs text-gray-400 dark:text-warm-500">This match may not exist or hasn't started yet.</p>
-            </>
-          )}
+          <div className="w-12 h-12 rounded-full border-4 border-brand-red border-t-transparent animate-spin" />
+          <p className="text-sm text-gray-500 dark:text-warm-400 font-medium">Loading Match Experience...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!matchData && fetchError) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="fixed inset-0 z-50 bg-white dark:bg-warm-900 flex items-center justify-center p-6"
+      >
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-2xl">⚠️</div>
+          <div>
+            <p className="text-sm text-gray-700 dark:text-warm-200 font-semibold mb-1">
+              {fetchError === 'Match not found' ? 'Match not found' : 'Could not load match'}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-warm-500">
+              {fetchError === 'Match not found'
+                ? "This match may have been deleted or never started."
+                : "Please check your connection and try again."}
+            </p>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => {
+                setFetchError(null);
+                setLoading(true);
+                fetchMatchData();
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-red text-white text-xs font-bold hover:bg-brand-red-dark transition-colors"
+            >
+              Retry
+            </button>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-warm-800 text-gray-700 dark:text-warm-200 text-xs font-bold hover:bg-gray-200 dark:hover:bg-warm-700 transition-colors"
+              >
+                Go Back
+              </button>
+            )}
+          </div>
         </div>
       </motion.div>
     );
