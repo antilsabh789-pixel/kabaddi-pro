@@ -465,10 +465,19 @@ export default function Home() {
     } else {
       const pendingOrderId = localStorage.getItem('pendingPaymentOrderId');
       if (pendingOrderId) {
-        localStorage.removeItem('pendingPaymentOrderId');
-        localStorage.removeItem('pendingPaymentPlan');
-        try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
-
+        // ─── Retry-on-pending ────────────────────────────────────────
+        // We do NOT clear pendingPaymentOrderId here — only after the
+        // verify call resolves AND the payment is in a TERMINAL state
+        // (success / FAILED / CANCELLED / EXPIRED / REFUNDED). For
+        // ACTIVE / PENDING (user is still paying in the browser, or
+        // Cashfree hasn't processed yet) we KEEP the flag so the
+        // visibilitychange listener can retry on the next app focus.
+        //
+        // This fixes the silent-failure mobile case where the user pays
+        // in Chrome, switches back to the PWA, the first verify returns
+        // PENDING (Cashfree hasn't processed yet), and the order is lost
+        // forever — premium never activates despite a successful payment.
+        // Same logic applies to network errors: keep the flag for retry.
         fetch('/api/payments/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -477,15 +486,24 @@ export default function Home() {
           .then(res => res.json())
           .then(data => {
             if (data.success) {
+              // Terminal success — clear flags and activate.
+              try { localStorage.removeItem('pendingPaymentOrderId'); } catch { /* noop */ }
+              try { localStorage.removeItem('pendingPaymentPlan'); } catch { /* noop */ }
+              try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
               updateUser({
                 isPremium: true,
                 premiumExpiry: data.user?.premiumExpiry || null,
                 premiumPlan: data.user?.premiumPlan || null,
               });
-              toast({
-                title: '🎉 Premium Activated!',
-                description: 'Your premium subscription is now active. Enjoy all the features!',
-              });
+              // Only toast for fresh activations — skip if already verified
+              // (e.g. user already saw the success toast in Chrome and is
+              // now back in the PWA).
+              if (!data.alreadyVerified) {
+                toast({
+                  title: '🎉 Premium Activated!',
+                  description: 'Your premium subscription is now active. Enjoy all the features!',
+                });
+              }
               // Return-to-giveaway (same logic as the success path above).
               try {
                 if (localStorage.getItem('returnToGiveaway') === '1') {
@@ -493,9 +511,31 @@ export default function Home() {
                   requestOpenGiveaway();
                 }
               } catch { /* localStorage may be unavailable */ }
+            } else {
+              // Non-success. Only clear flags (and toast) for TERMINAL
+              // failure states. For ACTIVE/PENDING, keep the flags so the
+              // visibilitychange listener can retry on the next app focus.
+              const status = String(data?.status || '').toUpperCase();
+              const isTerminalFailure = ['FAILED', 'CANCELLED', 'EXPIRED', 'REFUNDED'].includes(status);
+              if (isTerminalFailure) {
+                try { localStorage.removeItem('pendingPaymentOrderId'); } catch { /* noop */ }
+                try { localStorage.removeItem('pendingPaymentPlan'); } catch { /* noop */ }
+                try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
+                const reason = data?.reason || `Payment ${status.toLowerCase()}. You were not charged.`;
+                toast({
+                  title: '❌ Payment Not Completed',
+                  description: `${reason} Please try again or contact support.`,
+                  variant: 'destructive',
+                });
+              }
+              // For ACTIVE/PENDING: keep flags for retry — no toast.
+              console.warn('[premium] Payment verification returned non-success (will retry on next focus):', data);
             }
           })
-          .catch(err => console.error('Payment verification error:', err));
+          .catch(err => {
+            // Network error — keep flags for retry on next visibilitychange.
+            console.error('[premium] Payment verification error (will retry on next focus):', err);
+          });
       }
     }
   }, [isAuthenticated, currentUser?.id, updateUser, requestOpenGiveaway]);
@@ -530,12 +570,17 @@ export default function Home() {
       if (params.get('payment')) return;
 
       verifying = true;
-      // Clear the pending flag immediately so we don't double-verify if the
-      // user toggles the app again before this fetch resolves.
-      try { localStorage.removeItem('pendingPaymentOrderId'); } catch { /* noop */ }
-      try { localStorage.removeItem('pendingPaymentPlan'); } catch { /* noop */ }
-      try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
-
+      // ─── Retry-on-pending ──────────────────────────────────────────
+      // We do NOT clear pendingPaymentOrderId here — only after the verify
+      // resolves AND the payment is in a TERMINAL state. For ACTIVE/PENDING
+      // we KEEP the flag so the next visibilitychange can retry. The
+      // `verifying` closure flag already prevents concurrent fetches within
+      // a single visibilitychange cycle, so there's no double-verify risk.
+      //
+      // This fixes the mobile case where the user pays in the system
+      // browser, returns to the PWA, the first verify hits Cashfree while
+      // the payment is still PENDING, and the order is silently lost —
+      // premium never activates despite a successful payment.
       fetch('/api/payments/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -544,6 +589,10 @@ export default function Home() {
         .then(res => res.json())
         .then(data => {
           if (data.success) {
+            // Terminal success — clear flags and activate.
+            try { localStorage.removeItem('pendingPaymentOrderId'); } catch { /* noop */ }
+            try { localStorage.removeItem('pendingPaymentPlan'); } catch { /* noop */ }
+            try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
             updateUser({
               isPremium: true,
               premiumExpiry: data.user?.premiumExpiry || null,
@@ -565,17 +614,26 @@ export default function Home() {
               }
             } catch { /* localStorage may be unavailable */ }
           } else {
-            // Don't toast failure on every visibilitychange — only if the
-            // user explicitly returns within 60s of starting the payment.
-            // Otherwise we'd spam "Payment Not Completed" toasts every time
-            // the user re-opens the app for an abandoned payment.
+            // Non-success. Only clear flags for TERMINAL failure states.
+            // For ACTIVE/PENDING, keep the flags so the next visibilitychange
+            // can retry (the user might still be paying in the browser, or
+            // Cashfree hasn't processed the payment yet).
+            const status = String(data?.status || '').toUpperCase();
+            const isTerminalFailure = ['FAILED', 'CANCELLED', 'EXPIRED', 'REFUNDED'].includes(status);
+            if (isTerminalFailure) {
+              try { localStorage.removeItem('pendingPaymentOrderId'); } catch { /* noop */ }
+              try { localStorage.removeItem('pendingPaymentPlan'); } catch { /* noop */ }
+              try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
+            }
+            // Don't toast failure on every visibilitychange — only log.
             // The bounce-back logic in the other useEffect handles the
             // "rejected immediately" case with a proper toast.
             console.warn('[premium] visibilitycheck: payment not yet paid', data);
           }
         })
         .catch(err => {
-          console.error('[premium] visibilitycheck verification error:', err);
+          // Network error — keep flags for retry on next visibilitychange.
+          console.error('[premium] visibilitycheck verification error (will retry):', err);
         })
         .finally(() => { verifying = false; });
     };
