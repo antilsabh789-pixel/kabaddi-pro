@@ -233,11 +233,18 @@ export default function Home() {
   // 0 when the user is actively on the Chat tab (the tab's own poller
   // handles live updates there).
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications, syncBackendNotifications, requestOpenGiveaway } =
+  const { isAuthenticated, isOnboarded, activeTab, setActiveTab, activeMatch, hasSeenSplash, setHasSeenSplash, showToss, tossMatchConfig, startMatch, cancelToss, hasCompletedOnboarding, currentUser, updateUser, completeOnboarding, notifications, syncBackendNotifications, requestOpenGiveaway, shownNotificationIds, markNotificationShown } =
     useKabaddiStore();
   // Bell icon counts both in-app notifications AND unread chat messages.
-  // Chat unread count is polled separately (see useEffect below).
-  const unreadCount = notifications.filter((n) => !n.read).length + chatUnreadCount;
+  // The chat unread count is polled separately (see useEffect below) from
+  // /api/chat/threads. The backend creates BOTH a ChatMessage row AND a
+  // Notification(type='chat') row for every DM, so if we counted every
+  // unread chat Notification here AND added chatUnreadCount, every unread
+  // DM would inflate the badge by 2 instead of 1. We therefore EXCLUDE
+  // chat-type notifications from the bell badge count — chatUnreadCount
+  // already accounts for them via the ChatMessage unread rows.
+  const unreadCount =
+    notifications.filter((n) => !n.read && n.type !== 'chat').length + chatUnreadCount;
 
   // ─── Request notification permission on first auth ─────────────────
   // Ask the user for OS-level notification permission the first time they
@@ -274,7 +281,19 @@ export default function Home() {
   // When new chat notifications arrive AND the user isn't on the Chat tab
   // AND we have OS permission, fire a WhatsApp-style system notification
   // (banner + vibration + sound).
-  const prevNotificationIdsRef = useRef<Set<string>>(new Set());
+  //
+  // ─── Deduplication (prevents "notifications show again and again") ──
+  // Previously this used a `useRef<Set>` which was wiped on every app
+  // reload. Combined with clearedNotificationIds also being wiped (fixed
+  // separately in store.ts), every app reload let previously-dismissed
+  // notifications re-fire their OS banner. Now we use the persisted
+  // `shownNotificationIds` Set from the zustand store, which survives
+  // reloads. We ALSO skip firing the banner for notifications that are
+  // already marked `read` — this fixes the case where the user is sitting
+  // inside the conversation when a message arrives (ChatScreen's poller
+  // marks the Notification isRead=true server-side before our 20s bell
+  // poller picks it up, so we'd otherwise fire a banner for a message the
+  // user is literally looking at).
   useEffect(() => {
     if (!currentUser?.id) return;
     // Skip polling during live match / toss (no distractions while scoring).
@@ -295,7 +314,17 @@ export default function Home() {
       // the permission check internally (no-op if not granted).
       const latest = useKabaddiStore.getState().notifications.slice(0, added);
       for (const n of latest) {
-        if (n.type === 'chat' && !prevNotificationIdsRef.current.has(n.id)) {
+        // Only fire the banner for chat notifications that are:
+        //   1. Type 'chat' (other types don't trigger OS banners)
+        //   2. NOT already read (skip if user is already in the conversation
+        //      — ChatScreen's poller marks the Notification isRead=true
+        //      server-side before our 20s bell poller picks it up)
+        //   3. NOT already shown (persisted across reloads via the store)
+        if (
+          n.type === 'chat' &&
+          !n.read &&
+          !shownNotificationIds.has(n.id)
+        ) {
           // Use the notification title/description. The title from the
           // backend is "New message from <sender>" — perfect.
           showChatMessageNotification({
@@ -304,14 +333,16 @@ export default function Home() {
             fromUserId: n.fromUserId,
             threadId: n.threadId,
           });
+          // Mark as shown in the PERSISTENT store so we never fire it
+          // again — not in this session, and not after an app reload.
+          markNotificationShown(n.id);
         }
-        prevNotificationIdsRef.current.add(n.id);
       }
     };
     poll();
     const id = setInterval(poll, 20000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [currentUser?.id, activeMatch?.isLive, showToss, syncBackendNotifications]);
+  }, [currentUser?.id, activeMatch?.isLive, showToss, syncBackendNotifications, shownNotificationIds, markNotificationShown]);
 
   // ─── Poll chat threads for unread count (bell + HomeTab badge) ─────
   // Skip during a live match / toss (no distractions while scoring).
@@ -787,6 +818,101 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [isAuthenticated, currentUser?.id, updateUser]);
 
+  // ─── Sync current user from backend (multi-device profile sync) ────
+  // CRITICAL: Without this, profile changes made on device A never appear on
+  // device B. The zustand persist middleware saves `currentUser` to localStorage
+  // at login time, and the only other refresh effect (the /api/premium poller
+  // above) only syncs isPremium / premiumExpiry / premiumPlan / isAdmin. So if
+  // the user updates their name / avatar / gender / etc. on phone A, phone B
+  // would show the stale persisted name forever.
+  //
+  // This effect fetches the FULL user record from /api/auth/me on app open AND
+  // whenever the app becomes visible again (visibilitychange) — so changes made
+  // on device A while device B is backgrounded appear within ~1 second of
+  // device B being reopened. We compare each field individually and only call
+  // updateUser if something actually changed (avoids spurious re-renders and
+  // prevents an infinite update loop).
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
+
+    const fetchMe = () => {
+      fetch(`/api/auth/me?userId=${encodeURIComponent(currentUser.id)}`, { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data?.user) return;
+          const u = data.user;
+          const cur = useKabaddiStore.getState().currentUser;
+          if (!cur) return;
+          // Compare every field that /api/auth/me returns. If nothing changed,
+          // skip the updateUser call entirely (avoids re-render storms and
+          // prevents a feedback loop where updateUser triggers this effect
+          // again via the currentUser dependency).
+          const changed: Record<string, unknown> = {};
+          if (cur.name !== u.name) changed.name = u.name;
+          if (cur.avatar !== u.avatar) changed.avatar = u.avatar;
+          if (cur.email !== u.email) changed.email = u.email;
+          if (cur.gender !== u.gender) changed.gender = u.gender;
+          if (cur.weight !== u.weight) changed.weight = u.weight;
+          if (cur.practiceGround !== u.practiceGround) changed.practiceGround = u.practiceGround;
+          if (cur.location !== u.location) changed.location = u.location;
+          if (cur.showCoachBadge !== u.showCoachBadge) changed.showCoachBadge = u.showCoachBadge;
+          if (cur.playerCode !== u.playerCode) changed.playerCode = u.playerCode;
+          if (cur.position !== u.position) changed.position = u.position;
+          if (cur.jerseyNumber !== u.jerseyNumber) changed.jerseyNumber = u.jerseyNumber;
+          // Also sync premium / admin fields here as a belt-and-braces
+          // (the /api/premium effect above handles these too, but fetching
+          // them here means one less network round-trip).
+          if ((!!cur.isPremium) !== (!!u.isPremium)) changed.isPremium = !!u.isPremium;
+          if ((!!cur.isAdmin) !== (!!u.isAdmin)) changed.isAdmin = !!u.isAdmin;
+          if (cur.premiumPlan !== u.premiumPlan) changed.premiumPlan = u.premiumPlan;
+          const curExpiry = cur.premiumExpiry ? new Date(cur.premiumExpiry).getTime() : null;
+          const newExpiry = u.premiumExpiry ? new Date(u.premiumExpiry).getTime() : null;
+          if (curExpiry !== newExpiry) changed.premiumExpiry = u.premiumExpiry || null;
+
+          if (Object.keys(changed).length > 0) {
+            useKabaddiStore.getState().updateUser(changed);
+          }
+        })
+        .catch(() => { /* non-fatal — will retry on next visibilitychange */ });
+    };
+
+    // Fire immediately on mount / whenever the user logs in.
+    fetchMe();
+
+    // ALSO fire when the app becomes visible again — this is what makes
+    // profile changes made on phone A appear on phone B within ~1 second
+    // of phone B being reopened. Without this, phone B would only sync on
+    // a full page reload (which mobile PWAs rarely do).
+    let lastFetch = Date.now();
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      // Throttle to once every 10 seconds so a user rapidly toggling the
+      // app doesn't spam the backend.
+      if (Date.now() - lastFetch < 10000) return;
+      lastFetch = Date.now();
+      fetchMe();
+    };
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      if (Date.now() - lastFetch < 10000) return;
+      lastFetch = Date.now();
+      fetchMe();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+    // NOTE: we intentionally do NOT depend on individual currentUser fields —
+    // doing so would re-run this effect every time updateUser is called,
+    // creating a fetch → update → re-run → fetch loop. We only re-run when
+    // the user logs in / out (isAuthenticated, currentUser?.id).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, currentUser?.id]);
+
+  // Scroll to top on tab change.
   useEffect(() => {
     const mainEl = document.querySelector('main');
     if (mainEl) {

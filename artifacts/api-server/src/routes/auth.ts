@@ -529,4 +529,53 @@ router.delete('/auth/delete-account', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/auth/me?userId=...
+ *
+ * Returns the current user's full profile from the database. Used by the
+ * frontend on app open (and on visibilitychange) to sync profile changes
+ * made on OTHER devices. Without this, the frontend only knows about the
+ * `currentUser` it persisted to localStorage at login time — so if the
+ * user updates their name on phone A, phone B keeps showing the old name
+ * forever.
+ *
+ * The response shape mirrors `POST /auth action='update-details'` so the
+ * frontend can `updateUser(data.user)` directly without any field mapping.
+ *
+ * NOTE: This app does not use bearer tokens — the user is identified by
+ * the `userId` query parameter. This is consistent with the rest of the
+ * API (e.g. GET /api/premium?userId=X, GET /api/players/:id). A proper
+ * bearer-token refactor is a larger security upgrade and out of scope here.
+ */
+router.get('/auth/me', async (req, res) => {
+  try {
+    const userId = req.query['userId'] as string;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Strip sensitive fields (password, dateOfBirth is the password-reset
+    // verifier so it's sensitive too). Everything else is fair game for the
+    // user to see about themselves.
+    const { password: _p, dateOfBirth: _d, profile: _pr, ...userWithoutSensitive } = user;
+    return res.json({
+      user: {
+        ...userWithoutSensitive,
+        // Flatten profile fields onto the user object — matches the shape
+        // the frontend expects (CurrentUser interface has position +
+        // jerseyNumber as top-level fields).
+        position: user.profile?.position || null,
+        jerseyNumber: user.profile?.jerseyNumber || null,
+      },
+    });
+  } catch (error) {
+    console.error('GET /auth/me error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

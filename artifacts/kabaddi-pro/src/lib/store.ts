@@ -261,6 +261,15 @@ interface KabaddiState {
   // or the polling fired mid-DELETE), we DON'T re-add it to `notifications`.
   // Capped at 200 entries to bound memory; oldest entries evicted on overflow.
   clearedNotificationIds: Set<string>;
+  // IDs of chat notifications for which we have ALREADY fired an OS banner
+  // (via showChatMessageNotification). Prevents the same message from
+  // triggering a banner twice — once when it first arrives, and again after
+  // every app reload (where prevNotificationIdsRef in page.tsx would be
+  // empty). Persisted across sessions via the custom merge in zustand persist.
+  shownNotificationIds: Set<string>;
+  // Mark a notification id as "OS banner already fired" so we never fire
+  // the banner for the same notification id twice across sessions.
+  markNotificationShown: (id: string) => void;
 
   // Language
   language: Language;
@@ -717,6 +726,21 @@ export const useKabaddiStore = create<KabaddiState>()(
       // Notifications
       notifications: [],
       clearedNotificationIds: new Set<string>(),
+      shownNotificationIds: new Set<string>(),
+      markNotificationShown: (id) =>
+        set((state) => {
+          // Cap at 300 entries to bound memory (a bit larger than
+          // clearedNotificationIds because the user can receive many chat
+          // messages over time).
+          if (state.shownNotificationIds.has(id)) return {};
+          const next = new Set(state.shownNotificationIds);
+          next.add(id);
+          if (next.size > 300) {
+            const arr = Array.from(next);
+            return { shownNotificationIds: new Set(arr.slice(arr.length - 300)) };
+          }
+          return { shownNotificationIds: next };
+        }),
 
       // Language
       language: 'en' as Language,
@@ -1558,7 +1582,42 @@ export const useKabaddiStore = create<KabaddiState>()(
         // all scoring data. When the app reopens, the match is restored from
         // localStorage and the user sees a "Continue Match" prompt.
         activeMatch: state.activeMatch,
+        // CRITICAL: Persist the cleared-notification deny-list so dismissed
+        // notifications don't RESURRECT after app reload. Previously this was
+        // missing from partialize — every app reload wiped the deny-list to
+        // an empty Set, and any backend Notification row that survived a
+        // failed best-effort DELETE was re-added by the next sync poll and
+        // re-fired its OS banner. Sets don't round-trip through JSON (they
+        // serialize to {}), so we convert to/from an array here.
+        clearedNotificationIdsArr: Array.from(state.clearedNotificationIds),
+        // Also persist the OS-banner dedup set so banners don't re-fire for
+        // notifications the user already saw in a previous session.
+        shownNotificationIdsArr: Array.from(state.shownNotificationIds),
       }),
+      // zustand persist's default merge is a shallow Object.assign which
+      // would leave clearedNotificationIds as the default empty Set (because
+      // the persisted key is the *Arr variant, not the Set itself). We need
+      // a custom merge to convert the persisted arrays back into Sets.
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState || {}) as Record<string, unknown>;
+        const merged = { ...currentState, ...persisted } as any;
+        // Rehydrate clearedNotificationIds Set from persisted array.
+        if (Array.isArray(persisted.clearedNotificationIdsArr)) {
+          merged.clearedNotificationIds = new Set<string>(
+            persisted.clearedNotificationIdsArr as string[],
+          );
+        }
+        // Rehydrate shownNotificationIds Set from persisted array.
+        if (Array.isArray(persisted.shownNotificationIdsArr)) {
+          merged.shownNotificationIds = new Set<string>(
+            persisted.shownNotificationIdsArr as string[],
+          );
+        }
+        // Strip the *Arr helpers from the live state — they're transport-only.
+        delete merged.clearedNotificationIdsArr;
+        delete merged.shownNotificationIdsArr;
+        return merged as typeof currentState;
+      },
     }
   )
 );

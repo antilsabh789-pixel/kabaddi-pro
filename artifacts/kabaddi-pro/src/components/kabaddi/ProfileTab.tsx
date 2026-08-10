@@ -1673,6 +1673,13 @@ export default function ProfileTab() {
             userWeight: data.player?.weight || null,
             userGender: data.player?.gender || null,
             userPracticeGround: data.player?.practiceGround || null,
+            // Multi-device sync: also surface name + avatar so that profile
+            // changes made on device A propagate to device B when the user
+            // opens the Profile tab. The /api/auth/me effect in page.tsx
+            // also handles this, but surfacing it here too means the Profile
+            // tab itself refreshes its own displayed name immediately.
+            userName: data.player?.name || null,
+            userAvatar: data.player?.avatar || null,
           };
         } else {
           return {
@@ -1698,6 +1705,9 @@ export default function ProfileTab() {
             userWeight: data.player?.weight || null,
             userGender: data.player?.gender || null,
             userPracticeGround: data.player?.practiceGround || null,
+            // Multi-device sync (same as the data.profile branch above)
+            userName: data.player?.name || null,
+            userAvatar: data.player?.avatar || null,
           };
         }
       }
@@ -1772,7 +1782,22 @@ export default function ProfileTab() {
         if (data.playerCode && !currentUser?.playerCode) {
           storeUpdate.playerCode = data.playerCode;
         }
-        updateUser(storeUpdate);
+        // Multi-device sync: if the name / avatar changed on another device,
+        // pull them into the local store so the Profile tab (and every other
+        // tab that reads currentUser.name / currentUser.avatar) shows the
+        // updated value immediately. We compare against currentUser to avoid
+        // spurious store updates when nothing changed.
+        if (data.userName && data.userName !== currentUser?.name) {
+          storeUpdate.name = data.userName;
+        }
+        if (data.userAvatar !== undefined && data.userAvatar !== null && data.userAvatar !== currentUser?.avatar) {
+          storeUpdate.avatar = data.userAvatar;
+        }
+        // Only call updateUser if we actually have something to update —
+        // avoids a spurious re-render every time the Profile tab mounts.
+        if (Object.values(storeUpdate).some((v) => v !== undefined)) {
+          updateUser(storeUpdate);
+        }
       } else {
         // Network error or other failure — don't block the UI
         setProfileNotFound(false);
