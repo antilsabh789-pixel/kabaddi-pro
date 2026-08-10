@@ -337,13 +337,38 @@ async function verifyPayment(orderId: string, res: any) {
   const payment = await db.payment.findUnique({ where: { cashfreeOrderId: orderId } });
   if (!payment) return res.status(400).json({ error: 'Payment order not found' });
 
+  // If this payment was already confirmed successful, short-circuit and return
+  // the user's current premium state. This makes verify idempotent and lets
+  // the frontend safely re-poll (e.g. when the PWA regains visibility after
+  // the user paid in the system browser) without spurious "still pending"
+  // toasts. The Cashfree GET /orders call is also skipped, saving a network
+  // round-trip in the most common (already-paid) case.
+  if (payment.status === 'success') {
+    const u = await db.user.findUnique({ where: { id: payment.userId } });
+    if (u) {
+      const { password: _, ...userWithoutPassword } = u;
+      return res.json({ success: true, user: userWithoutPassword, alreadyVerified: true });
+    }
+  }
+
   const config = getCashfreeConfig();
   const cfResponse = await fetch(`${config.baseUrl}/orders/${orderId}`, {
     method: 'GET',
     headers: { 'x-client-id': config.appId, 'x-client-secret': config.secretKey, 'x-api-version': config.apiVersion },
   });
 
-  if (!cfResponse.ok) return res.status(502).json({ error: 'Could not verify payment with gateway' });
+  if (!cfResponse.ok) {
+    const errBody = await cfResponse.text().catch(() => '');
+    console.error('Premium verify: Cashfree GET /orders failed:', {
+      status: cfResponse.status,
+      body: errBody.slice(0, 300),
+      orderId,
+    });
+    return res.status(502).json({
+      error: 'Could not verify payment with gateway.',
+      cfStatus: cfResponse.status,
+    });
+  }
   const cfOrder = await cfResponse.json() as { order_status?: string; [k: string]: unknown };
 
   if (cfOrder.order_status === 'PAID') {
@@ -374,7 +399,21 @@ async function verifyPayment(orderId: string, res: any) {
     return res.json({ success: true, user: userWithoutPassword });
   }
 
-  return res.json({ success: false, status: cfOrder.order_status });
+  // Map Cashfree's order_status to a human-readable reason so the frontend
+  // toast tells the user WHY the payment didn't go through. Without this,
+  // the user just sees "Payment could not be verified" which is unhelpful,
+  // especially on mobile PWAs where the user may have closed the Cashfree
+  // tab and returned to the app without knowing the payment state.
+  const statusMessages: Record<string, string> = {
+    'ACTIVE': 'Payment was started but not completed. The Cashfree page may have been closed before payment.',
+    'EXPIRED': 'Payment session expired before completion. Please try again.',
+    'FAILED': 'Payment failed at the gateway. Please try again or use a different payment method.',
+    'CANCELLED': 'Payment was cancelled.',
+    'PENDING': 'Payment is still pending at the gateway. Please wait a moment and try again.',
+    'REFUNDED': 'Payment was refunded.',
+  };
+  const reason = statusMessages[cfOrder.order_status || ''] || `Payment status: ${cfOrder.order_status || 'unknown'}`;
+  return res.json({ success: false, status: cfOrder.order_status, reason });
 }
 
 router.post('/payments/webhook', async (req, res) => {

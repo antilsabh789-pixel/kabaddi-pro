@@ -387,6 +387,22 @@ export default function Home() {
       url.searchParams.delete('cf_order_id');
       window.history.replaceState({}, '', url.toString());
 
+      // ─── Bounce-back detection ────────────────────────────────────
+      // If Cashfree returned within 5 seconds of the user tapping "Pay",
+      // the payment page was never actually shown — Cashfree bounced back
+      // immediately (invalid session, env mismatch, wrong credentials,
+      // etc.). Same logic as the giveaway flow.
+      let bouncedBack = false;
+      try {
+        const pendingRaw = localStorage.getItem('pendingPaymentStartedAt');
+        if (pendingRaw) {
+          const pending = JSON.parse(pendingRaw);
+          const elapsed = Date.now() - (pending.startedAt || 0);
+          if (elapsed < 5000) bouncedBack = true;
+        }
+      } catch { /* ignore parse errors */ }
+      try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
+
       localStorage.removeItem('pendingPaymentOrderId');
       localStorage.removeItem('pendingPaymentPlan');
 
@@ -404,6 +420,13 @@ export default function Home() {
                 premiumExpiry: data.user?.premiumExpiry || null,
                 premiumPlan: data.user?.premiumPlan || null,
               });
+              // Surface a visible success toast — previously this path was
+              // silent, which made it look like the app "just refreshed"
+              // with no confirmation that premium was activated.
+              toast({
+                title: '🎉 Premium Activated!',
+                description: 'Your premium subscription is now active. Enjoy all the features!',
+              });
               // ─── Return-to-giveaway ────────────────────────────────
               // If the user started this premium purchase from inside the
               // giveaway screen, HomeTab set the 'returnToGiveaway' flag in
@@ -416,15 +439,35 @@ export default function Home() {
                   requestOpenGiveaway();
                 }
               } catch { /* localStorage may be unavailable */ }
+            } else {
+              // The payment verification failed. Surface a clear error so
+              // the user knows the payment didn't go through and WHY.
+              const reason = bouncedBack
+                ? 'Cashfree rejected the payment session and returned immediately. This usually means the payment gateway credentials are wrong or the environment (sandbox/production) is mismatched.'
+                : (data?.reason || data?.error || 'Payment could not be verified.');
+              toast({
+                title: '❌ Payment Not Completed',
+                description: `${reason} You were not charged. Please try again or contact support.`,
+                variant: 'destructive',
+              });
+              console.warn('[premium] Payment verification returned non-success:', { data, bouncedBack });
             }
           })
-          .catch(err => console.error('Payment verification error:', err));
+          .catch(err => {
+            toast({
+              title: 'Payment Verification Failed',
+              description: 'Could not verify your payment. Please check your connection.',
+              variant: 'destructive',
+            });
+            console.error('[premium] Payment verification error:', err);
+          });
       }
     } else {
       const pendingOrderId = localStorage.getItem('pendingPaymentOrderId');
       if (pendingOrderId) {
         localStorage.removeItem('pendingPaymentOrderId');
         localStorage.removeItem('pendingPaymentPlan');
+        try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
 
         fetch('/api/payments/verify', {
           method: 'POST',
@@ -439,6 +482,10 @@ export default function Home() {
                 premiumExpiry: data.user?.premiumExpiry || null,
                 premiumPlan: data.user?.premiumPlan || null,
               });
+              toast({
+                title: '🎉 Premium Activated!',
+                description: 'Your premium subscription is now active. Enjoy all the features!',
+              });
               // Return-to-giveaway (same logic as the success path above).
               try {
                 if (localStorage.getItem('returnToGiveaway') === '1') {
@@ -451,6 +498,105 @@ export default function Home() {
           .catch(err => console.error('Payment verification error:', err));
       }
     }
+  }, [isAuthenticated, currentUser?.id, updateUser, requestOpenGiveaway]);
+
+  // ─── PWA visibilitychange listener for pending premium payments ────
+  // CRITICAL mobile fix: When the PWA form-POSTs to Cashfree, Android often
+  // opens Cashfree in Chrome (NOT inside the PWA). After payment, Cashfree
+  // redirects back to /?payment=success&order_id=... — but that redirect
+  // lands in Chrome, NOT in the PWA. The user then manually switches back
+  // to the PWA. The PWA's URL has NOT changed (still on the Premium screen),
+  // so the payment-return useEffect above never fires.
+  //
+  // This listener detects when the PWA becomes visible again while there's
+  // a pendingPaymentOrderId in localStorage, and re-verifies the payment.
+  // We also re-fetch /api/premium to sync the store with the DB in case
+  // the webhook already updated the user's premium status.
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
+
+    let verifying = false;
+    const checkPendingPayment = () => {
+      if (verifying) return;
+      let pendingOrderId: string | null = null;
+      try {
+        pendingOrderId = localStorage.getItem('pendingPaymentOrderId');
+      } catch { /* localStorage unavailable */ }
+      if (!pendingOrderId) return;
+
+      // Don't verify if the URL already has payment params — the other
+      // useEffect will handle that case (with bounce-back detection etc.)
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('payment')) return;
+
+      verifying = true;
+      // Clear the pending flag immediately so we don't double-verify if the
+      // user toggles the app again before this fetch resolves.
+      try { localStorage.removeItem('pendingPaymentOrderId'); } catch { /* noop */ }
+      try { localStorage.removeItem('pendingPaymentPlan'); } catch { /* noop */ }
+      try { localStorage.removeItem('pendingPaymentStartedAt'); } catch { /* noop */ }
+
+      fetch('/api/payments/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: pendingOrderId }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            updateUser({
+              isPremium: true,
+              premiumExpiry: data.user?.premiumExpiry || null,
+              premiumPlan: data.user?.premiumPlan || null,
+            });
+            // Only show the "activated" toast for fresh activations — skip
+            // it if the payment was already verified (e.g. user already saw
+            // the success toast in Chrome and is now back in the PWA).
+            if (!data.alreadyVerified) {
+              toast({
+                title: '🎉 Premium Activated!',
+                description: 'Your premium subscription is now active. Enjoy all the features!',
+              });
+            }
+            try {
+              if (localStorage.getItem('returnToGiveaway') === '1') {
+                localStorage.removeItem('returnToGiveaway');
+                requestOpenGiveaway();
+              }
+            } catch { /* localStorage may be unavailable */ }
+          } else {
+            // Don't toast failure on every visibilitychange — only if the
+            // user explicitly returns within 60s of starting the payment.
+            // Otherwise we'd spam "Payment Not Completed" toasts every time
+            // the user re-opens the app for an abandoned payment.
+            // The bounce-back logic in the other useEffect handles the
+            // "rejected immediately" case with a proper toast.
+            console.warn('[premium] visibilitycheck: payment not yet paid', data);
+          }
+        })
+        .catch(err => {
+          console.error('[premium] visibilitycheck verification error:', err);
+        })
+        .finally(() => { verifying = false; });
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkPendingPayment();
+      }
+    };
+    // 'pageshow' fires on BFCache restores (e.g. back button from browser)
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) checkPendingPayment();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, [isAuthenticated, currentUser?.id, updateUser, requestOpenGiveaway]);
 
   // ─── Handle Giveaway ₹2 entry-fee payment return ────────────────────

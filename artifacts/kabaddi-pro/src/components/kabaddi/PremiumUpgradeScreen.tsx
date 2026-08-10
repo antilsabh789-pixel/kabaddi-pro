@@ -161,17 +161,69 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast({
-          title: 'Could not start payment',
-          description: data?.error || `Server returned ${res.status}`,
-          variant: 'destructive',
-        });
+        // Distinguish network errors from gateway errors so the user gets
+        // an actionable message instead of a vague "Could not start payment".
+        if (res.status >= 500) {
+          toast({
+            title: 'Server error',
+            description: data?.error || 'The payment server is unavailable. Please try again in a moment.',
+            variant: 'destructive',
+          });
+        } else if (res.status === 401 || res.status === 403) {
+          toast({
+            title: 'Payment not configured',
+            description: 'Cashfree credentials are missing or invalid on the server. Please contact support.',
+            variant: 'destructive',
+          });
+        } else if (res.status === 409) {
+          toast({
+            title: 'Session expired',
+            description: data?.error || 'Your session has expired. Please log out and log in again.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Could not start payment',
+            description: data?.error || `Server returned ${res.status}`,
+            variant: 'destructive',
+          });
+        }
         return;
       }
       if (!data.paymentSessionId) {
         toast({ title: 'Payment error', description: 'No payment session returned.', variant: 'destructive' });
         return;
       }
+
+      // ─── Persist pending payment state BEFORE redirecting ────────────
+      // This is CRITICAL for the mobile PWA case. When the PWA form-POSTs to
+      // Cashfree, on Android the system often opens Cashfree in Chrome (NOT
+      // inside the PWA). After payment, Cashfree redirects back to
+      // /?payment=success&order_id=... — but that redirect lands in Chrome,
+      // not in the PWA. The user then has to manually switch back to the PWA.
+      //
+      // When they do, the PWA's URL has NOT changed (it's still on
+      // PremiumUpgradeScreen), so the page.tsx payment-return useEffect
+      // never fires. The only way for the PWA to discover the payment
+      // completed is via the `pendingPaymentOrderId` flag in localStorage,
+      // which the visibilitychange listener (added in page.tsx) reads when
+      // the PWA regains focus.
+      //
+      // We also store a `startedAt` timestamp so the page.tsx handler can
+      // detect "bounce-backs" (Cashfree returning immediately without
+      // showing the payment page — which means the session was invalid,
+      // env was mismatched, or the gateway rejected the request).
+      if (data.orderId) {
+        try {
+          localStorage.setItem('pendingPaymentOrderId', String(data.orderId));
+          localStorage.setItem('pendingPaymentPlan', String(selectedPlan));
+          localStorage.setItem(
+            'pendingPaymentStartedAt',
+            JSON.stringify({ orderId: String(data.orderId), startedAt: Date.now() }),
+          );
+        } catch { /* localStorage may be unavailable (private mode) — non-fatal */ }
+      }
+
       // Direct form POST to Cashfree hosted checkout
       const isProd = data.env === 'production';
       const cfCheckoutUrl = isProd
@@ -200,7 +252,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
       }, 0);
     } catch (err) {
       console.error('Premium payment error:', err);
-      toast({ title: 'Network error', description: 'Could not reach the payment server.', variant: 'destructive' });
+      toast({ title: 'Network error', description: 'Could not reach the payment server. Please check your connection and try again.', variant: 'destructive' });
     } finally {
       setPaying(false);
     }
