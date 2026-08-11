@@ -196,7 +196,7 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
       }
 
       // ─── Persist pending payment state BEFORE redirecting ────────────
-      // This is CRITICAL for the mobile PWA case. When the PWA form-POSTs to
+      // This is CRITICAL for the mobile PWA case. When the PWA redirects to
       // Cashfree, on Android the system often opens Cashfree in Chrome (NOT
       // inside the PWA). After payment, Cashfree redirects back to
       // /?payment=success&order_id=... — but that redirect lands in Chrome,
@@ -224,32 +224,53 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
         } catch { /* localStorage may be unavailable (private mode) — non-fatal */ }
       }
 
-      // Direct form POST to Cashfree hosted checkout
+      // ─── Redirect to Cashfree hosted checkout via GET ───────────────
+      // PREVIOUS IMPLEMENTATION used a hidden <form method="POST"> and
+      // form.submit(). This worked on desktop web but FAILED on mobile PWA
+      // with Cashfree's "Invalid Session ID" error page. Root cause: when
+      // a PWA does a cross-origin form.submit(), Android Chrome opens the
+      // system browser to handle the POST — and the POST body (containing
+      // payment_session_id) is dropped or mangled during the cross-context
+      // handoff. Cashfree receives a request with no session ID and shows
+      // the "Invalid Session ID / Share a screenshot with the seller" page.
+      //
+      // FIX: use a GET redirect with the session ID in the query string.
+      // Cashfree's /pg/view/sessions/checkout endpoint accepts BOTH:
+      //   - POST with form field payment_session_id=...
+      //   - GET with query param ?payment_session_id=...
+      // The GET redirect is more reliable on mobile PWA because the session
+      // ID is embedded in the URL itself and survives all cross-context
+      // navigation (system browser opens, tab switches, BFCache restores).
       const isProd = data.env === 'production';
-      const cfCheckoutUrl = isProd
+      const cfCheckoutBase = isProd
         ? 'https://api.cashfree.com/pg/view/sessions/checkout'
         : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = cfCheckoutUrl;
-      form.style.display = 'none';
-      const sessionInput = document.createElement('input');
-      sessionInput.type = 'hidden';
-      sessionInput.name = 'payment_session_id';
-      sessionInput.value = String(data.paymentSessionId);
-      form.appendChild(sessionInput);
-      if (data.orderId) {
-        const orderInput = document.createElement('input');
-        orderInput.type = 'hidden';
-        orderInput.name = 'order_id';
-        orderInput.value = String(data.orderId);
-        form.appendChild(orderInput);
+      const sessionId = String(data.paymentSessionId);
+      const checkoutUrl = `${cfCheckoutBase}?payment_session_id=${encodeURIComponent(sessionId)}`;
+
+      // Defensive: if the session ID looks malformed (empty or too short),
+      // don't redirect — show an error instead. This catches backend bugs
+      // where Cashfree's response shape changes unexpectedly.
+      if (!sessionId || sessionId.length < 10) {
+        toast({
+          title: 'Payment error',
+          description: 'The payment gateway returned an invalid session. Please try again.',
+          variant: 'destructive',
+        });
+        // Clear the pending flags we just set — there's no valid order to retry.
+        try {
+          localStorage.removeItem('pendingPaymentOrderId');
+          localStorage.removeItem('pendingPaymentPlan');
+          localStorage.removeItem('pendingPaymentStartedAt');
+        } catch { /* noop */ }
+        return;
       }
-      document.body.appendChild(form);
-      form.submit();
-      setTimeout(() => {
-        try { document.body.removeChild(form); } catch { /* already removed */ }
-      }, 0);
+
+      // Perform the redirect. On desktop this navigates the current tab.
+      // On mobile PWA this opens the system browser (which is what we want —
+      // Cashfree's hosted checkout needs full browser capabilities like UPI
+      // intent switching that the PWA WebView often can't handle).
+      window.location.href = checkoutUrl;
     } catch (err) {
       console.error('Premium payment error:', err);
       toast({ title: 'Network error', description: 'Could not reach the payment server. Please check your connection and try again.', variant: 'destructive' });

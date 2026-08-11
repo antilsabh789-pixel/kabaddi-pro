@@ -230,6 +230,31 @@ router.post('/payments/create-order', async (req, res) => {
 
     const cfOrder = await cfResponse.json() as { payment_session_id?: string; cf_order_id?: string; [k: string]: unknown };
 
+    // Defensive: if Cashfree didn't return a payment_session_id, the order
+    // is unusable. Log everything we got so we can diagnose the issue.
+    // This should never happen with a 2xx response, but Cashfree has been
+    // known to change response shapes between API versions.
+    if (!cfOrder.payment_session_id) {
+      console.error('[create-order] Cashfree returned 2xx but no payment_session_id:', {
+        orderId,
+        env: config.env,
+        cfOrderId: cfOrder.cf_order_id,
+        responseKeys: Object.keys(cfOrder),
+      });
+      return res.status(502).json({
+        error: 'Payment gateway returned an invalid response (no session ID). Please try again.',
+      });
+    }
+
+    console.log('[create-order] OK', {
+      orderId,
+      env: config.env,
+      sessionLength: cfOrder.payment_session_id.length,
+      cfOrderId: cfOrder.cf_order_id,
+      amount: amountInr,
+      plan,
+    });
+
     await db.payment.create({
       data: { userId: user.id, cashfreeOrderId: orderId, plan, amount: finalPaise, status: 'pending' },
     });
