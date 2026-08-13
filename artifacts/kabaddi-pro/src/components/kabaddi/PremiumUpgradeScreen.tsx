@@ -5,9 +5,10 @@
  *
  * Full-screen upgrade modal showing premium plans + coupon code input.
  * On tap "Pay", creates a Cashfree order via /api/payments/create-order
- * and form-POSTs to Cashfree's hosted checkout. On success, Cashfree
- * redirects back to /?payment=success&order_id=... and the page.tsx
- * return handler calls /api/payments/verify which grants premium.
+ * and redirects to /api/payments/checkout (backend-hosted) which then
+ * redirects to Cashfree's hosted checkout. On success, Cashfree redirects
+ * back to /?payment=success&order_id=... and the page.tsx return handler
+ * calls /api/payments/verify which grants premium.
  */
 import { useState } from 'react';
 import { motion } from 'framer-motion';
@@ -28,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { useKabaddiStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { useBackButton } from '@/hooks/use-back-button';
+import { apiUrl } from '@/lib/apiBase';
 
 interface Plan {
   id: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'lifetime';
@@ -224,40 +226,34 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
         } catch { /* localStorage may be unavailable (private mode) — non-fatal */ }
       }
 
-      // ─── Redirect to Cashfree hosted checkout via GET ───────────────
-      // PREVIOUS IMPLEMENTATION used a hidden <form method="POST"> and
-      // form.submit(). This worked on desktop web but FAILED on mobile PWA
-      // with Cashfree's "Invalid Session ID" error page. Root cause: when
-      // a PWA does a cross-origin form.submit(), Android Chrome opens the
-      // system browser to handle the POST — and the POST body (containing
-      // payment_session_id) is dropped or mangled during the cross-context
-      // handoff. Cashfree receives a request with no session ID and shows
-      // the "Invalid Session ID / Share a screenshot with the seller" page.
+      // ─── Redirect to backend-hosted checkout page ───────────────────
+      // Instead of redirecting directly to Cashfree (which had issues on
+      // mobile PWA — both form POST losing the session body AND direct GET
+      // redirects sometimes being blocked), we redirect to our OWN backend
+      // endpoint /api/payments/checkout. This page:
+      //   1. Shows a branded loading spinner ("Opening secure payment…")
+      //   2. Auto-redirects to Cashfree via GET (session ID in query string)
+      //   3. If the auto-redirect is blocked, shows a manual "Pay Now" button
+      //      AND a "Try alternative method" button (form POST fallback)
       //
-      // FIX: use a GET redirect with the session ID in the query string.
-      // Cashfree's /pg/view/sessions/checkout endpoint accepts BOTH:
-      //   - POST with form field payment_session_id=...
-      //   - GET with query param ?payment_session_id=...
-      // The GET redirect is more reliable on mobile PWA because the session
-      // ID is embedded in the URL itself and survives all cross-context
-      // navigation (system browser opens, tab switches, BFCache restores).
-      const isProd = data.env === 'production';
-      const cfCheckoutBase = isProd
-        ? 'https://api.cashfree.com/pg/view/sessions/checkout'
-        : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
+      // This is more reliable than redirecting directly to Cashfree because:
+      //   - The initial navigation is same-origin (PWA → our backend), so
+      //     there's no cross-context handoff issue
+      //   - The backend page has full control over the Cashfree redirect
+      //   - If anything goes wrong, the user sees a helpful page with
+      //     fallback buttons instead of a blank page or browser error
       const sessionId = String(data.paymentSessionId);
-      const checkoutUrl = `${cfCheckoutBase}?payment_session_id=${encodeURIComponent(sessionId)}`;
+      const env = data.env || 'sandbox';
+      const orderIdStr = data.orderId ? String(data.orderId) : '';
 
       // Defensive: if the session ID looks malformed (empty or too short),
-      // don't redirect — show an error instead. This catches backend bugs
-      // where Cashfree's response shape changes unexpectedly.
+      // don't redirect — show an error instead.
       if (!sessionId || sessionId.length < 10) {
         toast({
           title: 'Payment error',
           description: 'The payment gateway returned an invalid session. Please try again.',
           variant: 'destructive',
         });
-        // Clear the pending flags we just set — there's no valid order to retry.
         try {
           localStorage.removeItem('pendingPaymentOrderId');
           localStorage.removeItem('pendingPaymentPlan');
@@ -266,10 +262,20 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
         return;
       }
 
-      // Perform the redirect. On desktop this navigates the current tab.
-      // On mobile PWA this opens the system browser (which is what we want —
-      // Cashfree's hosted checkout needs full browser capabilities like UPI
-      // intent switching that the PWA WebView often can't handle).
+      // Build the backend checkout URL. Using apiUrl() ensures the correct
+      // API base URL is used (important when frontend is on Vercel and API
+      // is on Railway — without this, the request goes to Vercel and gets
+      // the SPA fallback instead of the backend HTML page).
+      const checkoutParams = new URLSearchParams({
+        session_id: sessionId,
+        env,
+      });
+      if (orderIdStr) checkoutParams.set('order_id', orderIdStr);
+      const checkoutUrl = apiUrl(`/api/payments/checkout?${checkoutParams.toString()}`);
+
+      // Navigate to the backend checkout page. On desktop this navigates the
+      // current tab. On mobile PWA this navigates the PWA to our backend,
+      // which serves the HTML page that then redirects to Cashfree.
       window.location.href = checkoutUrl;
     } catch (err) {
       console.error('Premium payment error:', err);
