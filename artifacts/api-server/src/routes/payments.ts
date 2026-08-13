@@ -272,19 +272,22 @@ router.get('/payments/checkout', async (req, res) => {
   const orderId = (req.query['order_id'] as string) || '';
   if (!sessionId) return res.status(400).send('<h1>Payment Session Missing</h1>');
 
-  // XSS-safe: the session ID only goes into a URL query param (encodeURIComponent)
-  // and into an HTML attribute (escaped). It never goes into raw HTML text.
+  // XSS-safe: the session ID goes into an HTML attribute (escaped) and
+  // into a JS string literal (escaped). It never goes into raw HTML text.
   const safeSessionAttr = sessionId.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const safeSessionJs = sessionId.replace(/'/g, "\\'").replace(/\\/g, '\\\\').replace(/<\//g, '<\\/');
   const safeOrderId = orderId.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const isProd = env === 'production';
 
-  // Cashfree hosted checkout endpoint — accepts BOTH POST (form field) and
-  // GET (?payment_session_id= query param). We use GET as the primary method
-  // because it's more reliable on mobile PWA (the session ID is embedded in
-  // the URL itself and survives cross-context navigation), and provide a
-  // form POST as a manual fallback button.
-  const cfCheckoutBase = isProd
+  // Cashfree hosted checkout endpoint — ONLY accepts POST with form field
+  // payment_session_id. GET with query params returns:
+  //   {"message":"endpoint or method is not valid","code":"request_failed",
+ //    "type":"api_connection_error"}
+  // So we MUST use a form POST. The auto-submit happens via JS on this
+  // backend-hosted page, which loads in a full browser context (either the
+  // same tab on desktop, or the system browser on mobile PWA after the
+  // frontend redirects here). This avoids the PWA WebView form-post issue
+  // where the POST body was being lost in cross-context handoffs.
+  const cfFormEndpoint = isProd
     ? 'https://api.cashfree.com/pg/view/sessions/checkout'
     : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
 
@@ -307,7 +310,6 @@ body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:cen
 p{font-size:14px;opacity:.8;margin-bottom:20px;line-height:1.5}
 .btn{display:block;width:100%;padding:16px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#1a1a2e;border:none;border-radius:14px;font-size:17px;font-weight:800;cursor:pointer;letter-spacing:.02em;box-shadow:0 4px 16px rgba(245,158,11,.4);transition:opacity .2s;text-decoration:none;margin-top:8px}
 .btn:active{opacity:.85}
-.btn.secondary{background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:600;box-shadow:none}
 .note{font-size:11px;opacity:.4;margin-top:16px}
 </style>
 </head>
@@ -317,51 +319,36 @@ p{font-size:14px;opacity:.8;margin-bottom:20px;line-height:1.5}
   <div class="shield">🔒</div>
   <div class="spinner" id="spinner"></div>
   <p id="status">Opening secure payment gateway…</p>
-  <button class="btn" id="pay-btn" style="display:none" onclick="doGetRedirect()">Pay Securely Now</button>
-  <button class="btn secondary" id="alt-btn" style="display:none" onclick="doFormPost()">Try alternative method</button>
+  <button class="btn" id="pay-btn" style="display:none" onclick="doFormPost()">Pay Securely Now</button>
   ${safeOrderId ? `<p class="note">Order: ${safeOrderId}</p>` : ''}
 </div>
 
-<!-- Hidden form POST fallback — used if GET redirect is blocked -->
-<form id="cf-form" method="POST" action="${cfCheckoutBase}" style="display:none">
+<!-- Form POST to Cashfree — the ONLY supported method at /pg/view/sessions/checkout -->
+<form id="cf-form" method="POST" action="${cfFormEndpoint}" style="display:none">
   <input type="hidden" name="payment_session_id" value="${safeSessionAttr}">
 </form>
 
 <script>
-// ─── Payment redirect logic ───────────────────────────────────────
-// PRIMARY: GET redirect (session ID in query string). Most reliable on
-//   mobile PWA because the session ID is part of the URL itself.
-// FALLBACK: form POST (session ID in form body). Shown as a manual button
-//   after 3 seconds if the GET redirect doesn't navigate away.
-var CF_SESSION_ID = '${safeSessionJs}';
-var CF_CHECKOUT_URL = '${cfCheckoutBase}?payment_session_id=' + encodeURIComponent(CF_SESSION_ID);
-
-function doGetRedirect() {
-  document.getElementById('status').textContent = 'Redirecting to payment…';
-  // window.location.replace doesn't add a history entry, so the back
-  // button goes directly back to the app instead of this intermediary page.
-  window.location.replace(CF_CHECKOUT_URL);
-}
-
+// Auto-submit the form immediately. This navigates to Cashfree's hosted
+// checkout with the payment_session_id in the POST body (the only method
+// Cashfree accepts at this endpoint).
 function doFormPost() {
   document.getElementById('status').textContent = 'Redirecting to payment…';
   document.getElementById('cf-form').submit();
 }
 
-// Auto-redirect via GET immediately.
-doGetRedirect();
+// Submit immediately on page load.
+doFormPost();
 
-// Safety: show manual buttons after 3 seconds in case the auto-redirect
-// was blocked (popup blocker, browser bug, WebView restriction, etc.).
+// Safety: if we're still on this page after 4 seconds, the auto-submit
+// was blocked. Show a manual button so the user can retry.
 setTimeout(function(){
   if (document.visibilityState === 'visible') {
-    // We're still on this page → redirect didn't navigate away.
     document.getElementById('spinner').style.display = 'none';
     document.getElementById('pay-btn').style.display = 'block';
-    document.getElementById('alt-btn').style.display = 'block';
     document.getElementById('status').textContent = 'Auto-redirect was blocked. Tap below to continue.';
   }
-}, 3000);
+}, 4000);
 </script>
 </body>
 </html>`);
