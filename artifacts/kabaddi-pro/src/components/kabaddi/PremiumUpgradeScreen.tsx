@@ -83,6 +83,60 @@ const PLANS: Plan[] = [
   },
 ];
 
+// ─── Cashfree JS SDK loader ──────────────────────────────────────────
+// Dynamically loads the Cashfree drop-in JS SDK from their CDN. The SDK
+// handles the checkout flow correctly in ALL contexts (desktop, mobile
+// browser, PWA, WebView) and uses the correct form POST method internally.
+//
+// We load dynamically (instead of adding a <script> to index.html) so that:
+//   1. The SDK only loads when the user actually taps "Pay" (not on every
+//      page load — saves ~50KB of bandwidth for non-premium users)
+//   2. We get a clear error if the CDN is unreachable, which we can show
+//      to the user and fall back to the backend checkout page
+//
+// The SDK is cached by the browser after the first load, so subsequent
+// payment attempts are instant.
+declare global {
+  interface Window {
+    Cashfree?: (config: { mode: 'production' | 'sandbox' }) => {
+      checkout: (options: { paymentSessionId: string; redirectTarget?: '_self' | '_blank' | '_modal' }) => void;
+    };
+  }
+}
+
+let cashfreeSdkPromise: Promise<typeof window.Cashfree | null> | null = null;
+
+function loadCashfreeSDK(): Promise<typeof window.Cashfree | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  // Return cached promise if already loading/loaded (dedup concurrent calls)
+  if (cashfreeSdkPromise) return cashfreeSdkPromise;
+  // Already loaded on window
+  if (window.Cashfree) {
+    cashfreeSdkPromise = Promise.resolve(window.Cashfree);
+    return cashfreeSdkPromise;
+  }
+  cashfreeSdkPromise = new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+    script.async = true;
+    script.onload = () => {
+      if (window.Cashfree) {
+        resolve(window.Cashfree);
+      } else {
+        console.error('Cashfree SDK loaded but window.Cashfree is not set');
+        resolve(null);
+      }
+    };
+    script.onerror = () => {
+      console.error('Failed to load Cashfree SDK from CDN');
+      cashfreeSdkPromise = null; // allow retry on next attempt
+      resolve(null);
+    };
+    document.head.appendChild(script);
+  });
+  return cashfreeSdkPromise;
+}
+
 export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: () => void; feature?: string }) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
   const { toast } = useToast();
@@ -226,28 +280,28 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
         } catch { /* localStorage may be unavailable (private mode) — non-fatal */ }
       }
 
-      // ─── Redirect to backend-hosted checkout page ───────────────────
-      // Instead of redirecting directly to Cashfree (which had issues on
-      // mobile PWA — both form POST losing the session body AND direct GET
-      // redirects sometimes being blocked), we redirect to our OWN backend
-      // endpoint /api/payments/checkout. This page:
-      //   1. Shows a branded loading spinner ("Opening secure payment…")
-      //   2. Auto-redirects to Cashfree via GET (session ID in query string)
-      //   3. If the auto-redirect is blocked, shows a manual "Pay Now" button
-      //      AND a "Try alternative method" button (form POST fallback)
+      // ─── Open Cashfree checkout via official JS SDK ─────────────────
+      // Uses Cashfree's official drop-in JS SDK which handles the checkout
+      // flow correctly in ALL contexts (desktop web, mobile browser, mobile
+      // PWA, WebView). The SDK internally uses a form POST to Cashfree's
+      // /pg/view/sessions/checkout endpoint — which is the ONLY method
+      // Cashfree accepts (GET returns "endpoint or method is not valid").
       //
-      // This is more reliable than redirecting directly to Cashfree because:
-      //   - The initial navigation is same-origin (PWA → our backend), so
-      //     there's no cross-context handoff issue
-      //   - The backend page has full control over the Cashfree redirect
-      //   - If anything goes wrong, the user sees a helpful page with
-      //     fallback buttons instead of a blank page or browser error
+      // Previous attempts that FAILED:
+      //   - Direct GET redirect to Cashfree → "endpoint or method is not valid"
+      //     (Cashfree doesn't accept GET at /pg/view/sessions/checkout)
+      //   - Form POST from frontend → lost POST body on mobile PWA cross-context
+      //   - Backend checkout page with GET redirect → same "not valid" error
+      //
+      // The SDK is loaded dynamically from Cashfree's CDN. It opens the
+      // checkout as a redirect (redirectTarget: '_self') which navigates
+      // the current page to Cashfree's hosted checkout. The SDK handles
+      // the form POST internally, ensuring the payment_session_id reaches
+      // Cashfree correctly.
       const sessionId = String(data.paymentSessionId);
       const env = data.env || 'sandbox';
-      const orderIdStr = data.orderId ? String(data.orderId) : '';
 
-      // Defensive: if the session ID looks malformed (empty or too short),
-      // don't redirect — show an error instead.
+      // Defensive: if the session ID looks malformed, show an error.
       if (!sessionId || sessionId.length < 10) {
         toast({
           title: 'Payment error',
@@ -262,21 +316,32 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
         return;
       }
 
-      // Build the backend checkout URL. Using apiUrl() ensures the correct
-      // API base URL is used (important when frontend is on Vercel and API
-      // is on Railway — without this, the request goes to Vercel and gets
-      // the SPA fallback instead of the backend HTML page).
-      const checkoutParams = new URLSearchParams({
-        session_id: sessionId,
-        env,
-      });
-      if (orderIdStr) checkoutParams.set('order_id', orderIdStr);
-      const checkoutUrl = apiUrl(`/api/payments/checkout?${checkoutParams.toString()}`);
-
-      // Navigate to the backend checkout page. On desktop this navigates the
-      // current tab. On mobile PWA this navigates the PWA to our backend,
-      // which serves the HTML page that then redirects to Cashfree.
-      window.location.href = checkoutUrl;
+      // Load the Cashfree SDK dynamically, then open the checkout.
+      try {
+        const cashfree = await loadCashfreeSDK();
+        if (!cashfree) {
+          throw new Error('SDK failed to load');
+        }
+        // Initialize with the correct mode (sandbox or production).
+        const cf = cashfree({ mode: env === 'production' ? 'production' : 'sandbox' });
+        // Open the checkout. redirectTarget: '_self' navigates the current
+        // page to Cashfree's hosted checkout (via form POST internally).
+        // After payment, Cashfree redirects back to our return_url
+        // (/?payment=success&order_id=...) which page.tsx handles.
+        cf.checkout({
+          paymentSessionId: sessionId,
+          redirectTarget: '_self',
+        });
+      } catch (sdkErr) {
+        console.error('Cashfree SDK error:', sdkErr);
+        // Fallback: redirect to backend checkout page which does a form POST
+        const checkoutParams = new URLSearchParams({
+          session_id: sessionId,
+          env,
+        });
+        if (data.orderId) checkoutParams.set('order_id', String(data.orderId));
+        window.location.href = apiUrl(`/api/payments/checkout?${checkoutParams.toString()}`);
+      }
     } catch (err) {
       console.error('Premium payment error:', err);
       toast({ title: 'Network error', description: 'Could not reach the payment server. Please check your connection and try again.', variant: 'destructive' });
