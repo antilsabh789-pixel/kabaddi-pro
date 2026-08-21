@@ -15,6 +15,7 @@ import giveawayRouter from "./giveaway";
 import streakRouter from "./streak";
 import chatRouter from "./chat";
 import adminRouter from "./admin";
+import communityTournamentsRouter from "./community-tournaments";
 
 const router: IRouter = Router();
 
@@ -22,6 +23,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(playersRouter);
 router.use(tournamentsRouter);
+router.use(communityTournamentsRouter);
 router.use(teamsRouter);
 router.use(matchesRouter);
 router.use(paymentsRouter);

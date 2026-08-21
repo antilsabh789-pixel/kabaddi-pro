@@ -985,3 +985,26 @@ model ChatReport {
   @@index([reportedId])
   @@index([reporterId])
 }
+
+// ─── Community Tournament Postings (Tournament Map) ──────────────────
+// Anyone can post tournament details they know about.
+// Lightweight model — no team/match linking, no bracket generation.
+// Fields: name, date, venue, prize money, weight category,
+// player/coach name, organizer phone numbers.
+
+model CommunityTournament {
+  id             String   @id @default(cuid())
+  name           String   // tournament name
+  date           String?  // date string (e.g. "2025-09-15" or "15-16 March 2025")
+  venue          String?  // venue / ground name
+  prizeMoney     String?  // prize description (e.g. "50,000", "Trophy + 10,000")
+  weightCategory String?  // e.g. "65kg", "Below 80kg", "Open"
+  playerName     String?  // name of player or coach posting/about
+  coachName      String?  // coach name (if different from player)
+  organizerPhone String?  // tournament organizer contact phone
+  organizerPhone2 String? // second organizer phone (optional)
+  postedBy       String?  // userId of the person who posted (optional, for tracking)
+  postedByName   String?  // name of the person who posted
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

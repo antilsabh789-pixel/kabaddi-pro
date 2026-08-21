@@ -477,6 +477,14 @@ export const translations: TranslationMap = {
   'tournamentMap.tryLargerRadius': { en: 'Try increasing the search radius', hi: 'खोज त्रिज्या बढ़ाकर देखें' },
   'tournamentMap.fetchError': { en: 'Failed to find tournaments', hi: 'टूर्नामेंट खोजने में विफल' },
   'tournamentMap.everywhere': { en: 'Everywhere', hi: 'हर जगह' },
+  'tournamentMap.addTournament': { en: 'Add Tournament', hi: 'टूर्नामेंट जोड़ें' },
+  'tournamentMap.addSuccess': { en: 'Tournament added!', hi: 'टूर्नामेंट जोड़ दिया गया!' },
+  'tournamentMap.addError': { en: 'Failed to add tournament', hi: 'टूर्नामेंट जोड़ने में विफल' },
+  'tournamentMap.nameRequired': { en: 'Tournament name is required', hi: 'टूर्नामेंट का नाम जरूरी है' },
+  'tournamentMap.adding': { en: 'Adding...', hi: 'जोड़ रहे हैं...' },
+  'tournamentMap.postedBy': { en: 'Posted by', hi: 'द्वारा पोस्ट किया गया' },
+  'tournamentMap.noPostsYet': { en: 'No tournaments posted yet', hi: 'अभी कोई टूर्नामेंट पोस्ट नहीं हुआ' },
+  'tournamentMap.tapToAdd': { en: 'Tap the + button to add the first tournament', hi: 'पहला टूर्नामेंट जोड़ने के लिए + बटन दबाएं' },
 
   // ─── Smart Team Suggestions (Feature #68) ───
   'teamSuggestions.title': { en: 'Team Suggestions', hi: 'टीम सुझाव' },
