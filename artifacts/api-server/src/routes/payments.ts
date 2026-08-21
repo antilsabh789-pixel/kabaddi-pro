@@ -267,91 +267,27 @@ router.post('/payments/create-order', async (req, res) => {
 });
 
 router.get('/payments/checkout', async (req, res) => {
+  // LEGACY endpoint — the frontend now redirects directly to Cashfree's
+  // Hosted Checkout v2 URL (payments.cashfree.com/checkout?payment_session_id=...)
+  // and no longer routes through this endpoint. Kept for backwards compat
+  // in case any older client bundles still call it.
+  //
+  // If hit, we issue a 302 redirect to the same hosted checkout URL the
+  // frontend now uses. This is simpler and more reliable than the old
+  // form-POST HTML page (which had issues on mobile PWA cross-context
+  // handoffs).
   const sessionId = req.query['session_id'] as string;
   const env = (req.query['env'] as string) || 'sandbox';
-  const orderId = (req.query['order_id'] as string) || '';
   if (!sessionId) return res.status(400).send('<h1>Payment Session Missing</h1>');
 
-  // XSS-safe: the session ID goes into an HTML attribute (escaped) and
-  // into a JS string literal (escaped). It never goes into raw HTML text.
-  const safeSessionAttr = sessionId.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const safeOrderId = orderId.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const isProd = env === 'production';
+  const host = isProd
+    ? 'https://payments.cashfree.com'
+    : 'https://sandbox.payments.cashfree.com';
+  const checkoutUrl = `${host}/checkout?payment_session_id=${encodeURIComponent(sessionId)}`;
 
-  // Cashfree hosted checkout endpoint — ONLY accepts POST with form field
-  // payment_session_id. GET with query params returns:
-  //   {"message":"endpoint or method is not valid","code":"request_failed",
- //    "type":"api_connection_error"}
-  // So we MUST use a form POST. The auto-submit happens via JS on this
-  // backend-hosted page, which loads in a full browser context (either the
-  // same tab on desktop, or the system browser on mobile PWA after the
-  // frontend redirects here). This avoids the PWA WebView form-post issue
-  // where the POST body was being lost in cross-context handoffs.
-  const cfFormEndpoint = isProd
-    ? 'https://api.cashfree.com/pg/view/sessions/checkout'
-    : 'https://sandbox.cashfree.com/pg/view/sessions/checkout';
-
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
-  return res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Secure Payment – Kabaddi Pro</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a1a2e 0%,#0f3460 100%);color:#fff;padding:16px}
-.card{text-align:center;padding:36px 28px;background:rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:340px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15)}
-.logo{font-size:22px;font-weight:900;color:#f59e0b;letter-spacing:.05em;margin-bottom:20px}
-.shield{font-size:40px;margin-bottom:12px}
-.spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.15);border-top-color:#f59e0b;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 16px}
-@keyframes spin{to{transform:rotate(360deg)}}
-p{font-size:14px;opacity:.8;margin-bottom:20px;line-height:1.5}
-.btn{display:block;width:100%;padding:16px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#1a1a2e;border:none;border-radius:14px;font-size:17px;font-weight:800;cursor:pointer;letter-spacing:.02em;box-shadow:0 4px 16px rgba(245,158,11,.4);transition:opacity .2s;text-decoration:none;margin-top:8px}
-.btn:active{opacity:.85}
-.note{font-size:11px;opacity:.4;margin-top:16px}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="logo">🏆 KABADDI PRO</div>
-  <div class="shield">🔒</div>
-  <div class="spinner" id="spinner"></div>
-  <p id="status">Opening secure payment gateway…</p>
-  <button class="btn" id="pay-btn" style="display:none" onclick="doFormPost()">Pay Securely Now</button>
-  ${safeOrderId ? `<p class="note">Order: ${safeOrderId}</p>` : ''}
-</div>
-
-<!-- Form POST to Cashfree — the ONLY supported method at /pg/view/sessions/checkout -->
-<form id="cf-form" method="POST" action="${cfFormEndpoint}" style="display:none">
-  <input type="hidden" name="payment_session_id" value="${safeSessionAttr}">
-</form>
-
-<script>
-// Auto-submit the form immediately. This navigates to Cashfree's hosted
-// checkout with the payment_session_id in the POST body (the only method
-// Cashfree accepts at this endpoint).
-function doFormPost() {
-  document.getElementById('status').textContent = 'Redirecting to payment…';
-  document.getElementById('cf-form').submit();
-}
-
-// Submit immediately on page load.
-doFormPost();
-
-// Safety: if we're still on this page after 4 seconds, the auto-submit
-// was blocked. Show a manual button so the user can retry.
-setTimeout(function(){
-  if (document.visibilityState === 'visible') {
-    document.getElementById('spinner').style.display = 'none';
-    document.getElementById('pay-btn').style.display = 'block';
-    document.getElementById('status').textContent = 'Auto-redirect was blocked. Tap below to continue.';
-  }
-}, 4000);
-</script>
-</body>
-</html>`);
+  return res.redirect(302, checkoutUrl);
 });
 
 router.get('/payments/verify', async (req, res) => {
