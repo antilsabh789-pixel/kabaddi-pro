@@ -5,13 +5,25 @@
  *
  * Full-screen upgrade modal showing premium plans + coupon code input.
  * On tap "Pay", creates a Cashfree order via /api/payments/create-order
- * and uses Cashfree's official JS SDK (cashfree.js v3) to open the
- * checkout page. The SDK is the ONLY documented way to open Cashfree's
- * hosted checkout — there is no direct GET URL.
+ * and opens the backend-hosted checkout page in a NEW BROWSER TAB via
+ * window.open(). The backend page auto-submits a form POST to Cashfree.
+ *
+ * WHY window.open() instead of the Cashfree JS SDK?
+ * The Cashfree JS SDK uses cf.checkout({redirectTarget:'_self'}) which
+ * does a form POST to api.cashfree.com. On desktop/mobile browser this
+ * works. But on mobile PWA (installed from Play Store), Android intercepts
+ * the cross-origin POST navigation and opens the system browser — but
+ * STRIPS the POST body (containing payment_session_id) during the
+ * WebView→system-browser handoff. Cashfree then receives a request with
+ * no session ID and shows "Invalid Session ID".
+ *
+ * The fix: open the backend checkout page via window.open('_blank'). On
+ * mobile PWA, this opens the SYSTEM BROWSER directly. The backend page
+ * loads IN the system browser, and its form POST to Cashfree happens
+ * entirely WITHIN the system browser — no WebView handoff, no lost body.
  *
  * On success, Cashfree redirects back to /?payment=success&order_id=...
- * and the page.tsx return handler calls /api/payments/verify which
- * grants premium.
+ * The page.tsx return handler + visibilitychange listener handle verify.
  */
 import { useState } from 'react';
 import { motion } from 'framer-motion';
@@ -32,6 +44,7 @@ import { Input } from '@/components/ui/input';
 import { useKabaddiStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { useBackButton } from '@/hooks/use-back-button';
+import { apiUrl } from '@/lib/apiBase';
 
 interface Plan {
   id: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'lifetime';
@@ -85,57 +98,12 @@ const PLANS: Plan[] = [
   },
 ];
 
-// ─── Cashfree JS SDK loader ──────────────────────────────────────────
-// Dynamically loads the Cashfree drop-in JS SDK from their CDN. The SDK
-// is the ONLY documented way to open Cashfree's hosted checkout — there
-// is no direct GET URL that works (we tried payments.cashfree.com/checkout
-// and it returns 404 — that URL doesn't exist).
+// No Cashfree JS SDK needed. We use window.open() to open the backend-
+// hosted checkout page, which does a form POST to Cashfree. This avoids
+// the PWA WebView→system-browser POST body loss issue that causes
+// "Invalid Session ID" on mobile PWAs installed from Play Store.
 //
-// The SDK is loaded dynamically (instead of being added to index.html) so
-// that it only loads when the user actually taps "Pay" (saves ~50KB for
-// non-paying users) and so we can detect load failures and show a
-// manual fallback button.
-declare global {
-  interface Window {
-    Cashfree?: (config: { mode: 'production' | 'sandbox' }) => {
-      checkout: (options: { paymentSessionId: string; redirectTarget?: '_self' | '_blank' | '_modal' }) => void;
-    };
-  }
-}
-
-let cashfreeSdkPromise: Promise<typeof window.Cashfree | null> | null = null;
-
-function loadCashfreeSDK(): Promise<typeof window.Cashfree | null> {
-  if (typeof window === 'undefined') return Promise.resolve(null);
-  // Return cached promise if already loading/loaded (dedup concurrent calls)
-  if (cashfreeSdkPromise) return cashfreeSdkPromise;
-  // Already loaded on window
-  if (window.Cashfree) {
-    cashfreeSdkPromise = Promise.resolve(window.Cashfree);
-    return cashfreeSdkPromise;
-  }
-  cashfreeSdkPromise = new Promise((resolve) => {
-    const script = document.createElement('script');
-    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-    script.async = true;
-    script.onload = () => {
-      if (window.Cashfree) {
-        console.log('[premium] Cashfree SDK loaded successfully');
-        resolve(window.Cashfree);
-      } else {
-        console.error('[premium] Cashfree SDK loaded but window.Cashfree is not set');
-        resolve(null);
-      }
-    };
-    script.onerror = (e) => {
-      console.error('[premium] Failed to load Cashfree SDK from CDN:', e);
-      cashfreeSdkPromise = null; // allow retry on next attempt
-      resolve(null);
-    };
-    document.head.appendChild(script);
-  });
-  return cashfreeSdkPromise;
-}
+// See the file header comment for the full explanation.
 
 export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: () => void; feature?: string }) {
   const currentUser = useKabaddiStore((s) => s.currentUser);
@@ -280,17 +248,24 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
         } catch { /* localStorage may be unavailable (private mode) — non-fatal */ }
       }
 
-      // ─── Open Cashfree checkout via official JS SDK ─────────────────
-      // Per Cashfree's official documentation (cashfree.com/docs/payments/
-      // online/web/redirect), the JS SDK is the ONLY documented way to open
-      // Cashfree's hosted checkout. There is NO direct GET URL that works —
-      // payments.cashfree.com/checkout returns 404 (we tried it).
+      // ─── Open backend checkout page in a NEW TAB ───────────────────
+      // Use window.open('_blank') to open the backend-hosted checkout page.
+      // The backend page auto-submits a form POST to Cashfree.
       //
-      // The SDK uses cashfree.checkout({paymentSessionId, redirectTarget}).
-      // With redirectTarget: '_self' (the default), the SDK navigates the
-      // current page to Cashfree's hosted checkout at api.cashfree.com/checkout.
-      // After payment, Cashfree redirects back to our return_url
-      // (/?payment=success&order_id=...) which page.tsx handles.
+      // WHY NOT use the Cashfree JS SDK directly?
+      // The SDK does cf.checkout({redirectTarget:'_self'}) which submits a
+      // form to api.cashfree.com from the CURRENT page. On mobile PWA
+      // (installed from Play Store), Android intercepts this cross-origin
+      // POST and opens the system browser — but STRIPS the POST body
+      // (containing payment_session_id). Cashfree sees no session → shows
+      // "Invalid Session ID".
+      //
+      // By using window.open() to the backend checkout page, the form POST
+      // to Cashfree happens entirely WITHIN the system browser — no
+      // WebView handoff, no lost POST body. This works on:
+      //   - Desktop browser (opens new tab, form POST, Cashfree loads)
+      //   - Mobile browser (opens new tab, form POST, Cashfree loads)
+      //   - Mobile PWA (opens system browser, form POST, Cashfree loads)
       const sessionId = String(data.paymentSessionId);
       const env = data.env || 'sandbox';
 
@@ -309,48 +284,45 @@ export default function PremiumUpgradeScreen({ onClose, feature }: { onClose: ()
         return;
       }
 
-      // Log everything we can to help diagnose any future failures.
-      console.log('[premium] Opening Cashfree checkout via SDK', {
+      // Build the backend checkout URL. This page serves HTML that
+      // auto-submits a form POST to Cashfree's checkout endpoint.
+      const checkoutParams = new URLSearchParams({
+        session_id: sessionId,
+        env,
+      });
+      if (data.orderId) checkoutParams.set('order_id', String(data.orderId));
+      const checkoutUrl = apiUrl(`/api/payments/checkout?${checkoutParams.toString()}`);
+
+      console.log('[premium] Opening backend checkout page in new tab', {
         env,
         sessionLength: sessionId.length,
-        sessionPreview: sessionId.slice(0, 8) + '...',
         orderId: data.orderId,
+        url: checkoutUrl,
       });
 
-      // Load the Cashfree SDK dynamically, then open the checkout.
+      // Try opening in a new tab. On mobile PWA, this opens the system
+      // browser. The form POST to Cashfree happens in the system browser
+      // context, so the POST body is preserved.
+      let popup: Window | null = null;
       try {
-        const cashfree = await loadCashfreeSDK();
-        if (!cashfree) {
-          throw new Error('SDK failed to load from CDN');
-        }
-        // Initialize with the correct mode (sandbox or production).
-        // CRITICAL: This mode MUST match the env used to create the order
-        // on the backend. If they mismatch, Cashfree returns "Invalid
-        // Session ID" because the session exists in one env but the SDK
-        // is looking for it in the other.
-        const mode = env === 'production' ? 'production' : 'sandbox';
-        console.log('[premium] Initializing Cashfree SDK with mode:', mode);
-        const cf = cashfree({ mode });
-        // Open the checkout. redirectTarget: '_self' navigates the current
-        // page to Cashfree's hosted checkout.
-        cf.checkout({
-          paymentSessionId: sessionId,
-          redirectTarget: '_self',
-        });
-        console.log('[premium] Cashfree checkout() called — should redirect now');
-      } catch (sdkErr) {
-        console.error('[premium] Cashfree SDK error:', sdkErr);
-        // Show a clear error to the user with a retry option.
+        popup = window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+      } catch (e) {
+        console.error('[premium] window.open threw:', e);
+      }
+
+      // If the popup was blocked (popup === null), fall back to navigating
+      // the current page. This is less ideal on mobile PWA (the form POST
+      // may lose its body in the WebView→browser handoff) but it's better
+      // than doing nothing.
+      if (!popup) {
+        console.warn('[premium] window.open was blocked, falling back to window.location.href');
+        window.location.href = checkoutUrl;
+      } else {
+        // Show a toast telling the user to switch to the new tab.
         toast({
-          title: 'Could not open payment page',
-          description: 'The Cashfree SDK failed to load. Check your internet connection and try again.',
-          variant: 'destructive',
+          title: 'Payment tab opened',
+          description: 'Complete the payment in the new tab. Return here after payment is done.',
         });
-        try {
-          localStorage.removeItem('pendingPaymentOrderId');
-          localStorage.removeItem('pendingPaymentPlan');
-          localStorage.removeItem('pendingPaymentStartedAt');
-        } catch { /* noop */ }
       }
     } catch (err) {
       console.error('Premium payment error:', err);

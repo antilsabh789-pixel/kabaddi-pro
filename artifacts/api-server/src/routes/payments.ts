@@ -306,10 +306,22 @@ router.post('/payments/create-order', async (req, res) => {
 });
 
 router.get('/payments/checkout', async (req, res) => {
-  // FALLBACK endpoint — the frontend now uses the Cashfree JS SDK to open
-  // checkout directly. This endpoint is kept as a fallback in case the SDK
-  // fails to load (e.g. CDN blocked) and the frontend needs to redirect to
-  // a backend-hosted page that does a form POST to Cashfree's checkout.
+  // Backend-hosted checkout page. The frontend opens this page in a NEW
+  // BROWSER TAB via window.open('_blank'). This page then auto-submits a
+  // form POST to Cashfree's checkout endpoint.
+  //
+  // WHY this approach (vs. using the Cashfree JS SDK directly from the
+  // frontend):
+  // The Cashfree JS SDK does cf.checkout({redirectTarget:'_self'}) which
+  // submits a form to api.cashfree.com from the CURRENT page. On mobile
+  // PWA (installed from Play Store), Android intercepts this cross-origin
+  // POST and opens the system browser — but STRIPS the POST body
+  // (containing payment_session_id) during the WebView→system-browser
+  // handoff. Cashfree then sees no session → shows "Invalid Session ID".
+  //
+  // By opening THIS backend page via window.open(), the page loads IN the
+  // system browser. The form POST to Cashfree happens entirely WITHIN the
+  // system browser — no WebView handoff, no lost POST body.
   //
   // Cashfree's /pg/view/sessions/checkout endpoint ONLY accepts POST with
   // form field payment_session_id. GET returns:
@@ -321,9 +333,29 @@ router.get('/payments/checkout', async (req, res) => {
   const orderId = (req.query['order_id'] as string) || '';
   if (!sessionId) return res.status(400).send('<h1>Payment Session Missing</h1>');
 
-  // XSS-safe: escape for HTML attribute and JS string contexts.
-  const safeSessionAttr = sessionId.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const safeOrderId = orderId.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Log what we received so we can debug if the session ID is being
+  // corrupted in transit between frontend → URL → backend.
+  console.log('[checkout] Serving checkout page', {
+    env,
+    sessionLength: sessionId.length,
+    sessionPreview: sessionId.slice(0, 8) + '...',
+    orderId,
+  });
+
+  // XSS-safe escaping for the session ID going into an HTML attribute
+  // value (double-quoted). Escape &, <, >, ", and ' per OWASP guidance.
+  // The session ID is also placed as the form input value, which is an
+  // attribute context — same escaping applies.
+  const escapeHtmlAttr = (s: string) =>
+    s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+
+  const safeSessionAttr = escapeHtmlAttr(sessionId);
+  const safeOrderId = escapeHtmlAttr(orderId);
   const isProd = env === 'production';
 
   const cfFormEndpoint = isProd
