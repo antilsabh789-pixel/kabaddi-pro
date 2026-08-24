@@ -1231,7 +1231,12 @@ export const useKabaddiStore = create<KabaddiState>()(
 
       fetchHomeData: async () => {
         try {
-          const res = await fetch('/api/stats');
+          // Pass the current user's id so /api/stats can filter practice
+          // matches by follow graph — practice matches should only appear
+          // if the user follows a scorer or is themselves a scorer.
+          const uid = get().currentUser?.id;
+          const url = uid ? `/api/stats?userId=${encodeURIComponent(uid)}` : '/api/stats';
+          const res = await fetch(url);
           if (!res.ok) return null;
           const data = await res.json();
           set({ homeData: data });

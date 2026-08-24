@@ -3591,7 +3591,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
           <Badge className="bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-[9px] border-0 font-bold px-1.5 py-0">NEW</Badge>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {/* Find Grounds */}
+          {/* Find Grounds & Teams */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Card className="p-3.5 cursor-pointer transition-all duration-200 active:scale-[0.97] hover:scale-[1.04] hover:shadow-lg border-warm-200 dark:border-warm-700 bg-gradient-to-br from-blue-50/80 to-warm-50 dark:from-blue-900/20 dark:to-warm-800 relative overflow-hidden group card-hover-lift" onClick={() => setShowFindTeams(true)}>
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-500/40" />
@@ -3601,8 +3601,8 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                   <MapPin className="w-4.5 h-4.5 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">Find Grounds</p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">Nearby venues & arenas</p>
+                  <p className="text-xs font-semibold text-warm-800 dark:text-warm-100">{t('findTeams.groundsTitle', language)}</p>
+                  <p className="text-[10px] text-warm-500 dark:text-warm-400">{language === 'hi' ? 'मैदान, अकादमी और टीमें' : 'Grounds, academies & teams'}</p>
                 </div>
               </div>
             </Card>

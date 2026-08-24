@@ -442,8 +442,8 @@ export const translations: TranslationMap = {
   // ─── Find Teams (Feature #64) ───
   'findTeams.title': { en: 'Teams & Grounds', hi: 'टीमें और मैदान' },
   'findTeams.subtitle': { en: 'Discover kabaddi teams & grounds near you', hi: 'अपने पास कबड्डी टीमें और मैदान खोजें' },
-  'findTeams.groundsTitle': { en: 'Find Grounds', hi: 'मैदान खोजें' },
-  'findTeams.groundsSubtitle': { en: 'Discover kabaddi grounds & academies', hi: 'कबड्डी मैदान और अकादमी खोजें' },
+  'findTeams.groundsTitle': { en: 'Find Grounds & Teams', hi: 'मैदान और टीमें खोजें' },
+  'findTeams.groundsSubtitle': { en: 'Discover grounds, academies & teams', hi: 'मैदान, अकादमी और टीमें खोजें' },
   'findTeams.everywhere': { en: 'Everywhere', hi: 'हर जगह' },
   'findTeams.gpsNotSupported': { en: 'GPS is not supported on this device', hi: 'इस डिवाइस पर GPS समर्थित नहीं है' },
   'findTeams.gpsDenied': { en: 'Location access denied. Please enable GPS.', hi: 'स्थान एक्सेस अस्वीकृत। कृपया GPS चालू करें।' },

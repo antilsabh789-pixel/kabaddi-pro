@@ -425,6 +425,57 @@ router.get('/teams-leaderboard', async (req, res) => {
   }
 });
 
+// ─── Public discovery: list ALL teams ────────────────────────────────
+// Used by the "Find Grounds & Teams" screen so users can browse every team
+// in the app alongside grounds and academies. Returns up to 200 teams with
+// member count + captain info. Does NOT include phone numbers or other
+// private data — only what's needed for discovery.
+router.get('/teams/discover', async (req, res) => {
+  try {
+    const search = ((req.query['search'] as string) || '').trim();
+    const limit = Math.min(parseInt((req.query['limit'] as string) || '200'), 500);
+
+    const where: Record<string, unknown> = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { teamCode: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const teams = await db.team.findMany({
+      where,
+      take: limit,
+      include: {
+        _count: { select: { members: true } },
+        members: {
+          where: { isCaptain: true },
+          take: 1,
+          select: { user: { select: { id: true, name: true, avatar: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const formatted = teams.map((t) => ({
+      id: t.id,
+      name: t.name,
+      shortName: t.shortName,
+      teamCode: t.teamCode,
+      logo: t.logo,
+      color: t.color,
+      memberCount: t._count.members,
+      captain: t.members[0]?.user || null,
+      createdAt: t.createdAt,
+    }));
+
+    return res.json({ teams: formatted });
+  } catch (error) {
+    console.error('Teams discover error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── Team Join Requests ─────────────────────────────────────────────
 
 /**

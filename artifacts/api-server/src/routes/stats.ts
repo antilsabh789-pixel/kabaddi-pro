@@ -41,26 +41,72 @@ router.get('/stats', async (req, res) => {
       scorers: { select: { userId: true, user: { select: { id: true, name: true, avatar: true } } } },
     };
 
-    const [liveMatches, recentMatches, upcomingMatches] = await Promise.all([
+    // ── Practice match privacy ─────────────────────────────────────────
+    // Practice matches are personal. They should NOT appear in everyone's
+    // home feed. They only appear if the requesting user:
+    //   (a) follows at least one scorer of the match, OR
+    //   (b) is themselves a scorer of the match.
+    // Tournament matches (isPractice=false) are always public.
+    //
+    // Implementation: if a userId is provided, fetch their follow set once,
+    // then after fetching the top-N matches per bucket, filter practice
+    // matches client-side (in JS) by intersecting scorer userIds with the
+    // user's following set ∪ {userId}. We fetch a slightly larger pool
+    // (take: 20) so that after filtering we usually still have ~5 results.
+    const userId = (req.query['userId'] as string) || '';
+    let followingIds = new Set<string>();
+    if (userId) {
+      const follows = await db.follow.findMany({
+        where: { followerId: userId },
+        select: { followingId: true },
+      });
+      followingIds = new Set(follows.map((f) => f.followingId));
+      followingIds.add(userId); // include self so the user sees their own practice matches
+    }
+
+    const FEED_POOL = 20; // fetch more than 5 so post-filter still yields enough
+
+    const [liveRaw, recentRaw, upcomingRaw] = await Promise.all([
       db.match.findMany({
         where: { status: 'live' },
         include: matchIncludeForFeed,
         orderBy: { startedAt: 'desc' },
-        take: 5,
+        take: FEED_POOL,
       }),
       db.match.findMany({
         where: { status: 'completed' },
         include: matchIncludeForFeed,
         orderBy: { completedAt: 'desc' },
-        take: 5,
+        take: FEED_POOL,
       }),
       db.match.findMany({
         where: { status: 'upcoming' },
         include: matchIncludeForFeed,
         orderBy: { startedAt: 'asc' },
-        take: 5,
+        take: FEED_POOL,
       }),
     ]);
+
+    // Filter practice matches by follow graph (when userId is provided).
+    // If no userId is provided, hide ALL practice matches from the global
+    // feed (defensive default — protects privacy when caller doesn't
+    // identify themselves).
+    const filterPractice = (matches: typeof liveRaw) => {
+      if (!userId) {
+        // No identity provided — only show tournament matches.
+        return matches.filter((m) => !m.isPractice);
+      }
+      return matches.filter((m) => {
+        if (!m.isPractice) return true; // tournament matches always visible
+        // Practice match — visible only if user follows a scorer or is a scorer
+        const scorerIds = (m.scorers || []).map((s) => s.userId);
+        return scorerIds.some((sid) => followingIds.has(sid));
+      });
+    };
+
+    const liveMatches = filterPractice(liveRaw).slice(0, 5);
+    const recentMatches = filterPractice(recentRaw).slice(0, 5);
+    const upcomingMatches = filterPractice(upcomingRaw).slice(0, 5);
 
     const raidSuccessRate = (aggregateStats._sum.totalRaids ?? 0) > 0
       ? Math.round(((aggregateStats._sum.successfulRaids ?? 0) / (aggregateStats._sum.totalRaids ?? 1)) * 100) : 0;
