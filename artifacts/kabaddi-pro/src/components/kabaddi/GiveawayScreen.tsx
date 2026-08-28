@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gift, Trophy, Users, Clock, Check, Loader2, X, Sparkles, Crown, UserPlus, Lock, Zap } from 'lucide-react';
+import { Gift, Trophy, Users, Clock, Check, Loader2, X, Sparkles, Crown, UserPlus, Lock, Zap, Medal, Share2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useKabaddiStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { useBackButton } from '@/hooks/use-back-button';
+import ReferralContestPanel from './ReferralContestPanel';
 
 interface GiveawayScreenProps {
   onClose: () => void;
@@ -97,6 +98,10 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
   const [manualMode, setManualMode] = useState(false);
   const [manualSelected, setManualSelected] = useState<string[]>([]); // user IDs
   const [manualRoundId, setManualRoundId] = useState<string | null>(null);
+
+  // Top-level tab: 'giveaway' (existing 15-day random draw) or
+  // 'referral-contest' (new monthly referral contest — most referrals wins).
+  const [activeTab, setActiveTab] = useState<'giveaway' | 'referral-contest'>('giveaway');
 
   useBackButton(true, onClose);
 
@@ -517,9 +522,13 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
         <div className="flex-1">
           <h1 className="text-white font-black text-lg flex items-center gap-2">
             <Gift className="w-5 h-5" />
-            Kabaddi Pro Giveaway
+            {activeTab === 'giveaway' ? 'Kabaddi Pro Giveaway' : 'Referral Contest'}
           </h1>
-          <p className="text-white/70 text-[10px]">Win amazing prizes every 15 days!</p>
+          <p className="text-white/70 text-[10px]">
+            {activeTab === 'giveaway'
+              ? 'Win amazing prizes every 15 days!'
+              : 'Most referrals wins 1kg Oats Pack — monthly!'}
+          </p>
         </div>
         {currentUser?.isAdmin && (
           <button
@@ -531,6 +540,38 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
         )}
       </div>
 
+      {/* Tab Switcher */}
+      <div className="sticky top-[60px] z-[5] bg-white dark:bg-warm-900 border-b border-warm-200 dark:border-warm-700 px-2 py-1.5 flex gap-1">
+        <button
+          onClick={() => setActiveTab('giveaway')}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'giveaway'
+              ? 'bg-brand-red text-white shadow-md'
+              : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-300'
+          }`}
+        >
+          <Gift className="w-3.5 h-3.5" />
+          Giveaway
+        </button>
+        <button
+          onClick={() => setActiveTab('referral-contest')}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'referral-contest'
+              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
+              : 'bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-300'
+          }`}
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          Referral Contest
+        </button>
+      </div>
+
+      {activeTab === 'referral-contest' ? (
+        <ReferralContestPanel
+          onClose={onClose}
+          onOpenReferral={onOpenReferral}
+        />
+      ) : (
       <div className="p-4 space-y-4 max-w-md mx-auto pb-8">
         {/* Timer */}
         <Card className="p-5 bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30 text-center">
@@ -1039,6 +1080,7 @@ export default function GiveawayScreen({ onClose, onOpenReferral, onUpgradeToPre
           </div>
         )}
       </div>
+      )}
 
       {/* ═══ Change Winners Overlay ═══ */}
       {showChangeWinners && (

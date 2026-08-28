@@ -1008,3 +1008,25 @@ model CommunityTournament {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+// ─── Referral Contest (Monthly) ────────────────────────────────────
+// A monthly contest where the user with the most successful referrals
+// in a 30-day window wins a 1kg oats pack. Rounds roll automatically:
+// when the current round's endDate passes, a new round is created on
+// the next status query.
+
+model ReferralContestRound {
+  id              String   @id @default(cuid())
+  roundNumber     Int      @unique  // sequential 1, 2, 3...
+  startDate       DateTime
+  endDate         DateTime // 30 days after startDate
+  status          String   @default("active") // active, completed
+  // Winner user IDs stored as JSON: '["userId1"]' (top referrer)
+  // Extended in future to top 3.
+  winnersJson     String?
+  winnerCount     Int      @default(0)  // 1 for now (top referrer)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
