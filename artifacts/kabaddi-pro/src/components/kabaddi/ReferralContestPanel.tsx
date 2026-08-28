@@ -233,9 +233,20 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
   if (!status) {
     return (
       <div className="p-6 text-center">
-        <p className="text-sm text-warm-500">
-          {language === 'hi' ? 'कोई सक्रिय कॉन्टेस्ट नहीं मिला' : 'No active contest found'}
+        <Trophy className="w-12 h-12 mx-auto text-purple-300 dark:text-purple-700 mb-3" />
+        <p className="text-sm text-warm-500 mb-4">
+          {language === 'hi' ? 'कॉन्टेस्ट लोड हो रहा है...' : 'Loading contest...'}
         </p>
+        <Button
+          onClick={() => {
+            setLoading(true);
+            fetchStatus();
+          }}
+          variant="outline"
+          className="text-xs h-8"
+        >
+          {language === 'hi' ? 'पुनः प्रयास करें' : 'Retry'}
+        </Button>
       </div>
     );
   }

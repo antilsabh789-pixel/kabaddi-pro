@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { db } from '../lib/db';
 
 const router = Router();
@@ -7,6 +8,102 @@ const router = Router();
 
 const CONTEST_DURATION_DAYS = 30;
 const CONTEST_PRIZE = '1kg High Protein Oats Pack';
+
+// ─── Self-healing: auto-create tables if migration hasn't run ──────
+
+/**
+ * Try to CREATE the referral contest tables on-the-fly if they don't
+ * exist. This handles the case where the Railway deployment hasn't had
+ * `prisma migrate deploy` run yet — the API will self-heal instead of
+ * returning 500 errors.
+ *
+ * Returns true if ANY DDL statement succeeded (i.e. we should retry).
+ */
+async function selfHealReferralContestTables(): Promise<boolean> {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "ReferralContestRound" (
+      "id" TEXT NOT NULL,
+      "roundNumber" INTEGER NOT NULL,
+      "startDate" TIMESTAMP(3) NOT NULL,
+      "endDate" TIMESTAMP(3) NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "winnersJson" TEXT,
+      "winnerCount" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "ReferralContestRound_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "ReferralContestRound_roundNumber_key" ON "ReferralContestRound"("roundNumber")`,
+    `CREATE INDEX IF NOT EXISTS "ReferralContestRound_status_idx" ON "ReferralContestRound"("status")`,
+    `CREATE TABLE IF NOT EXISTS "ReferralContestParticipant" (
+      "id" TEXT NOT NULL,
+      "roundId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "enteredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "ReferralContestParticipant_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "ReferralContestParticipant_roundId_userId_key" ON "ReferralContestParticipant"("roundId", "userId")`,
+    `CREATE INDEX IF NOT EXISTS "ReferralContestParticipant_roundId_idx" ON "ReferralContestParticipant"("roundId")`,
+  ];
+  let createdAny = false;
+  for (const sql of statements) {
+    try {
+      await db.$executeRawUnsafe(sql);
+      createdAny = true;
+    } catch {
+      // swallow — we'll let the retry fail with the original error if needed
+    }
+  }
+  return createdAny;
+}
+
+/**
+ * Wrap a DB operation with self-healing.
+ * If the first attempt throws P2021 (table missing) or a "does not exist"
+ * error, we try to CREATE the tables and retry ONCE.
+ */
+async function withSelfHeal<T>(op: () => Promise<T>): Promise<T> {
+  try {
+    return await op();
+  } catch (err) {
+    const isTableMissing =
+      err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2021';
+    const msg = err instanceof Error ? err.message : String(err);
+    const msgLooksMissing = /does not exist/i.test(msg);
+    if (!isTableMissing && !msgLooksMissing) throw err;
+    const healed = await selfHealReferralContestTables();
+    if (!healed) throw err;
+    return await op();
+  }
+}
+
+function sanitizeDbError(err: unknown): string {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    const code = err.code;
+    const meta = err.meta as Record<string, unknown> | undefined;
+    switch (code) {
+      case 'P2021': {
+        const table = meta?.table ? ` (table: ${String(meta.table)})` : '';
+        return `DB table missing (Prisma ${code})${table}. Will self-heal on next request.`;
+      }
+      case 'P2022': {
+        const column = meta?.column ? `: ${String(meta.column)}` : '';
+        return `DB column missing (Prisma ${code})${column}.`;
+      }
+      case 'P2002': {
+        const target = meta?.target ? ` (target: ${JSON.stringify(meta.target)})` : '';
+        return `DB unique constraint failed (Prisma ${code})${target}.`;
+      }
+      default:
+        return `DB error (Prisma ${code}).`;
+    }
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/relation ".*" does not exist/i.test(msg)) {
+    return 'DB table missing (raw Postgres). Will self-heal on next request.';
+  }
+  return msg.slice(0, 180);
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -18,59 +115,71 @@ const CONTEST_PRIZE = '1kg High Protein Oats Pack';
  * create round #N+1 starting now.
  */
 async function getOrCreateActiveContestRound() {
-  const latest = await db.referralContestRound.findFirst({
-    orderBy: { roundNumber: 'desc' },
-  });
+  const latest = await withSelfHeal(() =>
+    db.referralContestRound.findFirst({
+      orderBy: { roundNumber: 'desc' },
+    })
+  );
 
   if (!latest) {
     // Create round #1
     const now = new Date();
-    const round = await db.referralContestRound.create({
-      data: {
-        roundNumber: 1,
-        startDate: now,
-        endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
-        status: 'active',
-      },
-    });
+    const round = await withSelfHeal(() =>
+      db.referralContestRound.create({
+        data: {
+          roundNumber: 1,
+          startDate: now,
+          endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          status: 'active',
+        },
+      })
+    );
     return round;
   }
 
   // If the latest round is active but its endDate has passed, roll it.
   if (latest.status === 'active' && new Date(latest.endDate) < new Date()) {
-    await db.referralContestRound.update({
-      where: { id: latest.id },
-      data: { status: 'completed' },
-    });
+    await withSelfHeal(() =>
+      db.referralContestRound.update({
+        where: { id: latest.id },
+        data: { status: 'completed' },
+      })
+    );
 
     const now = new Date();
-    const nextRound = await db.referralContestRound.create({
-      data: {
-        roundNumber: latest.roundNumber + 1,
-        startDate: now,
-        endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
-        status: 'active',
-      },
-    });
+    const nextRound = await withSelfHeal(() =>
+      db.referralContestRound.create({
+        data: {
+          roundNumber: latest.roundNumber + 1,
+          startDate: now,
+          endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          status: 'active',
+        },
+      })
+    );
     return nextRound;
   }
 
   // If latest is completed but no active round exists (shouldn't happen, but be safe)
   if (latest.status === 'completed') {
-    const activeRound = await db.referralContestRound.findFirst({
-      where: { status: 'active' },
-    });
+    const activeRound = await withSelfHeal(() =>
+      db.referralContestRound.findFirst({
+        where: { status: 'active' },
+      })
+    );
     if (activeRound) return activeRound;
 
     const now = new Date();
-    const round = await db.referralContestRound.create({
-      data: {
-        roundNumber: latest.roundNumber + 1,
-        startDate: now,
-        endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
-        status: 'active',
-      },
-    });
+    const round = await withSelfHeal(() =>
+      db.referralContestRound.create({
+        data: {
+          roundNumber: latest.roundNumber + 1,
+          startDate: now,
+          endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          status: 'active',
+        },
+      })
+    );
     return round;
   }
 
@@ -92,14 +201,16 @@ async function getOrCreateActiveContestRound() {
  * which the code was generated.
  */
 async function countReferralsInWindow(referrerId: string, startDate: Date, endDate: Date): Promise<number> {
-  return db.referral.count({
-    where: {
-      referrerId,
-      referredId: { not: null },
-      status: 'signed_up',
-      completedAt: { gte: startDate, lte: endDate },
-    },
-  });
+  return withSelfHeal(() =>
+    db.referral.count({
+      where: {
+        referrerId,
+        referredId: { not: null },
+        status: 'signed_up',
+        completedAt: { gte: startDate, lte: endDate },
+      },
+    })
+  );
 }
 
 /**
@@ -115,33 +226,32 @@ async function getTopReferrers(startDate: Date, endDate: Date, limit: number, ro
   let participantMap = new Map<string, Date>(); // userId -> enteredAt
 
   if (roundId) {
-    const participants = await db.referralContestParticipant.findMany({
-      where: { roundId },
-      select: { userId: true, enteredAt: true },
-    });
+    const participants = await withSelfHeal(() =>
+      db.referralContestParticipant.findMany({
+        where: { roundId },
+        select: { userId: true, enteredAt: true },
+      })
+    );
     participantUserIds = participants.map((p) => p.userId);
     participants.forEach((p) => participantMap.set(p.userId, p.enteredAt));
     if (participantUserIds.length === 0) return [];
   }
 
   // Group by referrerId using Prisma's groupBy.
-  // Filter:
-  //   - referredId IS NOT NULL (someone signed up)
-  //   - status = 'signed_up'
-  //   - completedAt is within the round window
-  //   - (if roundId provided) referrerId is in participantUserIds
-  const grouped = await db.referral.groupBy({
-    by: ['referrerId'],
-    where: {
-      referredId: { not: null },
-      status: 'signed_up',
-      completedAt: { gte: startDate, lte: endDate },
-      ...(participantUserIds ? { referrerId: { in: participantUserIds } } : {}),
-    },
-    _count: { referrerId: true },
-    orderBy: { _count: { referrerId: 'desc' } },
-    take: limit,
-  });
+  const grouped = await withSelfHeal(() =>
+    db.referral.groupBy({
+      by: ['referrerId'],
+      where: {
+        referredId: { not: null },
+        status: 'signed_up',
+        completedAt: { gte: startDate, lte: endDate },
+        ...(participantUserIds ? { referrerId: { in: participantUserIds } } : {}),
+      },
+      _count: { referrerId: true },
+      orderBy: { _count: { referrerId: 'desc' } },
+      take: limit,
+    })
+  );
 
   if (grouped.length === 0) return [];
 
@@ -171,7 +281,9 @@ async function getTopReferrers(startDate: Date, endDate: Date, limit: number, ro
  * This is the "X participants" number shown in the UI.
  */
 async function countParticipants(roundId: string): Promise<number> {
-  return db.referralContestParticipant.count({ where: { roundId } });
+  return withSelfHeal(() =>
+    db.referralContestParticipant.count({ where: { roundId } })
+  );
 }
 
 // ─── Public endpoints ──────────────────────────────────────────────
@@ -191,15 +303,17 @@ router.post('/referral-contest/enter', async (req, res) => {
     if (!userId) return res.status(400).json({ error: 'userId is required' });
 
     // Verify user exists
-    const user = await db.user.findUnique({ where: { id: userId } });
+    const user = await withSelfHeal(() => db.user.findUnique({ where: { id: userId } }));
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const round = await getOrCreateActiveContestRound();
 
     // Check if already entered (idempotent)
-    const existing = await db.referralContestParticipant.findUnique({
-      where: { roundId_userId: { roundId: round.id, userId } },
-    });
+    const existing = await withSelfHeal(() =>
+      db.referralContestParticipant.findUnique({
+        where: { roundId_userId: { roundId: round.id, userId } },
+      })
+    );
     if (existing) {
       return res.json({
         success: true,
@@ -213,9 +327,11 @@ router.post('/referral-contest/enter', async (req, res) => {
     }
 
     // Create the participant entry
-    await db.referralContestParticipant.create({
-      data: { roundId: round.id, userId },
-    });
+    await withSelfHeal(() =>
+      db.referralContestParticipant.create({
+        data: { roundId: round.id, userId },
+      })
+    );
 
     return res.json({
       success: true,
@@ -228,7 +344,7 @@ router.post('/referral-contest/enter', async (req, res) => {
     });
   } catch (error) {
     console.error('Referral contest enter error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -249,9 +365,11 @@ router.get('/referral-contest/status', async (req, res) => {
     let hasEntered = false;
     let enteredAt: string | null = null;
     if (userId) {
-      const participant = await db.referralContestParticipant.findUnique({
-        where: { roundId_userId: { roundId: round.id, userId } },
-      });
+      const participant = await withSelfHeal(() =>
+        db.referralContestParticipant.findUnique({
+          where: { roundId_userId: { roundId: round.id, userId } },
+        })
+      );
       if (participant) {
         hasEntered = true;
         enteredAt = participant.enteredAt.toISOString();
@@ -277,23 +395,26 @@ router.get('/referral-contest/status', async (req, res) => {
         } else {
           // User is outside top 10 — compute their rank by counting participants
           // with more referrals than them.
-          // Fetch all participant referral counts for this round.
-          const allParticipants = await db.referralContestParticipant.findMany({
-            where: { roundId: round.id },
-            select: { userId: true },
-          });
+          const allParticipants = await withSelfHeal(() =>
+            db.referralContestParticipant.findMany({
+              where: { roundId: round.id },
+              select: { userId: true },
+            })
+          );
           const allParticipantIds = allParticipants.map((p) => p.userId);
           if (allParticipantIds.length > 0) {
-            const allGroups = await db.referral.groupBy({
-              by: ['referrerId'],
-              where: {
-                referredId: { not: null },
-                status: 'signed_up',
-                completedAt: { gte: round.startDate, lte: round.endDate },
-                referrerId: { in: allParticipantIds },
-              },
-              _count: { referrerId: true },
-            });
+            const allGroups = await withSelfHeal(() =>
+              db.referral.groupBy({
+                by: ['referrerId'],
+                where: {
+                  referredId: { not: null },
+                  status: 'signed_up',
+                  completedAt: { gte: round.startDate, lte: round.endDate },
+                  referrerId: { in: allParticipantIds },
+                },
+                _count: { referrerId: true },
+              })
+            );
             const usersWithMore = allGroups.filter(
               (g) => g._count.referrerId > myReferralCount
             ).length;
@@ -302,24 +423,27 @@ router.get('/referral-contest/status', async (req, res) => {
         }
       } else {
         // User has entered but 0 referrals — rank is the total number of participants
-        // with > 0 referrals + 1. We compute this by counting participants who have at
-        // least 1 referral in this window.
-        const allParticipants = await db.referralContestParticipant.findMany({
-          where: { roundId: round.id },
-          select: { userId: true },
-        });
+        // with > 0 referrals + 1.
+        const allParticipants = await withSelfHeal(() =>
+          db.referralContestParticipant.findMany({
+            where: { roundId: round.id },
+            select: { userId: true },
+          })
+        );
         const allParticipantIds = allParticipants.map((p) => p.userId);
         if (allParticipantIds.length > 0) {
-          const allGroups = await db.referral.groupBy({
-            by: ['referrerId'],
-            where: {
-              referredId: { not: null },
-              status: 'signed_up',
-              completedAt: { gte: round.startDate, lte: round.endDate },
-              referrerId: { in: allParticipantIds },
-            },
-            _count: { referrerId: true },
-          });
+          const allGroups = await withSelfHeal(() =>
+            db.referral.groupBy({
+              by: ['referrerId'],
+              where: {
+                referredId: { not: null },
+                status: 'signed_up',
+                completedAt: { gte: round.startDate, lte: round.endDate },
+                referrerId: { in: allParticipantIds },
+              },
+              _count: { referrerId: true },
+            })
+          );
           // Rank = number of participants with at least 1 referral + 1
           myRank = allGroups.length + 1;
         }
@@ -327,11 +451,13 @@ router.get('/referral-contest/status', async (req, res) => {
     }
 
     // Past winners (last 5 completed rounds)
-    const pastRounds = await db.referralContestRound.findMany({
-      where: { status: 'completed', winnersJson: { not: null } },
-      orderBy: { roundNumber: 'desc' },
-      take: 5,
-    });
+    const pastRounds = await withSelfHeal(() =>
+      db.referralContestRound.findMany({
+        where: { status: 'completed', winnersJson: { not: null } },
+        orderBy: { roundNumber: 'desc' },
+        take: 5,
+      })
+    );
     const pastWinners = [];
     for (const r of pastRounds) {
       let winnerIds: string[] = [];
@@ -339,20 +465,24 @@ router.get('/referral-contest/status', async (req, res) => {
         winnerIds = JSON.parse(r.winnersJson || '[]');
       } catch { /* ignore */ }
       if (winnerIds.length === 0) continue;
-      const winners = await db.user.findMany({
-        where: { id: { in: winnerIds } },
-        select: { id: true, name: true, avatar: true, playerCode: true },
-      });
+      const winners = await withSelfHeal(() =>
+        db.user.findMany({
+          where: { id: { in: winnerIds } },
+          select: { id: true, name: true, avatar: true, playerCode: true },
+        })
+      );
       // Count referrals for the winner in that round's window
       for (const w of winners) {
-        const cnt = await db.referral.count({
-          where: {
-            referrerId: w.id,
-            referredId: { not: null },
-            status: 'signed_up',
-            completedAt: { gte: r.startDate, lte: r.endDate },
-          },
-        });
+        const cnt = await withSelfHeal(() =>
+          db.referral.count({
+            where: {
+              referrerId: w.id,
+              referredId: { not: null },
+              status: 'signed_up',
+              completedAt: { gte: r.startDate, lte: r.endDate },
+            },
+          })
+        );
         pastWinners.push({
           roundNumber: r.roundNumber,
           userId: w.id,
@@ -386,7 +516,7 @@ router.get('/referral-contest/status', async (req, res) => {
     });
   } catch (error) {
     console.error('Referral contest status error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -402,7 +532,7 @@ router.get('/referral-contest/leaderboard', async (req, res) => {
 
     let round;
     if (roundId) {
-      round = await db.referralContestRound.findUnique({ where: { id: roundId } });
+      round = await withSelfHeal(() => db.referralContestRound.findUnique({ where: { id: roundId } }));
     } else {
       round = await getOrCreateActiveContestRound();
     }
@@ -414,7 +544,7 @@ router.get('/referral-contest/leaderboard', async (req, res) => {
     return res.json({ round, leaderboard, totalParticipants });
   } catch (error) {
     console.error('Referral contest leaderboard error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -431,7 +561,7 @@ router.post('/referral-contest/admin/select-winners', async (req, res) => {
     const { adminId } = req.body;
     if (!adminId) return res.status(400).json({ error: 'adminId is required' });
 
-    const admin = await db.user.findUnique({ where: { id: adminId } });
+    const admin = await withSelfHeal(() => db.user.findUnique({ where: { id: adminId } }));
     if (!admin?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
 
     const round = await getOrCreateActiveContestRound();
@@ -444,25 +574,29 @@ router.post('/referral-contest/admin/select-winners', async (req, res) => {
     }
 
     const winnerIds = [top[0].userId];
-    await db.referralContestRound.update({
-      where: { id: round.id },
-      data: {
-        status: 'completed',
-        winnersJson: JSON.stringify(winnerIds),
-        winnerCount: winnerIds.length,
-      },
-    });
+    await withSelfHeal(() =>
+      db.referralContestRound.update({
+        where: { id: round.id },
+        data: {
+          status: 'completed',
+          winnersJson: JSON.stringify(winnerIds),
+          winnerCount: winnerIds.length,
+        },
+      })
+    );
 
     // Create next round
     const now = new Date();
-    const nextRound = await db.referralContestRound.create({
-      data: {
-        roundNumber: round.roundNumber + 1,
-        startDate: now,
-        endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
-        status: 'active',
-      },
-    });
+    const nextRound = await withSelfHeal(() =>
+      db.referralContestRound.create({
+        data: {
+          roundNumber: round.roundNumber + 1,
+          startDate: now,
+          endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          status: 'active',
+        },
+      })
+    );
 
     return res.json({
       success: true,
@@ -473,7 +607,7 @@ router.post('/referral-contest/admin/select-winners', async (req, res) => {
     });
   } catch (error) {
     console.error('Referral contest select-winners error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -487,24 +621,28 @@ router.post('/referral-contest/admin/force-start-next-round', async (req, res) =
     const { adminId } = req.body;
     if (!adminId) return res.status(400).json({ error: 'adminId is required' });
 
-    const admin = await db.user.findUnique({ where: { id: adminId } });
+    const admin = await withSelfHeal(() => db.user.findUnique({ where: { id: adminId } }));
     if (!admin?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
 
     const round = await getOrCreateActiveContestRound();
-    await db.referralContestRound.update({
-      where: { id: round.id },
-      data: { status: 'completed' },
-    });
+    await withSelfHeal(() =>
+      db.referralContestRound.update({
+        where: { id: round.id },
+        data: { status: 'completed' },
+      })
+    );
 
     const now = new Date();
-    const nextRound = await db.referralContestRound.create({
-      data: {
-        roundNumber: round.roundNumber + 1,
-        startDate: now,
-        endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
-        status: 'active',
-      },
-    });
+    const nextRound = await withSelfHeal(() =>
+      db.referralContestRound.create({
+        data: {
+          roundNumber: round.roundNumber + 1,
+          startDate: now,
+          endDate: new Date(now.getTime() + CONTEST_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          status: 'active',
+        },
+      })
+    );
 
     return res.json({
       success: true,
@@ -513,7 +651,7 @@ router.post('/referral-contest/admin/force-start-next-round', async (req, res) =
     });
   } catch (error) {
     console.error('Referral contest force-start-next-round error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
@@ -524,33 +662,39 @@ router.post('/referral-contest/admin/force-start-next-round', async (req, res) =
 router.get('/referral-contest/admin/all-rounds', async (req, res) => {
   try {
     const adminId = (req.query['adminId'] as string) || '';
-    const admin = await db.user.findUnique({ where: { id: adminId } });
+    const admin = await withSelfHeal(() => db.user.findUnique({ where: { id: adminId } }));
     if (!admin?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
 
-    const rounds = await db.referralContestRound.findMany({
-      orderBy: { roundNumber: 'desc' },
-      take: 50,
-      include: { _count: { select: { participants: true } } },
-    });
+    const rounds = await withSelfHeal(() =>
+      db.referralContestRound.findMany({
+        orderBy: { roundNumber: 'desc' },
+        take: 50,
+        include: { _count: { select: { participants: true } } },
+      })
+    );
 
     const formatted = await Promise.all(rounds.map(async (r) => {
       let winnerIds: string[] = [];
       try { winnerIds = JSON.parse(r.winnersJson || '[]'); } catch { /* ignore */ }
       let winners: Array<{ id: string; name: string | null; avatar: string | null; playerCode: string | null; referralCount: number }> = [];
       if (winnerIds.length > 0) {
-        const users = await db.user.findMany({
-          where: { id: { in: winnerIds } },
-          select: { id: true, name: true, avatar: true, playerCode: true },
-        });
+        const users = await withSelfHeal(() =>
+          db.user.findMany({
+            where: { id: { in: winnerIds } },
+            select: { id: true, name: true, avatar: true, playerCode: true },
+          })
+        );
         for (const u of users) {
-          const cnt = await db.referral.count({
-            where: {
-              referrerId: u.id,
-              referredId: { not: null },
-              status: 'signed_up',
-              completedAt: { gte: r.startDate, lte: r.endDate },
-            },
-          });
+          const cnt = await withSelfHeal(() =>
+            db.referral.count({
+              where: {
+                referrerId: u.id,
+                referredId: { not: null },
+                status: 'signed_up',
+                completedAt: { gte: r.startDate, lte: r.endDate },
+              },
+            })
+          );
           winners.push({ ...u, referralCount: cnt });
         }
       }
@@ -568,7 +712,7 @@ router.get('/referral-contest/admin/all-rounds', async (req, res) => {
     return res.json({ rounds: formatted });
   } catch (error) {
     console.error('Referral contest admin all-rounds error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: sanitizeDbError(error) });
   }
 });
 
