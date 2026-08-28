@@ -79,6 +79,17 @@ async function getOrCreateActiveContestRound() {
 
 /**
  * Count successful referrals (signed_up + completedAt within window) for a user.
+ *
+ * A "successful referral" = a Referral row where:
+ *   - referrerId = this user (they shared the code)
+ *   - referredId IS NOT NULL (someone actually used the code)
+ *   - status = 'signed_up' (the code was consumed at signup)
+ *   - completedAt is within [startDate, endDate] (the referred user signed up during this round window)
+ *
+ * completedAt is set to new Date() at the exact moment the new user signs up
+ * (see auth.ts line 333 and social.ts line 565), so this correctly attributes
+ * referrals to the round in which the new user signed up — NOT the round in
+ * which the code was generated.
  */
 async function countReferralsInWindow(referrerId: string, startDate: Date, endDate: Date): Promise<number> {
   return db.referral.count({
@@ -92,17 +103,40 @@ async function countReferralsInWindow(referrerId: string, startDate: Date, endDa
 }
 
 /**
- * Get the top N referrers in a window. Returns array of
- * { userId, name, avatar, playerCode, referralCount, rank }
+ * Get the top N referrers in a window, FILTERED to only include users who
+ * have entered the contest (ReferralContestParticipant row exists for this round).
+ *
+ * Returns array of:
+ * { userId, name, avatar, playerCode, referralCount, rank, enteredAt }
  */
-async function getTopReferrers(startDate: Date, endDate: Date, limit: number = 10) {
-  // Group by referrerId using Prisma's groupBy
+async function getTopReferrers(startDate: Date, endDate: Date, limit: number, roundId?: string) {
+  // If roundId is provided, only count referrals from users who entered the contest.
+  let participantUserIds: string[] | null = null;
+  let participantMap = new Map<string, Date>(); // userId -> enteredAt
+
+  if (roundId) {
+    const participants = await db.referralContestParticipant.findMany({
+      where: { roundId },
+      select: { userId: true, enteredAt: true },
+    });
+    participantUserIds = participants.map((p) => p.userId);
+    participants.forEach((p) => participantMap.set(p.userId, p.enteredAt));
+    if (participantUserIds.length === 0) return [];
+  }
+
+  // Group by referrerId using Prisma's groupBy.
+  // Filter:
+  //   - referredId IS NOT NULL (someone signed up)
+  //   - status = 'signed_up'
+  //   - completedAt is within the round window
+  //   - (if roundId provided) referrerId is in participantUserIds
   const grouped = await db.referral.groupBy({
     by: ['referrerId'],
     where: {
       referredId: { not: null },
       status: 'signed_up',
       completedAt: { gte: startDate, lte: endDate },
+      ...(participantUserIds ? { referrerId: { in: participantUserIds } } : {}),
     },
     _count: { referrerId: true },
     orderBy: { _count: { referrerId: 'desc' } },
@@ -127,16 +161,81 @@ async function getTopReferrers(startDate: Date, endDate: Date, limit: number = 1
       playerCode: user?.playerCode || null,
       referralCount: g._count.referrerId,
       rank: index + 1,
+      enteredAt: participantMap.get(g.referrerId) || null,
     };
   });
+}
+
+/**
+ * Count the number of participants who have entered the current round.
+ * This is the "X participants" number shown in the UI.
+ */
+async function countParticipants(roundId: string): Promise<number> {
+  return db.referralContestParticipant.count({ where: { roundId } });
 }
 
 // ─── Public endpoints ──────────────────────────────────────────────
 
 /**
+ * POST /api/referral-contest/enter
+ * Body: { userId }
+ *
+ * Enters the user into the current contest round. Once entered, their
+ * referrals (within the round window) are counted toward winning.
+ *
+ * Idempotent: if already entered, returns success without duplicating.
+ */
+router.post('/referral-contest/enter', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    // Verify user exists
+    const user = await db.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const round = await getOrCreateActiveContestRound();
+
+    // Check if already entered (idempotent)
+    const existing = await db.referralContestParticipant.findUnique({
+      where: { roundId_userId: { roundId: round.id, userId } },
+    });
+    if (existing) {
+      return res.json({
+        success: true,
+        alreadyEntered: true,
+        round: {
+          id: round.id,
+          roundNumber: round.roundNumber,
+          endDate: round.endDate,
+        },
+      });
+    }
+
+    // Create the participant entry
+    await db.referralContestParticipant.create({
+      data: { roundId: round.id, userId },
+    });
+
+    return res.json({
+      success: true,
+      alreadyEntered: false,
+      round: {
+        id: round.id,
+        roundNumber: round.roundNumber,
+        endDate: round.endDate,
+      },
+    });
+  } catch (error) {
+    console.error('Referral contest enter error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /api/referral-contest/status?userId=
- * Returns the current contest round + the user's rank + their referral
- * count for this window + past winners.
+ * Returns the current contest round + the user's entry status + their
+ * referral count (only counted if entered) + leaderboard (only participants) + past winners.
  */
 router.get('/referral-contest/status', async (req, res) => {
   try {
@@ -146,39 +245,83 @@ router.get('/referral-contest/status', async (req, res) => {
     const now = new Date();
     const hasEnded = now > round.endDate;
 
-    // Top 10 leaderboard for this round
-    const leaderboard = await getTopReferrers(round.startDate, round.endDate, 10);
+    // Check if user has entered this round
+    let hasEntered = false;
+    let enteredAt: string | null = null;
+    if (userId) {
+      const participant = await db.referralContestParticipant.findUnique({
+        where: { roundId_userId: { roundId: round.id, userId } },
+      });
+      if (participant) {
+        hasEntered = true;
+        enteredAt = participant.enteredAt.toISOString();
+      }
+    }
 
-    // User's stats
+    // Top 10 leaderboard for this round — ONLY participants
+    const leaderboard = await getTopReferrers(round.startDate, round.endDate, 10, round.id);
+
+    // Total participants (users who tapped "Enter Contest")
+    const totalParticipants = await countParticipants(round.id);
+
+    // User's stats — only count referrals if they've entered
     let myRank: number | null = null;
     let myReferralCount = 0;
-    if (userId) {
+    if (userId && hasEntered) {
       myReferralCount = await countReferralsInWindow(userId, round.startDate, round.endDate);
       if (myReferralCount > 0) {
-        // Rank = 1 + number of users with strictly more referrals in this window
-        // We can derive this from the leaderboard if user is in top 10, otherwise
-        // we need to count users with > myReferralCount.
+        // Rank = 1 + number of participants with strictly more referrals in this window
         const lbEntry = leaderboard.find((e) => e.userId === userId);
         if (lbEntry) {
           myRank = lbEntry.rank;
         } else {
-          // Count distinct referrers with more referrals than the user.
-          // Use raw grouping — we need the count of referrers whose group
-          // _count > myReferralCount. Prisma doesn't support HAVING directly,
-          // so we fetch the top 500 groups and filter in JS.
+          // User is outside top 10 — compute their rank by counting participants
+          // with more referrals than them.
+          // Fetch all participant referral counts for this round.
+          const allParticipants = await db.referralContestParticipant.findMany({
+            where: { roundId: round.id },
+            select: { userId: true },
+          });
+          const allParticipantIds = allParticipants.map((p) => p.userId);
+          if (allParticipantIds.length > 0) {
+            const allGroups = await db.referral.groupBy({
+              by: ['referrerId'],
+              where: {
+                referredId: { not: null },
+                status: 'signed_up',
+                completedAt: { gte: round.startDate, lte: round.endDate },
+                referrerId: { in: allParticipantIds },
+              },
+              _count: { referrerId: true },
+            });
+            const usersWithMore = allGroups.filter(
+              (g) => g._count.referrerId > myReferralCount
+            ).length;
+            myRank = usersWithMore + 1;
+          }
+        }
+      } else {
+        // User has entered but 0 referrals — rank is the total number of participants
+        // with > 0 referrals + 1. We compute this by counting participants who have at
+        // least 1 referral in this window.
+        const allParticipants = await db.referralContestParticipant.findMany({
+          where: { roundId: round.id },
+          select: { userId: true },
+        });
+        const allParticipantIds = allParticipants.map((p) => p.userId);
+        if (allParticipantIds.length > 0) {
           const allGroups = await db.referral.groupBy({
             by: ['referrerId'],
             where: {
               referredId: { not: null },
               status: 'signed_up',
               completedAt: { gte: round.startDate, lte: round.endDate },
+              referrerId: { in: allParticipantIds },
             },
             _count: { referrerId: true },
           });
-          const usersWithMore = allGroups.filter(
-            (g) => g._count.referrerId > myReferralCount
-          ).length;
-          myRank = usersWithMore + 1;
+          // Rank = number of participants with at least 1 referral + 1
+          myRank = allGroups.length + 1;
         }
       }
     }
@@ -233,11 +376,13 @@ router.get('/referral-contest/status', async (req, res) => {
         prize: CONTEST_PRIZE,
         durationDays: CONTEST_DURATION_DAYS,
       },
+      hasEntered,
+      enteredAt,
       myRank,
       myReferralCount,
       leaderboard,
       pastWinners,
-      totalParticipants: leaderboard.length, // users with at least 1 referral
+      totalParticipants,
     });
   } catch (error) {
     console.error('Referral contest status error:', error);
@@ -248,6 +393,7 @@ router.get('/referral-contest/status', async (req, res) => {
 /**
  * GET /api/referral-contest/leaderboard?roundId=&limit=
  * Returns the top N referrers for a specific round (defaults to current).
+ * Only participants are included.
  */
 router.get('/referral-contest/leaderboard', async (req, res) => {
   try {
@@ -263,8 +409,9 @@ router.get('/referral-contest/leaderboard', async (req, res) => {
 
     if (!round) return res.status(404).json({ error: 'Round not found' });
 
-    const leaderboard = await getTopReferrers(round.startDate, round.endDate, limit);
-    return res.json({ round, leaderboard });
+    const leaderboard = await getTopReferrers(round.startDate, round.endDate, limit, round.id);
+    const totalParticipants = await countParticipants(round.id);
+    return res.json({ round, leaderboard, totalParticipants });
   } catch (error) {
     console.error('Referral contest leaderboard error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -276,8 +423,8 @@ router.get('/referral-contest/leaderboard', async (req, res) => {
 /**
  * POST /api/referral-contest/admin/select-winners
  * Body: { adminId }
- * Auto-picks the top referrer as the winner of the current round,
- * marks the round completed, and creates the next round.
+ * Auto-picks the top referrer (among participants) as the winner of the
+ * current round, marks the round completed, and creates the next round.
  */
 router.post('/referral-contest/admin/select-winners', async (req, res) => {
   try {
@@ -288,10 +435,12 @@ router.post('/referral-contest/admin/select-winners', async (req, res) => {
     if (!admin?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
 
     const round = await getOrCreateActiveContestRound();
-    const top = await getTopReferrers(round.startDate, round.endDate, 1);
+    const top = await getTopReferrers(round.startDate, round.endDate, 1, round.id);
 
     if (top.length === 0 || top[0].referralCount === 0) {
-      return res.status(400).json({ error: 'No eligible participants with referrals yet' });
+      return res.status(400).json({
+        error: 'No eligible participants with referrals yet. Users must tap "Enter Contest" and have at least 1 successful referral to win.'
+      });
     }
 
     const winnerIds = [top[0].userId];
@@ -370,7 +519,7 @@ router.post('/referral-contest/admin/force-start-next-round', async (req, res) =
 
 /**
  * GET /api/referral-contest/admin/all-rounds?adminId=
- * Returns all contest rounds with winners, for the admin panel.
+ * Returns all contest rounds with winners + participant counts.
  */
 router.get('/referral-contest/admin/all-rounds', async (req, res) => {
   try {
@@ -381,6 +530,7 @@ router.get('/referral-contest/admin/all-rounds', async (req, res) => {
     const rounds = await db.referralContestRound.findMany({
       orderBy: { roundNumber: 'desc' },
       take: 50,
+      include: { _count: { select: { participants: true } } },
     });
 
     const formatted = await Promise.all(rounds.map(async (r) => {
@@ -404,15 +554,6 @@ router.get('/referral-contest/admin/all-rounds', async (req, res) => {
           winners.push({ ...u, referralCount: cnt });
         }
       }
-      const participantCount = await db.referral.groupBy({
-        by: ['referrerId'],
-        where: {
-          referredId: { not: null },
-          status: 'signed_up',
-          completedAt: { gte: r.startDate, lte: r.endDate },
-        },
-        _count: { referrerId: true },
-      });
       return {
         id: r.id,
         roundNumber: r.roundNumber,
@@ -420,7 +561,7 @@ router.get('/referral-contest/admin/all-rounds', async (req, res) => {
         endDate: r.endDate,
         status: r.status,
         winners,
-        participantCount: participantCount.length,
+        participantCount: r._count.participants,
       };
     }));
 

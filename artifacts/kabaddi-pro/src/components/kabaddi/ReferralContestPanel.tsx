@@ -15,6 +15,8 @@ import {
   TrendingUp,
   Sparkles,
   X,
+  LogIn,
+  CheckCircle2,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,6 +49,7 @@ interface LeaderboardEntry {
   playerCode: string | null;
   referralCount: number;
   rank: number;
+  enteredAt?: string | null;
 }
 
 interface PastWinner {
@@ -61,6 +64,8 @@ interface PastWinner {
 
 interface ContestStatus {
   round: ContestRound;
+  hasEntered: boolean;
+  enteredAt: string | null;
   myRank: number | null;
   myReferralCount: number;
   leaderboard: LeaderboardEntry[];
@@ -103,6 +108,7 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
   const [status, setStatus] = useState<ContestStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [entering, setEntering] = useState(false);
 
   const timeLeft = useCountdown(status?.round?.endDate || null);
 
@@ -123,6 +129,47 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  // Enter the contest — creates a ReferralContestParticipant row
+  const handleEnterContest = async () => {
+    if (!currentUser?.id) return;
+    setEntering(true);
+    try {
+      const res = await fetch('/api/referral-contest/enter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({
+          title: data.alreadyEntered
+            ? (language === 'hi' ? 'आप पहले ही भाग ले चुके हैं' : 'You were already entered')
+            : (language === 'hi' ? '🎉 कॉन्टेस्ट में आपका प्रवेश हो गया!' : '🎉 You\'re entered!'),
+          description: data.alreadyEntered
+            ? undefined
+            : (language === 'hi'
+                ? 'अब आपके रेफरल जीत की ओर गिने जाएंगे!'
+                : 'Your referrals now count toward winning!'),
+        });
+        fetchStatus();
+      } else {
+        toast({
+          title: language === 'hi' ? 'त्रुटि' : 'Error',
+          description: data.error || (language === 'hi' ? 'प्रवेश विफल' : 'Failed to enter'),
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      toast({
+        title: language === 'hi' ? 'त्रुटि' : 'Error',
+        description: language === 'hi' ? 'प्रवेश विफल' : 'Failed to enter',
+        variant: 'destructive',
+      });
+    } finally {
+      setEntering(false);
+    }
+  };
 
   // Admin: select winners
   const handleAdminSelectWinners = async () => {
@@ -285,56 +332,107 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
         </div>
       </Card>
 
-      {/* Your Stats */}
-      <Card className="p-4 border-2 border-purple-200 dark:border-purple-900/50 bg-gradient-to-br from-purple-50 to-white dark:from-purple-900/20 dark:to-warm-800">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-purple-500" />
-            <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100">
-              {language === 'hi' ? 'आपकी रैंक' : 'Your Rank'}
-            </h3>
-          </div>
-          {myRank !== null && myRank === 1 && (
-            <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs">
-              <Crown className="w-3 h-3 mr-1" />
-              {language === 'hi' ? 'लीड कर रहे हैं!' : 'Leading!'}
-            </Badge>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white dark:bg-warm-800 rounded-xl p-3 text-center">
-            <p className="text-[10px] uppercase tracking-wide text-warm-500">
-              {language === 'hi' ? 'रैंक' : 'Rank'}
-            </p>
-            <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
-              {myRank !== null ? `#${myRank}` : '—'}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-warm-800 rounded-xl p-3 text-center">
-            <p className="text-[10px] uppercase tracking-wide text-warm-500">
-              {language === 'hi' ? 'रेफरल' : 'Referrals'}
-            </p>
-            <p className="text-2xl font-black text-pink-600 dark:text-pink-400">
-              {myReferralCount}
-            </p>
-          </div>
-        </div>
-        {myReferralCount === 0 && (
-          <p className="text-[10px] text-warm-500 dark:text-warm-400 text-center mt-2">
-            {language === 'hi'
-              ? 'रेफरल शेयर करके भाग लें!'
-              : 'Share your referral code to participate!'}
-          </p>
-        )}
-        {/* CTA: Share referral */}
-        <Button
-          onClick={() => onOpenReferral?.()}
-          className="w-full mt-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white font-semibold text-sm h-10"
+      {/* Entry / Your Stats — two states */}
+      {!status.hasEntered ? (
+        // User has NOT entered the contest yet — show big "Enter Contest" CTA
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
         >
-          <Share2 className="w-4 h-4 mr-1.5" />
-          {language === 'hi' ? 'रेफरल कोड शेयर करें' : 'Share Referral Code'}
-        </Button>
-      </Card>
+          <Card className="p-5 border-2 border-dashed border-purple-400 dark:border-purple-700 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-warm-800 text-center">
+            <motion.div
+              animate={{ y: [0, -4, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mb-3 shadow-lg shadow-purple-500/30"
+            >
+              <LogIn className="w-7 h-7 text-white" />
+            </motion.div>
+            <h3 className="text-base font-black text-purple-700 dark:text-purple-300 mb-1">
+              {language === 'hi' ? 'कॉन्टेस्ट में भाग लें!' : 'Enter the Contest!'}
+            </h3>
+            <p className="text-xs text-warm-600 dark:text-warm-300 mb-3">
+              {language === 'hi'
+                ? 'जब तक आप प्रवेश नहीं करते, आपके रेफरल जीत की ओर गिने नहीं जाएंगे। अभी प्रवेश करें और अपने रेफरल गिनना शुरू करें!'
+                : 'Your referrals won\'t count toward winning until you enter. Tap below to enter and start counting your referrals!'}
+            </p>
+            <Button
+              onClick={handleEnterContest}
+              disabled={entering}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white font-black text-sm h-12 rounded-xl shadow-lg"
+            >
+              {entering ? (
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : (
+                <Zap className="w-5 h-5 mr-2" />
+              )}
+              {entering
+                ? (language === 'hi' ? 'प्रवेश हो रहा है...' : 'Entering...')
+                : (language === 'hi' ? '🎯 कॉन्टेस्ट में प्रवेश करें' : '🎯 Enter Contest Now')}
+            </Button>
+            <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-2">
+              {language === 'hi'
+                ? 'एक बार प्रवेश करने पर, आपके सभी रेफरल (इस राउंड की विंडो में) गिने जाएंगे।'
+                : 'Once entered, all your referrals (within this round window) will be counted.'}
+            </p>
+          </Card>
+        </motion.div>
+      ) : (
+        // User HAS entered — show their rank + referral count + share CTA
+        <Card className="p-4 border-2 border-purple-200 dark:border-purple-900/50 bg-gradient-to-br from-purple-50 to-white dark:from-purple-900/20 dark:to-warm-800">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+              <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100">
+                {language === 'hi' ? 'आपकी रैंक' : 'Your Rank'}
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              {myRank !== null && myRank === 1 && (
+                <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs">
+                  <Crown className="w-3 h-3 mr-1" />
+                  {language === 'hi' ? 'लीड कर रहे हैं!' : 'Leading!'}
+                </Badge>
+              )}
+              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px]">
+                {language === 'hi' ? '✓ प्रवेशित' : '✓ Entered'}
+              </Badge>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white dark:bg-warm-800 rounded-xl p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wide text-warm-500">
+                {language === 'hi' ? 'रैंक' : 'Rank'}
+              </p>
+              <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                {myRank !== null ? `#${myRank}` : '—'}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-warm-800 rounded-xl p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wide text-warm-500">
+                {language === 'hi' ? 'रेफरल' : 'Referrals'}
+              </p>
+              <p className="text-2xl font-black text-pink-600 dark:text-pink-400">
+                {myReferralCount}
+              </p>
+            </div>
+          </div>
+          {myReferralCount === 0 && (
+            <p className="text-[10px] text-warm-500 dark:text-warm-400 text-center mt-2">
+              {language === 'hi'
+                ? 'अभी 0 रेफरल — रेफरल कोड शेयर करके आगे बढ़ें!'
+                : '0 referrals so far — share your code to climb the leaderboard!'}
+            </p>
+          )}
+          {/* CTA: Share referral */}
+          <Button
+            onClick={() => onOpenReferral?.()}
+            className="w-full mt-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white font-semibold text-sm h-10"
+          >
+            <Share2 className="w-4 h-4 mr-1.5" />
+            {language === 'hi' ? 'रेफरल कोड शेयर करें' : 'Share Referral Code'}
+          </Button>
+        </Card>
+      )}
 
       {/* Leaderboard */}
       <div>

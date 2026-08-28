@@ -80,6 +80,7 @@ model User {
   giveawayParticipations GiveawayParticipant[]
   streak            UserStreak?
   joinRequests      TeamJoinRequest[] @relation("UserJoinRequests")
+  referralContestEntries ReferralContestParticipant[] @relation("UserReferralContestEntries")
 }
 
 model PlayerProfile {
@@ -1028,5 +1029,25 @@ model ReferralContestRound {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  participants ReferralContestParticipant[]
+
   @@index([status])
+}
+
+// ─── Referral Contest Participants ──────────────────────────────────
+// A user must explicitly tap "Enter Contest" to participate. Only
+// participants' referrals are counted toward winning the round.
+// One entry per user per round (enforced by @@unique).
+
+model ReferralContestParticipant {
+  id        String   @id @default(cuid())
+  roundId   String
+  userId    String
+  enteredAt DateTime @default(now())
+
+  round ReferralContestRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User                  @relation("UserReferralContestEntries", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+  @@index([roundId])
 }
