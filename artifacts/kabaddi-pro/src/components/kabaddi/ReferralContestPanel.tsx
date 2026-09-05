@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Clock,
   Trophy,
@@ -109,6 +109,12 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
   const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(false);
   const [entering, setEntering] = useState(false);
+  // Previous winners of the OLD 15-day random-draw giveaway (Protein Powder /
+  // Kabaddi Kit / Shaker Bottle). That giveaway has been retired, but we still
+  // display its historical winners so they're not erased from the app.
+  const [oldGiveawayWinners, setOldGiveawayWinners] = useState<Array<{
+    roundNumber: number; rank: number; playerId: string; prize: string;
+  }>>([]);
 
   const timeLeft = useCountdown(status?.round?.endDate || null);
 
@@ -129,6 +135,21 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  // Fetch the old 15-day giveaway's past winners (one-time, fire and forget).
+  // The /api/giveaway/status endpoint still exists in the backend and returns
+  // { pastWinners: [{ roundNumber, rank, playerId, prize }] } where playerId
+  // is actually the player's code (e.g. "KP1003").
+  useEffect(() => {
+    fetch('/api/giveaway/status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.pastWinners?.length > 0) {
+          setOldGiveawayWinners(data.pastWinners);
+        }
+      })
+      .catch(() => { /* non-critical — just don't show old winners */ });
+  }, []);
 
   // Enter the contest — creates a ReferralContestParticipant row
   const handleEnterContest = async () => {
@@ -252,14 +273,6 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
   }
 
   const { round, myRank, myReferralCount, leaderboard, pastWinners, totalParticipants } = status;
-
-  // Get medal color for rank
-  const getMedalColor = (rank: number) => {
-    if (rank === 1) return 'from-yellow-400 to-amber-500';
-    if (rank === 2) return 'from-gray-300 to-gray-400';
-    if (rank === 3) return 'from-orange-400 to-amber-700';
-    return 'from-warm-200 to-warm-300';
-  };
 
   return (
     <div className="p-4 space-y-4 max-w-md mx-auto pb-8">
@@ -443,14 +456,14 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
         </Card>
       )}
 
-      {/* Leaderboard — shows ALL participants (not just top 10) */}
+      {/* Leaderboard — ALL participants, compact rank-wise list */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2">
             <Medal className="w-4 h-4 text-amber-500" />
             {language === 'hi' ? 'लीडरबोर्ड' : 'Leaderboard'}
           </h3>
-          <span className="text-xs text-warm-500">
+          <span className="text-[10px] text-warm-500">
             {language === 'hi' ? `सभी भागीदार (${leaderboard.length})` : `All Participants (${leaderboard.length})`}
           </span>
         </div>
@@ -465,68 +478,71 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             </p>
           </Card>
         ) : (
-          <div className="space-y-2">
-            <AnimatePresence>
+          <Card className="overflow-hidden p-0">
+            {/* Column header */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-warm-100 dark:bg-warm-800/80 border-b border-warm-200 dark:border-warm-700 text-[9px] font-bold uppercase tracking-wide text-warm-500">
+              <span className="w-6 text-center">#</span>
+              <span className="flex-1">{language === 'hi' ? 'खिलाड़ी' : 'Player'}</span>
+              <span className="w-12 text-right">{language === 'hi' ? 'रेफरल' : 'Refs'}</span>
+            </div>
+            <div className="divide-y divide-warm-100 dark:divide-warm-800">
               {leaderboard.map((entry, index) => {
                 const isMe = entry.userId === currentUser?.id;
+                const isTop3 = entry.rank <= 3;
                 return (
-                  <motion.div
+                  <div
                     key={entry.userId}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: Math.min(index * 0.03, 0.4) }}
-                  >
-                    <Card className={`p-3 flex items-center gap-3 transition-all ${
+                    className={`flex items-center gap-2 px-3 py-1.5 transition-colors ${
                       isMe
-                        ? 'border-2 border-purple-400 dark:border-purple-600 bg-purple-50/50 dark:bg-purple-900/20'
-                        : 'border-warm-200 dark:border-warm-700'
+                        ? 'bg-purple-50/70 dark:bg-purple-900/20'
+                        : index % 2 === 1
+                          ? 'bg-warm-50/50 dark:bg-warm-800/30'
+                          : ''
+                    }`}
+                  >
+                    {/* Rank */}
+                    <span className={`w-6 text-center text-xs font-black ${
+                      entry.rank === 1 ? 'text-yellow-500' :
+                      entry.rank === 2 ? 'text-gray-400' :
+                      entry.rank === 3 ? 'text-orange-500' :
+                      'text-warm-500 dark:text-warm-400'
                     }`}>
-                      {/* Rank */}
-                      <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black text-sm bg-gradient-to-br ${getMedalColor(entry.rank)} ${entry.rank <= 3 ? 'text-white shadow-md' : 'text-warm-700 dark:text-warm-200'}`}>
-                        {entry.rank}
-                      </div>
-                      {/* Avatar */}
-                      <div className="shrink-0 w-9 h-9 rounded-full overflow-hidden bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-sm font-bold text-warm-600 dark:text-warm-300">
-                        {entry.avatar ? (
-                          <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
-                        ) : (
-                          entry.name?.charAt(0)?.toUpperCase() || '?'
-                        )}
-                      </div>
-                      {/* Name + playerCode */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-warm-800 dark:text-warm-100 truncate flex items-center gap-1">
-                          {entry.name}
-                          {isMe && (
-                            <Badge className="text-[8px] bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                              YOU
-                            </Badge>
-                          )}
-                          {entry.rank === 1 && (
-                            <Crown className="w-3 h-3 text-yellow-500" />
-                          )}
-                        </p>
-                        {entry.playerCode && (
-                          <p className="text-[10px] text-warm-500 dark:text-warm-400">
-                            {entry.playerCode}
-                          </p>
-                        )}
-                      </div>
-                      {/* Referral count */}
-                      <div className="text-right shrink-0">
-                        <p className="text-lg font-black text-purple-600 dark:text-purple-400">
-                          {entry.referralCount}
-                        </p>
-                        <p className="text-[9px] text-warm-500 uppercase">
-                          {language === 'hi' ? 'रेफरल' : 'referrals'}
-                        </p>
-                      </div>
-                    </Card>
-                  </motion.div>
+                      {isTop3 ? (entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '🥉') : entry.rank}
+                    </span>
+                    {/* Avatar */}
+                    <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-[10px] font-bold text-warm-600 dark:text-warm-300">
+                      {entry.avatar ? (
+                        <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
+                      ) : (
+                        entry.name?.charAt(0)?.toUpperCase() || '?'
+                      )}
+                    </div>
+                    {/* Name + code */}
+                    <div className="flex-1 min-w-0 flex items-center gap-1">
+                      <span className="text-xs font-semibold text-warm-800 dark:text-warm-100 truncate">
+                        {entry.name}
+                      </span>
+                      {isMe && (
+                        <span className="text-[8px] font-bold px-1 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 shrink-0">
+                          YOU
+                        </span>
+                      )}
+                      {entry.rank === 1 && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
+                      {entry.playerCode && (
+                        <span className="text-[9px] text-warm-400 dark:text-warm-500 truncate">
+                          {entry.playerCode}
+                        </span>
+                      )}
+                    </div>
+                    {/* Referral count */}
+                    <span className="w-12 text-right text-sm font-black text-purple-600 dark:text-purple-400">
+                      {entry.referralCount}
+                    </span>
+                  </div>
                 );
               })}
-            </AnimatePresence>
-          </div>
+            </div>
+          </Card>
         )}
       </div>
 
@@ -574,41 +590,99 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
         </ol>
       </Card>
 
-      {/* Past Winners */}
+      {/* Contest Past Winners (Oats) — compact rank-wise list */}
       {pastWinners.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <Award className="w-4 h-4 text-amber-500" />
             <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100">
-              {language === 'hi' ? 'पिछले विजेता' : 'Past Winners'}
+              {language === 'hi' ? 'कॉन्टेस्ट विजेता' : 'Contest Winners'}
             </h3>
+            <span className="text-[9px] text-warm-500">🥣 Oats Pack</span>
           </div>
-          <div className="space-y-2">
-            {pastWinners.map((winner, idx) => (
-              <Card key={`${winner.roundNumber}-${winner.userId}`} className="p-3 flex items-center gap-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-warm-800 border-amber-200 dark:border-amber-800/50">
-                <div className="shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white shadow-md">
-                  <Crown className="w-5 h-5" />
+          <Card className="overflow-hidden p-0">
+            <div className="divide-y divide-warm-100 dark:divide-warm-800">
+              {pastWinners.map((winner, idx) => (
+                <div
+                  key={`${winner.roundNumber}-${winner.userId}`}
+                  className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-50/60 to-transparent dark:from-amber-900/15"
+                >
+                  <span className="w-6 text-center text-xs">
+                    <Crown className="w-3.5 h-3.5 text-yellow-500 inline" />
+                  </span>
+                  <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                    {winner.avatar ? (
+                      <img src={winner.avatar} alt={winner.name} className="w-full h-full object-cover" />
+                    ) : (
+                      winner.name?.charAt(0)?.toUpperCase() || '?'
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-1">
+                    <span className="text-xs font-bold text-warm-800 dark:text-warm-100 truncate">
+                      {winner.name}
+                    </span>
+                    {winner.playerCode && (
+                      <span className="text-[9px] text-warm-400 dark:text-warm-500">
+                        {winner.playerCode}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-black text-amber-600 dark:text-amber-400 leading-none">
+                      {winner.referralCount}
+                    </p>
+                    <p className="text-[8px] text-warm-400 uppercase leading-tight">
+                      {language === 'hi' ? 'राउंड' : 'Round'} #{winner.roundNumber}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-warm-800 dark:text-warm-100 truncate">
-                    {winner.name}
-                  </p>
-                  <p className="text-[10px] text-warm-500 dark:text-warm-400">
-                    {language === 'hi' ? 'राउंड' : 'Round'} #{winner.roundNumber}
-                    {winner.playerCode && ` · ${winner.playerCode}`}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-black text-amber-600 dark:text-amber-400">
-                    {winner.referralCount}
-                  </p>
-                  <p className="text-[9px] text-warm-500 uppercase">
-                    {language === 'hi' ? 'रेफरल' : 'referrals'}
-                  </p>
-                </div>
-              </Card>
-            ))}
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Previous Giveaway Winners (old 15-day draw — Protein / Kit / Bottle) */}
+      {/* These are historical winners from the retired 15-day random giveaway.
+          We still show them so past winners are never erased from the app. */}
+      {oldGiveawayWinners.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100">
+              {language === 'hi' ? 'पिछले गिवअवे विजेता' : 'Previous Giveaway Winners'}
+            </h3>
+            <span className="text-[9px] text-warm-500">🎁 15-day draw</span>
           </div>
+          <Card className="overflow-hidden p-0">
+            {/* Column header */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-warm-100 dark:bg-warm-800/80 border-b border-warm-200 dark:border-warm-700 text-[9px] font-bold uppercase tracking-wide text-warm-500">
+              <span className="w-6 text-center">#</span>
+              <span className="flex-1">{language === 'hi' ? 'खिलाड़ी' : 'Player'}</span>
+              <span className="flex-1 text-right pr-1">{language === 'hi' ? 'इनाम' : 'Prize'}</span>
+            </div>
+            <div className="divide-y divide-warm-100 dark:divide-warm-800">
+              {oldGiveawayWinners.map((w, idx) => (
+                <div
+                  key={`old-${w.roundNumber}-${w.rank}-${idx}`}
+                  className="flex items-center gap-2 px-3 py-1.5"
+                >
+                  <span className="w-6 text-center text-xs">
+                    {w.rank === 1 ? '🥇' : w.rank === 2 ? '🥈' : w.rank === 3 ? '🥉' : `#${w.rank}`}
+                  </span>
+                  <span className="text-xs font-bold text-warm-800 dark:text-warm-100 font-mono w-20 truncate">
+                    {w.playerId}
+                  </span>
+                  <span className="flex-1 text-[10px] text-warm-600 dark:text-warm-300 truncate text-right">
+                    {w.prize}
+                  </span>
+                  <span className="text-[8px] text-warm-400 uppercase shrink-0">
+                    {language === 'hi' ? 'राउंड' : 'R'}{w.roundNumber}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
       )}
 
