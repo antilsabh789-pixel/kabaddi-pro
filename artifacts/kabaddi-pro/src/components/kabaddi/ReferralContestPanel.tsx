@@ -499,7 +499,7 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             }`}
           >
             <Trophy className="w-3 h-3" />
-            {language === 'hi' ? 'पुराने' : 'Old'}
+            {language === 'hi' ? 'पुराने गिवअवे' : 'Past Giveaway'}
           </button>
         </div>
 
@@ -670,9 +670,13 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-bold uppercase tracking-wide text-warm-500 flex items-center gap-1">
                 <Trophy className="w-3 h-3 text-amber-500" />
-                {language === 'hi' ? 'पिछले गिवअवे विजेता' : 'Previous Giveaway Winners'}
+                {language === 'hi' ? 'पिछले गिवअवे विजेता' : 'Past Giveaway Winners'}
               </span>
-              <span className="text-[9px] text-warm-500">🎁 15-day draw</span>
+              <span className="text-[9px] text-warm-500">
+                {oldGiveawayWinners.length > 0
+                  ? `${oldGiveawayWinners.length} ${language === 'hi' ? 'विजेता' : 'winners'}`
+                  : '🎁 15-day draw'}
+              </span>
             </div>
             {oldGiveawayWinners.length === 0 ? (
               <Card className="p-6 text-center">

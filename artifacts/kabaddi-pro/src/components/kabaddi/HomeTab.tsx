@@ -906,6 +906,14 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
     roundNumber: number; userId: string; name: string; playerCode: string | null; referralCount: number; prize: string;
   }>>([]);
 
+  // Past winners of the OLD 15-day random-draw giveaway (Protein Powder /
+  // Kabaddi Kit / Shaker Bottle). That giveaway has been retired, but we
+  // still display its historical winners on the home screen so they're
+  // never erased from the app.
+  const [oldGiveawayWinners, setOldGiveawayWinners] = useState<Array<{
+    roundNumber: number; rank: number; playerId: string; prize: string;
+  }>>([]);
+
   // Recent Matches state (practice + tournament combined)
   const [recentPracticeMatches, setRecentPracticeMatches] = useState<Array<{
     id: string;
@@ -953,6 +961,19 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
       .then(data => {
         if (data?.pastWinners?.length > 0) {
           setGiveawayWinners(data.pastWinners.slice(0, 3)); // Show latest 3 winners
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ─── Fetch OLD 15-day giveaway winners (Protein/Kit/Bottle) ────
+  // The giveaway feature is retired but we still show its past winners.
+  useEffect(() => {
+    fetch('/api/giveaway/status')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.pastWinners?.length > 0) {
+          setOldGiveawayWinners(data.pastWinners.slice(0, 6)); // Show latest 6 winners (2 rounds × 3)
         }
       })
       .catch(() => {});
@@ -1938,6 +1959,44 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
                     </span>
                     <span className="text-[8px] text-warm-400">
                       R{w.roundNumber} · {w.referralCount} refs · {w.prize}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </section>
+      )}
+
+      {/* ─── Past Giveaway Winners (old 15-day draw — Protein/Kit/Bottle) ─── */}
+      {oldGiveawayWinners.length > 0 && (
+        <section className="px-4 mt-2">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-warm-800 rounded-xl p-3 border border-orange-200 dark:border-orange-800/50"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Trophy className="w-3.5 h-3.5 text-orange-500" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-orange-600 dark:text-orange-400">
+                Past Giveaway Winners
+              </span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+              {oldGiveawayWinners.map((w, i) => (
+                <div
+                  key={`old-${w.roundNumber}-${w.rank}-${i}`}
+                  className="flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg px-2.5 py-1.5 shrink-0"
+                >
+                  <span className="text-[10px] font-black">
+                    {w.rank === 1 ? '🥇' : w.rank === 2 ? '🥈' : w.rank === 3 ? '🥉' : `#${w.rank}`}
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-warm-800 dark:text-warm-100 font-mono">
+                      {w.playerId}
+                    </span>
+                    <span className="text-[8px] text-warm-400 truncate max-w-[90px]">
+                      R{w.roundNumber} · {w.prize}
                     </span>
                   </div>
                 </div>

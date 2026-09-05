@@ -517,11 +517,14 @@ router.get('/giveaway/status', async (req, res) => {
       }
     }
 
-    // Get past winners (player codes only)
+    // Get ALL past winners (player codes only) — no limit, so historical
+    // winners are never hidden. The 15-day giveaway feature has been retired,
+    // but these winner records are preserved and shown in the "Past Giveaway"
+    // tab of the Referral Contest screen.
     const completedRounds = await db.giveawayRound.findMany({
       where: { status: 'completed', winnersJson: { not: null } },
       orderBy: { roundNumber: 'desc' },
-      take: 5,
+      take: 100,
     });
 
     const pastWinners: any[] = [];
