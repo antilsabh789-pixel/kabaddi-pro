@@ -261,8 +261,6 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
     return 'from-warm-200 to-warm-300';
   };
 
-  const isUserInTop10 = leaderboard.some((e) => e.userId === currentUser?.id);
-
   return (
     <div className="p-4 space-y-4 max-w-md mx-auto pb-8">
       {/* Hero / Prize Card */}
@@ -445,7 +443,7 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
         </Card>
       )}
 
-      {/* Leaderboard */}
+      {/* Leaderboard — shows ALL participants (not just top 10) */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100 flex items-center gap-2">
@@ -453,7 +451,7 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             {language === 'hi' ? 'लीडरबोर्ड' : 'Leaderboard'}
           </h3>
           <span className="text-xs text-warm-500">
-            {language === 'hi' ? 'टॉप 10' : 'Top 10'}
+            {language === 'hi' ? `सभी भागीदार (${leaderboard.length})` : `All Participants (${leaderboard.length})`}
           </span>
         </div>
 
@@ -462,8 +460,8 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             <Users className="w-10 h-10 mx-auto text-warm-300 dark:text-warm-600 mb-2" />
             <p className="text-sm text-warm-500 dark:text-warm-400">
               {language === 'hi'
-                ? 'अभी कोई रेफरल नहीं हुआ। पहले रेफरल शेयर करें और लीड करें!'
-                : 'No referrals yet. Be the first to share and lead!'}
+                ? 'अभी कोई भागीदार नहीं। पहले रेफरल शेयर करें और लीड करें!'
+                : 'No participants yet. Be the first to enter and lead!'}
             </p>
           </Card>
         ) : (
@@ -471,13 +469,12 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             <AnimatePresence>
               {leaderboard.map((entry, index) => {
                 const isMe = entry.userId === currentUser?.id;
-                const isTop3 = entry.rank <= 3;
                 return (
                   <motion.div
                     key={entry.userId}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.04 }}
+                    transition={{ delay: Math.min(index * 0.03, 0.4) }}
                   >
                     <Card className={`p-3 flex items-center gap-3 transition-all ${
                       isMe
@@ -530,31 +527,6 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
               })}
             </AnimatePresence>
           </div>
-        )}
-
-        {/* Show user's position if outside top 10 */}
-        {!isUserInTop10 && myRank !== null && myReferralCount > 0 && (
-          <Card className="mt-3 p-3 flex items-center gap-3 border-2 border-dashed border-purple-300 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-900/10">
-            <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black text-sm bg-warm-200 dark:bg-warm-700 text-warm-700 dark:text-warm-200">
-              {myRank}
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-warm-800 dark:text-warm-100">
-                {language === 'hi' ? 'आप' : 'You'} · {currentUser?.name || ''}
-              </p>
-              <p className="text-[10px] text-warm-500">
-                {language === 'hi' ? 'टॉप 10 से बाहर' : 'Outside top 10'}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-lg font-black text-purple-600 dark:text-purple-400">
-                {myReferralCount}
-              </p>
-              <p className="text-[9px] text-warm-500 uppercase">
-                {language === 'hi' ? 'रेफरल' : 'referrals'}
-              </p>
-            </div>
-          </Card>
         )}
       </div>
 

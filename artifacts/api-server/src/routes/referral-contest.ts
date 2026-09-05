@@ -286,6 +286,80 @@ async function countParticipants(roundId: string): Promise<number> {
   );
 }
 
+/**
+ * Get the FULL leaderboard of ALL participants for a round — including users
+ * who have 0 referrals. Sorted by referralCount DESC, then enteredAt ASC
+ * (earliest entry wins ties). Every user who tapped "Enter Contest" appears
+ * in this list.
+ *
+ * Returns array of:
+ * { userId, name, avatar, playerCode, referralCount, rank, enteredAt }
+ */
+async function getAllParticipantsLeaderboard(startDate: Date, endDate: Date, roundId: string) {
+  // 1. Fetch every participant for this round.
+  const participants = await withSelfHeal(() =>
+    db.referralContestParticipant.findMany({
+      where: { roundId },
+      select: { userId: true, enteredAt: true },
+    })
+  );
+  if (participants.length === 0) return [];
+
+  const participantIds = participants.map((p) => p.userId);
+  const enteredAtMap = new Map<string, Date>();
+  participants.forEach((p) => enteredAtMap.set(p.userId, p.enteredAt));
+
+  // 2. Count successful referrals (within the round window) for each
+  // participant who is a referrer. Users with 0 referrals won't appear in
+  // this grouped result, so we default them to 0 below.
+  const grouped = await withSelfHeal(() =>
+    db.referral.groupBy({
+      by: ['referrerId'],
+      where: {
+        referredId: { not: null },
+        status: 'signed_up',
+        completedAt: { gte: startDate, lte: endDate },
+        referrerId: { in: participantIds },
+      },
+      _count: { referrerId: true },
+    })
+  );
+  const countMap = new Map<string, number>();
+  grouped.forEach((g) => countMap.set(g.referrerId, g._count.referrerId));
+
+  // 3. Fetch user profile info for every participant.
+  const users = await db.user.findMany({
+    where: { id: { in: participantIds } },
+    select: { id: true, name: true, avatar: true, playerCode: true },
+  });
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  // 4. Build the full list, sort by referrals DESC then enteredAt ASC, assign ranks.
+  const rows = participantIds.map((userId) => {
+    const user = userMap.get(userId);
+    const enteredAt = enteredAtMap.get(userId);
+    return {
+      userId,
+      name: user?.name || 'Unknown',
+      avatar: user?.avatar || null,
+      playerCode: user?.playerCode || null,
+      referralCount: countMap.get(userId) || 0,
+      enteredAt: enteredAt ? enteredAt.toISOString() : null,
+      _enteredAt: enteredAt ? enteredAt.getTime() : 0,
+    };
+  });
+
+  rows.sort((a, b) => {
+    if (b.referralCount !== a.referralCount) return b.referralCount - a.referralCount;
+    return a._enteredAt - b._enteredAt; // earlier entry wins ties
+  });
+
+  return rows.map((r, index) => {
+    const { _enteredAt, ...rest } = r;
+    return { ...rest, rank: index + 1 };
+  });
+}
+
 // ─── Public endpoints ──────────────────────────────────────────────
 
 /**
@@ -376,8 +450,9 @@ router.get('/referral-contest/status', async (req, res) => {
       }
     }
 
-    // Top 10 leaderboard for this round — ONLY participants
-    const leaderboard = await getTopReferrers(round.startDate, round.endDate, 10, round.id);
+    // Full leaderboard for this round — ALL participants (including those
+    // with 0 referrals), sorted by referralCount DESC then enteredAt ASC.
+    const leaderboard = await getAllParticipantsLeaderboard(round.startDate, round.endDate, round.id);
 
     // Total participants (users who tapped "Enter Contest")
     const totalParticipants = await countParticipants(round.id);
@@ -387,66 +462,11 @@ router.get('/referral-contest/status', async (req, res) => {
     let myReferralCount = 0;
     if (userId && hasEntered) {
       myReferralCount = await countReferralsInWindow(userId, round.startDate, round.endDate);
-      if (myReferralCount > 0) {
-        // Rank = 1 + number of participants with strictly more referrals in this window
-        const lbEntry = leaderboard.find((e) => e.userId === userId);
-        if (lbEntry) {
-          myRank = lbEntry.rank;
-        } else {
-          // User is outside top 10 — compute their rank by counting participants
-          // with more referrals than them.
-          const allParticipants = await withSelfHeal(() =>
-            db.referralContestParticipant.findMany({
-              where: { roundId: round.id },
-              select: { userId: true },
-            })
-          );
-          const allParticipantIds = allParticipants.map((p) => p.userId);
-          if (allParticipantIds.length > 0) {
-            const allGroups = await withSelfHeal(() =>
-              db.referral.groupBy({
-                by: ['referrerId'],
-                where: {
-                  referredId: { not: null },
-                  status: 'signed_up',
-                  completedAt: { gte: round.startDate, lte: round.endDate },
-                  referrerId: { in: allParticipantIds },
-                },
-                _count: { referrerId: true },
-              })
-            );
-            const usersWithMore = allGroups.filter(
-              (g) => g._count.referrerId > myReferralCount
-            ).length;
-            myRank = usersWithMore + 1;
-          }
-        }
-      } else {
-        // User has entered but 0 referrals — rank is the total number of participants
-        // with > 0 referrals + 1.
-        const allParticipants = await withSelfHeal(() =>
-          db.referralContestParticipant.findMany({
-            where: { roundId: round.id },
-            select: { userId: true },
-          })
-        );
-        const allParticipantIds = allParticipants.map((p) => p.userId);
-        if (allParticipantIds.length > 0) {
-          const allGroups = await withSelfHeal(() =>
-            db.referral.groupBy({
-              by: ['referrerId'],
-              where: {
-                referredId: { not: null },
-                status: 'signed_up',
-                completedAt: { gte: round.startDate, lte: round.endDate },
-                referrerId: { in: allParticipantIds },
-              },
-              _count: { referrerId: true },
-            })
-          );
-          // Rank = number of participants with at least 1 referral + 1
-          myRank = allGroups.length + 1;
-        }
+      // Since the leaderboard now includes every participant, the user's
+      // rank is simply their entry's rank in the list.
+      const lbEntry = leaderboard.find((e) => e.userId === userId);
+      if (lbEntry) {
+        myRank = lbEntry.rank;
       }
     }
 
@@ -521,14 +541,13 @@ router.get('/referral-contest/status', async (req, res) => {
 });
 
 /**
- * GET /api/referral-contest/leaderboard?roundId=&limit=
- * Returns the top N referrers for a specific round (defaults to current).
- * Only participants are included.
+ * GET /api/referral-contest/leaderboard?roundId=
+ * Returns the FULL leaderboard of ALL participants for a specific round
+ * (defaults to current). Only participants are included.
  */
 router.get('/referral-contest/leaderboard', async (req, res) => {
   try {
     const roundId = (req.query['roundId'] as string) || '';
-    const limit = Math.min(parseInt((req.query['limit'] as string) || '50'), 200);
 
     let round;
     if (roundId) {
@@ -539,7 +558,7 @@ router.get('/referral-contest/leaderboard', async (req, res) => {
 
     if (!round) return res.status(404).json({ error: 'Round not found' });
 
-    const leaderboard = await getTopReferrers(round.startDate, round.endDate, limit, round.id);
+    const leaderboard = await getAllParticipantsLeaderboard(round.startDate, round.endDate, round.id);
     const totalParticipants = await countParticipants(round.id);
     return res.json({ round, leaderboard, totalParticipants });
   } catch (error) {

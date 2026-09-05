@@ -903,7 +903,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
     }
   }, [pendingOpenGiveaway, clearPendingOpenGiveaway]);
   const [giveawayWinners, setGiveawayWinners] = useState<Array<{
-    roundNumber: number; rank: number; playerId: string; prize: string;
+    roundNumber: number; userId: string; name: string; playerCode: string | null; referralCount: number; prize: string;
   }>>([]);
 
   // Recent Matches state (practice + tournament combined)
@@ -944,9 +944,11 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
       .finally(() => setPracticeMatchesLoading(false));
   }, [currentUser?.id]);
 
-  // ─── Fetch giveaway winners for highlight ─────────────────────
+  // ─── Fetch referral contest winners for highlight ─────────────
+  // (Previously this fetched the 15-day giveaway winners; that giveaway has
+  // been removed and only the monthly referral contest remains.)
   useEffect(() => {
-    fetch('/api/giveaway/status')
+    fetch('/api/referral-contest/status')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.pastWinners?.length > 0) {
@@ -1909,7 +1911,7 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
         </motion.button>
       </section>
 
-      {/* ─── Recent Giveaway Winners — right below the giveaway banner ─── */}
+      {/* ─── Recent Referral Contest Winners — right below the giveaway banner ─── */}
       {giveawayWinners.length > 0 && (
         <section className="px-4 mt-2">
           <motion.div
@@ -1920,21 +1922,23 @@ export default function HomeTab({ chatUnreadCount = 0 }: { chatUnreadCount?: num
             <div className="flex items-center gap-2 mb-2">
               <Trophy className="w-3.5 h-3.5 text-amber-500" />
               <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                Recent Winners
+                Recent Contest Winners
               </span>
             </div>
             <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
               {giveawayWinners.map((w, i) => (
                 <div
-                  key={`${w.roundNumber}-${w.rank}`}
+                  key={`${w.roundNumber}-${w.userId ?? i}`}
                   className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-2.5 py-1.5 shrink-0"
                 >
-                  <span className={`text-[10px] font-black ${w.rank === 1 ? 'text-amber-500' : w.rank === 2 ? 'text-gray-400' : 'text-orange-600'}`}>
-                    {w.rank === 1 ? '🥇' : w.rank === 2 ? '🥈' : '🥉'}
-                  </span>
+                  <span className="text-[10px] font-black text-amber-500">👑</span>
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-warm-800 dark:text-warm-100 font-mono">{w.playerId}</span>
-                    <span className="text-[8px] text-warm-400">R{w.roundNumber} · {w.prize}</span>
+                    <span className="text-[10px] font-bold text-warm-800 dark:text-warm-100 truncate max-w-[80px]">
+                      {w.name || 'Unknown'}
+                    </span>
+                    <span className="text-[8px] text-warm-400">
+                      R{w.roundNumber} · {w.referralCount} refs · {w.prize}
+                    </span>
                   </div>
                 </div>
               ))}
