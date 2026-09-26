@@ -115,6 +115,21 @@ function sanitizeDbError(err: unknown): string {
  * create round #N+1 starting now.
  */
 async function getOrCreateActiveContestRound() {
+  // ─── RETIREMENT CHECK ───────────────────────────────────────────────
+  // The Oats Pack referral contest has been retired and replaced by the
+  // new premium-only 15-day giveaway (see premium-giveaway.ts). When the
+  // retirement flag is set (one-time migration in index.ts), we NO LONGER
+  // create new active rounds — we just return the latest round (which will
+  // be 'completed'). This lets the /status endpoint still serve past
+  // winners without starting a new contest.
+  let isRetired = false;
+  try {
+    const flag = await db.appSetting.findUnique({
+      where: { key: 'referral_contest_retired_v1' },
+    });
+    isRetired = !!flag;
+  } catch { /* non-fatal — if AppSetting table is missing, treat as not retired */ }
+
   const latest = await withSelfHeal(() =>
     db.referralContestRound.findFirst({
       orderBy: { roundNumber: 'desc' },
@@ -122,6 +137,21 @@ async function getOrCreateActiveContestRound() {
   );
 
   if (!latest) {
+    // No round exists. If retired, return a stub "completed" round so the
+    // status endpoint doesn't crash. Otherwise create round #1.
+    if (isRetired) {
+      return {
+        id: 'retired',
+        roundNumber: 0,
+        startDate: new Date(0),
+        endDate: new Date(0),
+        status: 'completed',
+        winnersJson: null,
+        winnerCount: 0,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      };
+    }
     // Create round #1
     const now = new Date();
     const round = await withSelfHeal(() =>
@@ -135,6 +165,25 @@ async function getOrCreateActiveContestRound() {
       })
     );
     return round;
+  }
+
+  // If retired, do NOT create new rounds. If the latest round is still
+  // 'active' (it was created before the retirement flag was set, or the
+  // retirement migration ran after a new round was already created), mark
+  // it completed now so the contest doesn't show as "ongoing".
+  if (isRetired) {
+    if (latest.status === 'active') {
+      try {
+        await withSelfHeal(() =>
+          db.referralContestRound.update({
+            where: { id: latest.id },
+            data: { status: 'completed' },
+          })
+        );
+        return { ...latest, status: 'completed' };
+      } catch { /* if update fails, just return the latest as-is */ }
+    }
+    return latest;
   }
 
   // If the latest round is active but its endDate has passed, roll it.
