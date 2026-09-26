@@ -129,16 +129,16 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
     };
     prizes: Array<{ rank: number; name: string; icon: string }>;
     isPremiumUser: boolean;
+    hasReferral: boolean;
+    canEnter: boolean;
+    blockReason: string | null;
     hasEntered: boolean;
     enteredAt: string | null;
-    myReferralCount: number;
-    myRank: number | null;
     leaderboard: Array<{
       userId: string;
       name: string;
       avatar: string | null;
       playerCode: string | null;
-      referralCount: number;
       rank: number;
       enteredAt?: string | null;
     }>;
@@ -343,7 +343,7 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
     );
   }
 
-  const { round, prizes, isPremiumUser, myRank, myReferralCount, leaderboard: premiumLeaderboard, totalParticipants } = premiumStatus;
+  const { round, prizes, isPremiumUser, hasReferral, canEnter, blockReason, hasEntered: hasEnteredPremium, leaderboard: premiumLeaderboard, totalParticipants } = premiumStatus;
   // Past winners from the OLD Oats Pack referral contest (for the "Winners" tab).
   const pastWinners = status?.pastWinners || [];
   // Past winners from the NEW premium giveaway (also shown in the "Winners" tab, merged).
@@ -368,7 +368,7 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             </motion.div>
             <h2 className="text-xl font-black mb-1">🎁 Premium Giveaway</h2>
             <p className="text-xs opacity-90 mb-3">
-              {language === 'hi' ? 'रैंडम ड्रा · प्रीमियम मेंबर्स के लिए · 15 दिन' : 'Random draw · Premium only · 15 days'}
+              {language === 'hi' ? 'रैंडम ड्रा · 15 दिन' : 'Random draw · 15 days'}
             </p>
             <div className="bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2 inline-block mb-2">
               <p className="text-[10px] uppercase tracking-wide opacity-80 mb-1">
@@ -382,7 +382,7 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
               </div>
             </div>
             <p className="text-[10px] opacity-90 mt-1">
-              {language === 'hi' ? '1 रेफरल = 1 चांस जीतने के लिए' : '1 referral = 1 chance to win'}
+              {language === 'hi' ? 'प्रीमियम या 1 रेफरल = प्रवेश · विजेता रैंडम चुने जाएंगे' : 'Premium OR 1 referral = entry · winners chosen randomly'}
             </p>
           </div>
           {/* Round info */}
@@ -436,33 +436,52 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
         </div>
       </Card>
 
-      {/* Entry / Your Stats — three states: not premium, not entered, entered */}
-      {!isPremiumUser ? (
-        // Non-premium user — show "become premium to enter" message
+      {/* Entry / Your Stats — three states */}
+      {!canEnter && !hasEnteredPremium ? (
+        // User is NOT eligible (not premium AND has 0 referrals)
         <Card className="p-5 border-2 border-dashed border-amber-400 dark:border-amber-700 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-warm-800 text-center">
           <motion.div
             animate={{ y: [0, -4, 0] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
             className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 mb-3 shadow-lg shadow-amber-500/30"
           >
-            <Crown className="w-7 h-7 text-white" />
+            <LogIn className="w-7 h-7 text-white" />
           </motion.div>
           <h3 className="text-base font-black text-amber-700 dark:text-amber-300 mb-1">
-            {language === 'hi' ? 'प्रीमियम मेंबर बनें!' : 'Become Premium!'}
+            {language === 'hi' ? 'प्रवेश के लिए पात्र नहीं' : 'Not Eligible Yet'}
           </h3>
           <p className="text-xs text-warm-600 dark:text-warm-300 mb-3">
             {language === 'hi'
-              ? 'इस गिवअवे में भाग लेने के लिए प्रीमियम मेंबरशिप जरूरी है। ₹2 में 1 दिन की प्रीमियम खरीदें और अभी भाग लें!'
-              : 'Premium membership is required to enter this giveaway. Buy premium (₹2 for 1 day) and start winning!'}
+              ? 'गिवअवे में भाग लेने के लिए दो तरीके: प्रीमियम मेंबर बनें (₹2 से) या 1 रेफरल करें।'
+              : 'Two ways to enter: become premium (₹2) OR make 1 successful referral.'}
           </p>
-          <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-2">
-            {language === 'hi'
-              ? 'प्रीमियम खरीदने के बाद यहां वापस आएं और "Enter Giveaway" बटन टैप करें।'
-              : 'After buying premium, come back here and tap "Enter Giveaway".'}
-          </p>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="bg-white dark:bg-warm-800 rounded-lg p-2 text-center">
+              <Crown className="w-4 h-4 text-amber-500 mx-auto mb-1" />
+              <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                {language === 'hi' ? 'प्रीमियम खरीदें' : 'Get Premium'}
+              </p>
+              <p className="text-[8px] text-warm-500">₹2 से / from ₹2</p>
+            </div>
+            <div className="bg-white dark:bg-warm-800 rounded-lg p-2 text-center">
+              <Share2 className="w-4 h-4 text-purple-500 mx-auto mb-1" />
+              <p className="text-[10px] font-bold text-purple-700 dark:text-purple-300">
+                {language === 'hi' ? 'रेफरल शेयर करें' : 'Share Referral'}
+              </p>
+              <p className="text-[8px] text-warm-500">1 रेफरल / 1 referral</p>
+            </div>
+          </div>
+          <Button
+            onClick={() => onOpenReferral?.()}
+            variant="outline"
+            className="w-full text-xs h-9 border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400"
+          >
+            <Share2 className="w-3.5 h-3.5 mr-1.5" />
+            {language === 'hi' ? 'रेफरल कोड शेयर करें' : 'Share Referral Code'}
+          </Button>
         </Card>
-      ) : !premiumStatus.hasEntered ? (
-        // Premium user, NOT entered yet — show "Enter Giveaway" CTA
+      ) : !hasEnteredPremium ? (
+        // User IS eligible (premium OR has referral) but hasn't entered yet
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -479,9 +498,18 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
               {language === 'hi' ? 'गिवअवे में भाग लें!' : 'Enter the Giveaway!'}
             </h3>
             <p className="text-xs text-warm-600 dark:text-warm-300 mb-3">
+              {isPremiumUser
+                ? (language === 'hi'
+                    ? 'आप प्रीमियम मेंबर हैं — प्रवेश के लिए पात्र हैं!'
+                    : 'You\'re a premium member — eligible to enter!')
+                : (language === 'hi'
+                    ? 'आपके रेफरल हैं — प्रवेश के लिए पात्र हैं!'
+                    : 'You have referrals — eligible to enter!')}
+            </p>
+            <p className="text-[10px] text-warm-500 dark:text-warm-400 mb-3">
               {language === 'hi'
-                ? 'प्रवेश के बाद, आपके रेफरल जीतने के चांस बन जाएंगे। 1 रेफरल = 1 चांस! जितने ज्यादा रेफरल, उतनी ज्यादा चांस!'
-                : 'Once entered, your referrals become chances to win. 1 referral = 1 chance! More referrals = more chances!'}
+                ? 'प्रवेश के बाद, 15 दिन बाद विजेता रैंडम चुने जाएंगे।'
+                : 'After entering, winners are randomly chosen in 15 days.'}
             </p>
             <Button
               onClick={handleEnterContest}
@@ -497,15 +525,10 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
                 ? (language === 'hi' ? 'प्रवेश हो रहा है...' : 'Entering...')
                 : (language === 'hi' ? '🎯 गिवअवे में प्रवेश करें' : '🎯 Enter Giveaway Now')}
             </Button>
-            <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-2">
-              {language === 'hi'
-                ? 'एक बार प्रवेश करने पर, आपके सभी रेफरल (इस 15-दिन की विंडो में) चांस बन जाएंगे।'
-                : 'Once entered, all your referrals (within this 15-day window) become chances.'}
-            </p>
           </Card>
         </motion.div>
       ) : (
-        // Premium user, HAS entered — show "You're entered!" + chances + share CTA
+        // User HAS entered — simple "You're entered!" card (no chances, no rank)
         <Card className="p-4 border-2 border-amber-200 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/20 dark:to-warm-800">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -518,26 +541,23 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
               {language === 'hi' ? '✓ प्रवेशित' : '✓ Entered'}
             </Badge>
           </div>
-          <div className="bg-white dark:bg-warm-800 rounded-xl p-3 text-center">
-            <p className="text-[10px] uppercase tracking-wide text-warm-500">
-              {language === 'hi' ? 'आपके चांस' : 'Your Chances'}
+          <div className="bg-white dark:bg-warm-800 rounded-xl p-4 text-center">
+            <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-2" />
+            <p className="text-sm font-bold text-warm-800 dark:text-warm-100">
+              {language === 'hi'
+                ? 'आप इस गिवअवे में शामिल हैं!'
+                : 'You\'re in this giveaway!'}
             </p>
-            <p className="text-3xl font-black text-amber-600 dark:text-amber-400">
-              {myReferralCount}
-            </p>
-            <p className="text-[9px] text-warm-500 mt-0.5">
-              {language === 'hi' ? 'जीतने के लिए रैंडम ड्रा' : 'random draw for winning'}
+            <p className="text-[10px] text-warm-500 dark:text-warm-400 mt-1">
+              {language === 'hi'
+                ? 'विजेता 15 दिन बाद रैंडम चुने जाएंगे।'
+                : 'Winners will be randomly selected in 15 days.'}
             </p>
           </div>
-          {myReferralCount === 0 && (
-            <p className="text-[10px] text-warm-500 dark:text-warm-400 text-center mt-2">
-              {language === 'hi'
-                ? 'अभी 0 चांस — रेफरल कोड शेयर करके चांस बढ़ाएं!'
-                : '0 chances so far — share your code to get more chances!'}
-            </p>
-          )}
-          <p className="text-[9px] text-warm-500 dark:text-warm-400 text-center mt-1">
-            {language === 'hi' ? '1 रेफरल = 1 चांस · जितने ज्यादा चांस, उतनी ज्यादा संभावना जीतने की' : '1 referral = 1 chance · more chances = higher probability of winning'}
+          <p className="text-[9px] text-warm-500 dark:text-warm-400 text-center mt-2">
+            {language === 'hi'
+              ? 'रेफरल शेयर करते रहें ताकि और लोग जुड़ें'
+              : 'Keep sharing your referral to get more people in'}
           </p>
           {/* CTA: Share referral */}
           <Button
@@ -619,11 +639,6 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
               </Card>
             ) : (
               <Card className="overflow-hidden p-0">
-                {/* Column header — just name + chances */}
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-warm-100 dark:bg-warm-800/80 border-b border-warm-200 dark:border-warm-700 text-[9px] font-bold uppercase tracking-wide text-warm-500">
-                  <span className="flex-1">{language === 'hi' ? 'खिलाड़ी' : 'Participant'}</span>
-                  <span className="w-16 text-right">{language === 'hi' ? 'चांस' : 'Chances'}</span>
-                </div>
                 <div className="divide-y divide-warm-100 dark:divide-warm-800">
                   {premiumLeaderboard.map((entry, index) => {
                     const isMe = entry.userId === currentUser?.id;
@@ -662,10 +677,6 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
                             </span>
                           )}
                         </div>
-                        {/* Chances */}
-                        <span className="w-16 text-right text-sm font-bold text-amber-600 dark:text-amber-400">
-                          {entry.referralCount}
-                        </span>
                       </div>
                     );
                   })}
@@ -842,24 +853,24 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             <span className="font-bold text-blue-500">1.</span>
             <span>
               {language === 'hi'
-                ? 'प्रीमियम मेंबर बनें (₹2 से शुरू) और "Enter Giveaway" टैप करें।'
-                : 'Become a premium member (from ₹2) and tap "Enter Giveaway".'}
+                ? 'प्रवेश के दो तरीके: प्रीमियम मेंबर बनें (₹2 से) या 1 रेफरल करें।'
+                : 'Two ways to enter: become premium (₹2) OR make 1 referral.'}
             </span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold text-blue-500">2.</span>
             <span>
               {language === 'hi'
-                ? 'रेफरल कोड शेयर करें। 1 रेफरल = 1 चांस रैंडम ड्रा में!'
-                : 'Share your referral code. 1 referral = 1 chance in the random draw!'}
+                ? '"Enter Giveaway" बटन टैप करें और आप शामिल हो जाएंगे।'
+                : 'Tap "Enter Giveaway" and you\'re in — it\'s that simple!'}
             </span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold text-blue-500">3.</span>
             <span>
               {language === 'hi'
-                ? '15 दिन बाद, रैंडम वेटेड ड्रा से 10 विजेता चुने जाएंगे।'
-                : 'After 15 days, 10 winners are chosen by random weighted draw.'}
+                ? '15 दिन बाद, एडमिन रैंडम रूप से 10 विजेता चुनेगा।'
+                : 'After 15 days, admin randomly selects 10 winners.'}
             </span>
           </li>
           <li className="flex gap-2">
@@ -889,7 +900,7 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
               className="w-full bg-red-500 hover:bg-red-600 text-white text-xs h-9"
             >
               {adminLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Crown className="w-4 h-4 mr-1" />}
-              {language === 'hi' ? '10 विजेता चुनें (वेटेड ड्रा)' : 'Draw 10 Winners (Weighted)'}
+              {language === 'hi' ? '10 विजेता रैंडम चुनें' : 'Draw 10 Winners (Random)'}
             </Button>
             <Button
               onClick={handleAdminForceNext}

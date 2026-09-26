@@ -8,25 +8,25 @@ datasource db {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  phone          String   @unique
-  playerCode     String?  @unique // unique code for easy lookup (e.g. "KP1001")
-  email          String?  @unique
+  id             String    @id @default(cuid())
+  phone          String    @unique
+  playerCode     String?   @unique // unique code for easy lookup (e.g. "KP1001")
+  email          String?   @unique
   name           String?
-  password       String   // hashed password
-  role           String   @default("player") // player, coach
+  password       String // hashed password
+  role           String    @default("player") // player, coach
   avatar         String?
-  isPremium      Boolean  @default(false) // premium subscription status
+  isPremium      Boolean   @default(false) // premium subscription status
   premiumExpiry  DateTime? // when premium expires (null = lifetime or no expiry)
-  premiumPlan    String?   // current active plan: daily, weekly, monthly, yearly, lifetime
-  isAdmin        Boolean  @default(false) // admin can see earnings dashboard
-  dateOfBirth    String?  // Format: "YYYY-MM-DD" - used for password reset verification
-  phoneVerified  Boolean  @default(true) // No OTP needed anymore
-  gender         String?  // boy, girl
-  weight         String?  // e.g., "65kg", "70kg"
-  practiceGround String?  // practice ground / academy name
-  location       String?  // city / area for coaches
-  showCoachBadge Boolean  @default(false) // opt-in cosmetic coach badge on profile — does NOT change role or feature access
+  premiumPlan    String? // current active plan: daily, weekly, monthly, yearly, lifetime
+  isAdmin        Boolean   @default(false) // admin can see earnings dashboard
+  dateOfBirth    String? // Format: "YYYY-MM-DD" - used for password reset verification
+  phoneVerified  Boolean   @default(true) // No OTP needed anymore
+  gender         String? // boy, girl
+  weight         String? // e.g., "65kg", "70kg"
+  practiceGround String? // practice ground / academy name
+  location       String? // city / area for coaches
+  showCoachBadge Boolean   @default(false) // opt-in cosmetic coach badge on profile — does NOT change role or feature access
   // Provisional users are placeholder accounts created when a scorer or coach
   // adds a non-registered player by phone number. They have a real userId +
   // playerCode (so match events and academy memberships can point to them),
@@ -35,103 +35,103 @@ model User {
   // creating a new one — so they auto-inherit all their past stats + academy
   // memberships. Counted in admin's "total players" and visible in the admin
   // player list (with a provisional badge).
-  provisional    Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  provisional    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  teams        TeamMember[]
-  matches      MatchScorer[]
-  profile      PlayerProfile?
-  tournaments  Tournament[]
-  payments     Payment[]
-  followers         Follow[]      @relation("UserFollowers")
-  following         Follow[]      @relation("UserFollowing")
-  notifications     Notification[] @relation("NotificationRecipient")
-  sentNotifications Notification[] @relation("NotificationSender")
-  activities        Activity[]
-  userAchievements  UserAchievement[]
-  academyAnnouncements AcademyAnnouncement[] // announcements this user (coach) has posted
-  sentChallenges    Challenge[]   @relation("ChallengeSender")
-  receivedChallenges Challenge[]  @relation("ChallengeReceiver")
-  referralsMade     Referral[]    @relation("ReferralReferrer")
-  referralsUsed     Referral[]    @relation("ReferralReferred")
-  pollVotes         PollVote[]
-  aiInsights        AIInsight[]
-  academies         Academy[]
-  academyPlayers    AcademyPlayer[]
-  attendances       Attendance[]
-  feeRecords        FeeRecord[]
-  rewards           StudentReward[]
-  parentContacts    ParentContact[]
-  matchComments     MatchComment[]
-  matchPhotos       MatchPhoto[]
+  teams                  TeamMember[]
+  matches                MatchScorer[]
+  profile                PlayerProfile?
+  tournaments            Tournament[]
+  payments               Payment[]
+  followers              Follow[]                     @relation("UserFollowers")
+  following              Follow[]                     @relation("UserFollowing")
+  notifications          Notification[]               @relation("NotificationRecipient")
+  sentNotifications      Notification[]               @relation("NotificationSender")
+  activities             Activity[]
+  userAchievements       UserAchievement[]
+  academyAnnouncements   AcademyAnnouncement[] // announcements this user (coach) has posted
+  sentChallenges         Challenge[]                  @relation("ChallengeSender")
+  receivedChallenges     Challenge[]                  @relation("ChallengeReceiver")
+  referralsMade          Referral[]                   @relation("ReferralReferrer")
+  referralsUsed          Referral[]                   @relation("ReferralReferred")
+  pollVotes              PollVote[]
+  aiInsights             AIInsight[]
+  academies              Academy[]
+  academyPlayers         AcademyPlayer[]
+  attendances            Attendance[]
+  feeRecords             FeeRecord[]
+  rewards                StudentReward[]
+  parentContacts         ParentContact[]
+  matchComments          MatchComment[]
+  matchPhotos            MatchPhoto[]
   // ── Chat (DM) relations
-  chatThreadsA       ChatThread[]   @relation("ChatThreadUserA")
-  chatThreadsB       ChatThread[]   @relation("ChatThreadUserB")
-  chatMessagesSent   ChatMessage[]  @relation("ChatMessageSender")
-  chatBlocksMade     ChatBlock[]    @relation("ChatBlockBlocker")
-  chatBlocksReceived ChatBlock[]    @relation("ChatBlockBlocked")
-  chatReportsMade    ChatReport[]   @relation("ChatReportReporter")
-  chatReportsAgainst ChatReport[]   @relation("ChatReportReported")
-  chatReportsReviewed ChatReport[]  @relation("ChatReportReviewer")
-  quizAttempts      QuizAttempt[]
-  playerLocation    PlayerLocation?
-  leaderboardEntries LeaderboardSeasonEntry[]
+  chatThreadsA           ChatThread[]                 @relation("ChatThreadUserA")
+  chatThreadsB           ChatThread[]                 @relation("ChatThreadUserB")
+  chatMessagesSent       ChatMessage[]                @relation("ChatMessageSender")
+  chatBlocksMade         ChatBlock[]                  @relation("ChatBlockBlocker")
+  chatBlocksReceived     ChatBlock[]                  @relation("ChatBlockBlocked")
+  chatReportsMade        ChatReport[]                 @relation("ChatReportReporter")
+  chatReportsAgainst     ChatReport[]                 @relation("ChatReportReported")
+  chatReportsReviewed    ChatReport[]                 @relation("ChatReportReviewer")
+  quizAttempts           QuizAttempt[]
+  playerLocation         PlayerLocation?
+  leaderboardEntries     LeaderboardSeasonEntry[]
   giveawayParticipations GiveawayParticipant[]
-  streak            UserStreak?
-  joinRequests      TeamJoinRequest[] @relation("UserJoinRequests")
+  streak                 UserStreak?
+  joinRequests           TeamJoinRequest[]            @relation("UserJoinRequests")
   referralContestEntries ReferralContestParticipant[] @relation("UserReferralContestEntries")
-  premiumGiveawayEntries PremiumGiveawayEntry[] @relation("UserPremiumGiveawayEntries")
+  premiumGiveawayEntries PremiumGiveawayEntry[]       @relation("UserPremiumGiveawayEntries")
 }
 
 model PlayerProfile {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  jerseyNumber    Int?
-  weightCategory  String?  // "open" or manually entered weight e.g. "65kg"
-  position        String?  // raider, defender, all-rounder
-  overallRating   Float    @default(0)
+  id             String  @id @default(cuid())
+  userId         String  @unique
+  jerseyNumber   Int?
+  weightCategory String? // "open" or manually entered weight e.g. "65kg"
+  position       String? // raider, defender, all-rounder
+  overallRating  Float   @default(0)
 
   // Overall stats (combined practice + tournament)
-  totalRaids      Int      @default(0)
-  successfulRaids Int      @default(0)
-  totalTackles    Int      @default(0)
-  successfulTackles Int    @default(0)
-  bonusPoints     Int      @default(0)
-  superTackles    Int      @default(0)
-  totalMatches    Int      @default(0)
-  totalPoints     Int      @default(0)
-  raidPoints      Int      @default(0)
-  tacklePoints    Int      @default(0)
+  totalRaids        Int @default(0)
+  successfulRaids   Int @default(0)
+  totalTackles      Int @default(0)
+  successfulTackles Int @default(0)
+  bonusPoints       Int @default(0)
+  superTackles      Int @default(0)
+  totalMatches      Int @default(0)
+  totalPoints       Int @default(0)
+  raidPoints        Int @default(0)
+  tacklePoints      Int @default(0)
 
   // Tournament-specific stats (leaderboard uses these)
-  tournamentMatches          Int @default(0)
-  tournamentTotalRaids       Int @default(0)
-  tournamentSuccessfulRaids  Int @default(0)
-  tournamentTotalTackles     Int @default(0)
+  tournamentMatches           Int @default(0)
+  tournamentTotalRaids        Int @default(0)
+  tournamentSuccessfulRaids   Int @default(0)
+  tournamentTotalTackles      Int @default(0)
   tournamentSuccessfulTackles Int @default(0)
-  tournamentRaidPoints       Int @default(0)
-  tournamentTacklePoints     Int @default(0)
-  tournamentBonusPoints      Int @default(0)
-  tournamentSuperTackles     Int @default(0)
-  tournamentTotalPoints      Int @default(0)
+  tournamentRaidPoints        Int @default(0)
+  tournamentTacklePoints      Int @default(0)
+  tournamentBonusPoints       Int @default(0)
+  tournamentSuperTackles      Int @default(0)
+  tournamentTotalPoints       Int @default(0)
 
   // Practice-specific stats
-  practiceMatches          Int @default(0)
-  practiceTotalRaids       Int @default(0)
-  practiceSuccessfulRaids  Int @default(0)
-  practiceTotalTackles     Int @default(0)
+  practiceMatches           Int @default(0)
+  practiceTotalRaids        Int @default(0)
+  practiceSuccessfulRaids   Int @default(0)
+  practiceTotalTackles      Int @default(0)
   practiceSuccessfulTackles Int @default(0)
-  practiceRaidPoints       Int @default(0)
-  practiceTacklePoints     Int @default(0)
-  practiceBonusPoints      Int @default(0)
-  practiceSuperTackles     Int @default(0)
-  practiceTotalPoints      Int @default(0)
+  practiceRaidPoints        Int @default(0)
+  practiceTacklePoints      Int @default(0)
+  practiceBonusPoints       Int @default(0)
+  practiceSuperTackles      Int @default(0)
+  practiceTotalPoints       Int @default(0)
 
-  playerOfMonth   Int      @default(0)
-  playerOfYear    Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  playerOfMonth Int      @default(0)
+  playerOfYear  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -140,28 +140,28 @@ model Team {
   id        String   @id @default(cuid())
   name      String
   shortName String?
-  teamCode  String?  @unique  // unique code for easy lookup (e.g. "KT2001")
+  teamCode  String?  @unique // unique code for easy lookup (e.g. "KT2001")
   logo      String?
-  color     String?  // hex color
+  color     String? // hex color
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members        TeamMember[]
-  homeMatches    Match[]     @relation("HomeTeam")
-  awayMatches    Match[]     @relation("AwayTeam")
-  joinRequests   TeamJoinRequest[] @relation("TeamJoinRequests")
+  members           TeamMember[]
+  homeMatches       Match[]           @relation("HomeTeam")
+  awayMatches       Match[]           @relation("AwayTeam")
+  joinRequests      TeamJoinRequest[] @relation("TeamJoinRequests")
   tournamentEntries TournamentEntry[]
-  challengesFrom  Challenge[] @relation("ChallengeFromTeam")
-  challengesTo    Challenge[] @relation("ChallengeToTeam")
-  seasonTeams     SeasonTeam[]
-  pollOptions     PollOption[]
-  sponsors        Sponsor[]
+  challengesFrom    Challenge[]       @relation("ChallengeFromTeam")
+  challengesTo      Challenge[]       @relation("ChallengeToTeam")
+  seasonTeams       SeasonTeam[]
+  pollOptions       PollOption[]
+  sponsors          Sponsor[]
 }
 
 model TeamMember {
-  id       String @id @default(cuid())
-  teamId   String
-  userId   String
+  id        String  @id @default(cuid())
+  teamId    String
+  userId    String
   isCaptain Boolean @default(false)
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -171,21 +171,21 @@ model TeamMember {
 }
 
 model Tournament {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   name           String
-  tournamentCode String?  @unique  // unique code for easy lookup (e.g. "TC3001")
-  type           String   @default("knockout") // knockout, league, hybrid
-  status         String   @default("upcoming") // upcoming, ongoing, completed
-  gender         String?  // boys, girls
-  weightCategory String?  // "open" or manually entered weight e.g. "65kg", "Below 80kg"
+  tournamentCode String?   @unique // unique code for easy lookup (e.g. "TC3001")
+  type           String    @default("knockout") // knockout, league, hybrid
+  status         String    @default("upcoming") // upcoming, ongoing, completed
+  gender         String? // boys, girls
+  weightCategory String? // "open" or manually entered weight e.g. "65kg", "Below 80kg"
   startDate      DateTime?
   endDate        DateTime?
   venue          String?
   organizerId    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  organizer User? @relation(fields: [organizerId], references: [id], onDelete: SetNull)
+  organizer User?                @relation(fields: [organizerId], references: [id], onDelete: SetNull)
   entries   TournamentEntry[]
   matches   Match[]
   transfers TournamentTransfer[]
@@ -209,38 +209,38 @@ model TournamentEntry {
 }
 
 model Match {
-  id              String   @id @default(cuid())
-  tournamentId    String?
-  homeTeamId      String
-  awayTeamId      String
-  homeScore       Int      @default(0)
-  awayScore       Int      @default(0)
-  half            Int      @default(1)
-  halfDuration    Int      @default(20) // minutes per half (configurable: 5, 10, 15, 20, 25, 30)
-  playersPerSide  Int      @default(7)  // how many players per side (configurable: 1-12)
-  status          String   @default("upcoming") // upcoming, live, completed
-  isPractice      Boolean  @default(false)
-  gender          String?  // boys, girls
-  weightCategory  String?  // "open" or manually entered weight e.g. "65kg", "Below 80kg"
-  venue           String?
-  groundId        String?
-  liveStreamUrl   String?  // YouTube/Twitch live stream URL
-  startedAt       DateTime?
-  completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  tournamentId   String?
+  homeTeamId     String
+  awayTeamId     String
+  homeScore      Int       @default(0)
+  awayScore      Int       @default(0)
+  half           Int       @default(1)
+  halfDuration   Int       @default(20) // minutes per half (configurable: 5, 10, 15, 20, 25, 30)
+  playersPerSide Int       @default(7) // how many players per side (configurable: 1-12)
+  status         String    @default("upcoming") // upcoming, live, completed
+  isPractice     Boolean   @default(false)
+  gender         String? // boys, girls
+  weightCategory String? // "open" or manually entered weight e.g. "65kg", "Below 80kg"
+  venue          String?
+  groundId       String?
+  liveStreamUrl  String? // YouTube/Twitch live stream URL
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  tournament Tournament? @relation(fields: [tournamentId], references: [id])
-  homeTeam   Team        @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeam   Team        @relation("AwayTeam", fields: [awayTeamId], references: [id])
-  ground     Ground?     @relation(fields: [groundId], references: [id])
-  motmUserId String?  // Man of the Match user ID
-  scorers    MatchScorer[]
-  events     MatchEvent[]
+  tournament    Tournament?    @relation(fields: [tournamentId], references: [id])
+  homeTeam      Team           @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam      Team           @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  ground        Ground?        @relation(fields: [groundId], references: [id])
+  motmUserId    String? // Man of the Match user ID
+  scorers       MatchScorer[]
+  events        MatchEvent[]
   seasonMatches SeasonMatch[]
-  aiInsights AIInsight[]
-  comments   MatchComment[]
-  photos     MatchPhoto[]
+  aiInsights    AIInsight[]
+  comments      MatchComment[]
+  photos        MatchPhoto[]
 }
 
 model MatchScorer {
@@ -255,16 +255,16 @@ model MatchScorer {
 }
 
 model MatchEvent {
-  id           String   @id @default(cuid())
-  matchId      String
-  teamId       String
-  playerId     String?
-  playerPhone  String?  // Phone number for non-registered players (stats claimed on signup)
-  eventType    String   // raid_point, bonus_point, tackle, all_out, empty_raid, card, substitution, timeout
-  value        Int      @default(0) // points value
-  details      String?  // JSON string for extra data
-  half         Int      @default(1)
-  timestamp    DateTime @default(now())
+  id          String   @id @default(cuid())
+  matchId     String
+  teamId      String
+  playerId    String?
+  playerPhone String? // Phone number for non-registered players (stats claimed on signup)
+  eventType   String // raid_point, bonus_point, tackle, all_out, empty_raid, card, substitution, timeout
+  value       Int      @default(0) // points value
+  details     String? // JSON string for extra data
+  half        Int      @default(1)
+  timestamp   DateTime @default(now())
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
 }
@@ -272,16 +272,16 @@ model MatchEvent {
 model Payment {
   id                String   @id @default(cuid())
   userId            String
-  cashfreeOrderId   String   @unique  // Cashfree order_id from create order API
-  orderId           String?           // our internal order reference
-  cashfreePaymentId String?          // cf_payment_id from Cashfree
-  cashfreeSignature String?          // signature for verification
-  cfPaymentId       String?           // Cashfree's internal payment ID
-  plan              String   // daily, weekly, monthly, yearly, lifetime
-  amount            Int      // amount in paise (e.g., 14900 = ₹149)
+  cashfreeOrderId   String   @unique // Cashfree order_id from create order API
+  orderId           String? // our internal order reference
+  cashfreePaymentId String? // cf_payment_id from Cashfree
+  cashfreeSignature String? // signature for verification
+  cfPaymentId       String? // Cashfree's internal payment ID
+  plan              String // daily, weekly, monthly, yearly, lifetime
+  amount            Int // amount in paise (e.g., 14900 = ₹149)
   currency          String   @default("INR")
   status            String   @default("created") // created, paid, failed, refunded
-  method            String?  // upi, card, netbanking, wallet, etc.
+  method            String? // upi, card, netbanking, wallet, etc.
   email             String?
   phone             String?
   createdAt         DateTime @default(now())
@@ -294,24 +294,24 @@ model Payment {
 // Replaces the hardcoded VALID_COUPONS constant in payments.ts.
 // Admins can create percent-off or flat-amount-off codes with usage limits + expiry.
 model DiscountCode {
-  id            String    @id @default(cuid())
-  code          String    @unique // case-insensitive when validated (we upper() on insert + lookup)
-  discountType  String    // 'percent' | 'flat'
-  discountValue Int       // percent: 0-100 (e.g. 50 = 50% off); flat: amount in paise (e.g. 5000 = ₹50 off)
-  maxUses       Int       @default(0) // 0 = unlimited
-  usedCount     Int       @default(0)
-  minOrderAmount Int      @default(0) // minimum order amount in paise for the code to apply (0 = any)
-  isActive      Boolean   @default(true)
-  expiresAt     DateTime?
-  notes         String?   // admin-visible description
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  code           String    @unique // case-insensitive when validated (we upper() on insert + lookup)
+  discountType   String // 'percent' | 'flat'
+  discountValue  Int // percent: 0-100 (e.g. 50 = 50% off); flat: amount in paise (e.g. 5000 = ₹50 off)
+  maxUses        Int       @default(0) // 0 = unlimited
+  usedCount      Int       @default(0)
+  minOrderAmount Int       @default(0) // minimum order amount in paise for the code to apply (0 = any)
+  isActive       Boolean   @default(true)
+  expiresAt      DateTime?
+  notes          String? // admin-visible description
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model Follow {
   id          String   @id @default(cuid())
-  followerId  String   // the user who is following
-  followingId String   // the user being followed
+  followerId  String // the user who is following
+  followingId String // the user being followed
   createdAt   DateTime @default(now())
 
   follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
@@ -322,30 +322,30 @@ model Follow {
 
 model Notification {
   id         String   @id @default(cuid())
-  userId     String   // the user receiving the notification
-  fromUserId String   // the user who triggered it
-  type       String   // match_start, match_result, follow, achievement, premium, general, commentary, chat
+  userId     String // the user receiving the notification
+  fromUserId String // the user who triggered it
+  type       String // match_start, match_result, follow, achievement, premium, general, commentary, chat
   title      String
   message    String
   isRead     Boolean  @default(false)
   matchId    String?
-  threadId   String?  // for type='chat' — the conversation thread this notification belongs to, so the recipient can jump straight into it
+  threadId   String? // for type='chat' — the conversation thread this notification belongs to, so the recipient can jump straight into it
   createdAt  DateTime @default(now())
 
-  user     User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
-  fromUser User  @relation("NotificationSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  user     User @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  fromUser User @relation("NotificationSender", fields: [fromUserId], references: [id], onDelete: Cascade)
 }
 
 model Activity {
-  id          String   @id @default(cuid())
-  userId      String   // user who performed the activity
-  type        String   // match_completed, tournament_joined, achievement_unlocked, player_milestone
-  title       String
-  description String
-  matchId     String?
+  id           String   @id @default(cuid())
+  userId       String // user who performed the activity
+  type         String // match_completed, tournament_joined, achievement_unlocked, player_milestone
+  title        String
+  description  String
+  matchId      String?
   tournamentId String?
-  metadata    String?  // JSON string for extra data
-  createdAt   DateTime @default(now())
+  metadata     String? // JSON string for extra data
+  createdAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -354,11 +354,11 @@ model Activity {
 
 model Achievement {
   id          String   @id @default(cuid())
-  key         String   @unique  // e.g. "first_raid", "50_raids", "super_tackle_master"
-  name        String   // display name
-  description String   // what this achievement is about
-  icon        String   // emoji or icon name
-  category    String   // raid, defense, allround, social, milestone
+  key         String   @unique // e.g. "first_raid", "50_raids", "super_tackle_master"
+  name        String // display name
+  description String // what this achievement is about
+  icon        String // emoji or icon name
+  category    String // raid, defense, allround, social, milestone
   tier        String   @default("bronze") // bronze, silver, gold, platinum
   threshold   Int      @default(0) // stat value needed to unlock
   createdAt   DateTime @default(now())
@@ -379,50 +379,50 @@ model UserAchievement {
 }
 
 model Challenge {
-  id           String   @id @default(cuid())
-  fromTeamId   String
-  toTeamId     String
-  fromUserId   String   // who sent the challenge
-  toUserId     String?  // who received (team captain, nullable)
-  message      String?  // optional taunt/message
-  status       String   @default("pending") // pending, accepted, declined, completed, expired
-  matchId      String?  // if accepted, link to the match
-  createdAt    DateTime @default(now())
-  respondedAt  DateTime?
-  expiresAt    DateTime?
+  id          String    @id @default(cuid())
+  fromTeamId  String
+  toTeamId    String
+  fromUserId  String // who sent the challenge
+  toUserId    String? // who received (team captain, nullable)
+  message     String? // optional taunt/message
+  status      String    @default("pending") // pending, accepted, declined, completed, expired
+  matchId     String? // if accepted, link to the match
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+  expiresAt   DateTime?
 
-  fromTeam Team @relation("ChallengeFromTeam", fields: [fromTeamId], references: [id])
-  toTeam   Team @relation("ChallengeToTeam", fields: [toTeamId], references: [id])
-  fromUser User @relation("ChallengeSender", fields: [fromUserId], references: [id])
+  fromTeam Team  @relation("ChallengeFromTeam", fields: [fromTeamId], references: [id])
+  toTeam   Team  @relation("ChallengeToTeam", fields: [toTeamId], references: [id])
+  fromUser User  @relation("ChallengeSender", fields: [fromUserId], references: [id])
   toUser   User? @relation("ChallengeReceiver", fields: [toUserId], references: [id])
 }
 
 model Ground {
-  id          String   @id @default(cuid())
-  name        String
-  address     String?
-  city        String?
-  state       String?
-  lat         Float?
-  lng         Float?
-  mapLink     String?  // raw Google Maps URL pasted by user (optional)
-  surface     String?  // mat, mud, grass, synthetic
-  amenities   String?  // JSON: changing_room, lights, seating, parking, etc.
-  addedBy     String?  // userId who added
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  city      String?
+  state     String?
+  lat       Float?
+  lng       Float?
+  mapLink   String? // raw Google Maps URL pasted by user (optional)
+  surface   String? // mat, mud, grass, synthetic
+  amenities String? // JSON: changing_room, lights, seating, parking, etc.
+  addedBy   String? // userId who added
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   matches Match[]
 }
 
 model Referral {
-  id           String   @id @default(cuid())
-  referrerId   String   // user who shared the referral
-  referredId   String?  // user who signed up using the referral
-  referralCode String   @unique // unique code for the referrer
-  status       String   @default("pending") // pending, signed_up, rewarded
-  premiumDays  Int      @default(7) // how many premium days the referrer earns
-  createdAt    DateTime @default(now())
+  id           String    @id @default(cuid())
+  referrerId   String // user who shared the referral
+  referredId   String? // user who signed up using the referral
+  referralCode String    @unique // unique code for the referrer
+  status       String    @default("pending") // pending, signed_up, rewarded
+  premiumDays  Int       @default(7) // how many premium days the referrer earns
+  createdAt    DateTime  @default(now())
   completedAt  DateTime?
 
   referrer User  @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
@@ -432,15 +432,15 @@ model Referral {
 // ─── Advanced Phase 5 Models ─────────────────────────────────────
 
 model Season {
-  id          String   @id @default(cuid())
-  name        String   @unique  // e.g. "Season 2025", "Monsoon Cup 2025"
-  year        Int      // 2024, 2025, etc.
+  id          String    @id @default(cuid())
+  name        String    @unique // e.g. "Season 2025", "Monsoon Cup 2025"
+  year        Int // 2024, 2025, etc.
   startDate   DateTime
   endDate     DateTime?
-  status      String   @default("upcoming") // upcoming, active, completed
+  status      String    @default("upcoming") // upcoming, active, completed
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   seasonTeams   SeasonTeam[]
   seasonMatches SeasonMatch[]
@@ -465,10 +465,10 @@ model SeasonTeam {
 }
 
 model SeasonMatch {
-  id        String @id @default(cuid())
-  seasonId  String
-  matchId   String
-  matchDay  Int    @default(1) // week/day number within season
+  id       String @id @default(cuid())
+  seasonId String
+  matchId  String
+  matchDay Int    @default(1) // week/day number within season
 
   season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
@@ -477,38 +477,38 @@ model SeasonMatch {
 }
 
 model Poll {
-  id           String   @id @default(cuid())
-  seasonId     String?
-  matchId      String?  // optional: link to specific match
-  question     String   // e.g. "Who will win?"
-  type         String   @default("prediction") // prediction, poll, rating
-  status       String   @default("active") // active, closed, resolved
-  endsAt       DateTime?
-  createdAt    DateTime @default(now())
+  id        String    @id @default(cuid())
+  seasonId  String?
+  matchId   String? // optional: link to specific match
+  question  String // e.g. "Who will win?"
+  type      String    @default("prediction") // prediction, poll, rating
+  status    String    @default("active") // active, closed, resolved
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
 
-  season  Season?  @relation(fields: [seasonId], references: [id])
+  season  Season?      @relation(fields: [seasonId], references: [id])
   options PollOption[]
   votes   PollVote[]
 }
 
 model PollOption {
-  id     String @id @default(cuid())
+  id     String  @id @default(cuid())
   pollId String
   label  String // e.g. "Team A", "Team B", "Draw"
-  icon   String?  // emoji
-  teamId String?  // optional link to team
+  icon   String? // emoji
+  teamId String? // optional link to team
 
-  poll  Poll  @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  team  Team? @relation(fields: [teamId], references: [id])
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  team  Team?      @relation(fields: [teamId], references: [id])
   votes PollVote[]
 }
 
 model PollVote {
-  id         String   @id @default(cuid())
-  pollId     String
-  optionId   String
-  userId     String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  pollId    String
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
 
   poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
   option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
@@ -518,88 +518,88 @@ model PollVote {
 }
 
 model Sponsor {
-  id          String   @id @default(cuid())
-  seasonId    String?
-  teamId      String?  // optional: sponsor for a specific team
-  name        String
-  logo        String?  // URL to sponsor logo
-  website     String?
-  tier        String   @default("bronze") // bronze, silver, gold, platinum
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  seasonId  String?
+  teamId    String? // optional: sponsor for a specific team
+  name      String
+  logo      String? // URL to sponsor logo
+  website   String?
+  tier      String   @default("bronze") // bronze, silver, gold, platinum
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   season Season? @relation(fields: [seasonId], references: [id])
   team   Team?   @relation(fields: [teamId], references: [id])
 }
 
 model AIInsight {
-  id          String   @id @default(cuid())
-  userId      String?  // null = global insight, non-null = user-specific
-  matchId     String?  // optional match context
-  type        String   // prediction, form_analysis, recommendation, milestone_alert
-  title       String
-  content     String   // the insight text
-  confidence  Float    @default(0) // 0.0 - 1.0 for predictions
-  metadata    String?  // JSON for extra data
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String? // null = global insight, non-null = user-specific
+  matchId    String? // optional match context
+  type       String // prediction, form_analysis, recommendation, milestone_alert
+  title      String
+  content    String // the insight text
+  confidence Float    @default(0) // 0.0 - 1.0 for predictions
+  metadata   String? // JSON for extra data
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
   match Match? @relation(fields: [matchId], references: [id])
 }
 
 model Academy {
-  id          String   @id @default(cuid())
-  name        String
-  location    String?
-  groundName  String?
-  coachUserId String
-  coachUser   User     @relation(fields: [coachUserId], references: [id])
-  sundayHoliday Boolean @default(false)
-  practiceSchedule String @default("one-time")
+  id               String   @id @default(cuid())
+  name             String
+  location         String?
+  groundName       String?
+  coachUserId      String
+  coachUser        User     @relation(fields: [coachUserId], references: [id])
+  sundayHoliday    Boolean  @default(false)
+  practiceSchedule String   @default("one-time")
   // Coach chooses which weekdays are holidays. Stored as a JSON string of
   // weekday names: e.g. '["sun","mon"]'. Empty array = all days working.
   // Backwards-compat: if empty, falls back to sundayHoliday boolean.
-  offDays     String   @default("[]")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  offDays          String   @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   players        AcademyPlayer[]
   attendance     Attendance[]
   feeRecords     FeeRecord[]
   rewards        StudentReward[]
   parentContacts ParentContact[]
-  announcements AcademyAnnouncement[]
+  announcements  AcademyAnnouncement[]
 
   @@map("academies")
 }
 
 model AcademyPlayer {
-  id          String   @id @default(cuid())
-  academyId   String
-  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  joinedAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  joinedAt  DateTime @default(now())
 
   @@unique([academyId, userId])
   @@map("academy_players")
 }
 
 model Attendance {
-  id          String   @id @default(cuid())
-  academyId   String
-  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  date        DateTime
-  isPresent   Boolean  @default(false)
+  id        String   @id @default(cuid())
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  date      DateTime
+  isPresent Boolean  @default(false)
   // Session identifier: "morning", "evening", or "default" (single-session
   // academies). Combined with (academyId, userId, date) for uniqueness so a
   // player can have separate morning + evening attendance rows per day.
-  session     String   @default("default")
-  note        String?
-  createdAt   DateTime @default(now())
+  session   String   @default("default")
+  note      String?
+  createdAt DateTime @default(now())
 
   @@unique([academyId, userId, date, session])
   @@map("attendances")
@@ -608,28 +608,28 @@ model Attendance {
 // ─── Coach Business Models ─────────────────────────────────────
 
 model FeeRecord {
-  id          String   @id @default(cuid())
-  academyId   String
-  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
-  userId      String   // student user ID
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  month       String   // e.g. "2025-01", "2025-02"
-  amount      Int      // amount in INR
-  status      String   @default("pending") // pending, paid, overdue
-  paidAt      DateTime?
+  id         String    @id @default(cuid())
+  academyId  String
+  academy    Academy   @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  userId     String // student user ID
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month      String // e.g. "2025-01", "2025-02"
+  amount     Int // amount in INR
+  status     String    @default("pending") // pending, paid, overdue
+  paidAt     DateTime?
   // When the paid period ends. Computed when isPaid=true:
   //   monthly  → paidAt + 30 days
   //   yearly   → paidAt + 365 days
   //   weekly   → paidAt + 7 days
   //   daily    → paidAt + 1 day
   // Used to compute "days left" in the coach fees dashboard.
-  expiryDate  DateTime?
+  expiryDate DateTime?
   // Period label: "monthly", "yearly", "weekly", "daily", "custom".
   // Defaults to "monthly" for backwards compat with existing rows.
-  period      String   @default("monthly")
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  period     String    @default("monthly")
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@unique([academyId, userId, month])
   @@map("fee_records")
@@ -639,14 +639,14 @@ model StudentReward {
   id          String   @id @default(cuid())
   academyId   String
   academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
-  userId      String   // student user ID
+  userId      String // student user ID
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        String   // player_of_month, best_raider, best_defender, custom
+  type        String // player_of_month, best_raider, best_defender, custom
   title       String
   description String?
   points      Int      @default(0)
-  month       String?  // e.g. "2025-01" for monthly awards
-  icon        String?  // emoji or icon name
+  month       String? // e.g. "2025-01" for monthly awards
+  icon        String? // emoji or icon name
   createdAt   DateTime @default(now())
 
   @@map("student_rewards")
@@ -654,13 +654,13 @@ model StudentReward {
 
 model ParentContact {
   id          String   @id @default(cuid())
-  userId      String   // student user ID
+  userId      String // student user ID
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   academyId   String
   academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
   parentName  String
   parentPhone String
-  relation    String   // father, mother, guardian
+  relation    String // father, mother, guardian
   createdAt   DateTime @default(now())
 
   @@unique([userId, academyId])
@@ -672,16 +672,16 @@ model ParentContact {
 // Notification row so it appears in their bell icon.
 
 model AcademyAnnouncement {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   academyId   String
-  academy     Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
-  coachUserId String   // the coach who posted it
-  coachUser   User     @relation(fields: [coachUserId], references: [id])
+  academy     Academy   @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  coachUserId String // the coach who posted it
+  coachUser   User      @relation(fields: [coachUserId], references: [id])
   title       String
   message     String
   // Optional: if the coach schedules it for a future date. Null = immediate.
   scheduledAt DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@map("academy_announcements")
 }
@@ -689,34 +689,34 @@ model AcademyAnnouncement {
 // ─── Match Transfer / Scorer Handoff ─────────────────────────────
 
 model MatchTransfer {
-  id            String   @id @default(cuid())
-  transferCode  String   @unique  // 6-char alphanumeric code for easy sharing
-  matchId       String?            // DB match ID if match was already saved to DB
-  matchState    String             // JSON string of full ActiveMatch state from Zustand
-  scorerUserId  String?            // User ID of the scorer who is transferring
-  scorerName    String?            // Name of the scorer
-  receiverUserId String?           // User ID of the scorer who received the transfer
-  status        String   @default("active") // active, claimed, expired, cancelled
-  expiresAt     DateTime           // Transfer code expires after 30 minutes
-  claimedAt     DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String    @id @default(cuid())
+  transferCode   String    @unique // 6-char alphanumeric code for easy sharing
+  matchId        String? // DB match ID if match was already saved to DB
+  matchState     String // JSON string of full ActiveMatch state from Zustand
+  scorerUserId   String? // User ID of the scorer who is transferring
+  scorerName     String? // Name of the scorer
+  receiverUserId String? // User ID of the scorer who received the transfer
+  status         String    @default("active") // active, claimed, expired, cancelled
+  expiresAt      DateTime // Transfer code expires after 30 minutes
+  claimedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 // ─── Tournament Transfer (Handoff) ───────────────────────────────────
 
 model TournamentTransfer {
-  id              String   @id @default(cuid())
-  transferCode    String   @unique  // 6-char alphanumeric code for easy sharing
-  tournamentId    String             // The tournament being transferred
-  organizerUserId String?            // User ID of the current organizer
-  organizerName   String?            // Name of the organizer
-  receiverUserId  String?            // User ID of the new organizer who claimed it
-  status          String   @default("active") // active, claimed, expired, cancelled
-  expiresAt       DateTime           // Transfer code expires after 60 minutes
+  id              String    @id @default(cuid())
+  transferCode    String    @unique // 6-char alphanumeric code for easy sharing
+  tournamentId    String // The tournament being transferred
+  organizerUserId String? // User ID of the current organizer
+  organizerName   String? // Name of the organizer
+  receiverUserId  String? // User ID of the new organizer who claimed it
+  status          String    @default("active") // active, claimed, expired, cancelled
+  expiresAt       DateTime // Transfer code expires after 60 minutes
   claimedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 }
@@ -740,7 +740,7 @@ model MatchPhoto {
   id        String   @id @default(cuid())
   matchId   String
   userId    String
-  url       String   // path to uploaded photo
+  url       String // path to uploaded photo
   caption   String?
   createdAt DateTime @default(now())
 
@@ -751,13 +751,13 @@ model MatchPhoto {
 // ─── Quiz System (Feature #41) ────────────────────────────────────
 
 model QuizAttempt {
-  id          String   @id @default(cuid())
-  userId      String
-  category    String   // rules, technique, strategy
-  score       Int      @default(0)
-  totalQuestions Int   @default(10)
-  xpEarned    Int      @default(0)
-  completedAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String
+  category       String // rules, technique, strategy
+  score          Int      @default(0)
+  totalQuestions Int      @default(10)
+  xpEarned       Int      @default(0)
+  completedAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -780,9 +780,9 @@ model PlayerLocation {
 
 model LeaderboardSeason {
   id        String   @id @default(cuid())
-  name      String   @unique  // e.g. "March 2025"
-  month     Int      // 1-12
-  year      Int      // 2025
+  name      String   @unique // e.g. "March 2025"
+  month     Int // 1-12
+  year      Int // 2025
   startDate DateTime
   endDate   DateTime
   status    String   @default("active") // active, completed
@@ -792,14 +792,14 @@ model LeaderboardSeason {
 }
 
 model LeaderboardSeasonEntry {
-  id                String   @id @default(cuid())
+  id                  String @id @default(cuid())
   leaderboardSeasonId String
-  userId            String
-  rank              Int?
-  totalPoints       Int      @default(0)
-  raidPoints        Int      @default(0)
-  tacklePoints      Int      @default(0)
-  matchesPlayed     Int      @default(0)
+  userId              String
+  rank                Int?
+  totalPoints         Int    @default(0)
+  raidPoints          Int    @default(0)
+  tacklePoints        Int    @default(0)
+  matchesPlayed       Int    @default(0)
 
   leaderboardSeason LeaderboardSeason @relation(fields: [leaderboardSeasonId], references: [id], onDelete: Cascade)
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -810,15 +810,15 @@ model LeaderboardSeasonEntry {
 // ─── Giveaway System ─────────────────────────────────────────────────
 
 model GiveawayRound {
-  id              String   @id @default(cuid())
-  roundNumber     Int      @unique
-  startDate       DateTime
-  endDate         DateTime // 15 days after start
-  status          String   @default("active") // active, completed
+  id          String   @id @default(cuid())
+  roundNumber Int      @unique
+  startDate   DateTime
+  endDate     DateTime // 15 days after start
+  status      String   @default("active") // active, completed
   // Winners are stored as a JSON string of user IDs: '["userId1","userId2","userId3"]'
-  winnersJson     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  winnersJson String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   participants GiveawayParticipant[]
 }
@@ -852,17 +852,17 @@ model GiveawayParticipant {
 //   then every 50 days (300, 350, 400, ...) → 1kg protein powder (physical prize)
 
 model UserStreak {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  currentStreak   Int      @default(0)
-  longestStreak   Int      @default(0)
-  totalCheckIns   Int      @default(0)
-  lastCheckIn     DateTime?
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  currentStreak     Int       @default(0)
+  longestStreak     Int       @default(0)
+  totalCheckIns     Int       @default(0)
+  lastCheckIn       DateTime?
   // JSON array of milestone day numbers the user has claimed: e.g. [15, 25, 50]
   // Stored as a JSON string for simplicity (no need for a separate table).
-  claimedMilestones String @default("[]")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  claimedMilestones String    @default("[]")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -892,8 +892,8 @@ model TeamJoinRequest {
 // Keyed by a string key so we can add new settings without migrations.
 
 model AppSetting {
-  key       String   @id  // e.g. "adsense_publisher_id", "ads_enabled"
-  value     String   // stored as string; parse on read
+  key       String   @id // e.g. "adsense_publisher_id", "ads_enabled"
+  value     String // stored as string; parse on read
   updatedAt DateTime @updatedAt
 
   @@map("app_settings")
@@ -924,22 +924,22 @@ model ChatThread {
 }
 
 model ChatMessage {
-  id         String   @id @default(cuid())
-  threadId   String
-  senderId   String
-  content    String   // 1..2000 chars
+  id        String    @id @default(cuid())
+  threadId  String
+  senderId  String
+  content   String // 1..2000 chars
   // Read receipts — sender-side ack that the recipient has seen it.
   // Kept simple: boolean per message; updated by recipient when they
   // GET /chat/threads/:id/messages
-  isRead     Boolean  @default(false)
-  readAt     DateTime?
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
   // Soft-delete (unsend). When non-null, the message is considered deleted
   // by the sender ("unsend for everyone"). The row is preserved for audit
   // / report context; the content is cleared and the frontend renders a
   // "This message was deleted" placeholder. We use a timestamp instead of
   // a boolean so we can show "deleted at <time>" if needed later.
-  deletedAt  DateTime?
-  createdAt  DateTime @default(now())
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
 
   thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   sender User       @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
@@ -951,13 +951,13 @@ model ChatMessage {
 model ChatBlock {
   // "I don't want to receive messages from this person anymore."
   // Blocker is the one who blocked; blocked is the one being blocked.
-  id         String   @id @default(cuid())
-  blockerId  String
-  blockedId  String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
 
   blocker User @relation("ChatBlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
-  blocked  User @relation("ChatBlockBlocked",  fields: [blockedId],  references: [id], onDelete: Cascade)
+  blocked User @relation("ChatBlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
   @@index([blockedId])
@@ -966,22 +966,22 @@ model ChatBlock {
 model ChatReport {
   // A user reports another user (optionally tied to a specific message).
   // Admins review from the Profile tab → "Chat Reports" panel.
-  id           String   @id @default(cuid())
-  reporterId   String
-  reportedId   String
-  threadId     String?
-  messageId    String?
-  reason       String   // spam | abuse | harassment | inappropriate | other
-  details      String?  // free-text explanation
-  status       String   @default("pending") // pending | reviewing | actioned | dismissed
-  reviewedBy   String?
-  reviewedAt   DateTime?
-  adminNote    String?
-  createdAt    DateTime @default(now())
+  id         String    @id @default(cuid())
+  reporterId String
+  reportedId String
+  threadId   String?
+  messageId  String?
+  reason     String // spam | abuse | harassment | inappropriate | other
+  details    String? // free-text explanation
+  status     String    @default("pending") // pending | reviewing | actioned | dismissed
+  reviewedBy String?
+  reviewedAt DateTime?
+  adminNote  String?
+  createdAt  DateTime  @default(now())
 
-  reporter   User  @relation("ChatReportReporter",  fields: [reporterId], references: [id], onDelete: Cascade)
-  reported   User  @relation("ChatReportReported",  fields: [reportedId], references: [id], onDelete: Cascade)
-  reviewer   User? @relation("ChatReportReviewer",  fields: [reviewedBy],  references: [id], onDelete: SetNull)
+  reporter User  @relation("ChatReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User  @relation("ChatReportReported", fields: [reportedId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("ChatReportReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([reportedId])
@@ -995,20 +995,20 @@ model ChatReport {
 // player/coach name, organizer phone numbers.
 
 model CommunityTournament {
-  id             String   @id @default(cuid())
-  name           String   // tournament name
-  date           String?  // date string (e.g. "2025-09-15" or "15-16 March 2025")
-  venue          String?  // venue / ground name
-  prizeMoney     String?  // prize description (e.g. "50,000", "Trophy + 10,000")
-  weightCategory String?  // e.g. "65kg", "Below 80kg", "Open"
-  playerName     String?  // name of player or coach posting/about
-  coachName      String?  // coach name (if different from player)
-  organizerPhone String?  // tournament organizer contact phone
+  id              String   @id @default(cuid())
+  name            String // tournament name
+  date            String? // date string (e.g. "2025-09-15" or "15-16 March 2025")
+  venue           String? // venue / ground name
+  prizeMoney      String? // prize description (e.g. "50,000", "Trophy + 10,000")
+  weightCategory  String? // e.g. "65kg", "Below 80kg", "Open"
+  playerName      String? // name of player or coach posting/about
+  coachName       String? // coach name (if different from player)
+  organizerPhone  String? // tournament organizer contact phone
   organizerPhone2 String? // second organizer phone (optional)
-  postedBy       String?  // userId of the person who posted (optional, for tracking)
-  postedByName   String?  // name of the person who posted
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  postedBy        String? // userId of the person who posted (optional, for tracking)
+  postedByName    String? // name of the person who posted
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // ─── Referral Contest (Monthly) ────────────────────────────────────
@@ -1018,17 +1018,17 @@ model CommunityTournament {
 // the next status query.
 
 model ReferralContestRound {
-  id              String   @id @default(cuid())
-  roundNumber     Int      @unique  // sequential 1, 2, 3...
-  startDate       DateTime
-  endDate         DateTime // 30 days after startDate
-  status          String   @default("active") // active, completed
+  id          String   @id @default(cuid())
+  roundNumber Int      @unique // sequential 1, 2, 3...
+  startDate   DateTime
+  endDate     DateTime // 30 days after startDate
+  status      String   @default("active") // active, completed
   // Winner user IDs stored as JSON: '["userId1"]' (top referrer)
   // Extended in future to top 3.
-  winnersJson     String?
-  winnerCount     Int      @default(0)  // 1 for now (top referrer)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  winnersJson String?
+  winnerCount Int      @default(0) // 1 for now (top referrer)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   participants ReferralContestParticipant[]
 
@@ -1047,7 +1047,7 @@ model ReferralContestParticipant {
   enteredAt DateTime @default(now())
 
   round ReferralContestRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user  User                  @relation("UserReferralContestEntries", fields: [userId], references: [id], onDelete: Cascade)
+  user  User                 @relation("UserReferralContestEntries", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([roundId, userId])
   @@index([roundId])

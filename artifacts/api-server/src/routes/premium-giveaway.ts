@@ -184,9 +184,8 @@ async function countReferralsInWindow(referrerId: string, startDate: Date, endDa
 /**
  * Build a simple list of ALL participants for a round, ordered by entry
  * time (earliest first). This is NOT a ranked leaderboard — the giveaway
- * is a random weighted draw, not a contest. The `referralCount` field
- * represents the number of "chances" the participant has in the draw
- * (1 referral = 1 chance), but it does NOT determine ranking.
+ * is a random draw. We no longer return referralCount — the giveaway is
+ * simple: you enter, and winners are randomly selected (equal probability).
  */
 async function getAllParticipantsLeaderboard(startDate: Date, endDate: Date, roundId: string) {
   const entries = await withSelfHeal(() =>
@@ -202,33 +201,14 @@ async function getAllParticipantsLeaderboard(startDate: Date, endDate: Date, rou
   const enteredAtMap = new Map<string, Date>();
   entries.forEach((e) => enteredAtMap.set(e.userId, e.enteredAt));
 
-  // Count referrals (within window) per participant — this is the number
-  // of "chances" in the weighted random draw, NOT a ranking score.
-  const grouped = await withSelfHeal(() =>
-    db.referral.groupBy({
-      by: ['referrerId'],
-      where: {
-        referredId: { not: null },
-        status: 'signed_up',
-        completedAt: { gte: startDate, lte: endDate },
-        referrerId: { in: userIds },
-      },
-      _count: { referrerId: true },
-    })
-  );
-  const countMap = new Map<string, number>();
-  grouped.forEach((g) => countMap.set(g.referrerId, g._count.referrerId));
-
   const users = await db.user.findMany({
     where: { id: { in: userIds } },
     select: { id: true, name: true, avatar: true, playerCode: true },
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
 
-  // Order by entry time (earliest first) — this is a participant list,
-  // not a ranked leaderboard. The `rank` field is just a sequence number
-  // (1, 2, 3, ...) for display purposes and does NOT reflect who's
-  // "winning" — the draw is random.
+  // Return a simple participant list — no referralCount, no ranking.
+  // The `rank` field is just a sequence number for display purposes.
   return entries.map((entry, index) => {
     const user = userMap.get(entry.userId);
     const enteredAt = enteredAtMap.get(entry.userId);
@@ -237,7 +217,6 @@ async function getAllParticipantsLeaderboard(startDate: Date, endDate: Date, rou
       name: user?.name || 'Unknown',
       avatar: user?.avatar || null,
       playerCode: user?.playerCode || null,
-      referralCount: countMap.get(entry.userId) || 0,
       enteredAt: enteredAt ? enteredAt.toISOString() : null,
       rank: index + 1,
     };
@@ -264,12 +243,13 @@ router.get('/premium-giveaway/status', async (req, res) => {
     const now = new Date();
     const hasEnded = now > round.endDate;
 
-    // Look up the user (if provided) to check premium status.
+    // Look up the user (if provided) to check eligibility.
     let isPremiumUser = false;
+    let hasReferral = false;  // does the user have >= 1 referral in this window?
+    let canEnter = false;     // isPremiumUser OR hasReferral
+    let blockReason: string | null = null;
     let hasEntered = false;
     let enteredAt: string | null = null;
-    let myReferralCount = 0;
-    let myRank: number | null = null;
 
     if (userId) {
       const user = await db.user.findUnique({
@@ -278,6 +258,12 @@ router.get('/premium-giveaway/status', async (req, res) => {
       });
       if (user) {
         isPremiumUser = userHasActivePremium(user);
+        const referralCount = await countReferralsInWindow(userId, round.startDate, round.endDate);
+        hasReferral = referralCount > 0;
+        canEnter = isPremiumUser || hasReferral;
+        if (!canEnter) {
+          blockReason = 'need_premium_or_referral';
+        }
 
         const entry = await withSelfHeal(() =>
           db.premiumGiveawayEntry.findUnique({
@@ -287,18 +273,12 @@ router.get('/premium-giveaway/status', async (req, res) => {
         if (entry) {
           hasEntered = true;
           enteredAt = entry.enteredAt.toISOString();
-          myReferralCount = await countReferralsInWindow(userId, round.startDate, round.endDate);
         }
       }
     }
 
     const leaderboard = await getAllParticipantsLeaderboard(round.startDate, round.endDate, round.id);
     const totalParticipants = await countParticipants(round.id);
-
-    if (hasEntered) {
-      const lbEntry = leaderboard.find((e) => e.userId === userId);
-      if (lbEntry) myRank = lbEntry.rank;
-    }
 
     // Past winners (last 10 completed rounds) — each round has up to 10 winners.
     const pastRounds = await withSelfHeal(() =>
@@ -356,10 +336,11 @@ router.get('/premium-giveaway/status', async (req, res) => {
       },
       prizes: PRIZES,
       isPremiumUser,
+      hasReferral,
+      canEnter,
+      blockReason,
       hasEntered,
       enteredAt,
-      myReferralCount,
-      myRank,
       leaderboard,
       totalParticipants,
       pastWinners,
@@ -373,8 +354,8 @@ router.get('/premium-giveaway/status', async (req, res) => {
 /**
  * POST /api/premium-giveaway/enter
  * Body: { userId }
- * Premium-only. Creates a PremiumGiveawayEntry row. Idempotent.
- * The user's "chances" = their referral count (computed live, not frozen).
+ * Eligibility: user must be premium OR have at least 1 successful referral
+ * in this round's window. Creates a PremiumGiveawayEntry row. Idempotent.
  */
 router.post('/premium-giveaway/enter', async (req, res) => {
   try {
@@ -387,14 +368,18 @@ router.post('/premium-giveaway/enter', async (req, res) => {
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    if (!userHasActivePremium(user)) {
+    const round = await getOrCreateActiveRound();
+    const isPremium = userHasActivePremium(user);
+    const referralCount = await countReferralsInWindow(userId, round.startDate, round.endDate);
+    const hasReferral = referralCount > 0;
+
+    // Two ways to participate: premium OR referral
+    if (!isPremium && !hasReferral) {
       return res.status(403).json({
-        error: 'Premium membership required to participate in this giveaway. Buy premium (₹2 for 1 day) to enter.',
-        blockReason: 'not_premium',
+        error: 'You need premium membership OR at least 1 successful referral to enter this giveaway.',
+        blockReason: 'need_premium_or_referral',
       });
     }
-
-    const round = await getOrCreateActiveRound();
 
     // Idempotent — if already entered, return success.
     const existing = await withSelfHeal(() =>
@@ -471,35 +456,22 @@ router.post('/premium-giveaway/admin/select-winners', async (req, res) => {
     const round = await getOrCreateActiveRound();
     const leaderboard = await getAllParticipantsLeaderboard(round.startDate, round.endDate, round.id);
 
-    // Only participants with >= 1 referral are eligible to win.
-    const eligible = leaderboard.filter((e) => e.referralCount > 0);
-    if (eligible.length === 0) {
+    // ALL participants are eligible — this is a simple random draw, not
+    // weighted. Every participant has equal probability of winning.
+    if (leaderboard.length === 0) {
       return res.status(400).json({
-        error: 'No eligible participants with referrals yet. Premium users must enter AND have at least 1 successful referral to win.',
+        error: 'No participants yet. Users must enter the giveaway before winners can be drawn.',
       });
     }
 
-    // Weighted random draw. Build a pool where each participant appears
-    // referralCount times, then shuffle and pick unique winners.
-    const pool: string[] = [];
-    eligible.forEach((e) => {
-      for (let i = 0; i < e.referralCount; i++) pool.push(e.userId);
-    });
-    // Fisher-Yates shuffle
+    // Simple random draw — Fisher-Yates shuffle the participant list and
+    // pick the first N unique winners. Each participant has 1 entry.
+    const pool: string[] = leaderboard.map((e) => e.userId);
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    // Pick unique winners (a user can only win one rank).
-    const winnerIds: string[] = [];
-    const seen = new Set<string>();
-    for (const id of pool) {
-      if (!seen.has(id)) {
-        seen.add(id);
-        winnerIds.push(id);
-        if (winnerIds.length >= WINNER_COUNT) break;
-      }
-    }
+    const winnerIds: string[] = pool.slice(0, Math.min(WINNER_COUNT, pool.length));
 
     await withSelfHeal(() =>
       db.premiumGiveawayRound.update({
