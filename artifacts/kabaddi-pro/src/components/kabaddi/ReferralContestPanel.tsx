@@ -366,9 +366,9 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             >
               <Trophy className="w-12 h-12 mx-auto" />
             </motion.div>
-            <h2 className="text-xl font-black mb-1">🏆 Premium Giveaway</h2>
+            <h2 className="text-xl font-black mb-1">🎁 Premium Giveaway</h2>
             <p className="text-xs opacity-90 mb-3">
-              {language === 'hi' ? 'प्रीमियम मेंबर्स के लिए · 15 दिन' : 'Premium members only · 15 days'}
+              {language === 'hi' ? 'रैंडम ड्रा · प्रीमियम मेंबर्स के लिए · 15 दिन' : 'Random draw · Premium only · 15 days'}
             </p>
             <div className="bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2 inline-block mb-2">
               <p className="text-[10px] uppercase tracking-wide opacity-80 mb-1">
@@ -505,44 +505,29 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
           </Card>
         </motion.div>
       ) : (
-        // Premium user, HAS entered — show their rank + chances + share CTA
+        // Premium user, HAS entered — show "You're entered!" + chances + share CTA
         <Card className="p-4 border-2 border-amber-200 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/20 dark:to-warm-800">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-500" />
               <h3 className="text-sm font-bold text-warm-800 dark:text-warm-100">
-                {language === 'hi' ? 'आपकी रैंक' : 'Your Rank'}
+                {language === 'hi' ? 'आप प्रवेशित हैं!' : 'You\'re Entered!'}
               </h3>
             </div>
-            <div className="flex items-center gap-2">
-              {myRank !== null && myRank === 1 && (
-                <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs">
-                  <Crown className="w-3 h-3 mr-1" />
-                  {language === 'hi' ? 'लीड कर रहे हैं!' : 'Leading!'}
-                </Badge>
-              )}
-              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px]">
-                {language === 'hi' ? '✓ प्रवेशित' : '✓ Entered'}
-              </Badge>
-            </div>
+            <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px]">
+              {language === 'hi' ? '✓ प्रवेशित' : '✓ Entered'}
+            </Badge>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white dark:bg-warm-800 rounded-xl p-3 text-center">
-              <p className="text-[10px] uppercase tracking-wide text-warm-500">
-                {language === 'hi' ? 'रैंक' : 'Rank'}
-              </p>
-              <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
-                {myRank !== null ? `#${myRank}` : '—'}
-              </p>
-            </div>
-            <div className="bg-white dark:bg-warm-800 rounded-xl p-3 text-center">
-              <p className="text-[10px] uppercase tracking-wide text-warm-500">
-                {language === 'hi' ? 'चांस' : 'Chances'}
-              </p>
-              <p className="text-2xl font-black text-orange-600 dark:text-orange-400">
-                {myReferralCount}
-              </p>
-            </div>
+          <div className="bg-white dark:bg-warm-800 rounded-xl p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wide text-warm-500">
+              {language === 'hi' ? 'आपके चांस' : 'Your Chances'}
+            </p>
+            <p className="text-3xl font-black text-amber-600 dark:text-amber-400">
+              {myReferralCount}
+            </p>
+            <p className="text-[9px] text-warm-500 mt-0.5">
+              {language === 'hi' ? 'जीतने के लिए रैंडम ड्रा' : 'random draw for winning'}
+            </p>
           </div>
           {myReferralCount === 0 && (
             <p className="text-[10px] text-warm-500 dark:text-warm-400 text-center mt-2">
@@ -578,12 +563,12 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             onClick={() => setLbTab('leaderboard')}
             className={`flex-1 py-1.5 px-2 rounded-md text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
               lbTab === 'leaderboard'
-                ? 'bg-white dark:bg-warm-700 text-purple-600 dark:text-purple-300 shadow-sm'
+                ? 'bg-white dark:bg-warm-700 text-amber-600 dark:text-amber-300 shadow-sm'
                 : 'text-warm-500 dark:text-warm-400'
             }`}
           >
-            <Medal className="w-3 h-3" />
-            {language === 'hi' ? 'लीडरबोर्ड' : 'Leaderboard'}
+            <Users className="w-3 h-3" />
+            {language === 'hi' ? 'भागीदार' : 'Participants'}
           </button>
           <button
             onClick={() => setLbTab('contest-winners')}
@@ -609,16 +594,17 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
           </button>
         </div>
 
-        {/* ── Tab 1: Leaderboard — current contest, all participants, rank-wise ── */}
+        {/* ── Tab 1: Participants — simple list of everyone who entered.
+            NOT a ranked leaderboard — this is a random draw giveaway. ── */}
         {lbTab === 'leaderboard' && (
           <>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-bold uppercase tracking-wide text-warm-500 flex items-center gap-1">
-                <Medal className="w-3 h-3 text-amber-500" />
-                {language === 'hi' ? 'वर्तमान राउंड' : 'Current Round'}
+                <Users className="w-3 h-3 text-amber-500" />
+                {language === 'hi' ? 'भागीदार सूची' : 'Participants List'}
               </span>
               <span className="text-[10px] text-warm-500">
-                {language === 'hi' ? `सभी भागीदार (${premiumLeaderboard.length})` : `All Participants (${premiumLeaderboard.length})`}
+                {language === 'hi' ? `${premiumLeaderboard.length} भागीदार` : `${premiumLeaderboard.length} entered`}
               </span>
             </div>
 
@@ -627,26 +613,24 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
                 <Users className="w-10 h-10 mx-auto text-warm-300 dark:text-warm-600 mb-2" />
                 <p className="text-sm text-warm-500 dark:text-warm-400">
                   {language === 'hi'
-                    ? 'अभी कोई भागीदार नहीं। पहले प्रवेश करें और रेफरल शेयर करें!'
-                    : 'No participants yet. Be the first premium member to enter!'}
+                    ? 'अभी कोई भागीदार नहीं। पहले प्रवेश करें!'
+                    : 'No participants yet. Be the first to enter!'}
                 </p>
               </Card>
             ) : (
               <Card className="overflow-hidden p-0">
-                {/* Column header */}
+                {/* Column header — just name + chances */}
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-warm-100 dark:bg-warm-800/80 border-b border-warm-200 dark:border-warm-700 text-[9px] font-bold uppercase tracking-wide text-warm-500">
-                  <span className="w-6 text-center">#</span>
-                  <span className="flex-1">{language === 'hi' ? 'खिलाड़ी' : 'Player'}</span>
-                  <span className="w-12 text-right">{language === 'hi' ? 'रेफरल' : 'Refs'}</span>
+                  <span className="flex-1">{language === 'hi' ? 'खिलाड़ी' : 'Participant'}</span>
+                  <span className="w-16 text-right">{language === 'hi' ? 'चांस' : 'Chances'}</span>
                 </div>
                 <div className="divide-y divide-warm-100 dark:divide-warm-800">
                   {premiumLeaderboard.map((entry, index) => {
                     const isMe = entry.userId === currentUser?.id;
-                    const isTop3 = entry.rank <= 3;
                     return (
                       <div
                         key={entry.userId}
-                        className={`flex items-center gap-2 px-3 py-1.5 transition-colors ${
+                        className={`flex items-center gap-2 px-3 py-2 transition-colors ${
                           isMe
                             ? 'bg-amber-50/70 dark:bg-amber-900/20'
                             : index % 2 === 1
@@ -654,17 +638,8 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
                               : ''
                         }`}
                       >
-                        {/* Rank */}
-                        <span className={`w-6 text-center text-xs font-black ${
-                          entry.rank === 1 ? 'text-yellow-500' :
-                          entry.rank === 2 ? 'text-gray-400' :
-                          entry.rank === 3 ? 'text-orange-500' :
-                          'text-warm-500 dark:text-warm-400'
-                        }`}>
-                          {isTop3 ? (entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '🥉') : entry.rank}
-                        </span>
                         {/* Avatar */}
-                        <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-warm-200 dark:bg-warm-700 flex items-center justify-center text-[10px] font-bold text-warm-600 dark:text-warm-300">
+                        <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-[11px] font-bold text-amber-700 dark:text-amber-300">
                           {entry.avatar ? (
                             <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
                           ) : (
@@ -681,15 +656,14 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
                               YOU
                             </span>
                           )}
-                          {entry.rank === 1 && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
                           {entry.playerCode && (
                             <span className="text-[9px] text-warm-400 dark:text-warm-500 truncate">
                               {entry.playerCode}
                             </span>
                           )}
                         </div>
-                        {/* Referral count */}
-                        <span className="w-12 text-right text-sm font-black text-amber-600 dark:text-amber-400">
+                        {/* Chances */}
+                        <span className="w-16 text-right text-sm font-bold text-amber-600 dark:text-amber-400">
                           {entry.referralCount}
                         </span>
                       </div>
@@ -876,16 +850,16 @@ export default function ReferralContestPanel({ onClose, onOpenReferral }: Referr
             <span className="font-bold text-blue-500">2.</span>
             <span>
               {language === 'hi'
-                ? 'अपना रेफरल कोड दोस्तों को शेयर करें। 1 रेफरल = 1 चांस जीतने का!'
-                : 'Share your referral code. 1 referral = 1 chance to win!'}
+                ? 'रेफरल कोड शेयर करें। 1 रेफरल = 1 चांस रैंडम ड्रा में!'
+                : 'Share your referral code. 1 referral = 1 chance in the random draw!'}
             </span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold text-blue-500">3.</span>
             <span>
               {language === 'hi'
-                ? '15 दिन बाद, वेटेड रैंडम ड्रा से 10 विजेता चुने जाएंगे।'
-                : 'After 15 days, 10 winners are drawn (weighted by chances).'}
+                ? '15 दिन बाद, रैंडम वेटेड ड्रा से 10 विजेता चुने जाएंगे।'
+                : 'After 15 days, 10 winners are chosen by random weighted draw.'}
             </span>
           </li>
           <li className="flex gap-2">

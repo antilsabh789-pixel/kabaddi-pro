@@ -182,15 +182,18 @@ async function countReferralsInWindow(referrerId: string, startDate: Date, endDa
 }
 
 /**
- * Build the full leaderboard of ALL participants for a round, ranked by
- * referral count (chances) DESC, then enteredAt ASC. Includes users with
- * 0 referrals (they still entered, but have 0 chances to win).
+ * Build a simple list of ALL participants for a round, ordered by entry
+ * time (earliest first). This is NOT a ranked leaderboard — the giveaway
+ * is a random weighted draw, not a contest. The `referralCount` field
+ * represents the number of "chances" the participant has in the draw
+ * (1 referral = 1 chance), but it does NOT determine ranking.
  */
 async function getAllParticipantsLeaderboard(startDate: Date, endDate: Date, roundId: string) {
   const entries = await withSelfHeal(() =>
     db.premiumGiveawayEntry.findMany({
       where: { roundId },
       select: { userId: true, enteredAt: true },
+      orderBy: { enteredAt: 'asc' },
     })
   );
   if (entries.length === 0) return [];
@@ -199,7 +202,8 @@ async function getAllParticipantsLeaderboard(startDate: Date, endDate: Date, rou
   const enteredAtMap = new Map<string, Date>();
   entries.forEach((e) => enteredAtMap.set(e.userId, e.enteredAt));
 
-  // Count referrals (within window) per participant.
+  // Count referrals (within window) per participant — this is the number
+  // of "chances" in the weighted random draw, NOT a ranking score.
   const grouped = await withSelfHeal(() =>
     db.referral.groupBy({
       by: ['referrerId'],
@@ -221,28 +225,22 @@ async function getAllParticipantsLeaderboard(startDate: Date, endDate: Date, rou
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
 
-  const rows = userIds.map((userId) => {
-    const user = userMap.get(userId);
-    const enteredAt = enteredAtMap.get(userId);
+  // Order by entry time (earliest first) — this is a participant list,
+  // not a ranked leaderboard. The `rank` field is just a sequence number
+  // (1, 2, 3, ...) for display purposes and does NOT reflect who's
+  // "winning" — the draw is random.
+  return entries.map((entry, index) => {
+    const user = userMap.get(entry.userId);
+    const enteredAt = enteredAtMap.get(entry.userId);
     return {
-      userId,
+      userId: entry.userId,
       name: user?.name || 'Unknown',
       avatar: user?.avatar || null,
       playerCode: user?.playerCode || null,
-      referralCount: countMap.get(userId) || 0,
+      referralCount: countMap.get(entry.userId) || 0,
       enteredAt: enteredAt ? enteredAt.toISOString() : null,
-      _enteredAt: enteredAt ? enteredAt.getTime() : 0,
+      rank: index + 1,
     };
-  });
-
-  rows.sort((a, b) => {
-    if (b.referralCount !== a.referralCount) return b.referralCount - a.referralCount;
-    return a._enteredAt - b._enteredAt;
-  });
-
-  return rows.map((r, index) => {
-    const { _enteredAt, ...rest } = r;
-    return { ...rest, rank: index + 1 };
   });
 }
 
