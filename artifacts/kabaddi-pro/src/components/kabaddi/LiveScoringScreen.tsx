@@ -774,6 +774,91 @@ export default function LiveScoringScreen() {
     return { topRaider, topDefender };
   }, [match]);
 
+  // ─── Build full-detail scorecard data (events + player stats + half scores) ───
+  // Used by the ShareScorecard component to show AI commentary, key moments,
+  // player stats table, and half-by-half breakdown.
+  const buildScorecardExtras = useCallback(() => {
+    if (!match) return {};
+    const homeTeamName = match.homeTeam;
+    const awayTeamName = match.awayTeam;
+
+    // Map events to scorecard format (replace teamId with teamName)
+    const scorecardEvents = match.events.map(e => ({
+      eventType: e.eventType,
+      playerName: e.playerName || undefined,
+      teamName: e.teamId === match.homeTeamId ? homeTeamName : e.teamId === match.awayTeamId ? awayTeamName : undefined,
+      value: e.value,
+      half: e.half,
+      timestamp: e.timestamp,
+    }));
+
+    // Compute per-player stats, grouped by team
+    const playerStats: Record<string, { name: string; team: 'home' | 'away'; raidPoints: number; tacklePoints: number; bonusPoints: number; totalPoints: number; isCaptain?: boolean; jerseyNumber?: number }> = {};
+    for (const e of match.events) {
+      if (!e.playerId || !e.playerName) continue;
+      const team: 'home' | 'away' = e.teamId === match.homeTeamId ? 'home' : 'away';
+      if (!playerStats[e.playerId]) {
+        // Check if player is captain + jersey number from lineup
+        const homeLineup = match.homeLineup || [];
+        const awayLineup = match.awayLineup || [];
+        const player = team === 'home'
+          ? homeLineup.find(p => p.id === e.playerId)
+          : awayLineup.find(p => p.id === e.playerId);
+        playerStats[e.playerId] = {
+          name: e.playerName,
+          team,
+          raidPoints: 0, tacklePoints: 0, bonusPoints: 0, totalPoints: 0,
+          isCaptain: player?.isCaptain,
+          jerseyNumber: player?.jerseyNumber,
+        };
+      }
+      const ps = playerStats[e.playerId];
+      if (['raid_point', 'super_raid', 'do_or_die_raid'].includes(e.eventType)) {
+        ps.raidPoints += e.value;
+      } else if (['tackle_point', 'super_tackle'].includes(e.eventType)) {
+        ps.tacklePoints += e.value;
+      } else if (e.eventType === 'bonus_point') {
+        ps.bonusPoints += e.value;
+      }
+      ps.totalPoints += e.value;
+    }
+
+    const homePlayerStats = Object.values(playerStats)
+      .filter(p => p.team === 'home')
+      .sort((a, b) => b.totalPoints - a.totalPoints);
+    const awayPlayerStats = Object.values(playerStats)
+      .filter(p => p.team === 'away')
+      .sort((a, b) => b.totalPoints - a.totalPoints);
+
+    // Compute 1st-half scores (sum of event values for half=1, per team)
+    let homeHalfScore = 0, awayHalfScore = 0;
+    for (const e of match.events) {
+      if (e.half !== 1) continue;
+      if (e.value <= 0) continue; // non-scoring events (super_raid label, substitution, etc.)
+      if (e.teamId === match.homeTeamId) homeHalfScore += e.value;
+      else if (e.teamId === match.awayTeamId) awayHalfScore += e.value;
+    }
+
+    // Cards
+    const cards = match.events
+      .filter(e => ['yellow_card', 'red_card', 'green_card'].includes(e.eventType))
+      .map(e => ({
+        type: e.eventType === 'yellow_card' ? 'yellow' as const : e.eventType === 'red_card' ? 'red' as const : 'green' as const,
+        playerName: e.playerName || 'Unknown',
+        teamName: e.teamId === match.homeTeamId ? homeTeamName : awayTeamName,
+      }));
+
+    return {
+      events: scorecardEvents,
+      homePlayerStats,
+      awayPlayerStats,
+      homeHalfScore,
+      awayHalfScore,
+      cards,
+      weightCategory: match.weightCategory,
+    };
+  }, [match]);
+
   // Get player points from match events (before early return for hooks rule)
   const getPlayerPoints = useCallback((playerId: string): { raid: number; tackle: number } => {
     if (!match) return { raid: 0, tackle: 0 };
@@ -1295,6 +1380,7 @@ export default function LiveScoringScreen() {
       homeScore: match.homeScore, awayScore: match.awayScore,
       homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
       topRaider, topDefender, motm,
+      ...buildScorecardExtras(),
     });
 
     try {
@@ -2825,6 +2911,7 @@ export default function LiveScoringScreen() {
                   homeScore: match.homeScore, awayScore: match.awayScore,
                   homeTeamColor: match.homeTeamColor, awayTeamColor: match.awayTeamColor,
                   topRaider, topDefender, motm,
+                  ...buildScorecardExtras(),
                 });
                 setShowShareScorecard(true);
               }}

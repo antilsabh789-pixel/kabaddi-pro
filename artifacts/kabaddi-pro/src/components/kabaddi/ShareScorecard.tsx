@@ -1,14 +1,40 @@
 'use client';
 
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Share2, Download, Trophy, Copy, Check, MessageCircle,
   ExternalLink, Sun, Moon, Eye, EyeOff, MapPin, Calendar, Clock,
-  Swords, Shield, Crown, Zap,
+  Swords, Shield, Crown, Zap, Sparkles, Flame, Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toPng } from 'html-to-image';
+import { generateMatchNarrative, type MatchDataForNarrative } from '@/lib/commentary';
+
+interface PlayerStatRow {
+  name: string;
+  jerseyNumber?: number;
+  raidPoints: number;
+  tacklePoints: number;
+  bonusPoints: number;
+  totalPoints: number;
+  isCaptain?: boolean;
+}
+
+interface CardEntry {
+  type: 'yellow' | 'red' | 'green';
+  playerName: string;
+  teamName: string;
+}
+
+interface ScorecardEvent {
+  eventType: string;
+  playerName?: string;
+  teamName?: string;
+  value: number;
+  half?: number;
+  timestamp?: number;
+}
 
 interface ShareScorecardProps {
   onClose: () => void;
@@ -31,6 +57,11 @@ interface ShareScorecardProps {
     awayHalfScore?: number | null;
     duration?: number | null;
     commentary?: string | null;
+    // ─── NEW: full-detail fields (all optional — existing callers still work) ───
+    events?: ScorecardEvent[];
+    homePlayerStats?: PlayerStatRow[];
+    awayPlayerStats?: PlayerStatRow[];
+    cards?: CardEntry[];
   };
 }
 
@@ -133,6 +164,50 @@ export default function ShareScorecard({ onClose, matchData }: ShareScorecardPro
 
   const txt = (dark: string, light: string) => isDark ? dark : light;
   const bg = (dark: string, light: string) => isDark ? dark : light;
+
+  // ─── AI Commentary narrative (generated from events if not provided) ───
+  const aiNarrative = useMemo(() => {
+    if (matchData.commentary) return matchData.commentary;
+    if (!matchData.events || matchData.events.length === 0) return null;
+    const narrativeData: MatchDataForNarrative = {
+      homeTeam: matchData.homeTeam,
+      awayTeam: matchData.awayTeam,
+      homeScore: matchData.homeScore,
+      awayScore: matchData.awayScore,
+      events: matchData.events,
+      homeHalfScore: matchData.homeHalfScore,
+      awayHalfScore: matchData.awayHalfScore,
+      duration: matchData.duration,
+    };
+    return generateMatchNarrative(narrativeData);
+  }, [matchData]);
+
+  // ─── Key Moments timeline (top 5 impactful events) ───
+  const keyMoments = useMemo(() => {
+    if (!matchData.events || matchData.events.length === 0) return [];
+    const impactfulTypes = ['all_out', 'super_tackle', 'do_or_die_raid', 'raid_point', 'tackle_point', 'bonus_point', 'yellow_card', 'red_card'];
+    const filtered = matchData.events
+      .filter(e => impactfulTypes.includes(e.eventType))
+      .filter(e => {
+        // Only include raids with value >= 2, or super tackles, or all-outs, or cards
+        if (e.eventType === 'raid_point') return e.value >= 2;
+        if (e.eventType === 'tackle_point') return false; // too common
+        if (e.eventType === 'bonus_point') return false; // too common
+        return true;
+      })
+      .slice(-6) // last 6 key events
+      .reverse();
+    return filtered;
+  }, [matchData.events]);
+
+  // ─── Player stats: merge home + away, sorted by total points, top 5 ───
+  const topPlayers = useMemo(() => {
+    const all = [
+      ...(matchData.homePlayerStats || []).map(p => ({ ...p, team: matchData.homeTeam, teamColor: matchData.homeTeamColor })),
+      ...(matchData.awayPlayerStats || []).map(p => ({ ...p, team: matchData.awayTeam, teamColor: matchData.awayTeamColor })),
+    ].filter(p => p.totalPoints > 0);
+    return all.sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 5);
+  }, [matchData.homePlayerStats, matchData.awayPlayerStats, matchData.homeTeam, matchData.awayTeam, matchData.homeTeamColor, matchData.awayTeamColor]);
 
   return (
     <AnimatePresence>
@@ -274,7 +349,110 @@ export default function ShareScorecard({ onClose, matchData }: ShareScorecardPro
             {/* Divider */}
             <div className="mx-5 h-px" style={{ backgroundColor: txt('rgba(255,255,255,0.08)', 'rgba(0,0,0,0.08)') }} />
 
-            {/* ═══ Match Info ═══ */}
+            {/* ═══ Half-by-Half Breakdown ═══ */}
+            {showPlayerStats && matchData.homeHalfScore != null && matchData.awayHalfScore != null && (
+              <div className="px-5 py-3">
+                <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: txt('#64748B', '#94A3B8') }}>📊 Score Progression</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 text-center">
+                    <p className="text-[9px] font-bold uppercase" style={{ color: txt('#94A3B8', '#64748B') }}>1st Half</p>
+                    <p className="text-sm font-black" style={{ color: txt('#FFFFFF', '#1E293B') }}>{matchData.homeHalfScore} - {matchData.awayHalfScore}</p>
+                  </div>
+                  <div className="w-px h-8" style={{ backgroundColor: txt('rgba(255,255,255,0.08)', 'rgba(0,0,0,0.08)') }} />
+                  <div className="flex-1 text-center">
+                    <p className="text-[9px] font-bold uppercase" style={{ color: txt('#94A3B8', '#64748B') }}>Full Time</p>
+                    <p className="text-sm font-black" style={{ color: '#F59E0B' }}>{matchData.homeScore} - {matchData.awayScore}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            <div className="mx-5 h-px" style={{ backgroundColor: txt('rgba(255,255,255,0.08)', 'rgba(0,0,0,0.08)') }} />
+
+            {/* ═══ AI Commentary Narrative ═══ */}
+            {showPlayerStats && aiNarrative && (
+              <div className="px-5 py-3">
+                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: txt('#64748B', '#94A3B8') }}>
+                  <Sparkles className="w-3 h-3" style={{ color: '#F59E0B' }} /> AI Match Summary
+                </p>
+                <p className="text-[10px] leading-relaxed" style={{ color: txt('#CBD5E1', '#475569') }}>{aiNarrative}</p>
+              </div>
+            )}
+
+            {/* Divider */}
+            {showPlayerStats && (keyMoments.length > 0 || topPlayers.length > 0) && (
+              <div className="mx-5 h-px" style={{ backgroundColor: txt('rgba(255,255,255,0.08)', 'rgba(0,0,0,0.08)') }} />
+            )}
+
+            {/* ═══ Key Moments Timeline ═══ */}
+            {showPlayerStats && keyMoments.length > 0 && (
+              <div className="px-5 py-3">
+                <p className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-1" style={{ color: txt('#64748B', '#94A3B8') }}>
+                  <Flame className="w-3 h-3" style={{ color: '#EF4444' }} /> Key Moments
+                </p>
+                <div className="space-y-1">
+                  {keyMoments.map((e, i) => {
+                    const icon = e.eventType === 'all_out' ? '💥' :
+                                 e.eventType === 'super_tackle' ? '💪' :
+                                 e.eventType === 'do_or_die_raid' ? '⚠️' :
+                                 e.eventType === 'raid_point' ? '⚔️' :
+                                 e.eventType === 'yellow_card' ? '🟨' :
+                                 e.eventType === 'red_card' ? '🟥' : '•';
+                    const label = e.eventType === 'all_out' ? 'All Out' :
+                                  e.eventType === 'super_tackle' ? 'Super Tackle' :
+                                  e.eventType === 'do_or_die_raid' ? 'Do-or-Die' :
+                                  e.eventType === 'raid_point' ? `${e.value}-pt Raid` :
+                                  e.eventType === 'yellow_card' ? 'Yellow Card' :
+                                  e.eventType === 'red_card' ? 'Red Card' : e.eventType;
+                    return (
+                      <div key={i} className="flex items-center gap-1.5 text-[9px]">
+                        <span>{icon}</span>
+                        <span className="font-bold" style={{ color: txt('#E2E8F0', '#334155') }}>{e.playerName || '—'}</span>
+                        {e.teamName && <span style={{ color: txt('#64748B', '#94A3B8') }}>· {e.teamName}</span>}
+                        <span className="ml-auto font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: txt('rgba(255,255,255,0.06)', 'rgba(0,0,0,0.04)'), color: txt('#94A3B8', '#64748B') }}>{label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            {showPlayerStats && topPlayers.length > 0 && (
+              <div className="mx-5 h-px" style={{ backgroundColor: txt('rgba(255,255,255,0.08)', 'rgba(0,0,0,0.08)') }} />
+            )}
+
+            {/* ═══ Player Stats (Top 5 by points) ═══ */}
+            {showPlayerStats && topPlayers.length > 0 && (
+              <div className="px-5 py-3">
+                <p className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-1" style={{ color: txt('#64748B', '#94A3B8') }}>
+                  <Activity className="w-3 h-3" style={{ color: '#14B8A6' }} /> Top Performers by Points
+                </p>
+                <div className="space-y-1">
+                  {topPlayers.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2 text-[9px]">
+                      <span className="w-3 text-center font-black" style={{ color: i === 0 ? '#F59E0B' : txt('#64748B', '#94A3B8') }}>{i + 1}</span>
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: p.teamColor }} />
+                      <span className="font-bold truncate flex-1" style={{ color: txt('#E2E8F0', '#334155') }}>{p.name}</span>
+                      {p.isCaptain && <span className="text-[7px] font-bold px-0.5 rounded" style={{ backgroundColor: 'rgba(245,158,11,0.2)', color: '#F59E0B' }}>C</span>}
+                      <span style={{ color: txt('#EF4444', '#DC2626') }}>⚔{p.raidPoints}</span>
+                      <span style={{ color: txt('#3B82F6', '#2563EB') }}>🛡{p.tacklePoints}</span>
+                      <span style={{ color: '#F59E0B' }}>✨{p.bonusPoints}</span>
+                      <span className="font-black" style={{ color: txt('#FFFFFF', '#0F172A') }}>{p.totalPoints}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-3 mt-1.5 text-[7px]" style={{ color: txt('#64748B', '#94A3B8') }}>
+                  <span>⚔ = raid pts</span>
+                  <span>🛡 = tackle pts</span>
+                  <span>✨ = bonus</span>
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            <div className="mx-5 h-px" style={{ backgroundColor: txt('rgba(255,255,255,0.08)', 'rgba(0,0,0,0.08)') }} />
             <div className="px-5 py-3 flex items-center justify-center gap-4 flex-wrap text-[10px]" style={{ color: txt('#64748B', '#94A3B8') }}>
               <div className="flex items-center gap-1"><Calendar className="w-3 h-3" />{matchDate}</div>
               {matchData.venue && <div className="flex items-center gap-1"><MapPin className="w-3 h-3" />{matchData.venue}</div>}
