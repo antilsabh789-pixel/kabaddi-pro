@@ -1107,6 +1107,11 @@ export const useKabaddiStore = create<KabaddiState>()(
               timer: state.activeMatch.halfDuration * 60,
               isDoOrDie: false,
               doOrDieTeamId: null,
+              // Reset timeouts for the new half — each team gets MAX_TIMEOUTS
+              // (2) per half, not per match. Previously these were NOT reset,
+              // so teams only got 2 timeouts across the whole match.
+              homeTimeouts: 0,
+              awayTimeouts: 0,
             },
           };
         }),

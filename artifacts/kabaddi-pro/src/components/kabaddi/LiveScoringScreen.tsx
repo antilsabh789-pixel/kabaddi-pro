@@ -857,10 +857,19 @@ export default function LiveScoringScreen() {
   const splitLineup = (lineup: MatchPlayer[], outIds: string[]) => {
     const onCourt = lineup.slice(0, match.playersPerSide || 7);
     const substitutes = lineup.slice(match.playersPerSide || 7);
-    // Build the set of excluded player IDs (tackled/self-out + red-carded)
+    // Build the set of excluded player IDs (tackled/self-out + red-carded
+    // + yellow-carded-and-still-suspended). Yellow-carded players are
+    // suspended for 2 minutes and must be excluded from onCourtActive
+    // while suspended, otherwise bonus / super-tackle / all-out thresholds
+    // are corrupted (the suspended player still counts as "on court").
     const excludedIds = new Set<string>(outIds);
     for (const expulsion of match.redCardExpulsions) {
       excludedIds.add(expulsion.playerId);
+    }
+    for (const suspension of match.yellowCardSuspensions) {
+      if (!suspension.released) {
+        excludedIds.add(suspension.playerId);
+      }
     }
     const onCourtActive = onCourt.filter(p => !excludedIds.has(p.id));
     const onCourtOut = onCourt.filter(p => excludedIds.has(p.id));
@@ -1105,7 +1114,10 @@ export default function LiveScoringScreen() {
       // For 5v5: triggers at 2 or fewer
       // For 3v3: triggers at 1 or fewer
       // For 2v2: triggers at 1 or fewer
-      const superTackleThreshold = Math.max(1, Math.floor((match.playersPerSide || 7) / 2));
+      // BUGFIX: use match.superTackleThreshold if set (allows custom rules),
+      // otherwise compute from playersPerSide. Previously this ignored the
+      // match-level config, so a custom threshold was silently overwritten.
+      const superTackleThreshold = match.superTackleThreshold ?? Math.max(1, Math.floor((match.playersPerSide || 7) / 2));
       if (onCourtActive.length <= superTackleThreshold) {
         events.push({
           matchId: match.id, eventType: 'super_tackle', teamId: defendingTeamId,
@@ -3339,10 +3351,14 @@ export default function LiveScoringScreen() {
                 // With 5 or fewer defenders (all-out / revival situations), bonus is
                 // NOT available regardless of format.
                 const maxPlayers = match.playersPerSide || 7;
+                // BUGFIX: use the dynamic bonusLineThreshold (default P-1)
+                // instead of hardcoded 6. For 7-a-side this is 6, for
+                // 9-a-side this is 8, for 5-a-side this is 4, etc.
+                const bonusThreshold = match.bonusLineThreshold ?? Math.max(1, maxPlayers - 1);
                 const canGetBonus = (match.bonusEnabled ?? true) &&
-                                    activeDefenders.length >= 6 &&
+                                    activeDefenders.length >= bonusThreshold &&
                                     activeDefenders.length <= maxPlayers;
-                const minNeeded = 6;
+                const minNeeded = bonusThreshold;
                 return (
                   <button
                     onClick={() => canGetBonus && setBonusPoint(!bonusPoint)}
