@@ -517,15 +517,32 @@ async function autoMigrate() {
 }
 
 async function main() {
-  await autoMigrate();
-
+  // ─── Start the HTTP server FIRST, then run auto-migrate in the
+  // background. ─────────────────────────────────────────────────────────
+  // Previously, autoMigrate() ran BEFORE app.listen(), which meant the
+  // server wouldn't accept connections until all ~50 SQL statements
+  // finished. On Railway, the healthcheck (/api/healthz) has a 30-second
+  // timeout — if autoMigrate took longer than 30s (slow DB connection, many
+  // tables), the healthcheck FAILED and Railway rolled back the deploy.
+  //
+  // The healthz endpoint doesn't touch the database — it just returns
+  // {"status":"ok"}. So starting the server first means the healthcheck
+  // passes immediately, and autoMigrate runs in the background.
+  //
+  // Individual route handlers have their own self-heal logic (withSelfHeal)
+  // that creates tables on-demand if they don't exist yet — so requests
+  // during the brief migration window won't crash, they'll just self-heal.
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
       process.exit(1);
     }
+    logger.info({ port }, "Server listening — starting auto-migrate in background");
+  });
 
-    logger.info({ port }, "Server listening");
+  // Run auto-migrate in the background (non-blocking). Don't await it.
+  autoMigrate().catch((err) => {
+    logger.error({ err: String(err).slice(0, 500) }, "auto-migrate failed in background — server still running, routes will self-heal on demand");
   });
 }
 
