@@ -371,6 +371,42 @@ async function autoMigrate() {
       ALTER TABLE "TeamJoinRequest" ADD CONSTRAINT "TeamJoinRequest_userId_fkey"
         FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE;
     EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    // ─── Premium-Only Referral Giveaway tables ──────────────────────────
+    // NEW giveaway type. Only premium members can enter. Each successful
+    // referral within the round window = 1 chance in the weighted random
+    // draw. 10 winners per 15-day round. See premium-giveaway.ts route.
+    `CREATE TABLE IF NOT EXISTS "PremiumGiveawayRound" (
+      "id" TEXT NOT NULL,
+      "roundNumber" INTEGER NOT NULL,
+      "startDate" TIMESTAMP(3) NOT NULL,
+      "endDate" TIMESTAMP(3) NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "winnersJson" TEXT,
+      "winnerCount" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "PremiumGiveawayRound_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "PremiumGiveawayRound_roundNumber_key" ON "PremiumGiveawayRound"("roundNumber")`,
+    `CREATE INDEX IF NOT EXISTS "PremiumGiveawayRound_status_idx" ON "PremiumGiveawayRound"("status")`,
+    `CREATE TABLE IF NOT EXISTS "PremiumGiveawayEntry" (
+      "id" TEXT NOT NULL,
+      "roundId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "enteredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "PremiumGiveawayEntry_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "PremiumGiveawayEntry_roundId_userId_key" ON "PremiumGiveawayEntry"("roundId", "userId")`,
+    `CREATE INDEX IF NOT EXISTS "PremiumGiveawayEntry_roundId_idx" ON "PremiumGiveawayEntry"("roundId")`,
+    `DO $$ BEGIN
+      ALTER TABLE "PremiumGiveawayEntry" ADD CONSTRAINT "PremiumGiveawayEntry_roundId_fkey"
+        FOREIGN KEY ("roundId") REFERENCES "PremiumGiveawayRound"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN
+      ALTER TABLE "PremiumGiveawayEntry" ADD CONSTRAINT "PremiumGiveawayEntry_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   ];
 
   // Run giveaway/streak/team-join table creation — track success/failure counts
@@ -406,7 +442,7 @@ async function autoMigrate() {
   // tables ACTUALLY exist (the CREATE TABLE could have failed silently even
   // if no error was thrown, e.g. due to a connection pooler quirk). Log a
   // clear PASS/FAIL for each expected table.
-  const expectedGiveawayTables = ['GiveawayRound', 'GiveawayParticipant', 'UserStreak', 'TeamJoinRequest'];
+  const expectedGiveawayTables = ['GiveawayRound', 'GiveawayParticipant', 'UserStreak', 'TeamJoinRequest', 'PremiumGiveawayRound', 'PremiumGiveawayEntry'];
   for (const t of expectedGiveawayTables) {
     try {
       const result = await db.$queryRaw<{ exists: boolean }[]>`
@@ -434,6 +470,36 @@ async function autoMigrate() {
     } catch (err) {
       logger.warn({ err: String(err).slice(0, 200), sql: sql.slice(0, 100) }, 'auto-migrate: chat table skipped');
     }
+  }
+
+  // ─── ONE-TIME: Finish the old monthly Oats referral contest ───────────
+  // The user retired the Oats Pack referral contest and replaced it with
+  // the new premium-only 15-day giveaway. We mark all currently-active
+  // ReferralContestRound rows as completed (without winners — past winners
+  // from earlier completed rounds remain visible in the "Winners" tab).
+  // This is guarded by an AppSetting flag so it only runs ONCE per DB.
+  try {
+    const alreadyDone = await db.appSetting.findUnique({
+      where: { key: 'referral_contest_retired_v1' },
+    });
+    if (!alreadyDone) {
+      const result = await db.$executeRawUnsafe(
+        `UPDATE "ReferralContestRound" SET status = 'completed', "updatedAt" = CURRENT_TIMESTAMP WHERE status = 'active'`
+      );
+      logger.info(
+        { rowsUpdated: result },
+        'auto-migrate: ONE-TIME retired all active ReferralContestRound rows (Oats Pack contest finished)'
+      );
+      await db.appSetting.create({
+        data: { key: 'referral_contest_retired_v1', value: '1' },
+      });
+      logger.info('auto-migrate: marked referral_contest_retired_v1 = done');
+    }
+  } catch (err) {
+    // Non-fatal — if AppSetting table doesn't exist yet or this fails for
+    // any reason, the referral contest will still auto-roll when its
+    // endDate passes (existing behavior).
+    logger.warn({ err: String(err).slice(0, 300) }, 'auto-migrate: one-time referral contest retire skipped');
   }
 
   for (const sql of [...statements, ...constraintStatements, ...tableStatements]) {

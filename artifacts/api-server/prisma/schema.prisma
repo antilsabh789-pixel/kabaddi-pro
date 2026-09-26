@@ -81,6 +81,7 @@ model User {
   streak            UserStreak?
   joinRequests      TeamJoinRequest[] @relation("UserJoinRequests")
   referralContestEntries ReferralContestParticipant[] @relation("UserReferralContestEntries")
+  premiumGiveawayEntries PremiumGiveawayEntry[] @relation("UserPremiumGiveawayEntries")
 }
 
 model PlayerProfile {
@@ -1047,6 +1048,45 @@ model ReferralContestParticipant {
 
   round ReferralContestRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
   user  User                  @relation("UserReferralContestEntries", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+  @@index([roundId])
+}
+
+// ─── Premium-Only Referral Giveaway ──────────────────────────────────
+// NEW giveaway type (replaces the retired 15-day random draw AND the
+// monthly Oats referral contest). Only premium members can enter. Each
+// successful referral within the round window = 1 "chance" in the
+// weighted random draw. 10 winners per 15-day round:
+//   1st: 1kg Protein Powder Box
+//   2nd: Mat Shoes
+//   3rd: Kabaddi Kit
+//   4th–10th: Water Bottle Shaker
+model PremiumGiveawayRound {
+  id          String   @id @default(cuid())
+  roundNumber Int      @unique // sequential 1, 2, 3...
+  startDate   DateTime
+  endDate     DateTime // 15 days after startDate
+  status      String   @default("active") // active, completed
+  // JSON array of winner user IDs in rank order: '["u1","u2",...,"u10"]'
+  winnersJson String?
+  winnerCount Int      @default(0) // 10 (or fewer if not enough participants)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries PremiumGiveawayEntry[]
+
+  @@index([status])
+}
+
+model PremiumGiveawayEntry {
+  id        String   @id @default(cuid())
+  roundId   String
+  userId    String
+  enteredAt DateTime @default(now())
+
+  round PremiumGiveawayRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User                 @relation("UserPremiumGiveawayEntries", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([roundId, userId])
   @@index([roundId])

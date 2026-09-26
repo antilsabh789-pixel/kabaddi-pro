@@ -17,6 +17,7 @@ import chatRouter from "./chat";
 import adminRouter from "./admin";
 import communityTournamentsRouter from "./community-tournaments";
 import referralContestRouter from "./referral-contest";
+import premiumGiveawayRouter from "./premium-giveaway";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(streakRouter);
 router.use(chatRouter);
 router.use(adminRouter);
 router.use(referralContestRouter);
+router.use(premiumGiveawayRouter);
 
 export default router;
